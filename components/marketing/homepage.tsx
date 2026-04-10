@@ -39,7 +39,7 @@ const trustSignals = [
   { value: "4", label: "License pathways spanning campaign, broadcast, promo, and exclusive use" }
 ];
 
-export default function HomePage() {
+export function Homepage() {
   return (
     <main>
       <PageHero
@@ -65,6 +65,7 @@ export default function HomePage() {
                 fill
                 className="object-cover"
                 priority
+                sizes="100vw"
               />
             </div>
             <div className="rounded-lg border border-border bg-card p-5">

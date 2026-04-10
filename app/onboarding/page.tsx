@@ -12,7 +12,7 @@ export default async function OnboardingEntryPage({
   const user = await getSessionUser();
 
   if (!user) {
-    redirect("/login");
+    redirect("/login?redirectTo=/onboarding");
   }
 
   if (user.role === "admin") {

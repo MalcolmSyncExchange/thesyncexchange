@@ -7,9 +7,10 @@ import { redirect } from "next/navigation";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { generateAgreementPlaceholder } from "@/lib/license";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
-import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { resolveRoleRedirect } from "@/services/auth/session";
+import type { Database } from "@/types/database";
 import type { SessionUser } from "@/types/models";
 import { getBuyerTrackBySlug } from "@/services/buyer/queries";
 
@@ -42,54 +43,62 @@ export async function createOrderAction(formData: FormData) {
     redirect(agreement.agreementUrl + `?trackId=${encodeURIComponent(trackId)}&licenseTypeId=${encodeURIComponent(licenseTypeId)}`);
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) {
-    redirect(`/buyer/checkout/${trackSlug}?error=Supabase%20service%20role%20key%20is%20missing.`);
-  }
-
-  const { data: order, error } = await supabase
-    .from("orders")
-    .insert({
-      buyer_user_id: user.id,
-      track_id: trackId,
-      license_type_id: licenseTypeId,
-      amount_paid: amountPaid,
-      currency: "USD",
-      order_status: "pending",
-      agreement_url: null
-    })
-    .select("id, amount_paid, currency")
-    .single();
-
-  if (error || !order) {
-    redirect(`/buyer/checkout/${trackSlug}?error=${encodeURIComponent(error?.message || "Unable to create order.")}`);
-  }
-
   if (!env.stripeSecretKey) {
-    await supabase.from("orders").delete().eq("id", order.id);
     redirect(`/buyer/checkout/${trackSlug}?error=Stripe%20is%20not%20configured%20for%20this%20environment.`);
   }
 
+  const supabase = createPrivilegedSupabaseClient();
+  const orderId = crypto.randomUUID();
+  const amountCents = Math.round(amountPaid * 100);
+  let checkoutSessionId: string | null = null;
+
   try {
+    const { data: order, error } = await supabase
+      .from("orders")
+      .insert({
+        id: orderId,
+        buyer_user_id: user.id,
+        track_id: trackId,
+        license_type_id: licenseTypeId,
+        amount_cents: amountCents,
+        currency: "USD",
+        status: "pending",
+        agreement_url: null
+      })
+      .select("id")
+      .single();
+
+    if (error || !order) {
+      throw new Error(error?.message || "Unable to create order.");
+    }
+
     const session = await createStripeCheckoutSession({
-      orderId: order.id,
+      orderId,
       trackTitle: track.title,
       trackSlug: track.slug,
       licenseName: selectedLicense.name,
-      amount: order.amount_paid,
-      currency: order.currency,
+      amountCents,
+      currency: "USD",
       buyerEmail: user.email
     });
+    checkoutSessionId = session.id;
 
-    await supabase
+    const checkoutCreatedAt = new Date().toISOString();
+    const { error: updateError } = await supabase
       .from("orders")
       .update({
-        stripe_checkout_session_id: session.id
+        stripe_checkout_session_id: checkoutSessionId,
+        checkout_created_at: checkoutCreatedAt
       })
-      .eq("id", order.id);
+      .eq("id", orderId);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
 
     revalidatePath("/buyer/dashboard");
     revalidatePath("/buyer/orders");
+    revalidatePath(`/license-confirmation/${orderId}`);
 
     if (!session.url) {
       throw new Error("Stripe did not return a hosted checkout URL.");
@@ -97,7 +106,10 @@ export async function createOrderAction(formData: FormData) {
 
     redirect(session.url);
   } catch (checkoutError) {
-    await supabase.from("orders").delete().eq("id", order.id);
+    if (!checkoutSessionId) {
+      await supabase.from("orders").delete().eq("id", orderId);
+    }
+
     redirect(
       `/buyer/checkout/${trackSlug}?error=${encodeURIComponent(
         checkoutError instanceof Error ? checkoutError.message : "Unable to start Stripe checkout."
@@ -124,10 +136,7 @@ export async function toggleFavoriteAction(formData: FormData) {
     return;
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) {
-    return;
-  }
+  const supabase = createPrivilegedSupabaseClient();
 
   if (nextValue === "true") {
     await supabase.from("favorites").upsert(
@@ -171,7 +180,14 @@ async function requireBuyerUser(): Promise<SessionUser> {
     redirect("/login");
   }
 
-  const role = user.user_metadata?.role;
+  const { data: persistedProfile } = (await supabase
+    .from("user_profiles")
+    .select("role, full_name")
+    .eq("id", user.id)
+    .maybeSingle()) as {
+    data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "role" | "full_name"> | null;
+  };
+  const role = persistedProfile?.role || user.user_metadata?.role;
   if (role !== "buyer") {
     redirect(resolveRoleRedirect(role === "artist" || role === "buyer" || role === "admin" ? role : null));
   }
@@ -180,6 +196,6 @@ async function requireBuyerUser(): Promise<SessionUser> {
     id: user.id,
     email: user.email,
     role: "buyer",
-    fullName: String(user.user_metadata?.full_name || user.email.split("@")[0])
+    fullName: String(persistedProfile?.full_name || user.user_metadata?.full_name || user.email.split("@")[0])
   };
 }

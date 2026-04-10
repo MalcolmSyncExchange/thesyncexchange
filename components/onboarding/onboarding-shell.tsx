@@ -15,13 +15,14 @@ export function OnboardingShell({
   roleLabel: string;
   title: string;
   description: string;
-  steps: Array<{ id: string; label: string }>;
+  steps: Array<{ id: string; label: string; summary?: string }>;
   currentStepIndex: number;
   children: ReactNode;
 }) {
   const safeStepIndex = Math.max(currentStepIndex, 0);
   const progressValue = ((safeStepIndex + 1) / steps.length) * 100;
   const activeStep = steps[safeStepIndex];
+  const nextStep = steps[safeStepIndex + 1];
   const remainingSteps = Math.max(steps.length - (safeStepIndex + 1), 0);
 
   return (
@@ -55,11 +56,13 @@ export function OnboardingShell({
 
             <div className="mt-8">
               <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                <span>{activeStep?.label || "Onboarding"}</span>
+                <span>Current step</span>
                 <ChevronRight className="h-3.5 w-3.5" />
+                <span>{activeStep?.label || "Onboarding"}</span>
               </div>
               <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground sm:text-[2rem]">{title}</h1>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
+              {activeStep?.summary ? <p className="mt-4 text-sm font-medium text-foreground/90">{activeStep.summary}</p> : null}
             </div>
 
             <div className="mt-8 rounded-lg border border-border bg-background/70 p-4">
@@ -74,6 +77,14 @@ export function OnboardingShell({
                 <span className="inline-flex h-2 w-2 rounded-full bg-accent" />
                 Progress is saved between steps so you can resume without losing context.
               </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-border bg-background/70 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Up next</p>
+              <p className="mt-2 text-sm font-medium text-foreground">{nextStep?.label || "Final handoff"}</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {nextStep?.summary || "The next action opens the workspace that matches the setup you just completed."}
+              </p>
             </div>
 
             <div className="relative mt-8">
@@ -95,9 +106,7 @@ export function OnboardingShell({
                       </span>
                       <div className="pt-0.5">
                         <p className={cn("text-sm font-medium", status === "upcoming" ? "text-muted-foreground" : "text-foreground")}>{step.label}</p>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                          {status === "complete" ? "Saved and ready" : status === "current" ? "Current step" : "Queued next"}
-                        </p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.summary || (status === "complete" ? "Saved and ready" : status === "current" ? "Current step" : "Queued next")}</p>
                       </div>
                     </li>
                   );

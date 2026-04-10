@@ -1,7 +1,5 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthFooterLink, AuthPageShell, AuthPanel, AuthStatusMessage } from "@/components/forms/auth-form";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updatePasswordAction } from "@/services/auth/actions";
@@ -12,29 +10,39 @@ export default function ResetPasswordPage({
   searchParams?: { error?: string };
 }) {
   return (
-    <Card className="mx-auto max-w-lg">
-      <CardHeader>
-        <CardTitle>Create a new password</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <AuthPageShell
+      eyebrow="Password update"
+      title="Create a new password"
+      description="Set a new password for the account and return directly to login with the updated credentials."
+      highlights={[
+        { label: "Protected flow", value: "This screen is intended to be reached from the verified recovery link." },
+        { label: "Immediate handoff", value: "Once the password is updated, the flow returns to login." },
+        { label: "Account continuity", value: "Onboarding and dashboard routing remain intact after sign-in." }
+      ]}
+    >
+      <AuthPanel
+        eyebrow="New password"
+        title="Update password"
+        description="Choose a secure password you’ll use for future sign-ins."
+      >
         <form action={updatePasswordAction} className="space-y-5">
-          {searchParams?.error ? <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{searchParams.error}</div> : null}
+          <AuthStatusMessage error={searchParams?.error} />
           <div className="space-y-2">
-            <Label>New password</Label>
-            <Input name="password" type="password" required />
+            <Label htmlFor="password">New password</Label>
+            <Input id="password" name="password" type="password" required className="h-11" />
           </div>
           <div className="space-y-2">
-            <Label>Confirm password</Label>
-            <Input name="confirmPassword" type="password" required />
+            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Input id="confirmPassword" name="confirmPassword" type="password" required className="h-11" />
           </div>
-          <Button className="w-full" type="submit">
+          <FormSubmitButton className="w-full" pendingLabel="Updating password...">
             Update password
-          </Button>
+          </FormSubmitButton>
+          <div className="text-sm text-muted-foreground">
+            <AuthFooterLink href="/login" label="Need to return?" actionLabel="Back to login" />
+          </div>
         </form>
-        <Link href="/login" className="block text-sm text-muted-foreground hover:text-foreground">
-          Back to login
-        </Link>
-      </CardContent>
-    </Card>
+      </AuthPanel>
+    </AuthPageShell>
   );
 }

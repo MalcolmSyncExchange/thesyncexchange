@@ -70,6 +70,10 @@ export default async function LicenseConfirmationPage({
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
               Payment confirmation is still syncing. If this page stays pending after Stripe checkout, verify the Stripe webhook is forwarding to
               {" "}
+              <span className="font-medium">/api/webhook</span>
+              {" "}
+              or
+              {" "}
               <span className="font-medium">/api/webhooks/stripe</span>.
             </div>
           ) : null}
@@ -86,7 +90,21 @@ export default async function LicenseConfirmationPage({
                 <p key={item}>{item}</p>
               ))}
             </div>
-            {order ? <div className="mt-5"><OrderStatusProgress status={order.order_status} /></div> : null}
+            {order ? (
+              <div className="mt-5">
+                <OrderStatusProgress
+                  status={order.order_status}
+                  stripe_checkout_session_id={order.stripe_checkout_session_id}
+                  stripe_payment_intent_id={order.stripe_payment_intent_id}
+                  agreement_url={order.agreement_url}
+                  checkout_created_at={order.checkout_created_at}
+                  paid_at={order.paid_at}
+                  agreement_generated_at={order.agreement_generated_at}
+                  fulfilled_at={order.fulfilled_at}
+                  refunded_at={order.refunded_at}
+                />
+              </div>
+            ) : null}
           </div>
           <Button asChild>
             <Link href="/buyer/orders">View order history</Link>

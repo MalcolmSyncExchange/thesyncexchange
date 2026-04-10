@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { env, hasStripeEnv, hasSupabaseEnv } from "@/lib/env";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
-import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
 export async function POST(request: Request) {
@@ -26,10 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase service role key is missing." }, { status: 500 });
-  }
+  const supabase = createPrivilegedSupabaseClient();
 
   const { data: order } = await supabase
     .from("orders")
@@ -37,7 +34,7 @@ export async function POST(request: Request) {
       `
         id,
         buyer_user_id,
-        amount_paid,
+        amount_cents,
         currency,
         tracks (
           title,
@@ -64,7 +61,7 @@ export async function POST(request: Request) {
     trackTitle: (order as any).tracks?.title || "The Sync Exchange License",
     trackSlug: (order as any).tracks?.slug || "catalog",
     licenseName: (order as any).license_types?.name || "License",
-    amount: Number((order as any).amount_paid || 0),
+    amountCents: Number((order as any).amount_cents || 0),
     currency: String((order as any).currency || "USD"),
     buyerEmail: user.email || undefined
   });

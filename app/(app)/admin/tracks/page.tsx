@@ -10,7 +10,7 @@ export default async function AdminTracksPage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-semibold">Track management</h1>
       <div className="space-y-4">
-        {tracks.map((track) => (
+        {tracks.map((track: (typeof tracks)[number]) => (
           <div key={track.id} className="rounded-lg border border-border bg-background p-5">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>

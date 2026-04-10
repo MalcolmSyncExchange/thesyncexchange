@@ -4,6 +4,15 @@ const acceptedArtworkExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 const acceptedAudioExtensions = [".mp3", ".wav", ".aiff", ".flac"];
 const acceptedWaveformExtensions = [".json", ".png", ".jpg", ".jpeg", ".webp"];
 
+function hasAllowedAssetExtension(value: string, allowedExtensions: string[]) {
+  if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
+    return true;
+  }
+
+  const normalizedValue = value.split("?")[0]?.split("#")[0]?.toLowerCase() || value.toLowerCase();
+  return allowedExtensions.some((ext) => normalizedValue.endsWith(ext));
+}
+
 export const assetRules = {
   coverArt: {
     label: "Cover art",
@@ -29,29 +38,38 @@ export const rightsHolderSchema = z.object({
   ownershipPercent: z.coerce.number().min(0).max(100)
 });
 
-const trackSubmissionBaseSchema = z
-  .object({
-    title: z.string().min(2, "Track title is required"),
-    description: z.string().min(20, "Add a stronger description"),
-    genre: z.string().min(1, "Genre is required"),
-    subgenre: z.string().min(1, "Subgenre is required"),
-    moods: z.string().min(1, "Add at least one mood"),
-    bpm: z.coerce.number().min(40, "BPM must be at least 40").max(220, "BPM must be below 220"),
-    key: z.string().min(1, "Key is required"),
-    duration: z.coerce.number().min(30, "Duration must be at least 30 seconds").max(900, "Duration must be under 15 minutes"),
-    instrumental: z.boolean(),
-    vocals: z.boolean(),
-    explicit: z.boolean(),
-    lyrics: z.string().optional(),
-    releaseYear: z.coerce.number().min(1950).max(2030),
-    priceDigital: z.coerce.number().min(100),
-    priceBroadcast: z.coerce.number().min(100),
-    priceExclusive: z.coerce.number().min(1000),
-    saveMode: z.enum(["draft", "publish"]),
-    rightsHolders: z.array(rightsHolderSchema).min(1, "Add at least one rights holder")
-  })
-  .superRefine((value, ctx) => {
-    const total = value.rightsHolders.reduce((sum, holder) => sum + holder.ownershipPercent, 0);
+const storageAssetSchema = z.object({
+  bucket: z.string().min(1),
+  path: z.string().min(1)
+});
+
+const trackSubmissionObjectSchema = z.object({
+  title: z.string().min(2, "Track title is required"),
+  description: z.string().min(20, "Add a stronger description"),
+  genre: z.string().min(1, "Genre is required"),
+  subgenre: z.string().min(1, "Subgenre is required"),
+  moods: z.string().min(1, "Add at least one mood"),
+  bpm: z.coerce.number().min(40, "BPM must be at least 40").max(220, "BPM must be below 220"),
+  key: z.string().min(1, "Key is required"),
+  duration: z.coerce.number().min(30, "Duration must be at least 30 seconds").max(900, "Duration must be under 15 minutes"),
+  instrumental: z.boolean(),
+  vocals: z.boolean(),
+  explicit: z.boolean(),
+  lyrics: z.string().optional(),
+  releaseYear: z.coerce.number().min(1950).max(2030),
+  priceDigital: z.coerce.number().min(100),
+  priceBroadcast: z.coerce.number().min(100),
+  priceExclusive: z.coerce.number().min(1000),
+  saveMode: z.enum(["draft", "publish"]),
+  rightsHolders: z.array(rightsHolderSchema).min(1, "Add at least one rights holder")
+});
+
+type TrackSubmissionBaseInput = z.infer<typeof trackSubmissionObjectSchema>;
+
+function applyTrackSubmissionRules<T extends z.ZodTypeAny>(schema: T) {
+  return schema.superRefine((value, ctx) => {
+    const normalizedValue = value as TrackSubmissionBaseInput;
+    const total = normalizedValue.rightsHolders.reduce((sum, holder) => sum + holder.ownershipPercent, 0);
     if (Math.abs(total - 100) > 0.001) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -60,7 +78,7 @@ const trackSubmissionBaseSchema = z
       });
     }
 
-    if (value.instrumental && value.vocals) {
+    if (normalizedValue.instrumental && normalizedValue.vocals) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["vocals"],
@@ -68,37 +86,46 @@ const trackSubmissionBaseSchema = z
       });
     }
   });
+}
+
+const trackSubmissionBaseSchema = applyTrackSubmissionRules(trackSubmissionObjectSchema);
 
 export const trackSubmissionClientSchema = trackSubmissionBaseSchema;
 
-export const trackSubmissionServerSchema = trackSubmissionBaseSchema.extend({
-  coverArtUrl: z
+export const trackSubmissionServerSchema = applyTrackSubmissionRules(trackSubmissionObjectSchema.extend({
+  coverArtPath: z
     .string()
     .min(1, "Cover art upload is required")
-    .refine((value) => acceptedArtworkExtensions.some((ext) => value.toLowerCase().includes(ext)), {
+    .refine((value) => hasAllowedAssetExtension(value, acceptedArtworkExtensions), {
       message: "Cover art upload must resolve to JPG, PNG, or WEBP."
     }),
-  audioFileUrl: z
+  audioFilePath: z
     .string()
     .min(1, "Audio upload is required")
-    .refine((value) => acceptedAudioExtensions.some((ext) => value.toLowerCase().includes(ext)), {
+    .refine((value) => hasAllowedAssetExtension(value, acceptedAudioExtensions), {
       message: "Audio upload must resolve to MP3, WAV, AIFF, or FLAC."
     }),
-  waveformPreviewUrl: z
+  previewFilePath: z
     .string()
     .optional()
-    .refine((value) => !value || acceptedWaveformExtensions.some((ext) => value.toLowerCase().includes(ext)), {
+    .refine((value) => !value || hasAllowedAssetExtension(value, acceptedAudioExtensions), {
+      message: "Preview audio must be MP3, WAV, AIFF, or FLAC."
+    }),
+  waveformPath: z
+    .string()
+    .optional()
+    .refine((value) => !value || hasAllowedAssetExtension(value, acceptedWaveformExtensions), {
       message: "Waveform preview must be JSON or an image file."
     }),
-  uploadedAssetPaths: z.array(z.string()).default([])
-});
+  uploadedAssets: z.array(storageAssetSchema).default([])
+}));
 
 export type TrackSubmissionValues = z.infer<typeof trackSubmissionClientSchema>;
 export type PersistedTrackSubmissionValues = z.infer<typeof trackSubmissionServerSchema>;
 
 export function parseTrackSubmissionFormData(formData: FormData): PersistedTrackSubmissionValues {
   const rightsHolders = JSON.parse(String(formData.get("rightsHolders") || "[]"));
-  const uploadedAssetPaths = JSON.parse(String(formData.get("uploadedAssetPaths") || "[]"));
+  const uploadedAssets = JSON.parse(String(formData.get("uploadedAssets") || "[]"));
 
   return trackSubmissionServerSchema.parse({
     title: String(formData.get("title") || ""),
@@ -114,15 +141,16 @@ export function parseTrackSubmissionFormData(formData: FormData): PersistedTrack
     explicit: formData.get("explicit") === "on",
     lyrics: String(formData.get("lyrics") || ""),
     releaseYear: Number(formData.get("releaseYear") || 0),
-    coverArtUrl: String(formData.get("coverArtUrl") || ""),
-    audioFileUrl: String(formData.get("audioFileUrl") || ""),
-    waveformPreviewUrl: String(formData.get("waveformPreviewUrl") || ""),
+    coverArtPath: String(formData.get("coverArtPath") || ""),
+    audioFilePath: String(formData.get("audioFilePath") || ""),
+    previewFilePath: String(formData.get("previewFilePath") || ""),
+    waveformPath: String(formData.get("waveformPath") || ""),
     priceDigital: Number(formData.get("priceDigital") || 0),
     priceBroadcast: Number(formData.get("priceBroadcast") || 0),
     priceExclusive: Number(formData.get("priceExclusive") || 0),
     saveMode: formData.get("saveMode") === "publish" ? "publish" : "draft",
     rightsHolders,
-    uploadedAssetPaths
+    uploadedAssets
   });
 }
 

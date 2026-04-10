@@ -1,27 +1,40 @@
 "use client";
 
-import { env } from "@/lib/env";
+import {
+  buildTrackAssetPath,
+  getPublicStorageUrl,
+  getTrackAssetBucket,
+  groupStorageAssetsByBucket,
+  type StorageAssetRef,
+  type TrackAssetKind
+} from "@/lib/storage";
 import { createBrowserSupabaseClient } from "@/services/supabase/client";
 
-export interface UploadedAsset {
-  path: string;
-  publicUrl: string;
+export interface UploadedAsset extends StorageAssetRef {
+  publicUrl: string | null;
 }
 
 export async function uploadTrackAsset({
   file,
   userId,
-  kind
+  kind,
+  scope
 }: {
   file: File;
   userId: string;
-  kind: "cover-art" | "audio" | "waveforms";
+  kind: TrackAssetKind;
+  scope: string;
 }): Promise<UploadedAsset> {
   const supabase = createBrowserSupabaseClient();
-  const extension = file.name.includes(".") ? file.name.split(".").pop() : "bin";
-  const path = `${userId}/${kind}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  const bucket = getTrackAssetBucket(kind);
+  const path = buildTrackAssetPath({
+    userId,
+    scope,
+    kind,
+    fileName: file.name
+  });
 
-  const { error } = await supabase.storage.from(env.trackAssetsBucket).upload(path, file, {
+  const { error } = await supabase.storage.from(bucket).upload(path, file, {
     cacheControl: "3600",
     upsert: false,
     contentType: file.type || undefined
@@ -31,19 +44,22 @@ export async function uploadTrackAsset({
     throw new Error(error.message);
   }
 
-  const { data } = supabase.storage.from(env.trackAssetsBucket).getPublicUrl(path);
-
   return {
+    bucket,
     path,
-    publicUrl: data.publicUrl
+    publicUrl: getPublicStorageUrl(bucket, path)
   };
 }
 
-export async function deleteTrackAssets(paths: string[]) {
-  if (!paths.length) {
+export async function deleteTrackAssets(assets: StorageAssetRef[]) {
+  if (!assets.length) {
     return;
   }
 
   const supabase = createBrowserSupabaseClient();
-  await supabase.storage.from(env.trackAssetsBucket).remove(paths);
+  const grouped = groupStorageAssetsByBucket(assets);
+
+  await Promise.all(
+    Array.from(grouped.entries()).map(([bucket, paths]) => supabase.storage.from(bucket).remove(paths))
+  );
 }

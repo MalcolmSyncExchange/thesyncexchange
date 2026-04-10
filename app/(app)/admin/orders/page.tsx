@@ -22,7 +22,7 @@ export default async function AdminOrdersPage() {
                   <div>
                     <p className="font-medium">{order.track_title || "Track"}</p>
                     <p className="text-sm text-muted-foreground">
-                      {order.license_name || "License"} • {order.buyer_name || "Buyer"} • {formatCurrency(order.amount_paid)}
+                      {order.license_name || "License"} • {order.buyer_name || "Buyer"} • {formatCurrency(order.amount_paid, order.currency)}
                     </p>
                   </div>
                   <div className="space-y-2 text-right">
@@ -31,11 +31,27 @@ export default async function AdminOrdersPage() {
                   </div>
                 </div>
 
-                <OrderStatusProgress status={order.order_status} />
+                <OrderStatusProgress
+                  status={order.order_status}
+                  stripe_checkout_session_id={order.stripe_checkout_session_id}
+                  stripe_payment_intent_id={order.stripe_payment_intent_id}
+                  agreement_url={order.agreement_url}
+                  checkout_created_at={order.checkout_created_at}
+                  paid_at={order.paid_at}
+                  agreement_generated_at={order.agreement_generated_at}
+                  fulfilled_at={order.fulfilled_at}
+                  refunded_at={order.refunded_at}
+                />
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">Order ID {order.id}</p>
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      {order.stripe_checkout_session_id ? <span>Checkout {order.stripe_checkout_session_id.slice(0, 18)}...</span> : null}
+                      {order.stripe_payment_intent_id ? <span>Payment {order.stripe_payment_intent_id.slice(0, 18)}...</span> : null}
+                      {order.paid_at ? <span>Paid recorded</span> : null}
+                      {order.agreement_generated_at ? <span>Agreement ready</span> : null}
+                    </div>
                     {order.agreement_url ? (
                       <Link href={order.agreement_url} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
                         Open agreement artifact

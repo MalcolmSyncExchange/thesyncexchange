@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { env } from "@/lib/env";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import type { Database } from "@/types/database";
 
 let stripeClient: Stripe | null = null;
 
@@ -29,7 +30,7 @@ export async function createStripeCheckoutSession({
   trackTitle,
   trackSlug,
   licenseName,
-  amount,
+  amountCents,
   currency,
   buyerEmail
 }: {
@@ -37,7 +38,7 @@ export async function createStripeCheckoutSession({
   trackTitle: string;
   trackSlug: string;
   licenseName: string;
-  amount: number;
+  amountCents: number;
   currency: string;
   buyerEmail?: string;
 }) {
@@ -60,7 +61,7 @@ export async function createStripeCheckoutSession({
         quantity: 1,
         price_data: {
           currency: currency.toLowerCase(),
-          unit_amount: Math.round(amount * 100),
+          unit_amount: Math.round(amountCents),
           product_data: {
             name: `${trackTitle} - ${licenseName}`,
             description: "The Sync Exchange hosted sync licensing checkout."
@@ -90,18 +91,42 @@ export async function syncOrderFromStripeSession({
     return null;
   }
 
+  const { data: existingOrder, error: existingOrderError } = await supabase
+    .from("orders")
+    .select(
+      "id, status, stripe_checkout_session_id, stripe_payment_intent_id, agreement_url, checkout_created_at, paid_at, agreement_generated_at, fulfilled_at, refunded_at"
+    )
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (existingOrderError) {
+    throw new Error(existingOrderError.message);
+  }
+
+  if (!existingOrder) {
+    throw new Error("Order not found for Stripe fulfillment.");
+  }
+
   const paymentIntentId =
     typeof session.payment_intent === "string"
       ? session.payment_intent
       : session.payment_intent?.id || null;
-  const orderStatus = session.payment_status === "paid" ? "paid" : "pending";
+  const paidAt = session.payment_status === "paid" ? existingOrder.paid_at || stripeTimestampToIso(session.created) : existingOrder.paid_at;
+  const orderStatus =
+    existingOrder.status === "fulfilled" || existingOrder.status === "refunded"
+      ? existingOrder.status
+      : session.payment_status === "paid"
+        ? "paid"
+        : existingOrder.status;
 
   const { data, error } = await supabase
     .from("orders")
     .update({
-      stripe_checkout_session_id: session.id,
-      stripe_payment_intent_id: paymentIntentId,
-      order_status: orderStatus
+      stripe_checkout_session_id: existingOrder.stripe_checkout_session_id || session.id,
+      stripe_payment_intent_id: existingOrder.stripe_payment_intent_id || paymentIntentId,
+      checkout_created_at: existingOrder.checkout_created_at || stripeTimestampToIso(session.created),
+      paid_at: paidAt,
+      status: orderStatus
     })
     .eq("id", orderId)
     .select("*")
@@ -111,11 +136,16 @@ export async function syncOrderFromStripeSession({
     throw new Error(error.message);
   }
 
-  if (orderStatus === "paid") {
+  if (
+    session.payment_status === "paid" &&
+    existingOrder.status !== "refunded" &&
+    !existingOrder.agreement_generated_at &&
+    !existingOrder.agreement_url
+  ) {
     await generateAgreementArtifactForOrder(orderId);
   }
 
-  return data;
+  return data as Database["public"]["Tables"]["orders"]["Row"] | null;
 }
 
 export async function syncOrderFromStripeSessionId(orderId: string, sessionId: string) {
@@ -134,10 +164,12 @@ export async function markOrderRefundedByPaymentIntent(paymentIntentId: string) 
     return null;
   }
 
+  const refundedAt = new Date().toISOString();
   const { data, error } = await supabase
     .from("orders")
     .update({
-      order_status: "refunded"
+      status: "refunded",
+      refunded_at: refundedAt
     })
     .eq("stripe_payment_intent_id", paymentIntentId)
     .select("id")
@@ -147,5 +179,13 @@ export async function markOrderRefundedByPaymentIntent(paymentIntentId: string) 
     throw new Error(error.message);
   }
 
-  return data;
+  return data as Pick<Database["public"]["Tables"]["orders"]["Row"], "id"> | null;
+}
+
+function stripeTimestampToIso(timestamp?: number | null) {
+  if (!timestamp) {
+    return new Date().toISOString();
+  }
+
+  return new Date(timestamp * 1000).toISOString();
 }

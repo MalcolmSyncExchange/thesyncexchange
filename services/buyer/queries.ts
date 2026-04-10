@@ -1,5 +1,7 @@
 import { favorites as demoFavorites, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
+import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
+import { withTrackAudioAccess } from "@/services/storage/server";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { LicenseType, Order, RightsHolder, Track, TrackStatus } from "@/types/models";
 
@@ -20,10 +22,9 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Track
     .select(
       `
         *,
-        rights_holders (*),
         track_license_options (
           id,
-          price_override,
+          price_cents,
           active,
           license_types (
             id,
@@ -31,7 +32,7 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Track
             slug,
             description,
             exclusive,
-            base_price,
+            default_price_cents,
             terms_summary,
             active
           )
@@ -42,22 +43,33 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Track
     .order("featured", { ascending: false })
     .order("created_at", { ascending: false });
 
-  const artistIds = Array.from(new Set((trackRows || []).map((row) => row.artist_user_id)));
+  const normalizedTrackRows = (trackRows || []) as any[];
+  const artistIds = Array.from(new Set(normalizedTrackRows.map((row) => row.artist_user_id)));
+  const trackIds = Array.from(new Set(normalizedTrackRows.map((row) => row.id)));
   const { data: profileRows } = artistIds.length
     ? await supabase.from("artist_profiles").select("user_id, artist_name").in("user_id", artistIds)
     : { data: [] as Array<{ user_id: string; artist_name: string }> };
+  const { data: rightsHolderRows } = trackIds.length
+    ? await supabase.from("track_rights_holders_public").select("*").in("track_id", trackIds)
+    : { data: [] as Array<Record<string, unknown>> };
 
   const artistNameByUserId = new Map((profileRows || []).map((row) => [row.user_id, row.artist_name]));
+  const rightsHoldersByTrackId = groupRightsHoldersByTrackId(rightsHolderRows || []);
   const favoritesByTrackId = buyerUserId ? await getFavoriteTrackIdSet(buyerUserId) : new Set<string>();
 
-  return (trackRows || []).map((row) =>
-    mapTrack(row, artistNameByUserId.get(row.artist_user_id) || "Artist", favoritesByTrackId.has(row.id))
+  return normalizedTrackRows.map((row) =>
+    mapTrack(row, artistNameByUserId.get(row.artist_user_id) || "Artist", rightsHoldersByTrackId.get(row.id) || [], favoritesByTrackId.has(row.id))
   );
 }
 
 export async function getBuyerTrackBySlug(slug: string, buyerUserId?: string) {
   const tracks = await getBuyerCatalogTracks(buyerUserId);
-  return tracks.find((track) => track.slug === slug) || null;
+  const track = tracks.find((item) => item.slug === slug) || null;
+  if (!track || !hasSupabaseEnv || env.demoMode) {
+    return track;
+  }
+
+  return withTrackAudioAccess(track, "preview");
 }
 
 export async function getBuyerFavorites(buyerUserId: string) {
@@ -96,7 +108,7 @@ export async function getBuyerOrders(buyerUserId: string) {
           slug,
           description,
           exclusive,
-          base_price,
+          default_price_cents,
           terms_summary,
           active
         )
@@ -105,10 +117,17 @@ export async function getBuyerOrders(buyerUserId: string) {
     .eq("buyer_user_id", buyerUserId)
     .order("created_at", { ascending: false });
 
-  return (data || []).map((row: any) => ({
+  return ((data || []) as any[]).map((row) => ({
     ...row,
+    amount_paid: Number(row.amount_cents || 0) / 100,
+    order_status: row.status,
     track: row.tracks || null,
-    license_type: row.license_types || null
+    license_type: row.license_types
+      ? {
+          ...row.license_types,
+          base_price: Number(row.license_types.default_price_cents || 0) / 100
+        }
+      : null
   }));
 }
 
@@ -150,7 +169,7 @@ export async function getOrderById(orderId: string) {
           slug,
           description,
           exclusive,
-          base_price,
+          default_price_cents,
           terms_summary,
           active
         )
@@ -159,12 +178,20 @@ export async function getOrderById(orderId: string) {
     .eq("id", orderId)
     .maybeSingle();
 
-  if (!data) return null;
+  const row = data as any;
+  if (!row) return null;
 
   return {
-    ...data,
-    track: (data as any).tracks || null,
-    license_type: (data as any).license_types || null
+    ...row,
+    amount_paid: Number(row.amount_cents || 0) / 100,
+    order_status: row.status,
+    track: row.tracks || null,
+    license_type: row.license_types
+      ? {
+          ...row.license_types,
+          base_price: Number(row.license_types.default_price_cents || 0) / 100
+        }
+      : null
   };
 }
 
@@ -178,12 +205,12 @@ async function getFavoriteTrackIdSet(buyerUserId: string) {
   return new Set((data || []).map((favorite: { track_id: string }) => favorite.track_id));
 }
 
-function mapTrack(row: any, artistName: string, isFavorite = false): Track & { is_favorite?: boolean } {
-  const rightsHolders: RightsHolder[] = (row.rights_holders || []).map((holder: any) => ({
+function mapTrack(row: any, artistName: string, rightsHolderRows: any[], isFavorite = false): Track & { is_favorite?: boolean } {
+  const rightsHolders: RightsHolder[] = rightsHolderRows.map((holder: any) => ({
     id: holder.id,
     track_id: holder.track_id,
     name: holder.name,
-    email: holder.email,
+    email: holder.email || "",
     role_type: holder.role_type,
     ownership_percent: Number(holder.ownership_percent),
     approval_status: holder.approval_status,
@@ -197,7 +224,8 @@ function mapTrack(row: any, artistName: string, isFavorite = false): Track & { i
       const license = option.license_types as LicenseType;
       return {
         ...license,
-        price_override: option.price_override
+        base_price: Number((option.license_types as any).default_price_cents || 0) / 100,
+        price_override: option.price_cents == null ? null : Number(option.price_cents) / 100
       };
     });
 
@@ -210,26 +238,46 @@ function mapTrack(row: any, artistName: string, isFavorite = false): Track & { i
     description: row.description || "",
     genre: row.genre,
     subgenre: row.subgenre,
-    mood: row.mood || [],
+    mood: row.moods || [],
     bpm: row.bpm,
-    key: row.key,
+    key: row.musical_key,
     duration_seconds: row.duration_seconds,
     instrumental: row.instrumental,
     vocals: row.vocals,
     explicit: row.explicit,
     lyrics: row.lyrics,
     release_year: row.release_year,
-    waveform_preview_url: row.waveform_preview_url,
-    audio_file_url: row.audio_file_url,
-    cover_art_url: row.cover_art_url,
+    cover_art_path: row.cover_art_path,
+    audio_file_path: row.audio_file_path,
+    preview_file_path: row.preview_file_path,
+    waveform_path: row.waveform_path,
+    waveform_preview_url: getPublicStorageUrl(storageBuckets.trackPreviews, row.waveform_path),
+    audio_file_url: null,
+    cover_art_url: getPublicStorageUrl(storageBuckets.coverArt, row.cover_art_path),
     status: row.status as TrackStatus,
     featured: row.featured,
+    approved_at: row.approved_at,
+    approved_by: row.approved_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
     rights_holders: rightsHolders,
     license_options: licenseOptions,
     is_favorite: isFavorite
   };
+}
+
+function groupRightsHoldersByTrackId(rows: any[]) {
+  const grouped = new Map<string, any[]>();
+
+  for (const row of rows) {
+    const trackId = String(row.track_id || "");
+    if (!trackId) continue;
+    const current = grouped.get(trackId) || [];
+    current.push(row);
+    grouped.set(trackId, current);
+  }
+
+  return grouped;
 }
 
 function enrichOrder(order: Order, track: Pick<Track, "id" | "title" | "slug"> | null, license: LicenseType | null) {

@@ -115,7 +115,7 @@ export default async function AdminDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {data.pendingTracks.length ? (
-              data.pendingTracks.map((track) => <ReviewQueueCard key={track.id} track={track} compact />)
+              data.pendingTracks.map((track: (typeof data.pendingTracks)[number]) => <ReviewQueueCard key={track.id} track={track} compact />)
             ) : (
               <EmptyState
                 title="The review queue is clear."
@@ -145,7 +145,7 @@ export default async function AdminDashboardPage() {
               </div>
 
               <div className="space-y-4">
-                {data.flagSummary.map((item) => {
+                {data.flagSummary.map((item: (typeof data.flagSummary)[number]) => {
                   const meta = severityMeta[item.severity];
                   const percent = flagSummaryTotal ? Math.round((item.count / flagSummaryTotal) * 100) : 0;
 
@@ -222,7 +222,7 @@ export default async function AdminDashboardPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {data.recentOrders.length ? (
-            data.recentOrders.map((order) => (
+            data.recentOrders.map((order: (typeof data.recentOrders)[number]) => (
               <div key={order.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="truncate font-medium text-foreground">{order.track_title}</p>

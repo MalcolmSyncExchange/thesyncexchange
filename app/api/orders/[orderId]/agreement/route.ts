@@ -4,9 +4,10 @@ import { demoUsers, licenseTypes, orders, tracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { renderLicenseAgreementHtml } from "@/lib/license";
 import { formatDateTime } from "@/lib/utils";
-import { downloadAgreementArtifact, generateAgreementArtifactForOrder } from "@/services/agreements/server";
+import { createAgreementSignedUrl, downloadAgreementArtifact, generateAgreementArtifactForOrder } from "@/services/agreements/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { createServerSupabaseClient } from "@/services/supabase/server";
+import type { Database } from "@/types/database";
 
 export async function GET(_request: Request, { params }: { params: { orderId: string } }) {
   if (!hasSupabaseEnv || env.demoMode) {
@@ -50,17 +51,26 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const role = String(user.user_metadata?.role || "");
   const supabase = createAdminSupabaseClient();
   if (!supabase) {
     return NextResponse.json({ error: "Supabase service role key is missing." }, { status: 500 });
   }
 
-  const { data: order } = await supabase
+  const { data: viewerProfile } = (await supabase.from("user_profiles").select("role").eq("id", user.id).maybeSingle()) as {
+    data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "role"> | null;
+  };
+  const role = String(viewerProfile?.role || user.user_metadata?.role || "");
+
+  const { data: order } = (await supabase
     .from("orders")
-    .select("id, buyer_user_id, order_status, agreement_url")
+    .select("id, buyer_user_id, status, agreement_url, agreement_generated_at")
     .eq("id", params.orderId)
-    .maybeSingle();
+    .maybeSingle()) as {
+    data: Pick<
+      Database["public"]["Tables"]["orders"]["Row"],
+      "id" | "buyer_user_id" | "status" | "agreement_url" | "agreement_generated_at"
+    > | null;
+  };
 
   if (!order) {
     return NextResponse.json({ error: "Order not found." }, { status: 404 });
@@ -70,13 +80,18 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  if (!order.agreement_url && order.order_status === "pending") {
+  if (!order.agreement_url && order.status === "pending") {
     return NextResponse.json({ error: "Agreement artifact is not ready until payment has completed." }, { status: 409 });
   }
 
   try {
-    if (!order.agreement_url || order.order_status === "paid") {
+    if (!order.agreement_url || !order.agreement_generated_at) {
       await generateAgreementArtifactForOrder(order.id);
+    }
+
+    const signedUrl = await createAgreementSignedUrl(order.id).catch(() => null);
+    if (signedUrl) {
+      return NextResponse.redirect(signedUrl);
     }
 
     const file = await downloadAgreementArtifact(order.id);

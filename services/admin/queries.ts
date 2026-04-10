@@ -1,6 +1,8 @@
 import { adminFlags as demoFlags, demoUsers, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
+import { withTrackAudioAccess } from "@/services/storage/server";
+import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import type { AdminFlagSeverity, LicenseType, OrderStatus, RightsHolder, Track, TrackStatus, VerificationStatus } from "@/types/models";
 
 interface AdminReviewQueueItem {
@@ -64,27 +66,13 @@ export async function getAdminDashboardData() {
     };
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) {
-    return {
-      totalUsers: 0,
-      totalTracks: 0,
-      pendingReviews: 0,
-      totalOrders: 0,
-      openFlags: 0,
-      approvedTracks: 0,
-      grossVolume: 0,
-      pendingTracks: [],
-      recentOrders: [],
-      flagSummary: buildFlagSummary([])
-    };
-  }
+  const supabase = createPrivilegedSupabaseClient();
 
   const [usersResult, tracksResult, rightsResult, flagsResult, reviewNotesResult, profilesResult, ordersResult] = await Promise.all([
-    supabase.from("users").select("id"),
+    supabase.from("user_profiles").select("id"),
     supabase
       .from("tracks")
-      .select("id, title, artist_user_id, genre, subgenre, mood, bpm, duration_seconds, explicit, status, featured, created_at, cover_art_url"),
+      .select("id, title, artist_user_id, genre, subgenre, moods, bpm, duration_seconds, explicit, status, featured, created_at, cover_art_path"),
     supabase.from("rights_holders").select("track_id, ownership_percent"),
     supabase.from("admin_flags").select("id, track_id, status, severity, flag_type, created_at"),
     supabase.from("review_notes").select("id, track_id"),
@@ -94,9 +82,9 @@ export async function getAdminDashboardData() {
       .select(
         `
           id,
-          amount_paid,
+          amount_cents,
           buyer_user_id,
-          order_status,
+          status,
           created_at,
           license_type_id,
           tracks (
@@ -129,15 +117,15 @@ export async function getAdminDashboardData() {
     totalOrders: orderRows.length,
     openFlags: openFlags.length,
     approvedTracks: (tracksResult.data || []).filter((track: any) => track.status === "approved").length,
-    grossVolume: orderRows.reduce((sum: number, order: any) => sum + (order.amount_paid || 0), 0),
+    grossVolume: orderRows.reduce((sum: number, order: any) => sum + Number(order.amount_cents || 0) / 100, 0),
     pendingTracks,
     recentOrders: orderRows.slice(0, 5).map((order: any) => ({
       id: order.id,
       buyer_name: buyerNameById.get(order.buyer_user_id) || "Buyer",
       track_title: order.tracks?.title || "Track",
       license_name: order.license_types?.name || "License",
-      amount_paid: order.amount_paid || 0,
-      order_status: order.order_status,
+      amount_paid: Number(order.amount_cents || 0) / 100,
+      order_status: order.status,
       created_at: order.created_at
     })),
     flagSummary: buildFlagSummary(openFlags.map((flag: any) => (flag.severity || "medium") as AdminFlagSeverity))
@@ -149,13 +137,12 @@ export async function getAdminReviewQueue() {
     return buildDemoReviewQueue();
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return [];
+  const supabase = createPrivilegedSupabaseClient();
 
   const [tracksResult, rightsResult, flagsResult, reviewNotesResult, profilesResult] = await Promise.all([
     supabase
       .from("tracks")
-      .select("id, title, artist_user_id, genre, subgenre, mood, bpm, duration_seconds, explicit, status, featured, created_at, cover_art_url")
+      .select("id, title, artist_user_id, genre, subgenre, moods, bpm, duration_seconds, explicit, status, featured, created_at, cover_art_path")
       .eq("status", "pending_review"),
     supabase.from("rights_holders").select("track_id, ownership_percent"),
     supabase.from("admin_flags").select("id, track_id, status, severity, flag_type, created_at"),
@@ -184,8 +171,7 @@ export async function getAdminTracks() {
     }));
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return [];
+  const supabase = createPrivilegedSupabaseClient();
 
   const [{ data: tracks }, { data: profiles }] = await Promise.all([
     supabase.from("tracks").select("id, title, artist_user_id, genre, status, featured").order("created_at", { ascending: false }),
@@ -213,8 +199,7 @@ export async function getAdminTrackById(trackId: string) {
     };
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return null;
+  const supabase = createPrivilegedSupabaseClient();
 
   const [{ data: trackRow }, { data: profiles }, { data: flags }, { data: reviewNotes }, { data: auditLog }] = await Promise.all([
     supabase
@@ -225,7 +210,7 @@ export async function getAdminTrackById(trackId: string) {
           rights_holders (*),
           track_license_options (
             id,
-            price_override,
+            price_cents,
             active,
             license_types (
               id,
@@ -233,7 +218,7 @@ export async function getAdminTrackById(trackId: string) {
               slug,
               description,
               exclusive,
-              base_price,
+              default_price_cents,
               terms_summary,
               active
             )
@@ -261,7 +246,7 @@ export async function getAdminTrackById(trackId: string) {
   const userNameById = await getUserNameMap(userIds);
 
   return {
-    track: mapTrack(trackRow, artistNameByUserId.get(trackRow.artist_user_id) || "Artist"),
+    track: await withTrackAudioAccess(mapTrack(trackRow, artistNameByUserId.get(trackRow.artist_user_id) || "Artist"), "full"),
     flags: (flags || []).map((flag: any) => ({
       ...flag,
       severity: (flag.severity || "medium") as AdminFlagSeverity,
@@ -291,18 +276,15 @@ export async function getAdminAnalytics() {
     };
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) {
-    return { conversionLabel: "0/0", averageOrderValue: 0, approvalVelocity: "Unavailable" };
-  }
+  const supabase = createPrivilegedSupabaseClient();
 
-  const [tracksResult, ordersResult] = await Promise.all([supabase.from("tracks").select("status"), supabase.from("orders").select("amount_paid")]);
+  const [tracksResult, ordersResult] = await Promise.all([supabase.from("tracks").select("status"), supabase.from("orders").select("amount_cents")]);
 
   const tracks = tracksResult.data || [];
   const orders = ordersResult.data || [];
   const approvedTracks = tracks.filter((track: any) => track.status === "approved").length;
   const pendingTracks = tracks.filter((track: any) => track.status === "pending_review").length;
-  const grossVolume = orders.reduce((sum: number, order: any) => sum + (order.amount_paid || 0), 0);
+  const grossVolume = orders.reduce((sum: number, order: any) => sum + Number(order.amount_cents || 0) / 100, 0);
 
   return {
     conversionLabel: `${approvedTracks}/${tracks.length || 0}`,
@@ -321,8 +303,7 @@ export async function getAdminComplianceFlags() {
     }));
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return [];
+  const supabase = createPrivilegedSupabaseClient();
 
   const { data } = await supabase
     .from("admin_flags")
@@ -363,18 +344,24 @@ export async function getAdminOrders() {
     }));
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return [];
+  const supabase = createPrivilegedSupabaseClient();
 
   const { data } = await supabase
     .from("orders")
     .select(
       `
         id,
-        amount_paid,
+        amount_cents,
         buyer_user_id,
         agreement_url,
-        order_status,
+        status,
+        stripe_checkout_session_id,
+        stripe_payment_intent_id,
+        checkout_created_at,
+        paid_at,
+        agreement_generated_at,
+        fulfilled_at,
+        refunded_at,
         created_at,
         track_id,
         license_type_id,
@@ -392,6 +379,8 @@ export async function getAdminOrders() {
 
   return (data || []).map((order: any) => ({
     ...order,
+    amount_paid: Number(order.amount_cents || 0) / 100,
+    order_status: order.status,
     buyer_name: buyerNameById.get(order.buyer_user_id) || "Buyer",
     track_title: order.tracks?.title || "Track",
     license_name: order.license_types?.name || "License"
@@ -403,10 +392,9 @@ export async function getAdminUsers() {
     return demoUsers;
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return [];
+  const supabase = createPrivilegedSupabaseClient();
 
-  const { data } = await supabase.from("users").select("id, full_name, email, role, created_at").order("created_at", { ascending: false });
+  const { data } = await supabase.from("user_profiles").select("id, full_name, email, role, created_at").order("created_at", { ascending: false });
   return data || [];
 }
 
@@ -496,14 +484,14 @@ function buildReviewQueueItems({
         artist_name: profile?.artist_name || "Artist",
         genre: track.genre,
         subgenre: track.subgenre,
-        mood: track.mood || [],
+        mood: track.moods || [],
         bpm: track.bpm,
         duration_seconds: track.duration_seconds,
         explicit: track.explicit,
         status: track.status as TrackStatus,
         featured: Boolean(track.featured),
         created_at: track.created_at,
-        cover_art_url: track.cover_art_url,
+        cover_art_url: getPublicStorageUrl(storageBuckets.coverArt, track.cover_art_path),
         rights_holder_count: holders.length,
         rights_split_total: holders.reduce((sum: number, holder: any) => sum + Number(holder.ownership_percent || 0), 0),
         open_flag_count: openFlags.length,
@@ -568,7 +556,8 @@ function mapTrack(row: any, artistName: string): Track {
       const license = option.license_types as LicenseType;
       return {
         ...license,
-        price_override: option.price_override
+        base_price: Number((option.license_types as any).default_price_cents || 0) / 100,
+        price_override: option.price_cents == null ? null : Number(option.price_cents) / 100
       };
     });
 
@@ -581,20 +570,26 @@ function mapTrack(row: any, artistName: string): Track {
     description: row.description || "",
     genre: row.genre,
     subgenre: row.subgenre,
-    mood: row.mood || [],
+    mood: row.moods || [],
     bpm: row.bpm,
-    key: row.key,
+    key: row.musical_key,
     duration_seconds: row.duration_seconds,
     instrumental: row.instrumental,
     vocals: row.vocals,
     explicit: row.explicit,
     lyrics: row.lyrics,
     release_year: row.release_year,
-    waveform_preview_url: row.waveform_preview_url,
-    audio_file_url: row.audio_file_url,
-    cover_art_url: row.cover_art_url,
+    cover_art_path: row.cover_art_path,
+    audio_file_path: row.audio_file_path,
+    preview_file_path: row.preview_file_path,
+    waveform_path: row.waveform_path,
+    waveform_preview_url: getPublicStorageUrl(storageBuckets.trackPreviews, row.waveform_path),
+    audio_file_url: null,
+    cover_art_url: getPublicStorageUrl(storageBuckets.coverArt, row.cover_art_path),
     status: row.status as TrackStatus,
     featured: row.featured,
+    approved_at: row.approved_at,
+    approved_by: row.approved_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
     rights_holders: rightsHolders,
@@ -607,11 +602,8 @@ async function getUserNameMap(userIds: string[]) {
     return new Map<string, string>();
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) {
-    return new Map<string, string>();
-  }
+  const supabase = createPrivilegedSupabaseClient();
 
-  const { data } = await supabase.from("users").select("id, full_name, email").in("id", userIds);
+  const { data } = await supabase.from("user_profiles").select("id, full_name, email").in("id", userIds);
   return new Map((data || []).map((user: any) => [user.id, user.full_name || user.email]));
 }

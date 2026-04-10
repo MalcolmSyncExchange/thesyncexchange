@@ -41,7 +41,7 @@ export default async function BuyerTrackDetailPage({ params }: { params: { slug:
           </Button>
         </div>
       </div>
-      <AudioPlayer title={track.title} artist={track.artist_name} />
+      <AudioPlayer title={track.title} artist={track.artist_name} src={track.audio_file_url} />
       <div className="grid gap-6 lg:grid-cols-[1fr,360px]">
         <Card>
           <CardHeader>

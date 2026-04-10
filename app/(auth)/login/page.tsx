@@ -1,19 +1,27 @@
 import Link from "next/link";
 
-import { AuthFooterLink, AuthPageShell, AuthPanel, AuthSessionNotice, AuthStatusMessage } from "@/components/forms/auth-form";
+import {
+  AuthConfirmationNotice,
+  AuthFooterLink,
+  AuthPageShell,
+  AuthPanel,
+  AuthSessionNotice,
+  AuthStatusMessage
+} from "@/components/forms/auth-form";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loginAction } from "@/services/auth/actions";
+import { loginAction, resendSignupConfirmationAction } from "@/services/auth/actions";
 import { getSessionUser, resolvePostLoginRedirect } from "@/services/auth/session";
 
 export default async function LoginPage({
   searchParams
 }: {
-  searchParams?: { error?: string; success?: string; redirectTo?: string };
+  searchParams?: { error?: string; success?: string; redirectTo?: string; email?: string; confirmation?: string };
 }) {
   const user = await getSessionUser();
   const continueHref = user ? resolvePostLoginRedirect(user, searchParams?.redirectTo) : "/";
+  const confirmationEmail = searchParams?.confirmation === "required" ? searchParams.email : undefined;
 
   return (
     <AuthPageShell
@@ -34,6 +42,7 @@ export default async function LoginPage({
         <form action={loginAction} className="space-y-5">
           <input type="hidden" name="redirectTo" value={searchParams?.redirectTo || ""} />
           <AuthSessionNotice user={user} continueHref={continueHref} intent="login" />
+          <AuthConfirmationNotice email={confirmationEmail} returnTo="/login" action={resendSignupConfirmationAction} />
           <AuthStatusMessage error={searchParams?.error} success={searchParams?.success} />
 
           <div className="space-y-2">

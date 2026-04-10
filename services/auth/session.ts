@@ -5,30 +5,35 @@ import { demoSessionUsers } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { getDemoDirectoryUserByEmail, getDemoDirectoryUserById, toSessionUser } from "@/services/auth/demo-store";
 import { createServerSupabaseClient } from "@/services/supabase/server";
+import type { Database } from "@/types/database";
 import type { SessionUser, UserRole } from "@/types/models";
 
 const SESSION_COOKIE = "sync-exchange-session";
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   if (hasSupabaseEnv && !env.demoMode) {
-    const supabase = createServerSupabaseClient();
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
+    try {
+      const supabase = createServerSupabaseClient();
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
 
-    if (!user?.email) {
+      if (!user?.email) {
+        return null;
+      }
+
+      const persisted = await getPersistedUserState(
+        supabase,
+        user.id,
+        resolveUserRole(user.user_metadata?.role),
+        String(user.user_metadata?.full_name || user.email.split("@")[0]),
+        user.email
+      );
+
+      return persisted;
+    } catch {
       return null;
     }
-
-    const persisted = await getPersistedUserState(
-      supabase,
-      user.id,
-      resolveUserRole(user.user_metadata?.role),
-      String(user.user_metadata?.full_name || user.email.split("@")[0]),
-      user.email
-    );
-
-    return persisted;
   }
 
   const cookieStore = cookies();
@@ -118,7 +123,7 @@ export function resolvePostAuthRedirect(user: Pick<SessionUser, "role" | "onboar
   }
 
   if ((user.role === "artist" || user.role === "buyer") && user.onboardingComplete !== true) {
-    return resolveOnboardingPath(user.role);
+    return "/onboarding";
   }
 
   return resolveRoleRedirect(user.role);
@@ -171,15 +176,24 @@ async function getPersistedUserState(
   fallbackFullName: string,
   email: string
 ) {
+  type UserProfileRow = Pick<
+    Database["public"]["Tables"]["user_profiles"]["Row"],
+    "id" | "email" | "role" | "full_name" | "avatar_url" | "onboarding_started_at" | "onboarding_completed_at" | "onboarding_step" | "onboarding_payload"
+  >;
+
   const [userResult, artistProfileResult, buyerProfileResult] = await Promise.all([
     supabase
-      .from("users")
+      .from("user_profiles")
       .select("id, email, role, full_name, avatar_url, onboarding_started_at, onboarding_completed_at, onboarding_step, onboarding_payload")
       .eq("id", userId)
       .maybeSingle(),
     supabase.from("artist_profiles").select("id").eq("user_id", userId).maybeSingle(),
     supabase.from("buyer_profiles").select("id").eq("user_id", userId).maybeSingle()
-  ]);
+  ]) as [
+    { data: UserProfileRow | null },
+    { data: { id: string } | null },
+    { data: { id: string } | null }
+  ];
 
   const userRow = userResult.data;
   const role = resolveUserRole(userRow?.role) || fallbackRole || detectPersistedRole(artistProfileResult.data, buyerProfileResult.data);

@@ -1,7 +1,5 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthFooterLink, AuthPageShell, AuthPanel, AuthStatusMessage } from "@/components/forms/auth-form";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { forgotPasswordAction } from "@/services/auth/actions";
@@ -12,26 +10,38 @@ export default function ForgotPasswordPage({
   searchParams?: { error?: string; success?: string };
 }) {
   return (
-    <Card className="mx-auto max-w-lg">
-      <CardHeader>
-        <CardTitle>Reset password</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <AuthPageShell
+      eyebrow="Password recovery"
+      title="Reset account access"
+      description="Send a secure recovery link to the email address associated with the workspace. The reset link will bring the user back into a safe password update flow."
+      highlights={[
+        { label: "Secure recovery", value: "Password resets are handled through Supabase email verification." },
+        { label: "Clear next step", value: "The recovery link routes back into a guided password reset screen." },
+        { label: "No dead ends", value: "After the password update, the account returns cleanly to login." }
+      ]}
+    >
+      <AuthPanel
+        eyebrow="Reset password"
+        title="Send recovery instructions"
+        description="Enter the account email and we’ll send a secure reset link."
+      >
         <form action={forgotPasswordAction} className="space-y-5">
-          {searchParams?.error ? <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{searchParams.error}</div> : null}
-          {searchParams?.success ? <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">{searchParams.success}</div> : null}
+          <AuthStatusMessage error={searchParams?.error} success={searchParams?.success} />
           <div className="space-y-2">
-            <Label>Email</Label>
-            <Input name="email" type="email" placeholder="name@company.com" required />
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" name="email" type="email" placeholder="name@company.com" required className="h-11" />
           </div>
-          <Button className="w-full" type="submit">
+          <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
+            If the account exists, the reset email will arrive with a secure link back into the password update flow.
+          </div>
+          <FormSubmitButton className="w-full" pendingLabel="Sending instructions...">
             Send reset instructions
-          </Button>
+          </FormSubmitButton>
+          <div className="text-sm text-muted-foreground">
+            <AuthFooterLink href="/login" label="Remembered your password?" actionLabel="Back to login" />
+          </div>
         </form>
-        <Link href="/login" className="block text-sm text-muted-foreground hover:text-foreground">
-          Back to login
-        </Link>
-      </CardContent>
-    </Card>
+      </AuthPanel>
+    </AuthPageShell>
   );
 }

@@ -15,19 +15,19 @@ const optionalTextField = z
   .optional()
   .transform((value) => value || "");
 
-export const artistOnboardingSteps: Array<{ id: ArtistOnboardingStep; label: string }> = [
-  { id: "basics", label: "Account basics" },
-  { id: "profile", label: "Professional profile" },
-  { id: "licensing", label: "Licensing setup" },
-  { id: "first-track", label: "First track" },
-  { id: "complete", label: "Complete" }
+export const artistOnboardingSteps: Array<{ id: ArtistOnboardingStep; label: string; summary: string }> = [
+  { id: "basics", label: "Account basics", summary: "Identity, stage name, and profile media" },
+  { id: "profile", label: "Professional profile", summary: "Bio, location, and public-facing context" },
+  { id: "licensing", label: "Licensing setup", summary: "Payout and default licensing preferences" },
+  { id: "first-track", label: "First track", summary: "Choose the handoff into submission or dashboard" },
+  { id: "complete", label: "Complete", summary: "Review the setup and move into real work" }
 ];
 
-export const buyerOnboardingSteps: Array<{ id: BuyerOnboardingStep; label: string }> = [
-  { id: "basics", label: "Account basics" },
-  { id: "profile", label: "Buyer profile" },
-  { id: "interests", label: "Music interests" },
-  { id: "complete", label: "Complete" }
+export const buyerOnboardingSteps: Array<{ id: BuyerOnboardingStep; label: string; summary: string }> = [
+  { id: "basics", label: "Account basics", summary: "Buyer identity and company anchor" },
+  { id: "profile", label: "Buyer profile", summary: "Operational role, industry, and billing context" },
+  { id: "interests", label: "Music interests", summary: "Genres, moods, and intended-use signals" },
+  { id: "complete", label: "Complete", summary: "Review the setup and move into discovery" }
 ];
 
 export const buyerGenreOptions = ["Electronic", "Pop", "Indie Pop", "Hip-Hop", "Cinematic", "Folk", "Rock", "Ambient"];

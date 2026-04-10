@@ -36,7 +36,7 @@ export default async function AdminTrackDetailPage({ params }: { params: { id: s
         </div>
       </div>
 
-      <AudioPlayer title={track.title} artist={track.artist_name} />
+      <AudioPlayer title={track.title} artist={track.artist_name} src={track.audio_file_url} />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
         <div className="space-y-6">

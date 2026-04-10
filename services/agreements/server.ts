@@ -1,7 +1,10 @@
 import { buildAgreementStoragePath, getAgreementAccessUrl, renderLicenseAgreementHtml } from "@/lib/license";
 import { formatDateTime } from "@/lib/utils";
 import { env } from "@/lib/env";
+import { storageBuckets } from "@/lib/storage";
+import { createSignedStorageUrl } from "@/services/storage/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import type { Database } from "@/types/database";
 
 export async function generateAgreementArtifactForOrder(orderId: string) {
   const supabase = createAdminSupabaseClient();
@@ -15,14 +18,13 @@ export async function generateAgreementArtifactForOrder(orderId: string) {
       `
         id,
         buyer_user_id,
-        amount_paid,
+        amount_cents,
         currency,
-        order_status,
+        status,
+        agreement_url,
+        agreement_generated_at,
+        fulfilled_at,
         created_at,
-        buyer:users!orders_buyer_user_id_fkey (
-          full_name,
-          email
-        ),
         tracks (
           title,
           slug,
@@ -41,26 +43,58 @@ export async function generateAgreementArtifactForOrder(orderId: string) {
     .eq("id", orderId)
     .maybeSingle();
 
-  if (!order) {
+  const normalizedOrder = order as
+    | (Database["public"]["Tables"]["orders"]["Row"] & {
+        tracks?: {
+          title?: string | null;
+          slug?: string | null;
+          artist_user_id?: string | null;
+          rights_holders?: Array<{
+            name: string;
+            role_type: string;
+            ownership_percent: number;
+          }>;
+        } | null;
+        license_types?: { name?: string | null } | null;
+      })
+    | null;
+
+  if (!normalizedOrder) {
     throw new Error("Order not found for agreement generation.");
   }
 
-  const artistUserId = (order as any).tracks?.artist_user_id;
+  if (normalizedOrder.agreement_url && normalizedOrder.agreement_generated_at && normalizedOrder.fulfilled_at) {
+    return {
+      path: buildAgreementStoragePath(orderId),
+      agreementUrl: normalizedOrder.agreement_url,
+      orderStatus: normalizedOrder.status
+    };
+  }
+
+  const { data: buyerProfile } = await supabase
+    .from("user_profiles")
+    .select("full_name, email")
+    .eq("id", normalizedOrder.buyer_user_id)
+    .maybeSingle() as {
+    data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "full_name" | "email"> | null;
+  };
+
+  const artistUserId = normalizedOrder.tracks?.artist_user_id;
   const { data: artistProfile } = artistUserId
     ? await supabase.from("artist_profiles").select("artist_name").eq("user_id", artistUserId).maybeSingle()
     : { data: null };
 
   const html = renderLicenseAgreementHtml({
-    orderId: order.id,
-    createdAt: formatDateTime(order.created_at),
-    trackTitle: (order as any).tracks?.title || "Selected Track",
+    orderId: normalizedOrder.id,
+    createdAt: formatDateTime(normalizedOrder.created_at),
+    trackTitle: normalizedOrder.tracks?.title || "Selected Track",
     artistName: artistProfile?.artist_name || "The Sync Exchange Artist",
-    licenseName: (order as any).license_types?.name || "License",
-    amountPaid: Number(order.amount_paid || 0),
-    currency: String(order.currency || "USD"),
-    buyerName: (order as any).buyer?.full_name || "Buyer",
-    buyerEmail: (order as any).buyer?.email || "billing@client.example",
-    rightsHolders: ((order as any).tracks?.rights_holders || []).map((holder: any) => ({
+    licenseName: normalizedOrder.license_types?.name || "License",
+    amountPaid: Number(normalizedOrder.amount_cents || 0) / 100,
+    currency: String(normalizedOrder.currency || "USD"),
+    buyerName: buyerProfile?.full_name || "Buyer",
+    buyerEmail: buyerProfile?.email || "billing@client.example",
+    rightsHolders: (normalizedOrder.tracks?.rights_holders || []).map((holder) => ({
       name: holder.name,
       roleType: holder.role_type,
       ownershipPercent: Number(holder.ownership_percent || 0)
@@ -79,13 +113,16 @@ export async function generateAgreementArtifactForOrder(orderId: string) {
   }
 
   const agreementUrl = getAgreementAccessUrl(orderId);
-  const nextStatus = order.order_status === "refunded" ? "refunded" : "fulfilled";
+  const nextStatus = normalizedOrder.status === "refunded" ? "refunded" : "fulfilled";
+  const generatedAt = new Date().toISOString();
 
   await supabase
     .from("orders")
     .update({
       agreement_url: agreementUrl,
-      order_status: nextStatus
+      agreement_generated_at: normalizedOrder.agreement_generated_at || generatedAt,
+      fulfilled_at: nextStatus === "fulfilled" ? normalizedOrder.fulfilled_at || generatedAt : normalizedOrder.fulfilled_at,
+      status: nextStatus
     })
     .eq("id", orderId);
 
@@ -110,4 +147,14 @@ export async function downloadAgreementArtifact(orderId: string) {
   }
 
   return data;
+}
+
+export async function createAgreementSignedUrl(orderId: string, expiresInSeconds = 60 * 10) {
+  return createSignedStorageUrl(
+    {
+      bucket: storageBuckets.agreements,
+      path: buildAgreementStoragePath(orderId)
+    },
+    expiresInSeconds
+  );
 }

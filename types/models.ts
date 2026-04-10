@@ -1,5 +1,5 @@
 export type UserRole = "artist" | "buyer" | "admin";
-export type TrackStatus = "draft" | "pending_review" | "approved" | "rejected";
+export type TrackStatus = "draft" | "pending_review" | "approved" | "rejected" | "archived";
 export type VerificationStatus = "unverified" | "pending" | "verified";
 export type OrderStatus = "pending" | "paid" | "fulfilled" | "refunded";
 export type AdminFlagSeverity = "low" | "medium" | "high" | "critical";
@@ -28,6 +28,9 @@ export interface ArtistProfile {
   bio: string;
   location: string;
   website?: string | null;
+  instagram_url?: string | null;
+  spotify_url?: string | null;
+  youtube_url?: string | null;
   social_links: Record<string, string>;
   payout_email?: string | null;
   default_licensing_preferences?: string | null;
@@ -101,11 +104,17 @@ export interface Track {
   explicit: boolean;
   lyrics?: string | null;
   release_year: number;
+  cover_art_path?: string | null;
+  audio_file_path?: string | null;
+  preview_file_path?: string | null;
+  waveform_path?: string | null;
   waveform_preview_url?: string | null;
   audio_file_url?: string | null;
   cover_art_url?: string | null;
   status: TrackStatus;
   featured: boolean;
+  approved_at?: string | null;
+  approved_by?: string | null;
   created_at: string;
   updated_at: string;
   rights_holders: RightsHolder[];
@@ -124,6 +133,11 @@ export interface Order {
   currency: string;
   order_status: OrderStatus;
   agreement_url?: string | null;
+  checkout_created_at?: string | null;
+  paid_at?: string | null;
+  agreement_generated_at?: string | null;
+  fulfilled_at?: string | null;
+  refunded_at?: string | null;
   created_at: string;
   updated_at: string;
 }

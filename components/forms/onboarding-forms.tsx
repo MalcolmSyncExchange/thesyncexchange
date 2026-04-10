@@ -101,8 +101,8 @@ export function OnboardingRoleSelection({
       title="Choose the side of the marketplace you’re joining"
       description="Artists continue into catalog setup and submission. Buyers continue into company setup, discovery preferences, and licensing workflow preparation."
       steps={[
-        { id: "role", label: "Choose your role" },
-        { id: "setup", label: "Complete setup" }
+        { id: "role", label: "Choose your role", summary: "Select the artist or buyer workflow" },
+        { id: "setup", label: "Complete setup", summary: "Continue into the guided onboarding sequence" }
       ]}
       currentStepIndex={0}
     >

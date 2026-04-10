@@ -32,11 +32,27 @@ export default async function BuyerOrdersPage() {
                   </div>
                 </div>
 
-                <OrderStatusProgress status={order.order_status} />
+                <OrderStatusProgress
+                  status={order.order_status}
+                  stripe_checkout_session_id={order.stripe_checkout_session_id}
+                  stripe_payment_intent_id={order.stripe_payment_intent_id}
+                  agreement_url={order.agreement_url}
+                  checkout_created_at={order.checkout_created_at}
+                  paid_at={order.paid_at}
+                  agreement_generated_at={order.agreement_generated_at}
+                  fulfilled_at={order.fulfilled_at}
+                  refunded_at={order.refunded_at}
+                />
 
                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
                   <p className="text-muted-foreground">
-                    Agreement: {order.agreement_url ? "Generated and ready" : "Generating"}
+                    {order.agreement_url
+                      ? "Agreement generated and ready for download."
+                      : order.paid_at
+                        ? "Payment received. Agreement generation is in progress."
+                        : order.checkout_created_at
+                          ? "Checkout created. Payment confirmation will appear here once Stripe completes."
+                          : "Order is being prepared for checkout."}
                   </p>
                   <div className="flex items-center gap-4">
                     <Link href={`/license-confirmation/${order.id}`} className="font-medium text-foreground underline-offset-4 hover:underline">

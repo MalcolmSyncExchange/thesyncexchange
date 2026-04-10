@@ -11,19 +11,23 @@ export function SignupRoleForm({
   title,
   description,
   helper,
+  returnTo,
   alternateHref,
   alternateLabel,
   alternateActionLabel,
-  error
+  error,
+  success
 }: {
   role: "artist" | "buyer";
   title: string;
   description: string;
   helper: string;
+  returnTo: string;
   alternateHref: string;
   alternateLabel: string;
   alternateActionLabel: string;
   error?: string;
+  success?: string;
 }) {
   const submitLabel = role === "artist" ? "Create artist account" : "Create buyer account";
 
@@ -31,7 +35,8 @@ export function SignupRoleForm({
     <AuthPanel eyebrow={`${role[0].toUpperCase()}${role.slice(1)} signup`} title={title} description={description}>
       <form action={signupAction} className="space-y-5">
         <input type="hidden" name="role" value={role} />
-        <AuthStatusMessage error={error} />
+        <input type="hidden" name="returnTo" value={returnTo} />
+        <AuthStatusMessage error={error} success={success} />
 
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>

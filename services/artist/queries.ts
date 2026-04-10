@@ -1,6 +1,8 @@
 import { artistProfiles, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
+import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { getDemoArtistProfile } from "@/services/auth/demo-store";
+import { withTrackAudioAccess } from "@/services/storage/server";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { ArtistProfile, LicenseType, RightsHolder, Track, TrackStatus } from "@/types/models";
 
@@ -29,7 +31,7 @@ export async function getArtistWorkspaceData(userId: string): Promise<ArtistWork
         rights_holders (*),
         track_license_options (
           id,
-          price_override,
+          price_cents,
           active,
           license_types (
             id,
@@ -37,7 +39,7 @@ export async function getArtistWorkspaceData(userId: string): Promise<ArtistWork
             slug,
             description,
             exclusive,
-            base_price,
+            default_price_cents,
             terms_summary,
             active
           )
@@ -58,7 +60,12 @@ export async function getArtistWorkspaceData(userId: string): Promise<ArtistWork
 
 export async function getArtistTrackBySlug(userId: string, slug: string) {
   const { tracks } = await getArtistWorkspaceData(userId);
-  return tracks.find((track) => track.slug === slug) || null;
+  const track = tracks.find((item) => item.slug === slug) || null;
+  if (!track || !hasSupabaseEnv || env.demoMode) {
+    return track;
+  }
+
+  return withTrackAudioAccess(track, "full");
 }
 
 function mapArtistProfile(row: any): ArtistProfile {
@@ -69,6 +76,9 @@ function mapArtistProfile(row: any): ArtistProfile {
     bio: row.bio || "",
     location: row.location || "",
     website: row.website,
+    instagram_url: row.instagram_url || row.social_links?.instagram || null,
+    spotify_url: row.spotify_url || row.social_links?.spotify || null,
+    youtube_url: row.youtube_url || row.social_links?.youtube || null,
     social_links: row.social_links || {},
     payout_email: row.payout_email,
     default_licensing_preferences: row.default_licensing_preferences,
@@ -97,7 +107,8 @@ function mapTrack(row: any, artistName: string): Track {
       const license = option.license_types as LicenseType;
       return {
         ...license,
-        price_override: option.price_override
+        base_price: Number((option.license_types as any).default_price_cents || 0) / 100,
+        price_override: option.price_cents == null ? null : Number(option.price_cents) / 100
       };
     });
 
@@ -110,20 +121,26 @@ function mapTrack(row: any, artistName: string): Track {
     description: row.description || "",
     genre: row.genre,
     subgenre: row.subgenre,
-    mood: row.mood || [],
+    mood: row.moods || [],
     bpm: row.bpm,
-    key: row.key,
+    key: row.musical_key,
     duration_seconds: row.duration_seconds,
     instrumental: row.instrumental,
     vocals: row.vocals,
     explicit: row.explicit,
     lyrics: row.lyrics,
     release_year: row.release_year,
-    waveform_preview_url: row.waveform_preview_url,
-    audio_file_url: row.audio_file_url,
-    cover_art_url: row.cover_art_url,
+    cover_art_path: row.cover_art_path,
+    audio_file_path: row.audio_file_path,
+    preview_file_path: row.preview_file_path,
+    waveform_path: row.waveform_path,
+    waveform_preview_url: getPublicStorageUrl(storageBuckets.trackPreviews, row.waveform_path),
+    audio_file_url: null,
+    cover_art_url: getPublicStorageUrl(storageBuckets.coverArt, row.cover_art_path),
     status: row.status as TrackStatus,
     featured: row.featured,
+    approved_at: row.approved_at,
+    approved_by: row.approved_by,
     created_at: row.created_at,
     updated_at: row.updated_at,
     rights_holders: rightsHolders,

@@ -33,6 +33,7 @@ export interface BuyerOnboardingValues {
 export async function getArtistOnboardingState(user: SessionUser, requestedStep?: string) {
   const profile = await getArtistProfile(user.id);
   const payload = user.onboardingData || {};
+  const socialLinks = toStringMap(profile?.social_links);
   const currentStep = resolveArtistStep(user.onboardingStep, requestedStep);
 
   return {
@@ -46,9 +47,9 @@ export async function getArtistOnboardingState(user: SessionUser, requestedStep?
       bio: String(payload.bio || profile?.bio || ""),
       location: String(payload.location || profile?.location || ""),
       website: String(payload.website || profile?.website || ""),
-      instagram: String(payload.instagram || profile?.social_links?.instagram || ""),
-      spotify: String(payload.spotify || profile?.social_links?.spotify || ""),
-      youtube: String(payload.youtube || profile?.social_links?.youtube || ""),
+      instagram: String(payload.instagram || profile?.instagram_url || socialLinks.instagram || ""),
+      spotify: String(payload.spotify || profile?.spotify_url || socialLinks.spotify || ""),
+      youtube: String(payload.youtube || profile?.youtube_url || socialLinks.youtube || ""),
       payoutEmail: String(payload.payoutEmail || profile?.payout_email || ""),
       defaultLicensingPreferences: String(payload.defaultLicensingPreferences || profile?.default_licensing_preferences || ""),
       firstTrackChoice: payload.firstTrackChoice === "upload" ? "upload" : "later"
@@ -59,7 +60,7 @@ export async function getArtistOnboardingState(user: SessionUser, requestedStep?
 export async function getBuyerOnboardingState(user: SessionUser, requestedStep?: string) {
   const profile = await getBuyerProfile(user.id);
   const payload = user.onboardingData || {};
-  const preferences = profile?.music_preferences || {};
+  const preferences = toBuyerPreferences(profile?.music_preferences);
   const currentStep = resolveBuyerStep(user.onboardingStep, requestedStep);
 
   return {
@@ -131,4 +132,26 @@ async function getBuyerProfile(userId: string) {
   const supabase = createServerSupabaseClient();
   const { data } = await supabase.from("buyer_profiles").select("*").eq("user_id", userId).maybeSingle();
   return data;
+}
+
+function toStringMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => typeof entry === "string")) as Record<string, string>;
+}
+
+function toBuyerPreferences(value: unknown): { genres?: string[]; moods?: string[]; intended_use?: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return {
+    genres: Array.isArray(record.genres) ? record.genres.map(String) : undefined,
+    moods: Array.isArray(record.moods) ? record.moods.map(String) : undefined,
+    intended_use: typeof record.intended_use === "string" ? record.intended_use : undefined
+  };
 }

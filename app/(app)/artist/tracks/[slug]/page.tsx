@@ -20,7 +20,7 @@ export default async function ArtistTrackEditPage({ params }: { params: { slug: 
         </div>
         <Badge>{track.status.replace("_", " ")}</Badge>
       </div>
-      <AudioPlayer title={track.title} artist={track.artist_name} />
+      <AudioPlayer title={track.title} artist={track.artist_name} src={track.audio_file_url} />
       <SubmitMusicForm mode="edit" track={track} />
     </div>
   );

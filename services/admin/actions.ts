@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
+import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
+import { createServerSupabaseClient } from "@/services/supabase/server";
+import type { AppSupabaseClient } from "@/services/supabase/types";
+import type { Database, Json } from "@/types/database";
 
 export async function updateTrackStatusAction(formData: FormData) {
   const trackId = String(formData.get("trackId") || "");
@@ -14,10 +18,17 @@ export async function updateTrackStatusAction(formData: FormData) {
     return;
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return;
+  const supabase = createPrivilegedSupabaseClient();
 
-  await supabase.from("tracks").update({ status }).eq("id", trackId);
+  const actorId = await getAdminActorId();
+  await supabase
+    .from("tracks")
+    .update({
+      status: status as Database["public"]["Enums"]["track_status"],
+      approved_at: status === "approved" ? new Date().toISOString() : null,
+      approved_by: status === "approved" ? actorId : null
+    })
+    .eq("id", trackId);
   await appendTrackAuditLog(supabase, trackId, "track_status_updated", { status });
 
   revalidatePath("/admin/dashboard");
@@ -35,8 +46,7 @@ export async function toggleTrackFeaturedAction(formData: FormData) {
     return;
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return;
+  const supabase = createPrivilegedSupabaseClient();
 
   await supabase.from("tracks").update({ featured }).eq("id", trackId);
   await appendTrackAuditLog(supabase, trackId, "track_featured_toggled", { featured });
@@ -54,10 +64,9 @@ export async function updateComplianceFlagStatusAction(formData: FormData) {
     return;
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return;
+  const supabase = createPrivilegedSupabaseClient();
 
-  await supabase.from("admin_flags").update({ status }).eq("id", flagId);
+  await supabase.from("admin_flags").update({ status: status as Database["public"]["Enums"]["flag_status"] }).eq("id", flagId);
   const { data: flag } = await supabase.from("admin_flags").select("track_id").eq("id", flagId).maybeSingle();
   if (flag?.track_id) {
     await appendTrackAuditLog(supabase, flag.track_id, "compliance_flag_status_updated", { flagId, status });
@@ -82,8 +91,7 @@ export async function createComplianceFlagAction(formData: FormData) {
     return;
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return;
+  const supabase = createPrivilegedSupabaseClient();
 
   await supabase.from("admin_flags").insert({
     track_id: trackId,
@@ -110,8 +118,7 @@ export async function addReviewNoteAction(formData: FormData) {
     return;
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return;
+  const supabase = createPrivilegedSupabaseClient();
 
   await supabase.from("review_notes").insert({
     track_id: trackId,
@@ -132,13 +139,40 @@ export async function updateOrderStatusAction(formData: FormData) {
     return;
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) return;
+  const supabase = createPrivilegedSupabaseClient();
+  const now = new Date().toISOString();
 
-  const { data: order } = await supabase.from("orders").select("track_id").eq("id", orderId).maybeSingle();
-  await supabase.from("orders").update({ order_status: status }).eq("id", orderId);
+  const { data: order } = await supabase
+    .from("orders")
+    .select("track_id, agreement_url, paid_at, fulfilled_at, refunded_at")
+    .eq("id", orderId)
+    .maybeSingle();
 
-  if (order?.track_id) {
+  if (!order) {
+    return;
+  }
+
+  if (status === "fulfilled") {
+    await supabase
+      .from("orders")
+      .update({
+        paid_at: order.paid_at || now
+      })
+      .eq("id", orderId);
+    await generateAgreementArtifactForOrder(orderId);
+  } else {
+    await supabase
+      .from("orders")
+      .update({
+        status: status as Database["public"]["Enums"]["order_status"],
+        paid_at: status === "paid" ? order.paid_at || now : order.paid_at,
+        refunded_at: status === "refunded" ? order.refunded_at || now : order.refunded_at,
+        fulfilled_at: status === "pending" ? null : order.fulfilled_at
+      })
+      .eq("id", orderId);
+  }
+
+  if (order.track_id) {
     await appendTrackAuditLog(supabase, order.track_id, "order_status_updated", { orderId, status });
   }
 
@@ -151,7 +185,7 @@ export async function updateOrderStatusAction(formData: FormData) {
 }
 
 async function appendTrackAuditLog(
-  supabase: NonNullable<ReturnType<typeof createAdminSupabaseClient>>,
+  supabase: AppSupabaseClient,
   trackId: string,
   action: string,
   metadata: Record<string, unknown>
@@ -160,7 +194,7 @@ async function appendTrackAuditLog(
     track_id: trackId,
     actor_id: await getAdminActorId(),
     action,
-    metadata
+    metadata: metadata as Json
   });
 }
 

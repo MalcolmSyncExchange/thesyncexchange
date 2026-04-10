@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { BaseSyntheticEvent, InputHTMLAttributes, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type { FieldError, FieldErrorsImpl, Merge } from "react-hook-form";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { env } from "@/lib/env";
+import type { StorageAssetRef } from "@/lib/storage";
 import {
   assetRules,
   trackSubmissionClientSchema,
@@ -81,11 +83,13 @@ export function SubmitMusicForm({
     defaultValues: track ? buildInitialValues(track) : defaultValues
   });
   const { fields, append, remove } = useFieldArray({ control, name: "rightsHolders" });
-  const rightsHolders = watch("rightsHolders");
+  const rightsHolders = watch("rightsHolders") as TrackSubmissionValues["rightsHolders"];
   const splitTotal = useMemo(
-    () => rightsHolders.reduce((sum, holder) => sum + Number(holder.ownershipPercent || 0), 0),
+    () => rightsHolders.reduce((sum: number, holder: TrackSubmissionValues["rightsHolders"][number]) => sum + Number(holder.ownershipPercent || 0), 0),
     [rightsHolders]
   );
+  const rightsHolderErrors = Array.isArray(errors.rightsHolders) ? errors.rightsHolders : [];
+  const rightsHolderRootError = Array.isArray(errors.rightsHolders) ? undefined : getErrorMessage(errors.rightsHolders);
 
   useEffect(() => {
     if (!state.errors) {
@@ -93,7 +97,7 @@ export function SubmitMusicForm({
     }
 
     Object.entries(state.errors).forEach(([path, message]) => {
-      setError(path as keyof TrackSubmissionValues, {
+      setError(path as Parameters<typeof setError>[0], {
         type: "server",
         message
       });
@@ -127,8 +131,8 @@ export function SubmitMusicForm({
     const waveformFile = waveformInputRef.current?.files?.[0];
 
     const nextAssetErrors: Record<string, string> = {};
-    const coverArtError = validateAssetFile(coverArtFile, assetRules.coverArt, mode === "create" && !track?.cover_art_url);
-    const audioFileError = validateAssetFile(audioFile, assetRules.audioFile, mode === "create" && !track?.audio_file_url);
+    const coverArtError = validateAssetFile(coverArtFile, assetRules.coverArt, mode === "create" && !track?.cover_art_path && !track?.cover_art_url);
+    const audioFileError = validateAssetFile(audioFile, assetRules.audioFile, mode === "create" && !track?.audio_file_path && !track?.audio_file_url);
     const waveformFileError = validateAssetFile(waveformFile, assetRules.waveformFile, false);
 
     if (coverArtError) nextAssetErrors.coverArt = coverArtError;
@@ -162,7 +166,7 @@ export function SubmitMusicForm({
     if (values.explicit) formData.set("explicit", "on");
 
     startTransition(async () => {
-      const uploadedAssets: string[] = [];
+      const uploadedAssets: StorageAssetRef[] = [];
 
       try {
         if (!env.supabaseUrl || !env.supabaseAnonKey || env.demoMode) {
@@ -170,34 +174,36 @@ export function SubmitMusicForm({
         }
 
         const userId = await resolveArtistUserId();
+        const assetScope = track?.id || `draft-${crypto.randomUUID()}`;
 
         if (coverArtFile) {
-          const coverArtUpload = await uploadTrackAsset({ file: coverArtFile, userId, kind: "cover-art" });
-          uploadedAssets.push(coverArtUpload.path);
-          formData.set("coverArtUrl", coverArtUpload.publicUrl);
-        } else if (track?.cover_art_url) {
-          formData.set("coverArtUrl", track.cover_art_url);
+          const coverArtUpload = await uploadTrackAsset({ file: coverArtFile, userId, kind: "cover-art", scope: assetScope });
+          uploadedAssets.push({ bucket: coverArtUpload.bucket, path: coverArtUpload.path });
+          formData.set("coverArtPath", coverArtUpload.path);
+        } else if (track?.cover_art_path || track?.cover_art_url) {
+          formData.set("coverArtPath", track?.cover_art_path || track?.cover_art_url || "");
         }
 
         if (audioFile) {
-          const audioUpload = await uploadTrackAsset({ file: audioFile, userId, kind: "audio" });
-          uploadedAssets.push(audioUpload.path);
-          formData.set("audioFileUrl", audioUpload.publicUrl);
-        } else if (track?.audio_file_url) {
-          formData.set("audioFileUrl", track.audio_file_url);
+          const audioUpload = await uploadTrackAsset({ file: audioFile, userId, kind: "audio", scope: assetScope });
+          uploadedAssets.push({ bucket: audioUpload.bucket, path: audioUpload.path });
+          formData.set("audioFilePath", audioUpload.path);
+        } else if (track?.audio_file_path || track?.audio_file_url) {
+          formData.set("audioFilePath", track?.audio_file_path || track?.audio_file_url || "");
         }
 
         if (waveformFile) {
-          const waveformUpload = await uploadTrackAsset({ file: waveformFile, userId, kind: "waveforms" });
-          uploadedAssets.push(waveformUpload.path);
-          formData.set("waveformPreviewUrl", waveformUpload.publicUrl);
-        } else if (track?.waveform_preview_url) {
-          formData.set("waveformPreviewUrl", track.waveform_preview_url);
+          const waveformUpload = await uploadTrackAsset({ file: waveformFile, userId, kind: "waveform", scope: assetScope });
+          uploadedAssets.push({ bucket: waveformUpload.bucket, path: waveformUpload.path });
+          formData.set("waveformPath", waveformUpload.path);
+        } else if (track?.waveform_path || track?.waveform_preview_url) {
+          formData.set("waveformPath", track?.waveform_path || track?.waveform_preview_url || "");
         } else {
-          formData.set("waveformPreviewUrl", "");
+          formData.set("waveformPath", "");
         }
 
-        formData.set("uploadedAssetPaths", JSON.stringify(uploadedAssets));
+        formData.set("previewFilePath", track?.preview_file_path || "");
+        formData.set("uploadedAssets", JSON.stringify(uploadedAssets));
         if (mode === "edit" && track) {
           formData.set("trackId", track.id);
           formData.set("existingSlug", track.slug);
@@ -237,32 +243,32 @@ export function SubmitMusicForm({
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="title">Track title</Label>
             <Input id="title" {...register("title")} />
-            <FieldError message={errors.title?.message} />
+            <FieldError message={getErrorMessage(errors.title)} />
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="description">Description</Label>
             <Textarea id="description" {...register("description")} />
-            <FieldError message={errors.description?.message} />
+            <FieldError message={getErrorMessage(errors.description)} />
           </div>
-          <Field label="Genre" error={errors.genre?.message}>
+          <Field label="Genre" error={getErrorMessage(errors.genre)}>
             <Input {...register("genre")} />
           </Field>
-          <Field label="Subgenre" error={errors.subgenre?.message}>
+          <Field label="Subgenre" error={getErrorMessage(errors.subgenre)}>
             <Input {...register("subgenre")} />
           </Field>
-          <Field label="Mood(s)" error={errors.moods?.message}>
+          <Field label="Mood(s)" error={getErrorMessage(errors.moods)}>
             <Input {...register("moods")} placeholder="Driving, bright, confident" />
           </Field>
-          <Field label="BPM" error={errors.bpm?.message}>
+          <Field label="BPM" error={getErrorMessage(errors.bpm)}>
             <Input type="number" {...register("bpm", { valueAsNumber: true })} />
           </Field>
-          <Field label="Key" error={errors.key?.message}>
+          <Field label="Key" error={getErrorMessage(errors.key)}>
             <Input {...register("key")} />
           </Field>
-          <Field label="Duration (seconds)" error={errors.duration?.message}>
+          <Field label="Duration (seconds)" error={getErrorMessage(errors.duration)}>
             <Input type="number" {...register("duration", { valueAsNumber: true })} />
           </Field>
-          <Field label="Release year" error={errors.releaseYear?.message}>
+          <Field label="Release year" error={getErrorMessage(errors.releaseYear)}>
             <Input type="number" {...register("releaseYear", { valueAsNumber: true })} />
           </Field>
           <Field label="Cover art upload" error={assetErrors.coverArt}>
@@ -277,7 +283,7 @@ export function SubmitMusicForm({
               }}
             />
             <HelperText text={assetNames.coverArt || "JPG, PNG, or WEBP up to 10MB."} />
-            {track?.cover_art_url ? <HelperText text={`Current asset: ${track.cover_art_url}`} /> : null}
+            {track?.cover_art_path || track?.cover_art_url ? <HelperText text="Current cover art is already stored." /> : null}
           </Field>
           <Field label="Audio upload" error={assetErrors.audioFile}>
             <Input
@@ -291,7 +297,7 @@ export function SubmitMusicForm({
               }}
             />
             <HelperText text={assetNames.audioFile || "MP3, WAV, AIFF, or FLAC up to 100MB."} />
-            {track?.audio_file_url ? <HelperText text={`Current asset: ${track.audio_file_url}`} /> : null}
+            {track?.audio_file_path || track?.audio_file_url ? <HelperText text="Current source audio is already stored." /> : null}
           </Field>
           <Field label="Waveform preview upload" error={assetErrors.waveformFile}>
             <Input
@@ -305,7 +311,7 @@ export function SubmitMusicForm({
               }}
             />
             <HelperText text={assetNames.waveformFile || "Optional JSON or image preview up to 10MB."} />
-            {track?.waveform_preview_url ? <HelperText text={`Current asset: ${track.waveform_preview_url}`} /> : null}
+            {track?.waveform_path || track?.waveform_preview_url ? <HelperText text="Current waveform asset is already stored." /> : null}
           </Field>
           <Field label="Lyrics">
             <Textarea {...register("lyrics")} className="min-h-[100px]" />
@@ -316,7 +322,7 @@ export function SubmitMusicForm({
             <ToggleField label="Explicit" {...register("explicit")} />
           </div>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground md:col-span-2">
-            Assets upload to Supabase Storage under your artist workspace before the track record is saved.
+            Cover art and waveform assets resolve from dedicated public buckets. Source audio is stored privately and surfaced through signed access when the workflow allows it.
           </div>
         </CardContent>
       </Card>
@@ -326,13 +332,13 @@ export function SubmitMusicForm({
           <CardTitle>Licensing and pricing</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-3">
-          <Field label="Digital campaign price" error={errors.priceDigital?.message}>
+          <Field label="Digital campaign price" error={getErrorMessage(errors.priceDigital)}>
             <Input type="number" {...register("priceDigital", { valueAsNumber: true })} />
           </Field>
-          <Field label="Broadcast price" error={errors.priceBroadcast?.message}>
+          <Field label="Broadcast price" error={getErrorMessage(errors.priceBroadcast)}>
             <Input type="number" {...register("priceBroadcast", { valueAsNumber: true })} />
           </Field>
-          <Field label="Exclusive price" error={errors.priceExclusive?.message}>
+          <Field label="Exclusive price" error={getErrorMessage(errors.priceExclusive)}>
             <Input type="number" {...register("priceExclusive", { valueAsNumber: true })} />
           </Field>
         </CardContent>
@@ -351,16 +357,16 @@ export function SubmitMusicForm({
           </div>
           {fields.map((field, index) => (
             <div key={field.id} className="grid gap-4 rounded-lg border border-border p-4 md:grid-cols-4">
-              <Field label="Name" error={errors.rightsHolders?.[index]?.name?.message}>
+              <Field label="Name" error={getErrorMessage(rightsHolderErrors[index]?.name)}>
                 <Input {...register(`rightsHolders.${index}.name`)} />
               </Field>
-              <Field label="Email" error={errors.rightsHolders?.[index]?.email?.message}>
+              <Field label="Email" error={getErrorMessage(rightsHolderErrors[index]?.email)}>
                 <Input type="email" {...register(`rightsHolders.${index}.email`)} />
               </Field>
-              <Field label="Role" error={errors.rightsHolders?.[index]?.roleType?.message}>
+              <Field label="Role" error={getErrorMessage(rightsHolderErrors[index]?.roleType)}>
                 <Input {...register(`rightsHolders.${index}.roleType`)} />
               </Field>
-              <Field label="Ownership %" error={errors.rightsHolders?.[index]?.ownershipPercent?.message}>
+              <Field label="Ownership %" error={getErrorMessage(rightsHolderErrors[index]?.ownershipPercent)}>
                 <Input type="number" {...register(`rightsHolders.${index}.ownershipPercent`, { valueAsNumber: true })} />
               </Field>
               {fields.length > 1 ? (
@@ -372,7 +378,7 @@ export function SubmitMusicForm({
               ) : null}
             </div>
           ))}
-          <FieldError message={errors.rightsHolders?.message as string | undefined} />
+          <FieldError message={rightsHolderRootError} />
           <Button
             type="button"
             variant="outline"
@@ -467,6 +473,24 @@ function ToggleField(props: InputHTMLAttributes<HTMLInputElement> & { label: str
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="text-sm text-destructive">{message}</p>;
+}
+
+function getErrorMessage(
+  error?: string | FieldError | Merge<FieldError, FieldErrorsImpl<Record<string, never>>>
+): string | undefined {
+  if (!error) {
+    return undefined;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if ("message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+
+  return undefined;
 }
 
 function Banner({ success, message }: { success: boolean; message: string }) {

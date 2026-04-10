@@ -33,6 +33,7 @@ export async function POST(request: Request) {
   try {
     event = stripe.webhooks.constructEvent(payload, signature, env.stripeWebhookSecret);
   } catch (error) {
+    console.warn("[stripe webhook] signature verification failed", error instanceof Error ? error.message : error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unable to verify Stripe webhook signature."
@@ -47,6 +48,12 @@ export async function POST(request: Request) {
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.client_reference_id || session.metadata?.orderId;
+
+        console.log("[stripe webhook] checkout.session.completed", {
+          sessionId: session.id,
+          orderId: orderId || null,
+          paymentStatus: session.payment_status
+        });
 
         if (orderId) {
           await syncOrderFromStripeSession({ orderId, session });
@@ -83,6 +90,7 @@ export async function POST(request: Request) {
 function revalidateBuyerOrderPaths(orderId?: string | null) {
   revalidatePath("/buyer/dashboard");
   revalidatePath("/buyer/orders");
+  revalidatePath("/admin/dashboard");
   revalidatePath("/admin/orders");
   if (orderId) {
     revalidatePath(`/license-confirmation/${orderId}`);

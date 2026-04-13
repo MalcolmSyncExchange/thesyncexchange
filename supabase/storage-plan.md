@@ -9,7 +9,7 @@ Create buckets through the Supabase dashboard or CLI, then apply the manual poli
 ### `avatars`
 - Visibility: public
 - Purpose: user profile images
-- Path convention: `{user_id}/{timestamp}-{filename}`
+- Path convention: `{user_id}/profile/{timestamp}-{uuid}.{ext}`
 - Access:
   - authenticated users can upload/update/delete only their own objects
   - public read is allowed
@@ -17,7 +17,7 @@ Create buckets through the Supabase dashboard or CLI, then apply the manual poli
 ### `cover-art`
 - Visibility: public
 - Purpose: approved track artwork and artist draft artwork previews
-- Path convention: `{artist_user_id}/{track_id-or-draft}/{timestamp}-{filename}`
+- Path convention: `{artist_user_id}/{track_id-or-draft}/cover-art/{timestamp}-{uuid}.{ext}`
 - Access:
   - artists can upload/update/delete only inside their own top-level folder
   - admins can manage all objects
@@ -26,7 +26,7 @@ Create buckets through the Supabase dashboard or CLI, then apply the manual poli
 ### `track-previews`
 - Visibility: public
 - Purpose: waveform JSON, waveform images, and buyer-safe audio previews
-- Path convention: `{artist_user_id}/{track_id-or-draft}/{kind}/{timestamp}-{filename}`
+- Path convention: `{artist_user_id}/{track_id-or-draft}/{previews|waveforms}/{timestamp}-{uuid}.{ext}`
 - Access:
   - artists can upload/update/delete only inside their own top-level folder
   - admins can manage all objects
@@ -35,17 +35,18 @@ Create buckets through the Supabase dashboard or CLI, then apply the manual poli
 ### `track-audio`
 - Visibility: private
 - Purpose: full-resolution master or submission audio files
-- Path convention: `{artist_user_id}/{track_id-or-draft}/{timestamp}-{filename}`
+- Path convention: `{artist_user_id}/{track_id-or-draft}/audio/{timestamp}-{uuid}.{ext}`
 - Access:
   - artists can upload/update/delete only their own objects
   - admins can read/manage all objects
   - buyers do not receive bucket-level access
-  - app-generated signed URLs should be used only for explicit admin or fulfillment workflows
+  - app-generated signed URLs should be used only for explicit artist/admin review or fulfillment workflows
+  - use a 50MB effective upload limit to match the verified bucket configuration
 
 ### `agreements`
 - Visibility: private
 - Purpose: generated license artifacts and future signed agreement files
-- Path convention: `orders/{order_id}/license-agreement.{html|pdf}`
+- Path convention: `orders/{order_id}/license-agreement.pdf`
 - Access:
   - admins and backend service workflows manage writes
   - buyers receive agreement access only through authenticated app routes or signed URLs
@@ -73,4 +74,4 @@ Use explicit storage policies scoped by bucket and the first folder segment:
 - Prefer public buckets only for assets that are intentionally buyer-facing or marketing-safe.
 - Keep full audio private even when previews are public.
 - Agreement delivery should continue through authenticated routes so legal/business logic stays centralized.
-- Buyer audio preview currently prefers a dedicated public preview asset, but the app can fall back to a short-lived signed URL for private source audio until a separate preview-generation step exists.
+- Buyer audio preview should come from a dedicated preview asset; the app should not fall back to full private source audio for buyer browsing.

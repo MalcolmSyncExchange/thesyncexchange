@@ -9,6 +9,7 @@ import { env, hasSupabaseEnv } from "@/lib/env";
 import { storageBuckets, type StorageAssetRef } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
 import { parseTrackSubmissionFormData } from "@/lib/validation/track-submission";
+import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { deleteStorageAssetsWithServerAccess } from "@/services/storage/server";
 import { createServerSupabaseClient } from "@/services/supabase/server";
@@ -150,6 +151,8 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
       message: parsed.saveMode === "publish" ? "Track submitted for review." : "Draft saved successfully."
     };
   } catch (error) {
+    await cleanupUploadedAssets(uploadedAssets).catch(() => undefined);
+
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -323,6 +326,8 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       redirectTo: `/artist/tracks/${nextSlug}`
     };
   } catch (error) {
+    await cleanupUploadedAssets(uploadedAssets).catch(() => undefined);
+
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -380,7 +385,7 @@ async function requireArtistUser() {
 
 async function resolveArtistRole(userId: string) {
   const client = (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;
-  const { data } = await client.from("user_profiles").select("role").eq("id", userId).maybeSingle();
+  const { data } = await selectUserProfileCompat(client, userId);
   return data?.role as UserRole | null | undefined;
 }
 

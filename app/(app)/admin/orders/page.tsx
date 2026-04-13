@@ -50,16 +50,58 @@ export default async function AdminOrdersPage() {
                       {order.stripe_checkout_session_id ? <span>Checkout {order.stripe_checkout_session_id.slice(0, 18)}...</span> : null}
                       {order.stripe_payment_intent_id ? <span>Payment {order.stripe_payment_intent_id.slice(0, 18)}...</span> : null}
                       {order.paid_at ? <span>Paid recorded</span> : null}
-                      {order.agreement_generated_at ? <span>Agreement ready</span> : null}
+                      {order.agreement_generated_at ? (
+                        <span>{order.agreement_delivery_blocked ? "Agreement generated, delivery blocked" : "Agreement ready"}</span>
+                      ) : null}
+                      {order.last_webhook_processed_at ? <span>Webhook {formatDateTime(order.last_webhook_processed_at)}</span> : null}
                     </div>
-                    {order.agreement_url ? (
+                    {order.agreement_url && !order.agreement_delivery_blocked ? (
                       <Link href={order.agreement_url} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
-                        Open agreement artifact
+                        Open agreement document
                       </Link>
                     ) : null}
                   </div>
                   <OrderStatusForm orderId={order.id} status={order.order_status} />
                 </div>
+
+                {order.last_webhook_error || order.agreement_generation_error ? (
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
+                    <p className="font-medium">Fulfillment attention needed</p>
+                    {order.last_webhook_error ? <p className="mt-1">Webhook: {order.last_webhook_error}</p> : null}
+                    {order.agreement_generation_error ? <p className="mt-1">Agreement: {order.agreement_generation_error}</p> : null}
+                    <p className="mt-2">After the underlying issue is fixed, set the order back to Fulfilled to retry agreement generation.</p>
+                  </div>
+                ) : null}
+
+                {order.schema_degraded || order.activity_degraded ? (
+                  <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
+                    <p className="font-medium">Reduced operational visibility</p>
+                    {(order.degraded_messages || []).map((message: string) => (
+                      <p key={message} className="mt-1">
+                        {message}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+
+                {order.recent_activity?.length ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-foreground">Recent activity</p>
+                    <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+                      {order.recent_activity.map((event: any) => (
+                        <div key={event.id} className="flex flex-wrap items-start justify-between gap-3 text-sm">
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {event.event_type.replace(/_/g, " ").replace(/\b\w/g, (char: string) => char.toUpperCase())}
+                            </p>
+                            {event.message ? <p className="text-muted-foreground">{event.message}</p> : null}
+                          </div>
+                          <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{formatDateTime(event.created_at)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ))

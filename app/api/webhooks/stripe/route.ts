@@ -56,7 +56,12 @@ export async function POST(request: Request) {
         });
 
         if (orderId) {
-          await syncOrderFromStripeSession({ orderId, session });
+          await syncOrderFromStripeSession({
+            orderId,
+            session,
+            webhookEventId: event.id,
+            webhookEventType: event.type
+          });
           revalidateBuyerOrderPaths(orderId);
         }
         break;
@@ -67,7 +72,7 @@ export async function POST(request: Request) {
           typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id || "";
 
         if (paymentIntentId) {
-          const order = await markOrderRefundedByPaymentIntent(paymentIntentId);
+          const order = await markOrderRefundedByPaymentIntent(paymentIntentId, event.id, event.type);
           revalidateBuyerOrderPaths(order?.id);
         }
         break;

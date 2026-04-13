@@ -1,6 +1,7 @@
 import { favorites as demoFavorites, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
+import { hasExtendedOrderMetadata } from "@/lib/orders";
 import { withTrackAudioAccess } from "@/services/storage/server";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { LicenseType, Order, RightsHolder, Track, TrackStatus } from "@/types/models";
@@ -57,9 +58,11 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Track
   const rightsHoldersByTrackId = groupRightsHoldersByTrackId(rightsHolderRows || []);
   const favoritesByTrackId = buyerUserId ? await getFavoriteTrackIdSet(buyerUserId) : new Set<string>();
 
-  return normalizedTrackRows.map((row) =>
-    mapTrack(row, artistNameByUserId.get(row.artist_user_id) || "Artist", rightsHoldersByTrackId.get(row.id) || [], favoritesByTrackId.has(row.id))
-  );
+  return normalizedTrackRows
+    .map((row) =>
+      mapTrack(row, artistNameByUserId.get(row.artist_user_id) || "Artist", rightsHoldersByTrackId.get(row.id) || [], favoritesByTrackId.has(row.id))
+    )
+    .filter((track) => Boolean(track.preview_file_path) && track.license_options.length > 0);
 }
 
 export async function getBuyerTrackBySlug(slug: string, buyerUserId?: string) {
@@ -121,6 +124,16 @@ export async function getBuyerOrders(buyerUserId: string) {
     ...row,
     amount_paid: Number(row.amount_cents || 0) / 100,
     order_status: row.status,
+    agreement_delivery_blocked: Boolean(row.agreement_generated_at && !row.agreement_path),
+    schema_degraded: !hasExtendedOrderMetadata(row),
+    degraded_messages: !hasExtendedOrderMetadata(row)
+      ? [
+          "Extended fulfillment metadata is unavailable until the manual Supabase order hardening SQL is applied.",
+          ...(row.agreement_generated_at && !row.agreement_path
+            ? ["Agreement generation completed, but secure document delivery stays blocked until agreement_path metadata is live."]
+            : [])
+        ]
+      : [],
     track: row.tracks || null,
     license_type: row.license_types
       ? {
@@ -185,6 +198,16 @@ export async function getOrderById(orderId: string) {
     ...row,
     amount_paid: Number(row.amount_cents || 0) / 100,
     order_status: row.status,
+    agreement_delivery_blocked: Boolean(row.agreement_generated_at && !row.agreement_path),
+    schema_degraded: !hasExtendedOrderMetadata(row),
+    degraded_messages: !hasExtendedOrderMetadata(row)
+      ? [
+          "Extended fulfillment metadata is unavailable until the manual Supabase order hardening SQL is applied.",
+          ...(row.agreement_generated_at && !row.agreement_path
+            ? ["Agreement generation completed, but secure document delivery stays blocked until agreement_path metadata is live."]
+            : [])
+        ]
+      : [],
     track: row.tracks || null,
     license_type: row.license_types
       ? {
@@ -219,7 +242,7 @@ function mapTrack(row: any, artistName: string, rightsHolderRows: any[], isFavor
   }));
 
   const licenseOptions = (row.track_license_options || [])
-    .filter((option: any) => option.license_types)
+    .filter((option: any) => option.active !== false && option.license_types?.active !== false)
     .map((option: any) => {
       const license = option.license_types as LicenseType;
       return {

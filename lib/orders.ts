@@ -7,11 +7,13 @@ export interface OrderLifecycleSnapshot {
   stripe_checkout_session_id?: string | null;
   stripe_payment_intent_id?: string | null;
   agreement_url?: string | null;
+  agreement_path?: string | null;
   checkout_created_at?: string | null;
   paid_at?: string | null;
   agreement_generated_at?: string | null;
   fulfilled_at?: string | null;
   refunded_at?: string | null;
+  agreement_generation_error?: string | null;
 }
 
 export const ORDER_LIFECYCLE_STEPS: Array<{ key: OrderLifecycleStep; label: string }> = [
@@ -37,7 +39,7 @@ export function hasPaymentCleared(order: OrderLifecycleSnapshot) {
 }
 
 export function hasAgreementBeenGenerated(order: OrderLifecycleSnapshot) {
-  return Boolean(order.agreement_generated_at || order.agreement_url || order.status === "fulfilled" || order.status === "refunded");
+  return Boolean(order.agreement_generated_at || order.agreement_url || order.agreement_path);
 }
 
 export function hasOrderBeenFulfilled(order: OrderLifecycleSnapshot) {
@@ -66,11 +68,15 @@ export function isLifecycleStepComplete(order: OrderLifecycleSnapshot, step: Ord
 }
 
 export function getCurrentLifecycleStep(order: OrderLifecycleSnapshot): OrderLifecycleStep {
-  if (hasOrderBeenFulfilled(order)) return "fulfilled";
+  if (hasOrderBeenFulfilled(order) && hasAgreementBeenGenerated(order)) return "fulfilled";
   if (hasAgreementBeenGenerated(order)) return "agreement_generated";
   if (hasPaymentCleared(order)) return "paid";
   if (hasCheckoutBeenCreated(order)) return "checkout_created";
   return "pending";
+}
+
+export function hasExtendedOrderMetadata(order: Record<string, unknown>) {
+  return "agreement_path" in order && "agreement_generation_error" in order && "last_webhook_event_type" in order;
 }
 
 export function timestampForLifecycleStep(order: OrderLifecycleSnapshot, step: OrderLifecycleStep) {

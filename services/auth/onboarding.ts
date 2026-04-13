@@ -7,6 +7,7 @@ import type { ArtistOnboardingStep, BuyerOnboardingStep, SessionUser } from "@/t
 export interface ArtistOnboardingValues {
   fullName: string;
   artistName: string;
+  avatarPath: string;
   avatarUrl: string;
   bio: string;
   location: string;
@@ -43,6 +44,7 @@ export async function getArtistOnboardingState(user: SessionUser, requestedStep?
     values: {
       fullName: String(payload.fullName || user.fullName || ""),
       artistName: String(payload.artistName || profile?.artist_name || ""),
+      avatarPath: String(payload.avatarPath || user.avatarPath || ""),
       avatarUrl: String(payload.avatarUrl || user.avatarUrl || ""),
       bio: String(payload.bio || profile?.bio || ""),
       location: String(payload.location || profile?.location || ""),

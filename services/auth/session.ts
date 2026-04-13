@@ -1,16 +1,19 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { demoSessionUsers } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
+import { resolvePublicStorageAssetUrl, storageBuckets } from "@/lib/storage";
 import { getDemoDirectoryUserByEmail, getDemoDirectoryUserById, toSessionUser } from "@/services/auth/demo-store";
+import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { Database } from "@/types/database";
 import type { SessionUser, UserRole } from "@/types/models";
 
 const SESSION_COOKIE = "sync-exchange-session";
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (hasSupabaseEnv && !env.demoMode) {
     try {
       const supabase = createServerSupabaseClient();
@@ -53,6 +56,10 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   } catch {
     return null;
   }
+});
+
+export async function getSessionUser(): Promise<SessionUser | null> {
+  return getCachedSessionUser();
 }
 
 export async function requireSession(role?: UserRole) {
@@ -123,7 +130,7 @@ export function resolvePostAuthRedirect(user: Pick<SessionUser, "role" | "onboar
   }
 
   if ((user.role === "artist" || user.role === "buyer") && user.onboardingComplete !== true) {
-    return "/onboarding";
+    return resolveOnboardingPath(user.role);
   }
 
   return resolveRoleRedirect(user.role);
@@ -176,21 +183,12 @@ async function getPersistedUserState(
   fallbackFullName: string,
   email: string
 ) {
-  type UserProfileRow = Pick<
-    Database["public"]["Tables"]["user_profiles"]["Row"],
-    "id" | "email" | "role" | "full_name" | "avatar_url" | "onboarding_started_at" | "onboarding_completed_at" | "onboarding_step" | "onboarding_payload"
-  >;
-
   const [userResult, artistProfileResult, buyerProfileResult] = await Promise.all([
-    supabase
-      .from("user_profiles")
-      .select("id, email, role, full_name, avatar_url, onboarding_started_at, onboarding_completed_at, onboarding_step, onboarding_payload")
-      .eq("id", userId)
-      .maybeSingle(),
+    selectUserProfileCompat(supabase, userId),
     supabase.from("artist_profiles").select("id").eq("user_id", userId).maybeSingle(),
     supabase.from("buyer_profiles").select("id").eq("user_id", userId).maybeSingle()
   ]) as [
-    { data: UserProfileRow | null },
+    Awaited<ReturnType<typeof selectUserProfileCompat>>,
     { data: { id: string } | null },
     { data: { id: string } | null }
   ];
@@ -212,7 +210,12 @@ async function getPersistedUserState(
     email: userRow?.email || email,
     role,
     fullName,
-    avatarUrl: userRow?.avatar_url || null,
+    avatarPath: userRow?.avatar_path || null,
+    avatarUrl: resolvePublicStorageAssetUrl({
+      bucket: storageBuckets.avatars,
+      path: userRow?.avatar_path,
+      fallbackUrl: userRow?.avatar_url || null
+    }),
     onboardingStartedAt: userRow?.onboarding_started_at || null,
     onboardingCompletedAt: userRow?.onboarding_completed_at || null,
     onboardingStep: role === "admin" ? null : String(userRow?.onboarding_step || ""),

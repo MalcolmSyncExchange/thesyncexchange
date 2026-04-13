@@ -4,6 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
+import { isAbsoluteAssetReference } from "@/lib/storage";
+import { uploadManagedAsset } from "@/services/storage/assets";
+import { deleteStorageAssetsWithServerAccess } from "@/services/storage/server";
+import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import {
   getNextArtistStep,
   getNextBuyerStep,
@@ -17,7 +21,7 @@ import {
   parseBuyerProfile
 } from "@/lib/validation/onboarding";
 import { clearDemoSession, getDemoDirectoryUserByEmail, setDemoSession, toSessionUser, upsertDemoArtistProfile, upsertDemoBuyerProfile, upsertDemoDirectoryUser } from "@/services/auth/demo-store";
-import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import { selectUserProfileCompat, upsertUserProfileCompat } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { getSessionUser, resolveOnboardingPath, resolvePostLoginRedirect, resolveRoleRedirect } from "@/services/auth/session";
 import type { Database } from "@/types/database";
@@ -201,6 +205,7 @@ export async function signupAction(formData: FormData) {
     email,
     role,
     fullName,
+    avatarPath: null,
     avatarUrl: null,
     onboardingStep: role === "admin" ? null : role ? "basics" : null,
     onboardingStartedAt: role === "admin" ? now : role ? now : null,
@@ -233,19 +238,22 @@ export async function selectOnboardingRoleAction(formData: FormData) {
 
   if (hasSupabaseEnv && !env.demoMode) {
     const client = getMutationClient();
-    const { error } = await client.from("user_profiles").upsert(
+    const { error } = await upsertUserProfileCompat(
+      client,
       {
         id: user.id,
         email: user.email,
         full_name: user.fullName,
-        avatar_url: user.avatarUrl || null,
+        ...getStoredAvatarFields({
+          avatarPath: user.avatarPath || null,
+          avatarUrl: user.avatarUrl || null
+        }),
         role,
         onboarding_started_at: user.onboardingStartedAt || now,
         onboarding_completed_at: null,
         onboarding_step: "basics",
         onboarding_payload: user.onboardingData || {}
       } as Database["public"]["Tables"]["user_profiles"]["Insert"],
-      { onConflict: "id" }
     );
 
     if (error) {
@@ -257,6 +265,7 @@ export async function selectOnboardingRoleAction(formData: FormData) {
       email: user.email,
       role,
       fullName: user.fullName,
+      avatarPath: user.avatarPath || null,
       avatarUrl: user.avatarUrl || null,
       onboardingStep: "basics",
       onboardingStartedAt: user.onboardingStartedAt || now,
@@ -369,15 +378,21 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
   const user = await requireAuthenticatedUser("artist");
   const step = String(formData.get("step") || "basics");
   let nextPath = "/onboarding/artist";
+  let uploadedAvatarPath: string | null = null;
 
   try {
     if (step === "basics") {
       const data = parseArtistBasics(formData);
+      const uploadedAvatar = await uploadArtistAvatarIfPresent(user.id, formData);
+      uploadedAvatarPath = uploadedAvatar?.path || null;
+      const avatarPath = uploadedAvatar?.path || user.avatarPath || null;
+      const avatarUrl = uploadedAvatar?.publicUrl || user.avatarUrl || null;
       const payload = {
         ...user.onboardingData,
         fullName: data.fullName,
         artistName: data.artistName,
-        avatarUrl: data.avatarUrl
+        avatarPath,
+        avatarUrl
       };
       await persistArtistOnboarding({
         user,
@@ -385,12 +400,23 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         payload,
         userUpdates: {
           full_name: data.fullName,
-          avatar_url: data.avatarUrl || null
+          ...getStoredAvatarFields({
+            avatarPath,
+            avatarUrl
+          })
         },
         profileUpdates: {
           artist_name: data.artistName
         }
       });
+      if (uploadedAvatar?.path && user.avatarPath && user.avatarPath !== uploadedAvatar.path) {
+        await deleteStorageAssetsWithServerAccess([
+          {
+            bucket: env.avatarsBucket,
+            path: user.avatarPath
+          }
+        ]).catch(() => undefined);
+      }
       nextPath = "/onboarding/artist?step=profile";
     } else if (step === "profile") {
       const data = parseArtistProfile(formData);
@@ -448,6 +474,14 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
       nextPath = "/onboarding/artist?step=complete";
     }
   } catch (error) {
+    if (uploadedAvatarPath && uploadedAvatarPath !== user.avatarPath) {
+      await deleteStorageAssetsWithServerAccess([
+        {
+          bucket: env.avatarsBucket,
+          path: uploadedAvatarPath
+        }
+      ]).catch(() => undefined);
+    }
     redirect(`/onboarding/artist?step=${encodeURIComponent(step)}&error=${encodeURIComponent(getValidationErrorMessage(error))}`);
   }
 
@@ -543,6 +577,7 @@ async function ensureAppUser(user: {
   email: string;
   role: UserRole | null;
   fullName: string;
+  avatarPath?: string | null;
   avatarUrl?: string | null;
   onboardingStep?: string | null;
   onboardingStartedAt?: string | null;
@@ -550,19 +585,27 @@ async function ensureAppUser(user: {
   onboardingData?: Record<string, unknown>;
 }) {
   const client = getMutationClient();
-  await client.from("user_profiles").upsert(
+  const avatarFields =
+    user.avatarPath !== undefined || user.avatarUrl !== undefined
+      ? getStoredAvatarFields({
+          avatarPath: user.avatarPath,
+          avatarUrl: user.avatarUrl
+        })
+      : {};
+
+  await upsertUserProfileCompat(
+    client,
     {
       id: user.id,
       email: user.email,
       role: user.role,
       full_name: user.fullName,
-      avatar_url: user.avatarUrl || null,
+      ...avatarFields,
       onboarding_started_at: user.onboardingStartedAt || null,
       onboarding_completed_at: user.onboardingCompletedAt || null,
       onboarding_step: user.onboardingStep || null,
       onboarding_payload: user.onboardingData || {}
-    } as Database["public"]["Tables"]["user_profiles"]["Insert"],
-    { onConflict: "id" }
+    } as Database["public"]["Tables"]["user_profiles"]["Insert"]
   );
 }
 
@@ -576,11 +619,7 @@ async function hasCompletedOnboarding(userId: string, role: UserRole | null) {
   }
 
   const client = getMutationClient();
-  const { data: userRow } = (await client
-    .from("user_profiles")
-    .select("onboarding_completed_at")
-    .eq("id", userId)
-    .maybeSingle()) as {
+  const { data: userRow } = (await selectUserProfileCompat(client, userId)) as {
     data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "onboarding_completed_at"> | null;
   };
   if (userRow?.onboarding_completed_at) {
@@ -622,20 +661,23 @@ async function persistArtistOnboarding({
 
   if (hasSupabaseEnv && !env.demoMode) {
     const client = getMutationClient();
-    const { error: userError } = await client.from("user_profiles").upsert(
+    const { error: userError } = await upsertUserProfileCompat(
+      client,
       {
         id: user.id,
         email: user.email,
         role: user.role,
         full_name: String(payload.fullName || user.fullName),
-        avatar_url: String(payload.avatarUrl || user.avatarUrl || "") || null,
+        ...getStoredAvatarFields({
+          avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
+          avatarUrl: String(payload.avatarUrl || user.avatarUrl || "") || null
+        }),
         onboarding_started_at: user.onboardingStartedAt || now,
         onboarding_completed_at: null,
         onboarding_step: nextStep,
         onboarding_payload: payload,
         ...(userUpdates || {})
-      } as Database["public"]["Tables"]["user_profiles"]["Insert"],
-      { onConflict: "id" }
+      } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
 
     if (userError) {
@@ -664,6 +706,7 @@ async function persistArtistOnboarding({
     email: user.email,
     role: user.role,
     fullName: String(payload.fullName || user.fullName),
+    avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
     avatarUrl: String(payload.avatarUrl || user.avatarUrl || "") || null,
     onboardingStep: nextStep,
     onboardingStartedAt: user.onboardingStartedAt || now,
@@ -681,6 +724,7 @@ async function persistArtistOnboarding({
   setDemoSession({
     ...user,
     fullName: String(payload.fullName || user.fullName),
+    avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
     avatarUrl: String(payload.avatarUrl || user.avatarUrl || "") || null,
     onboardingStep: nextStep,
     onboardingStartedAt: user.onboardingStartedAt || now,
@@ -707,20 +751,23 @@ async function persistBuyerOnboarding({
 
   if (hasSupabaseEnv && !env.demoMode) {
     const client = getMutationClient();
-    const { error: userError } = await client.from("user_profiles").upsert(
+    const { error: userError } = await upsertUserProfileCompat(
+      client,
       {
         id: user.id,
         email: user.email,
         role: user.role,
         full_name: String(payload.fullName || user.fullName),
-        avatar_url: user.avatarUrl || null,
+        ...getStoredAvatarFields({
+          avatarPath: user.avatarPath || null,
+          avatarUrl: user.avatarUrl || null
+        }),
         onboarding_started_at: user.onboardingStartedAt || now,
         onboarding_completed_at: null,
         onboarding_step: nextStep,
         onboarding_payload: payload,
         ...(userUpdates || {})
-      } as Database["public"]["Tables"]["user_profiles"]["Insert"],
-      { onConflict: "id" }
+      } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
 
     if (userError) {
@@ -749,6 +796,7 @@ async function persistBuyerOnboarding({
     email: user.email,
     role: user.role,
     fullName: String(payload.fullName || user.fullName),
+    avatarPath: user.avatarPath || null,
     avatarUrl: user.avatarUrl || null,
     onboardingStep: nextStep,
     onboardingStartedAt: user.onboardingStartedAt || now,
@@ -766,6 +814,7 @@ async function persistBuyerOnboarding({
   setDemoSession({
     ...user,
     fullName: String(payload.fullName || user.fullName),
+    avatarPath: user.avatarPath || null,
     onboardingStep: nextStep,
     onboardingStartedAt: user.onboardingStartedAt || now,
     onboardingCompletedAt: null,
@@ -779,19 +828,22 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
 
   if (hasSupabaseEnv && !env.demoMode) {
     const client = getMutationClient();
-    const { error } = await client.from("user_profiles").upsert(
+    const { error } = await upsertUserProfileCompat(
+      client,
       {
         id: user.id,
         email: user.email,
         role: user.role,
         full_name: user.fullName,
-        avatar_url: user.avatarUrl || null,
+        ...getStoredAvatarFields({
+          avatarPath: user.avatarPath || null,
+          avatarUrl: user.avatarUrl || null
+        }),
         onboarding_started_at: user.onboardingStartedAt || completedAt,
         onboarding_step: nextStep,
         onboarding_completed_at: completedAt,
         onboarding_payload: user.onboardingData || {}
-      } as Database["public"]["Tables"]["user_profiles"]["Insert"],
-      { onConflict: "id" }
+      } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
 
     if (error) {
@@ -806,6 +858,7 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
     email: user.email,
     role: user.role,
     fullName: user.fullName,
+    avatarPath: user.avatarPath || null,
     avatarUrl: user.avatarUrl || null,
     onboardingStep: nextStep,
     onboardingStartedAt: user.onboardingStartedAt || completedAt,
@@ -821,6 +874,31 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
   });
 }
 
+async function uploadArtistAvatarIfPresent(userId: string, formData: FormData) {
+  const file = formData.get("avatarFile");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return null;
+  }
+
+  const supabase = createAdminSupabaseClient();
+  if (!supabase) {
+    throw new Error("Supabase service role key is required to upload artist avatars.");
+  }
+
+  const uploaded = await uploadManagedAsset({
+    supabase,
+    userId,
+    kind: "avatar",
+    file
+  });
+
+  return {
+    path: uploaded.path,
+    publicUrl: uploaded.publicUrl
+  };
+}
+
 function buildArtistSocialLinks(instagram: string, spotify: string, youtube: string) {
   const entries = Object.entries({
     instagram,
@@ -834,11 +912,11 @@ function buildArtistSocialLinks(instagram: string, spotify: string, youtube: str
 async function resolvePersistedRole(userId: string, fallbackRole: UserRole | null) {
   const client = getMutationClient();
   const [{ data: userRow }, { data: artistProfile }, { data: buyerProfile }] = await Promise.all([
-    client.from("user_profiles").select("role").eq("id", userId).maybeSingle(),
+    selectUserProfileCompat(client, userId),
     client.from("artist_profiles").select("id").eq("user_id", userId).maybeSingle(),
     client.from("buyer_profiles").select("id").eq("user_id", userId).maybeSingle()
   ]) as [
-    { data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "role"> | null },
+    Awaited<ReturnType<typeof selectUserProfileCompat>>,
     { data: { id: string } | null },
     { data: { id: string } | null }
   ];
@@ -861,4 +939,34 @@ async function resolvePersistedRole(userId: string, fallbackRole: UserRole | nul
   }
 
   return null;
+}
+
+function getStoredAvatarFields({
+  avatarPath,
+  avatarUrl
+}: {
+  avatarPath?: string | null;
+  avatarUrl?: string | null;
+}) {
+  const normalizedPath = avatarPath?.trim() || null;
+  const normalizedUrl = avatarUrl?.trim() || null;
+
+  if (normalizedPath) {
+    return {
+      avatar_path: normalizedPath,
+      avatar_url: null
+    };
+  }
+
+  if (normalizedUrl && isAbsoluteAssetReference(normalizedUrl)) {
+    return {
+      avatar_path: null,
+      avatar_url: normalizedUrl
+    };
+  }
+
+  return {
+    avatar_path: null,
+    avatar_url: null
+  };
 }

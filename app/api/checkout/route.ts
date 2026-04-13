@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { env, hasStripeEnv, hasSupabaseEnv } from "@/lib/env";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
+import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
 export async function POST(request: Request) {
@@ -34,8 +35,11 @@ export async function POST(request: Request) {
       `
         id,
         buyer_user_id,
+        track_id,
+        license_type_id,
         amount_cents,
         currency,
+        status,
         tracks (
           title,
           slug
@@ -52,6 +56,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Order not found." }, { status: 404 });
   }
 
+  if ((order as any).status !== "pending") {
+    return NextResponse.json({ error: "Only pending orders can create a new checkout session." }, { status: 409 });
+  }
+
+  const [{ data: track }, { data: licenseOption }] = await Promise.all([
+    supabase.from("tracks").select("status").eq("id", String((order as any).track_id || "")).maybeSingle(),
+    supabase
+      .from("track_license_options")
+      .select("active")
+      .eq("track_id", String((order as any).track_id || ""))
+      .eq("license_type_id", String((order as any).license_type_id || ""))
+      .maybeSingle()
+  ]);
+
+  if (track?.status !== "approved") {
+    return NextResponse.json({ error: "This track is no longer approved for checkout." }, { status: 409 });
+  }
+
+  if (licenseOption?.active === false || !licenseOption) {
+    return NextResponse.json({ error: "This license option is no longer active for checkout." }, { status: 409 });
+  }
+
   if (!hasStripeEnv) {
     return NextResponse.json({ error: "Stripe is not configured for this environment." }, { status: 503 });
   }
@@ -63,15 +89,43 @@ export async function POST(request: Request) {
     licenseName: (order as any).license_types?.name || "License",
     amountCents: Number((order as any).amount_cents || 0),
     currency: String((order as any).currency || "USD"),
-    buyerEmail: user.email || undefined
+    buyerEmail: user.email || undefined,
+    buyerUserId: user.id,
+    trackId: String((order as any).track_id || ""),
+    licenseTypeId: String((order as any).license_type_id || "")
   });
 
-  await supabase
+  const checkoutCreatedAt = new Date().toISOString();
+  const primaryUpdate = await supabase
     .from("orders")
     .update({
-      stripe_checkout_session_id: session.id
+      stripe_checkout_session_id: session.id,
+      checkout_created_at: checkoutCreatedAt
     })
     .eq("id", orderId);
+
+  if (primaryUpdate.error) {
+    if (!isMissingColumnError(primaryUpdate.error, "checkout_created_at")) {
+      return NextResponse.json({ error: primaryUpdate.error.message }, { status: 500 });
+    }
+
+    warnSchemaFallbackOnce(
+      "checkout-created-at-write",
+      "checkout_created_at is not available yet; order checkout timing will be reduced until migration 0009 is applied.",
+      primaryUpdate.error
+    );
+
+    const fallbackUpdate = await supabase
+      .from("orders")
+      .update({
+        stripe_checkout_session_id: session.id
+      })
+      .eq("id", orderId);
+
+    if (fallbackUpdate.error) {
+      return NextResponse.json({ error: fallbackUpdate.error.message }, { status: 500 });
+    }
+  }
 
   return NextResponse.json({
     url: session.url,

@@ -2,6 +2,14 @@ import { z } from "zod";
 
 import type { ArtistOnboardingStep, BuyerOnboardingStep } from "@/types/models";
 
+const acceptedAvatarExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+
+export const avatarAssetRule = {
+  label: "Profile image",
+  maxSizeBytes: 10 * 1024 * 1024,
+  allowedExtensions: acceptedAvatarExtensions
+} as const;
+
 const optionalUrlField = z
   .string()
   .trim()
@@ -37,8 +45,7 @@ export const industryTypeOptions = ["Advertising", "Film & TV", "Gaming", "Brand
 
 export const artistBasicsSchema = z.object({
   fullName: z.string().trim().min(2, "Enter your full name."),
-  artistName: z.string().trim().min(2, "Enter your artist or stage name."),
-  avatarUrl: optionalUrlField
+  artistName: z.string().trim().min(2, "Enter your artist or stage name.")
 });
 
 export const artistProfileSchema = z.object({
@@ -81,8 +88,7 @@ export const buyerInterestsSchema = z.object({
 export function parseArtistBasics(formData: FormData) {
   return artistBasicsSchema.parse({
     fullName: formData.get("fullName"),
-    artistName: formData.get("artistName"),
-    avatarUrl: formData.get("avatarUrl")
+    artistName: formData.get("artistName")
   });
 }
 

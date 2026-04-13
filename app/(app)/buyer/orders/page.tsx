@@ -46,7 +46,11 @@ export default async function BuyerOrdersPage() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
                   <p className="text-muted-foreground">
-                    {order.agreement_url
+                    {order.agreement_generation_error
+                      ? "Payment cleared, but agreement generation needs attention from the Sync Exchange team."
+                      : order.agreement_delivery_blocked
+                        ? "Payment cleared and the document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied."
+                      : order.agreement_url
                       ? "Agreement generated and ready for download."
                       : order.paid_at
                         ? "Payment received. Agreement generation is in progress."
@@ -58,13 +62,29 @@ export default async function BuyerOrdersPage() {
                     <Link href={`/license-confirmation/${order.id}`} className="font-medium text-foreground underline-offset-4 hover:underline">
                       View confirmation
                     </Link>
-                    {order.agreement_url ? (
+                    {order.agreement_url && !order.agreement_delivery_blocked ? (
                       <Link href={order.agreement_url} className="font-medium text-foreground underline-offset-4 hover:underline">
-                        Open agreement
+                        Open agreement document
                       </Link>
                     ) : null}
                   </div>
                 </div>
+
+                {order.agreement_generation_error ? (
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
+                    Agreement delivery is still being finalized: {order.agreement_generation_error}
+                  </div>
+                ) : null}
+
+                {order.schema_degraded ? (
+                  <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
+                    {(order.degraded_messages || []).map((message: string) => (
+                      <p key={message} className="mt-1 first:mt-0">
+                        {message}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ))

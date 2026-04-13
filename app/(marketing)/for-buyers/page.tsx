@@ -31,7 +31,7 @@ export default function ForBuyersPage() {
             items={[
               { title: "Premium discovery", description: "Search by genre, mood, tempo, vocal profile, explicitness, and license posture." },
               { title: "Rights confidence", description: "Track detail pages surface available license types and contributor context up front." },
-              { title: "Fast purchasing", description: "Stripe checkout scaffolding and agreement generation placeholders keep the flow ready for production." },
+              { title: "Fast purchasing", description: "Stripe-backed checkout, order lifecycle tracking, and agreement delivery keep the licensing flow operational." },
               { title: "Institutional polish", description: "Dashboards, saved tracks, and order history support repeat buyers and internal stakeholders." }
             ]}
           />

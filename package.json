@@ -3,11 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
+    "build": "bash scripts/build-safe.sh",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node scripts/prepare-typecheck.mjs && tsc --noEmit",
+    "validate:env": "node scripts/validate-env.mjs",
+    "verify:supabase": "node scripts/diagnose-supabase-project.mjs",
+    "verify:routes": "zsh scripts/verify-routes.sh",
+    "verify:smoke": "zsh scripts/verify-routes.sh",
+    "verify:roles": "zsh scripts/verify-role-flows.sh",
+    "chrome:local": "bash scripts/open-local-chrome.sh",
+    "setup:storage": "node scripts/setup-supabase-storage.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

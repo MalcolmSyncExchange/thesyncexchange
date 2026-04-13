@@ -21,7 +21,12 @@ export const assetRules = {
   },
   audioFile: {
     label: "Audio file",
-    maxSizeBytes: 100 * 1024 * 1024,
+    maxSizeBytes: 50 * 1024 * 1024,
+    allowedExtensions: acceptedAudioExtensions
+  },
+  previewFile: {
+    label: "Preview audio",
+    maxSizeBytes: 25 * 1024 * 1024,
     allowedExtensions: acceptedAudioExtensions
   },
   waveformFile: {
@@ -68,7 +73,9 @@ type TrackSubmissionBaseInput = z.infer<typeof trackSubmissionObjectSchema>;
 
 function applyTrackSubmissionRules<T extends z.ZodTypeAny>(schema: T) {
   return schema.superRefine((value, ctx) => {
-    const normalizedValue = value as TrackSubmissionBaseInput;
+    const normalizedValue = value as TrackSubmissionBaseInput & {
+      previewFilePath?: string;
+    };
     const total = normalizedValue.rightsHolders.reduce((sum, holder) => sum + holder.ownershipPercent, 0);
     if (Math.abs(total - 100) > 0.001) {
       ctx.addIssue({
@@ -83,6 +90,14 @@ function applyTrackSubmissionRules<T extends z.ZodTypeAny>(schema: T) {
         code: z.ZodIssueCode.custom,
         path: ["vocals"],
         message: "A track marked instrumental cannot also be marked as having vocals."
+      });
+    }
+
+    if (normalizedValue.saveMode === "publish" && !normalizedValue.previewFilePath) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["previewFilePath"],
+        message: "Preview audio is required before a track can be published for review."
       });
     }
   });

@@ -5,7 +5,9 @@ import { cookies } from "next/headers";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
+import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
+import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { AppSupabaseClient } from "@/services/supabase/types";
 import type { Database, Json } from "@/types/database";
@@ -19,6 +21,7 @@ export async function updateTrackStatusAction(formData: FormData) {
   }
 
   const supabase = createPrivilegedSupabaseClient();
+  const { data: trackContext } = await supabase.from("tracks").select("id, slug").eq("id", trackId).maybeSingle();
 
   const actorId = await getAdminActorId();
   await supabase
@@ -36,6 +39,11 @@ export async function updateTrackStatusAction(formData: FormData) {
   revalidatePath("/admin/tracks");
   revalidatePath("/admin/compliance");
   revalidatePath("/buyer/catalog");
+  revalidatePath(`/artist/tracks/${trackContext?.slug || trackId}`);
+  if (trackContext?.slug) {
+    revalidatePath(`/buyer/catalog/${trackContext.slug}`);
+    revalidatePath(`/buyer/checkout/${trackContext.slug}`);
+  }
 }
 
 export async function toggleTrackFeaturedAction(formData: FormData) {
@@ -141,36 +149,36 @@ export async function updateOrderStatusAction(formData: FormData) {
 
   const supabase = createPrivilegedSupabaseClient();
   const now = new Date().toISOString();
-
-  const { data: order } = await supabase
-    .from("orders")
-    .select("track_id, agreement_url, paid_at, fulfilled_at, refunded_at")
-    .eq("id", orderId)
-    .maybeSingle();
+  const order = await loadAdminOrderStatusSnapshot(supabase, orderId);
 
   if (!order) {
     return;
   }
 
   if (status === "fulfilled") {
-    await supabase
-      .from("orders")
-      .update({
-        paid_at: order.paid_at || now
-      })
-      .eq("id", orderId);
+    await updateOrderStatusCompat(supabase, orderId, {
+      paid_at: order.paid_at || now,
+      agreement_generation_error: null
+    });
     await generateAgreementArtifactForOrder(orderId);
   } else {
-    await supabase
-      .from("orders")
-      .update({
-        status: status as Database["public"]["Enums"]["order_status"],
-        paid_at: status === "paid" ? order.paid_at || now : order.paid_at,
-        refunded_at: status === "refunded" ? order.refunded_at || now : order.refunded_at,
-        fulfilled_at: status === "pending" ? null : order.fulfilled_at
-      })
-      .eq("id", orderId);
+    await updateOrderStatusCompat(supabase, orderId, {
+      status: status as Database["public"]["Enums"]["order_status"],
+      paid_at: status === "paid" ? order.paid_at || now : order.paid_at,
+      refunded_at: status === "refunded" ? order.refunded_at || now : order.refunded_at,
+      fulfilled_at: status === "pending" ? null : order.fulfilled_at,
+      agreement_generation_error: status === "pending" ? null : order.agreement_generation_error
+    });
   }
+
+  await appendOrderActivityLog(supabase, {
+    orderId,
+    actorId: await getAdminActorId(),
+    source: "admin",
+    eventType: "order_status_updated",
+    message: `Admin manually updated the order status to ${status}.`,
+    metadata: { status }
+  }).catch(() => undefined);
 
   if (order.track_id) {
     await appendTrackAuditLog(supabase, order.track_id, "order_status_updated", { orderId, status });
@@ -211,4 +219,76 @@ async function getAdminActorId() {
     data: { user }
   } = await supabase.auth.getUser();
   return user?.id || null;
+}
+
+async function loadAdminOrderStatusSnapshot(supabase: AppSupabaseClient, orderId: string) {
+  const primary = await supabase
+    .from("orders")
+    .select("track_id, agreement_url, agreement_generated_at, agreement_generation_error, paid_at, fulfilled_at, refunded_at")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (!primary.error) {
+    return primary.data as {
+      track_id: string | null;
+      agreement_url: string | null;
+      agreement_generated_at: string | null;
+      agreement_generation_error: string | null;
+      paid_at: string | null;
+      fulfilled_at: string | null;
+      refunded_at: string | null;
+    } | null;
+  }
+
+  if (!isMissingColumnError(primary.error, "agreement_generation_error")) {
+    throw new Error(primary.error.message);
+  }
+
+  warnSchemaFallbackOnce(
+    "admin-order-status-read",
+    "Agreement generation metadata is not available yet; manual admin order controls will run in reduced mode until migration 0010 is applied.",
+    primary.error
+  );
+
+  const fallback = await supabase
+    .from("orders")
+    .select("track_id, agreement_url, agreement_generated_at, paid_at, fulfilled_at, refunded_at")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (fallback.error) {
+    throw new Error(fallback.error.message);
+  }
+
+  return fallback.data
+    ? {
+        ...fallback.data,
+        agreement_generation_error: null
+      }
+    : null;
+}
+
+async function updateOrderStatusCompat(supabase: AppSupabaseClient, orderId: string, values: Database["public"]["Tables"]["orders"]["Update"]) {
+  const primary = await supabase.from("orders").update(values).eq("id", orderId);
+
+  if (!primary.error) {
+    return;
+  }
+
+  if (!isMissingColumnError(primary.error, "agreement_generation_error")) {
+    throw new Error(primary.error.message);
+  }
+
+  warnSchemaFallbackOnce(
+    "admin-order-status-write",
+    "Agreement generation metadata is not available yet; admin order updates will skip that field until migration 0010 is applied.",
+    primary.error
+  );
+
+  const { agreement_generation_error: _skipAgreementError, ...fallbackValues } = values;
+  const fallback = await supabase.from("orders").update(fallbackValues).eq("id", orderId);
+
+  if (fallback.error) {
+    throw new Error(fallback.error.message);
+  }
 }

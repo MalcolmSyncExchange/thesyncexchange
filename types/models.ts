@@ -12,6 +12,7 @@ export interface User {
   email: string;
   role: UserRole | null;
   full_name: string;
+  avatar_path?: string | null;
   avatar_url?: string | null;
   onboarding_started_at?: string | null;
   onboarding_completed_at?: string | null;
@@ -133,13 +134,37 @@ export interface Order {
   currency: string;
   order_status: OrderStatus;
   agreement_url?: string | null;
+  agreement_path?: string | null;
+  agreement_content_type?: string | null;
+  agreement_size_bytes?: number | null;
+  agreement_generation_error?: string | null;
   checkout_created_at?: string | null;
   paid_at?: string | null;
   agreement_generated_at?: string | null;
   fulfilled_at?: string | null;
   refunded_at?: string | null;
+  last_webhook_event_id?: string | null;
+  last_webhook_event_type?: string | null;
+  last_webhook_processed_at?: string | null;
+  last_webhook_error?: string | null;
+  agreement_delivery_blocked?: boolean;
+  schema_degraded?: boolean;
+  activity_degraded?: boolean;
+  degraded_messages?: string[];
   created_at: string;
   updated_at: string;
+}
+
+export interface OrderActivityLog {
+  id: string;
+  order_id: string;
+  actor_id?: string | null;
+  source: "system" | "stripe_webhook" | "admin" | "buyer";
+  event_type: string;
+  message?: string | null;
+  metadata: Record<string, unknown>;
+  dedupe_key?: string | null;
+  created_at: string;
 }
 
 export interface Favorite {
@@ -186,6 +211,7 @@ export interface SessionUser {
   email: string;
   role: UserRole | null;
   fullName: string;
+  avatarPath?: string | null;
   avatarUrl?: string | null;
   onboardingComplete?: boolean;
   onboardingStep?: string | null;

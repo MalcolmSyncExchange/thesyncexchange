@@ -16,11 +16,12 @@ Create these exact bucket names:
 
 ## Recommended path conventions
 
-- `avatars/{user_id}/{timestamp}-{filename}`
-- `cover-art/{artist_user_id}/{track_id-or-draft}/cover-art/{timestamp}-{filename}`
-- `track-previews/{artist_user_id}/{track_id-or-draft}/waveforms/{timestamp}-{filename}`
-- `track-audio/{artist_user_id}/{track_id-or-draft}/audio/{timestamp}-{filename}`
-- `agreements/orders/{order_id}/license-agreement.html`
+- `avatars/{user_id}/profile/{timestamp}-{uuid}.{ext}`
+- `cover-art/{artist_user_id}/{track_id-or-draft}/cover-art/{timestamp}-{uuid}.{ext}`
+- `track-previews/{artist_user_id}/{track_id-or-draft}/previews/{timestamp}-{uuid}.{ext}`
+- `track-previews/{artist_user_id}/{track_id-or-draft}/waveforms/{timestamp}-{uuid}.{ext}`
+- `track-audio/{artist_user_id}/{track_id-or-draft}/audio/{timestamp}-{uuid}.{ext}`
+- `agreements/orders/{order_id}/license-agreement.pdf`
 
 ## Apply policies
 
@@ -39,8 +40,9 @@ Those policies enforce:
 
 - Postgres stores object paths, not provider-specific public URLs.
 - Cover art and waveform assets resolve as public URLs at runtime.
-- Full source audio stays private and is surfaced through short-lived signed URLs.
+- Full source audio stays private and is surfaced only through short-lived signed URLs in authenticated artist/admin workflows.
 - Agreement delivery still goes through the authenticated app route at `/api/orders/[orderId]/agreement`, which can redirect to a signed file URL after auth checks.
+- Use a 50MB effective limit for full-audio uploads to stay within the verified bucket configuration.
 
 ## Verification checklist
 
@@ -48,4 +50,4 @@ Those policies enforce:
 2. Confirm the `tracks` row stores `cover_art_path`, `audio_file_path`, and optional `waveform_path` as bucket object paths.
 3. Confirm artist and admin track detail pages can play audio through signed URLs.
 4. Confirm buyer track detail can play preview audio for approved tracks.
-5. Confirm agreement generation writes to the private `agreements` bucket and the app route returns the file.
+5. Confirm agreement generation writes a PDF artifact to the private `agreements` bucket and the app route returns the file only for the correct buyer or an admin.

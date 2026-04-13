@@ -11,6 +11,7 @@ export interface DemoDirectoryUser {
   email: string;
   role: UserRole | null;
   fullName: string;
+  avatarPath?: string | null;
   avatarUrl?: string | null;
   onboardingStep?: string | null;
   onboardingStartedAt?: string | null;
@@ -140,6 +141,7 @@ export function toSessionUser(user: DemoDirectoryUser): SessionUser {
     email: user.email,
     role,
     fullName: user.fullName,
+    avatarPath: user.avatarPath || null,
     avatarUrl: user.avatarUrl || null,
     onboardingStep: role === "admin" ? null : user.onboardingStep || null,
     onboardingStartedAt: user.onboardingStartedAt || null,
@@ -192,6 +194,7 @@ function buildDefaultDirectory(): DemoDirectory {
       email: user.email,
       role: user.role,
       fullName: user.full_name,
+      avatarPath: null,
       avatarUrl: user.avatar_url || null,
       onboardingStep: user.role === "admin" ? null : "complete",
       onboardingStartedAt: user.created_at,

@@ -20,7 +20,6 @@ import {
   type TrackSubmissionValues,
   validateAssetFile
 } from "@/lib/validation/track-submission";
-import { createBrowserSupabaseClient } from "@/services/supabase/client";
 import {
   submitTrackAction,
   submitTrackInitialState,
@@ -65,10 +64,11 @@ export function SubmitMusicForm({
   const [state, setState] = useState<SubmitTrackState>(submitTrackInitialState);
   const [submitMode, setSubmitMode] = useState<"draft" | "publish">("draft");
   const [assetErrors, setAssetErrors] = useState<Record<string, string>>({});
-  const [assetNames, setAssetNames] = useState<{ coverArt?: string; audioFile?: string; waveformFile?: string }>({});
+  const [assetNames, setAssetNames] = useState<{ coverArt?: string; audioFile?: string; previewFile?: string; waveformFile?: string }>({});
   const [isPending, startTransition] = useTransition();
   const coverArtInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
+  const previewInputRef = useRef<HTMLInputElement | null>(null);
   const waveformInputRef = useRef<HTMLInputElement | null>(null);
   const {
     register,
@@ -96,7 +96,20 @@ export function SubmitMusicForm({
       return;
     }
 
+    const nextAssetErrors: Record<string, string> = {};
+    if (state.errors.coverArtPath) nextAssetErrors.coverArt = state.errors.coverArtPath;
+    if (state.errors.audioFilePath) nextAssetErrors.audioFile = state.errors.audioFilePath;
+    if (state.errors.previewFilePath) nextAssetErrors.previewFile = state.errors.previewFilePath;
+    if (state.errors.waveformPath) nextAssetErrors.waveformFile = state.errors.waveformPath;
+    if (Object.keys(nextAssetErrors).length > 0) {
+      setAssetErrors((current) => ({ ...current, ...nextAssetErrors }));
+    }
+
     Object.entries(state.errors).forEach(([path, message]) => {
+      if (["coverArtPath", "audioFilePath", "previewFilePath", "waveformPath"].includes(path)) {
+        return;
+      }
+
       setError(path as Parameters<typeof setError>[0], {
         type: "server",
         message
@@ -128,15 +141,22 @@ export function SubmitMusicForm({
     setSubmitMode(nextSubmitMode);
     const coverArtFile = coverArtInputRef.current?.files?.[0];
     const audioFile = audioInputRef.current?.files?.[0];
+    const previewFile = previewInputRef.current?.files?.[0];
     const waveformFile = waveformInputRef.current?.files?.[0];
 
     const nextAssetErrors: Record<string, string> = {};
     const coverArtError = validateAssetFile(coverArtFile, assetRules.coverArt, mode === "create" && !track?.cover_art_path && !track?.cover_art_url);
     const audioFileError = validateAssetFile(audioFile, assetRules.audioFile, mode === "create" && !track?.audio_file_path && !track?.audio_file_url);
+    const previewFileError = validateAssetFile(
+      previewFile,
+      assetRules.previewFile,
+      nextSubmitMode === "publish" && !track?.preview_file_path
+    );
     const waveformFileError = validateAssetFile(waveformFile, assetRules.waveformFile, false);
 
     if (coverArtError) nextAssetErrors.coverArt = coverArtError;
     if (audioFileError) nextAssetErrors.audioFile = audioFileError;
+    if (previewFileError) nextAssetErrors.previewFile = previewFileError;
     if (waveformFileError) nextAssetErrors.waveformFile = waveformFileError;
 
     setAssetErrors(nextAssetErrors);
@@ -173,11 +193,10 @@ export function SubmitMusicForm({
           throw new Error("Supabase Storage uploads require demo mode to be off and Supabase credentials to be configured.");
         }
 
-        const userId = await resolveArtistUserId();
         const assetScope = track?.id || `draft-${crypto.randomUUID()}`;
 
         if (coverArtFile) {
-          const coverArtUpload = await uploadTrackAsset({ file: coverArtFile, userId, kind: "cover-art", scope: assetScope });
+          const coverArtUpload = await uploadTrackAsset({ file: coverArtFile, kind: "cover-art", scope: assetScope });
           uploadedAssets.push({ bucket: coverArtUpload.bucket, path: coverArtUpload.path });
           formData.set("coverArtPath", coverArtUpload.path);
         } else if (track?.cover_art_path || track?.cover_art_url) {
@@ -185,15 +204,25 @@ export function SubmitMusicForm({
         }
 
         if (audioFile) {
-          const audioUpload = await uploadTrackAsset({ file: audioFile, userId, kind: "audio", scope: assetScope });
+          const audioUpload = await uploadTrackAsset({ file: audioFile, kind: "audio", scope: assetScope });
           uploadedAssets.push({ bucket: audioUpload.bucket, path: audioUpload.path });
           formData.set("audioFilePath", audioUpload.path);
         } else if (track?.audio_file_path || track?.audio_file_url) {
           formData.set("audioFilePath", track?.audio_file_path || track?.audio_file_url || "");
         }
 
+        if (previewFile) {
+          const previewUpload = await uploadTrackAsset({ file: previewFile, kind: "preview", scope: assetScope });
+          uploadedAssets.push({ bucket: previewUpload.bucket, path: previewUpload.path });
+          formData.set("previewFilePath", previewUpload.path);
+        } else if (track?.preview_file_path) {
+          formData.set("previewFilePath", track.preview_file_path);
+        } else {
+          formData.set("previewFilePath", "");
+        }
+
         if (waveformFile) {
-          const waveformUpload = await uploadTrackAsset({ file: waveformFile, userId, kind: "waveform", scope: assetScope });
+          const waveformUpload = await uploadTrackAsset({ file: waveformFile, kind: "waveform", scope: assetScope });
           uploadedAssets.push({ bucket: waveformUpload.bucket, path: waveformUpload.path });
           formData.set("waveformPath", waveformUpload.path);
         } else if (track?.waveform_path || track?.waveform_preview_url) {
@@ -202,7 +231,6 @@ export function SubmitMusicForm({
           formData.set("waveformPath", "");
         }
 
-        formData.set("previewFilePath", track?.preview_file_path || "");
         formData.set("uploadedAssets", JSON.stringify(uploadedAssets));
         if (mode === "edit" && track) {
           formData.set("trackId", track.id);
@@ -296,8 +324,22 @@ export function SubmitMusicForm({
                 setAssetErrors((current) => ({ ...current, audioFile: "" }));
               }}
             />
-            <HelperText text={assetNames.audioFile || "MP3, WAV, AIFF, or FLAC up to 100MB."} />
+            <HelperText text={assetNames.audioFile || "MP3, WAV, AIFF, or FLAC up to 50MB."} />
             {track?.audio_file_path || track?.audio_file_url ? <HelperText text="Current source audio is already stored." /> : null}
+          </Field>
+          <Field label="Preview audio upload" error={assetErrors.previewFile}>
+            <Input
+              id="previewFile"
+              ref={previewInputRef}
+              type="file"
+              accept=".mp3,.wav,.aiff,.flac"
+              onChange={(event) => {
+                setAssetNames((current) => ({ ...current, previewFile: event.target.files?.[0]?.name }));
+                setAssetErrors((current) => ({ ...current, previewFile: "" }));
+              }}
+            />
+            <HelperText text={assetNames.previewFile || "Short buyer-facing preview in MP3, WAV, AIFF, or FLAC up to 25MB."} />
+            {track?.preview_file_path ? <HelperText text="Current preview audio is already stored." /> : null}
           </Field>
           <Field label="Waveform preview upload" error={assetErrors.waveformFile}>
             <Input
@@ -322,7 +364,7 @@ export function SubmitMusicForm({
             <ToggleField label="Explicit" {...register("explicit")} />
           </div>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground md:col-span-2">
-            Cover art and waveform assets resolve from dedicated public buckets. Source audio is stored privately and surfaced through signed access when the workflow allows it.
+            Cover art, preview audio, and waveform assets resolve from dedicated discovery-safe buckets. Source audio is stored privately and surfaced only through signed access for artist and admin workflows.
           </div>
         </CardContent>
       </Card>
@@ -509,17 +551,4 @@ function Banner({ success, message }: { success: boolean; message: string }) {
 
 function HelperText({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground">{text}</p>;
-}
-
-async function resolveArtistUserId() {
-  const supabase = createBrowserSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user?.id) {
-    throw new Error("You must be signed in to upload submission assets.");
-  }
-
-  return user.id;
 }

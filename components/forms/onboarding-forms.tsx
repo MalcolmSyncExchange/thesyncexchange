@@ -153,7 +153,7 @@ function ArtistBasicsStep({
   const hasAvatar = Boolean(values.avatarUrl);
 
   return (
-    <form action={action} className="space-y-8">
+    <form action={action} className="space-y-8" encType="multipart/form-data">
       <input type="hidden" name="step" value="basics" />
       <StepHeader
         eyebrow="Step 1"
@@ -169,14 +169,14 @@ function ArtistBasicsStep({
             <Input id="artistName" name="artistName" defaultValue={values.artistName} placeholder="Artist project name" required className="h-11" />
           </Field>
         </div>
-        <Field label="Profile image URL" htmlFor="avatarUrl" optional>
-          <Input id="avatarUrl" name="avatarUrl" defaultValue={values.avatarUrl} placeholder="https://..." className="h-11" />
+        <Field label="Profile image" htmlFor="avatarFile" optional>
+          <Input id="avatarFile" name="avatarFile" type="file" accept=".jpg,.jpeg,.png,.webp" className="h-11" />
         </Field>
         <InlineState
           title={hasAvatar ? "Profile image ready" : "No profile image yet"}
           description={
             hasAvatar
-              ? "Your artist profile already has a visual anchor. You can still replace it later."
+              ? "Your artist profile already has a visual anchor. Uploading a new image here will replace it."
               : "Leave this blank for now if you want to move quickly. You can add profile media after setup."
           }
           tone={hasAvatar ? "ready" : "empty"}

@@ -5,9 +5,9 @@ import { SiteHeader } from "@/components/layout/site-header";
 
 export function MarketingShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
-      {children}
+      <div className="flex-1">{children}</div>
       <SiteFooter />
     </div>
   );

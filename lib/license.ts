@@ -43,7 +43,12 @@ export function getAgreementAccessUrl(orderId: string) {
 }
 
 export function buildAgreementStoragePath(orderId: string) {
-  return `orders/${orderId}/license-agreement.html`;
+  return `orders/${orderId}/license-agreement.pdf`;
+}
+
+export function renderLicenseAgreementPdf(input: AgreementArtifactInput) {
+  const lines = buildAgreementDocumentLines(input);
+  return buildSimplePdf(lines);
 }
 
 export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
@@ -256,4 +261,161 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function buildAgreementDocumentLines(input: AgreementArtifactInput) {
+  const rightsHolderLines = input.rightsHolders.length
+    ? input.rightsHolders.flatMap((holder) =>
+        wrapPdfLine(`${holder.name} - ${holder.roleType} - ${holder.ownershipPercent}%`, 88)
+      )
+    : ["Rights holder details were not available when this agreement was generated."];
+
+  return [
+    "The Sync Exchange",
+    "Sync License Agreement",
+    "",
+    ...wrapPdfLine(
+      "This agreement artifact was generated automatically after verified payment. It records the commercial details of the purchased sync license while final legal language remains under counsel review.",
+      92
+    ),
+    "",
+    `Order ID: ${input.orderId}`,
+    `Generated: ${input.createdAt}`,
+    `Track: ${input.trackTitle}`,
+    `Artist: ${input.artistName}`,
+    `License: ${input.licenseName}`,
+    `Fee: ${formatCurrency(input.amountPaid, input.currency)}`,
+    `Buyer: ${input.buyerName}`,
+    `Billing Contact: ${input.buyerEmail}`,
+    "",
+    "Licensed Recording",
+    ...wrapPdfLine(
+      "The Sync Exchange confirms receipt of payment for the selected license tier and records the licensed composition and master metadata shown in this artifact.",
+      92
+    ),
+    "",
+    "Rights Holders",
+    ...rightsHolderLines,
+    "",
+    "Commercial Notes",
+    ...wrapPdfLine(
+      "Exclusive restrictions, term, territory, media scope, indemnities, and credit obligations remain subject to The Sync Exchange legal review workflow.",
+      92
+    ),
+    "",
+    ...wrapPdfLine(
+      "Legal review required before this generated artifact is used as the final production contract or countersigned legal instrument.",
+      92
+    )
+  ];
+}
+
+function wrapPdfLine(text: string, maxChars: number) {
+  const normalized = sanitizePdfText(text).trim();
+  if (!normalized) {
+    return [""];
+  }
+
+  const words = normalized.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxChars) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      lines.push(current);
+      current = word;
+      continue;
+    }
+
+    lines.push(word.slice(0, maxChars));
+    current = word.slice(maxChars);
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  return lines;
+}
+
+function buildSimplePdf(lines: string[]) {
+  const pageWidth = 612;
+  const pageHeight = 792;
+  const marginLeft = 56;
+  const marginTop = 736;
+  const lineHeight = 16;
+  const maxLinesPerPage = 42;
+
+  const pages = chunkLines(lines, maxLinesPerPage);
+  const objects: Array<string | null> = [null];
+  const fontObjectNumber = 3 + pages.length * 2;
+
+  objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+  objects[2] = `<< /Type /Pages /Count ${pages.length} /Kids [${pages
+    .map((_, index) => `${3 + index * 2} 0 R`)
+    .join(" ")}] >>`;
+
+  pages.forEach((pageLines, index) => {
+    const pageObjectNumber = 3 + index * 2;
+    const contentObjectNumber = pageObjectNumber + 1;
+    const contentStream = buildPdfContentStream(pageLines, marginLeft, marginTop, lineHeight);
+
+    objects[pageObjectNumber] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] ` +
+      `/Resources << /Font << /F1 ${fontObjectNumber} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`;
+    objects[contentObjectNumber] = `<< /Length ${Buffer.byteLength(contentStream, "utf8")} >>\nstream\n${contentStream}\nendstream`;
+  });
+
+  objects[fontObjectNumber] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [0];
+
+  for (let i = 1; i < objects.length; i += 1) {
+    offsets[i] = Buffer.byteLength(pdf, "utf8");
+    pdf += `${i} 0 obj\n${objects[i]}\nendobj\n`;
+  }
+
+  const xrefStart = Buffer.byteLength(pdf, "utf8");
+  pdf += `xref\n0 ${objects.length}\n`;
+  pdf += "0000000000 65535 f \n";
+
+  for (let i = 1; i < objects.length; i += 1) {
+    pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  }
+
+  pdf += `trailer << /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return Buffer.from(pdf, "utf8");
+}
+
+function buildPdfContentStream(lines: string[], marginLeft: number, marginTop: number, lineHeight: number) {
+  const escapedLines = lines.map((line) => `(${escapePdfText(line)}) Tj`);
+  return `BT\n/F1 11 Tf\n${marginLeft} ${marginTop} Td\n${lineHeight} TL\n${escapedLines.join("\nT*\n")}\nET`;
+}
+
+function chunkLines(lines: string[], maxLines: number) {
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < lines.length; index += maxLines) {
+    chunks.push(lines.slice(index, index + maxLines));
+  }
+
+  return chunks.length ? chunks : [[""]];
+}
+
+function sanitizePdfText(value: string) {
+  return value.replace(/[^\x20-\x7E]/g, " ");
+}
+
+function escapePdfText(value: string) {
+  return sanitizePdfText(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
 }

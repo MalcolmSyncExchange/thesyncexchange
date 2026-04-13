@@ -47,26 +47,9 @@ export async function withTrackAudioAccess<T extends Pick<Track, "audio_file_pat
   const previewUrl = getPublicStorageUrl(storageBuckets.trackPreviews, track.preview_file_path);
 
   if (access === "preview") {
-    if (previewUrl) {
-      return {
-        ...track,
-        audio_file_url: previewUrl
-      };
-    }
-
-    if (!track.audio_file_path) {
-      return {
-        ...track,
-        audio_file_url: null
-      };
-    }
-
     return {
       ...track,
-      audio_file_url: await createSignedStorageUrl(
-        { bucket: storageBuckets.trackAudio, path: track.audio_file_path },
-        60 * 10
-      ).catch(() => null)
+      audio_file_url: previewUrl
     };
   }
 

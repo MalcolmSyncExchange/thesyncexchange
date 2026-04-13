@@ -6,9 +6,12 @@ import { redirect } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { generateAgreementPlaceholder } from "@/lib/license";
+import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
+import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { createServerSupabaseClient } from "@/services/supabase/server";
+import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import { resolveRoleRedirect } from "@/services/auth/session";
 import type { Database } from "@/types/database";
 import type { SessionUser } from "@/types/models";
@@ -48,28 +51,55 @@ export async function createOrderAction(formData: FormData) {
   }
 
   const supabase = createPrivilegedSupabaseClient();
-  const orderId = crypto.randomUUID();
+  const { data: existingPendingOrder } = await supabase
+    .from("orders")
+    .select("id, stripe_checkout_session_id")
+    .eq("buyer_user_id", user.id)
+    .eq("track_id", trackId)
+    .eq("license_type_id", licenseTypeId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const createdNewOrder = !existingPendingOrder?.id;
+  const orderId = existingPendingOrder?.id || crypto.randomUUID();
   const amountCents = Math.round(amountPaid * 100);
   let checkoutSessionId: string | null = null;
 
   try {
-    const { data: order, error } = await supabase
-      .from("orders")
-      .insert({
-        id: orderId,
-        buyer_user_id: user.id,
-        track_id: trackId,
-        license_type_id: licenseTypeId,
-        amount_cents: amountCents,
-        currency: "USD",
-        status: "pending",
-        agreement_url: null
-      })
-      .select("id")
-      .single();
+    if (createdNewOrder) {
+      const { data: order, error } = await supabase
+        .from("orders")
+        .insert({
+          id: orderId,
+          buyer_user_id: user.id,
+          track_id: trackId,
+          license_type_id: licenseTypeId,
+          amount_cents: amountCents,
+          currency: "USD",
+          status: "pending",
+          agreement_url: null
+        })
+        .select("id")
+        .single();
 
-    if (error || !order) {
-      throw new Error(error?.message || "Unable to create order.");
+      if (error || !order) {
+        throw new Error(error?.message || "Unable to create order.");
+      }
+
+      await appendOrderActivityLog(supabase, {
+        orderId,
+        actorId: user.id,
+        source: "buyer",
+        eventType: "order_created",
+        message: "Buyer initiated checkout for a license purchase.",
+        metadata: {
+          trackId,
+          licenseTypeId,
+          amountCents
+        }
+      }).catch(() => undefined);
     }
 
     const session = await createStripeCheckoutSession({
@@ -79,12 +109,15 @@ export async function createOrderAction(formData: FormData) {
       licenseName: selectedLicense.name,
       amountCents,
       currency: "USD",
-      buyerEmail: user.email
+      buyerEmail: user.email,
+      buyerUserId: user.id,
+      trackId,
+      licenseTypeId
     });
     checkoutSessionId = session.id;
 
     const checkoutCreatedAt = new Date().toISOString();
-    const { error: updateError } = await supabase
+    const checkoutUpdate = await supabase
       .from("orders")
       .update({
         stripe_checkout_session_id: checkoutSessionId,
@@ -92,9 +125,39 @@ export async function createOrderAction(formData: FormData) {
       })
       .eq("id", orderId);
 
-    if (updateError) {
-      throw new Error(updateError.message);
+    if (checkoutUpdate.error) {
+      if (!isMissingColumnError(checkoutUpdate.error, "checkout_created_at")) {
+        throw new Error(checkoutUpdate.error.message);
+      }
+
+      warnSchemaFallbackOnce(
+        "buyer-checkout-created-at-write",
+        "checkout_created_at is not available yet; buyer checkout timing will be reduced until migration 0009 is applied.",
+        checkoutUpdate.error
+      );
+
+      const fallbackCheckoutUpdate = await supabase
+        .from("orders")
+        .update({
+          stripe_checkout_session_id: checkoutSessionId
+        })
+        .eq("id", orderId);
+
+      if (fallbackCheckoutUpdate.error) {
+        throw new Error(fallbackCheckoutUpdate.error.message);
+      }
     }
+
+    await appendOrderActivityLog(supabase, {
+      orderId,
+      actorId: user.id,
+      source: "buyer",
+      eventType: createdNewOrder ? "checkout_created" : "checkout_recreated",
+      message: createdNewOrder ? "Hosted Stripe Checkout Session created for the order." : "Hosted Stripe Checkout Session recreated for an existing pending order.",
+      metadata: {
+        sessionId: checkoutSessionId
+      }
+    }).catch(() => undefined);
 
     revalidatePath("/buyer/dashboard");
     revalidatePath("/buyer/orders");
@@ -106,7 +169,7 @@ export async function createOrderAction(formData: FormData) {
 
     redirect(session.url);
   } catch (checkoutError) {
-    if (!checkoutSessionId) {
+    if (!checkoutSessionId && createdNewOrder) {
       await supabase.from("orders").delete().eq("id", orderId);
     }
 
@@ -180,13 +243,11 @@ async function requireBuyerUser(): Promise<SessionUser> {
     redirect("/login");
   }
 
-  const { data: persistedProfile } = (await supabase
-    .from("user_profiles")
-    .select("role, full_name")
-    .eq("id", user.id)
-    .maybeSingle()) as {
-    data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "role" | "full_name"> | null;
-  };
+  const persistedProfileResult = await selectUserProfileCompat(supabase, user.id);
+  const persistedProfile = persistedProfileResult.data as Pick<
+    Database["public"]["Tables"]["user_profiles"]["Row"],
+    "role" | "full_name"
+  > | null;
   const role = persistedProfile?.role || user.user_metadata?.role;
   if (role !== "buyer") {
     redirect(resolveRoleRedirect(role === "artist" || role === "buyer" || role === "admin" ? role : null));

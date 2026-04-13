@@ -1,14 +1,9 @@
 "use client";
 
 import {
-  buildTrackAssetPath,
-  getPublicStorageUrl,
-  getTrackAssetBucket,
-  groupStorageAssetsByBucket,
   type StorageAssetRef,
   type TrackAssetKind
 } from "@/lib/storage";
-import { createBrowserSupabaseClient } from "@/services/supabase/client";
 
 export interface UploadedAsset extends StorageAssetRef {
   publicUrl: string | null;
@@ -16,39 +11,33 @@ export interface UploadedAsset extends StorageAssetRef {
 
 export async function uploadTrackAsset({
   file,
-  userId,
   kind,
   scope
 }: {
   file: File;
-  userId: string;
   kind: TrackAssetKind;
   scope: string;
 }): Promise<UploadedAsset> {
-  const supabase = createBrowserSupabaseClient();
-  const bucket = getTrackAssetBucket(kind);
-  const path = buildTrackAssetPath({
-    userId,
-    scope,
-    kind,
-    fileName: file.name
-  });
+  const formData = new FormData();
+  formData.set("file", file);
+  formData.set("kind", kind);
+  formData.set("scope", scope);
 
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType: file.type || undefined
+  const response = await fetch("/api/storage/upload", {
+    method: "POST",
+    body: formData
   });
+  const payload = (await response.json().catch(() => null)) as UploadedAsset | { error?: string } | null;
 
-  if (error) {
-    throw new Error(error.message);
+  if (!response.ok) {
+    throw new Error(payload && "error" in payload && payload.error ? payload.error : "Unable to upload asset.");
   }
 
-  return {
-    bucket,
-    path,
-    publicUrl: getPublicStorageUrl(bucket, path)
-  };
+  if (!payload || !("bucket" in payload) || !("path" in payload)) {
+    throw new Error("Upload response was incomplete.");
+  }
+
+  return payload;
 }
 
 export async function deleteTrackAssets(assets: StorageAssetRef[]) {
@@ -56,10 +45,11 @@ export async function deleteTrackAssets(assets: StorageAssetRef[]) {
     return;
   }
 
-  const supabase = createBrowserSupabaseClient();
-  const grouped = groupStorageAssetsByBucket(assets);
-
-  await Promise.all(
-    Array.from(grouped.entries()).map(([bucket, paths]) => supabase.storage.from(bucket).remove(paths))
-  );
+  await fetch("/api/storage/delete", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ assets })
+  }).catch(() => undefined);
 }

@@ -2,7 +2,7 @@ const hasSupabasePublicEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && pro
 const explicitDemoMode = process.env.SYNC_EXCHANGE_DEMO_MODE;
 
 export const env = {
-  appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3000",
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   avatarsBucket: process.env.NEXT_PUBLIC_SUPABASE_AVATARS_BUCKET || "avatars",
@@ -19,3 +19,24 @@ export const env = {
 
 export const hasSupabaseEnv = Boolean(env.supabaseUrl && env.supabaseAnonKey);
 export const hasStripeEnv = Boolean(env.stripeSecretKey);
+
+export function getMissingCoreEnvKeys() {
+  return [
+    ["NEXT_PUBLIC_APP_URL", env.appUrl],
+    ["NEXT_PUBLIC_SUPABASE_URL", env.supabaseUrl],
+    ["NEXT_PUBLIC_SUPABASE_ANON_KEY", env.supabaseAnonKey]
+  ]
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+}
+
+export function getMissingOperationalEnvKeys() {
+  return [
+    ["SUPABASE_SERVICE_ROLE_KEY", env.supabaseServiceRoleKey],
+    ["STRIPE_SECRET_KEY", env.stripeSecretKey],
+    ["STRIPE_WEBHOOK_SECRET", env.stripeWebhookSecret],
+    ["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", env.stripePublishableKey]
+  ]
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+}

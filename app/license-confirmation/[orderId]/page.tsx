@@ -10,6 +10,8 @@ import { env, hasStripeEnv } from "@/lib/env";
 import { getOrderById } from "@/services/buyer/queries";
 import { syncOrderFromStripeSessionId } from "@/services/stripe/server";
 
+export const dynamic = "force-dynamic";
+
 export default async function LicenseConfirmationPage({
   params,
   searchParams
@@ -64,7 +66,7 @@ export default async function LicenseConfirmationPage({
         </CardHeader>
         <CardContent className="space-y-5">
           <p className="text-muted-foreground">
-            Agreement generation is currently a clean placeholder system. Legal language, indemnities, and territory definitions require review before production go-live.
+            This confirmation tracks payment, agreement generation, and private delivery for your purchased sync license.
           </p>
           {order?.order_status === "pending" ? (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
@@ -75,6 +77,27 @@ export default async function LicenseConfirmationPage({
               or
               {" "}
               <span className="font-medium">/api/webhooks/stripe</span>.
+            </div>
+          ) : null}
+          {order?.agreement_generation_error ? (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
+              Payment was recorded, but agreement generation still needs attention: {order.agreement_generation_error}
+            </div>
+          ) : null}
+          {order?.agreement_generated_at && !order?.agreement_path ? (
+            <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
+              The agreement document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied.
+            </div>
+          ) : null}
+          {order?.schema_degraded ? (
+            <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
+              {(order.degraded_messages || [
+                "Extended fulfillment diagnostics are running in compatibility mode until the manual Supabase order hardening SQL is applied."
+              ]).map((message: string) => (
+                <p key={message} className="mt-1 first:mt-0">
+                  {message}
+                </p>
+              ))}
             </div>
           ) : null}
           <div className="rounded-lg border border-border bg-muted/40 p-5">
@@ -109,9 +132,9 @@ export default async function LicenseConfirmationPage({
           <Button asChild>
             <Link href="/buyer/orders">View order history</Link>
           </Button>
-          {order?.agreement_url ? (
+          {order?.agreement_url && order?.agreement_path ? (
             <Button asChild variant="outline">
-              <Link href={order.agreement_url}>Open generated agreement</Link>
+              <Link href={order.agreement_url}>Open agreement document</Link>
             </Button>
           ) : null}
         </CardContent>

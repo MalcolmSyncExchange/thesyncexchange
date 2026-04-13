@@ -7,14 +7,14 @@ Production-shaped MVP for a premium sync licensing marketplace built with Next.j
 1. Create the app shell, route groups, theming, shared UI primitives, and core utilities.
 2. Build the public marketing pages plus role-specific artist, buyer, and admin experiences.
 3. Add Supabase schema, typed models, demo seed data, and auth/session scaffolding.
-4. Add Stripe checkout session creation, order persistence, webhook fulfillment, and agreement placeholders.
+4. Add Stripe checkout session creation, order persistence, webhook fulfillment, and agreement delivery.
 5. Document setup, deployment, and the next production tasks.
 
 ## Files and Folders Created
 
 - `app/` App Router route groups for marketing, auth, onboarding, artist, buyer, admin, API handlers, and confirmation pages
 - `components/` Reusable layout, catalog, audio, form, dashboard, table, and UI primitives
-- `lib/` Environment helpers, demo data, license placeholder generation, and shared utilities
+- `lib/` Environment helpers, demo data, agreement/document generation, and shared utilities
 - `services/` Auth actions and Supabase client helpers
 - `hooks/` Catalog filtering hook
 - `types/` Shared application models and database typing placeholder
@@ -54,7 +54,19 @@ cp .env.example .env.local
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000).
+5. Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
+
+Useful verification commands:
+
+```bash
+npm run validate:env
+npm run verify:supabase
+npm run typecheck
+npm run build
+ROUTE_VERIFY_REQUIRE_EXISTING=1 npm run verify:smoke
+npm run verify:roles
+curl -s http://127.0.0.1:3000/api/health/readiness
+```
 
 ## Demo Mode
 
@@ -66,7 +78,26 @@ npm run dev
 
 - The initial schema is in [`supabase/migrations/0001_initial_schema.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0001_initial_schema.sql).
 - Demo SQL seeds start in [`supabase/seeds/seed.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/seeds/seed.sql).
-- The app currently uses in-app demo data for the UI. Replacing that with live Supabase queries is the next integration step.
+- The current storage and fulfillment hardening migrations are:
+  - [`supabase/migrations/0010_order_fulfillment_hardening.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0010_order_fulfillment_hardening.sql)
+  - [`supabase/migrations/0011_storage_object_policies.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0011_storage_object_policies.sql)
+  - [`supabase/migrations/0012_avatar_storage_path.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0012_avatar_storage_path.sql)
+- Storage bucket definitions and operational notes live in:
+  - [`supabase/storage-plan.md`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-plan.md)
+  - [`supabase/storage-setup.md`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-setup.md)
+  - [`supabase/storage-policies.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-policies.sql)
+  - [`supabase/manual-apply.md`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply.md)
+- Create or verify the required buckets with:
+
+```bash
+npm run setup:storage
+```
+
+- Diagnose whether the connected Supabase project needs the full schema bootstrap or only the later follow-up bundle:
+
+```bash
+npm run verify:supabase
+```
 
 ## Stripe Notes
 
@@ -75,12 +106,15 @@ npm run dev
 - Webhook fulfillment lives at [`app/api/webhooks/stripe/route.ts`](/Users/malcolmw/Documents/The Sync Exchange.2/app/api/webhooks/stripe/route.ts).
 - Agreement artifact generation lives at [`services/agreements/server.ts`](/Users/malcolmw/Documents/The Sync Exchange.2/services/agreements/server.ts).
 - Authenticated agreement delivery lives at [`app/api/orders/[orderId]/agreement/route.ts`](/Users/malcolmw/Documents/The Sync Exchange.2/app/api/orders/[orderId]/agreement/route.ts).
-- Agreement generation is intentionally marked for legal review before production release.
+- Agreement generation now creates a private PDF artifact and stores it in the `agreements` bucket. Final legal language is still marked for review before production release.
+- Readiness diagnostics live at [`app/api/health/readiness/route.ts`](/Users/malcolmw/Documents/The Sync Exchange.2/app/api/health/readiness/route.ts). This route reports whether the storage buckets, `0010` fulfillment metadata, `0012` avatar path column, and `order_activity_log` are actually live.
 - Local webhook forwarding can be tested with the Stripe CLI:
 
 ```bash
-stripe listen --forward-to localhost:3000/api/webhooks/stripe
+stripe listen --forward-to 127.0.0.1:3000/api/webhooks/stripe
 ```
+
+- A lightweight local Stripe verification page is available at [http://127.0.0.1:3000/test-checkout](http://127.0.0.1:3000/test-checkout).
 
 ## Buyer/Admin QA Flow
 
@@ -91,35 +125,134 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `STRIPE_SECRET_KEY`
    - `STRIPE_WEBHOOK_SECRET`
-2. Apply the Supabase migrations, including the agreements storage bucket.
-3. Start the app:
+   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+2. Validate the environment:
+
+```bash
+npm run validate:env
+```
+
+3. Diagnose the target Supabase project:
+
+```bash
+npm run verify:supabase
+```
+
+4. Apply the Supabase SQL that matches that diagnosis:
+   - if foundational app tables like `tracks` and `license_types` are missing, apply:
+     - [`supabase/manual-apply/2026-04-foundation-bootstrap.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql)
+   - if the base schema is already present but readiness is still degraded for fulfillment/storage/avatar support, apply:
+     - [`supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql)
+   - the underlying migration chain is:
+   - [`supabase/migrations/0008_database_foundation.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0008_database_foundation.sql)
+   - [`supabase/migrations/0009_order_lifecycle.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0009_order_lifecycle.sql)
+   - [`supabase/migrations/0010_order_fulfillment_hardening.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0010_order_fulfillment_hardening.sql)
+   - [`supabase/migrations/0011_storage_object_policies.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0011_storage_object_policies.sql)
+   - [`supabase/migrations/0012_avatar_storage_path.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0012_avatar_storage_path.sql)
+5. Create or verify the storage buckets:
+
+```bash
+npm run setup:storage
+```
+
+6. Start the app:
 
 ```bash
 npm run dev
 ```
 
-4. In a second terminal, forward Stripe events locally:
+7. In a second terminal, forward Stripe events locally:
 
 ```bash
-stripe listen --forward-to localhost:3000/api/webhooks/stripe
+stripe listen --forward-to 127.0.0.1:3000/api/webhooks/stripe
 ```
 
-5. Artist QA:
+8. Artist QA:
    - sign in as an artist
-   - submit a track
+   - complete onboarding if prompted
+   - submit a track with cover art, source audio, preview audio, and metadata
    - confirm the submission reaches admin review
-6. Admin QA:
+9. Admin QA:
    - approve the submitted track
-   - open Admin Orders and verify new paid orders move to `fulfilled` once an agreement artifact is generated
+   - open Admin Orders and verify lifecycle timestamps move through `checkout created` -> `paid` -> `agreement ready` -> `fulfilled`
    - use the agreement link on the order card to inspect the generated document
-7. Buyer QA:
+   - confirm agreement or webhook failures surface on the order card if they occur
+10. Buyer QA:
    - sign in as a buyer
    - open an approved track
    - start checkout and complete Stripe Checkout with a test card such as `4242 4242 4242 4242`
    - confirm the buyer order page shows progression from `pending` to `fulfilled`
    - open the generated agreement from the buyer order card or confirmation page
+11. Run smoke checks against the already-running local server:
+
+```bash
+ROUTE_VERIFY_REQUIRE_EXISTING=1 npm run verify:smoke
+curl -s http://127.0.0.1:3000/api/health/readiness
+```
+
+12. Optional role-based verification scaffold:
+
+```bash
+ARTIST_COOKIE_HEADER='sb-...'
+BUYER_COOKIE_HEADER='sb-...'
+ADMIN_COOKIE_HEADER='sb-...'
+WRONG_BUYER_COOKIE_HEADER='sb-...'
+ORDER_ID='your-real-order-id'
+npm run verify:roles
+```
+
+You can capture those cookie headers from a logged-in browser session or from scripted login requests in your own local QA setup. The script is meant to verify authorization and protected-route behavior once you already have valid role sessions.
 
 If webhook delivery is delayed, the confirmation page also attempts a session-based sync when `session_id` is present on the return URL.
+
+## Pre/Post Migration Behavior
+
+Before the manual SQL bundle is applied:
+
+- avatar uploads still work, but `avatar_path` falls back to `avatar_url` compatibility mode
+- payment syncing still works, but order rows will not retain the richer `0010` webhook/document metadata
+- agreement PDFs can still be generated, but secure buyer delivery stays blocked until `agreement_path` metadata is live
+- admin orders omit recent activity when `order_activity_log` is not live
+- readiness diagnostics will report `manualSupabaseActionRequired: true`
+- `npm run verify:supabase` will usually recommend either `apply_foundation_bootstrap` or `apply_follow_up_bundle`
+
+After the manual SQL bundle is applied:
+
+- avatar storage paths become first-class persisted fields
+- webhook processing errors and agreement generation errors are recorded on orders
+- order activity and webhook dedupe are fully enabled
+- admin order cards show the richer fulfillment lifecycle and recent activity
+
+## Readiness Status Meaning
+
+`/api/health/readiness` reports one of three states:
+
+- `healthy`
+  - buckets are present
+  - PostgREST can see the expected public tables
+  - avatar path support is live
+  - fulfillment/agreement metadata is live
+  - order activity auditing is live
+- `degraded`
+  - the app can still run
+  - compatibility fallbacks are active
+  - at least one capability is reduced, such as missing `0010`/`0012` columns or stale PostgREST visibility for newly added objects
+- `blocked`
+  - a core assumption is missing
+  - examples: missing env, missing service-role key, missing buckets, or public schema visibility not available through PostgREST
+
+Important: readiness can verify what the app can see through Supabase APIs, but it cannot directly prove whether a table exists in Postgres if PostgREST is not exposing it. Use the SQL checks in [`supabase/manual-apply.md`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply.md) to distinguish:
+
+- table truly missing
+- table exists but PostgREST schema cache is stale
+- table exists but schema exposure/project credentials are wrong
+
+The readiness payload also includes `tableDiagnostics` for `user_profiles`, `orders`, and `order_activity_log`:
+
+- `visible`: the table is reachable through PostgREST
+- `missing_or_stale`: baseline public tables are visible, but this table is not; use the SQL `to_regclass(...)` checks to tell missing migration vs stale cache
+- `schema_exposure_blocked`: even baseline public tables are not visible, so credentials / API schema exposure should be checked before blaming migrations
+- `unknown`: the API returned an unexpected error and needs direct inspection
 
 ## Vercel Deployment Notes
 
@@ -128,6 +261,31 @@ If webhook delivery is delayed, the confirmation page also attempts a session-ba
 3. Set the production app URL in `NEXT_PUBLIC_APP_URL`.
 4. Connect Supabase and Stripe secrets in the Vercel project settings.
 5. Configure Stripe webhook delivery to `/api/webhooks/stripe`.
+6. Run `npm run validate:env`, `npm run typecheck`, and `npm run build` before promoting the release.
+7. Apply the latest Supabase migrations and storage object policies before sending production traffic to the deployment.
+
+## Test Accounts
+
+- This repo includes seed/demo data structure, but local and hosted Supabase projects may not share the same credentials.
+- Create one artist, one buyer, and one admin account in the connected Supabase project before full QA.
+- Recommended QA usage:
+  - artist: onboarding + track submission
+  - buyer: discovery + checkout + agreement download
+  - admin: submission moderation + order visibility
+- Agreement authorization matrix to verify locally:
+  - unauthenticated -> `401`
+  - wrong buyer -> `403`
+  - correct buyer -> `200` or `307`
+  - admin -> `200` or `307`
+
+## Deployment Checklist
+
+- Configure all required env vars in Vercel and Supabase.
+- Apply the database migrations through your normal Supabase deployment workflow.
+- Run `npm run setup:storage` against the target Supabase project.
+- Apply [`supabase/storage-policies.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-policies.sql) or the matching migration before enabling uploads.
+- Configure Stripe webhook delivery to the deployed `/api/webhooks/stripe` route.
+- Run one full artist -> admin -> buyer -> webhook -> agreement QA pass against production-like data before launch.
 
 ## Current MVP Coverage
 
@@ -137,22 +295,19 @@ If webhook delivery is delayed, the confirmation page also attempts a session-ba
 - Buyer dashboard, searchable catalog, track detail, favorites, checkout scaffold, and order history
 - Admin dashboard, review queue, user/track/order management, compliance queue, and analytics overview
 - Supabase schema plus seed starter
-- Stripe route scaffold and agreement placeholder flow
+- Stripe route scaffold and agreement delivery flow
 - Dark mode and light mode
 
 ## Still Stubbed or Mocked
 
-- Live Supabase queries, storage uploads, and row-level auth wiring
-- Real Stripe checkout pricing and webhook fulfillment
-- Generated PDFs or signed legal agreements
 - Email delivery, notifications, and team invites
 - Production analytics instrumentation
 - Full SQL seed coverage for all 20 demo tracks
 
 ## Highest-Priority Next Tasks
 
-1. Replace `lib/demo-data.ts` reads with real Supabase queries and mutations.
-2. Connect the submit music form to Supabase Storage and server actions.
-3. Persist orders and favorites in the database with authenticated buyer context.
-4. Finalize legal agreement templates and Stripe fulfillment.
-5. Add automated tests for route protection, form validation, and checkout behavior.
+1. Apply the storage/fulfillment/avatar SQL bundle to the connected Supabase project if it is not already live.
+2. Run a full artist upload -> admin approval -> buyer purchase -> webhook fulfillment QA pass against the live project.
+3. Expand smoke coverage to include authenticated marketplace flows, not just route health.
+4. Add email notifications for submission review, payment confirmation, and agreement readiness.
+5. Replace the interim PDF legal language with final reviewed contract language once approved.

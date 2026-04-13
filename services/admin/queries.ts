@@ -3,6 +3,7 @@ import { env, hasSupabaseEnv } from "@/lib/env";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { withTrackAudioAccess } from "@/services/storage/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
+import { isMissingColumnError, isMissingRelationError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import type { AdminFlagSeverity, LicenseType, OrderStatus, RightsHolder, Track, TrackStatus, VerificationStatus } from "@/types/models";
 
 interface AdminReviewQueueItem {
@@ -340,13 +341,13 @@ export async function getAdminOrders() {
       ...order,
       buyer_name: demoUsers.find((user) => user.id === order.buyer_user_id)?.full_name || "Buyer",
       track_title: demoTracks.find((track) => track.id === order.track_id)?.title || "Track",
-      license_name: demoLicenseTypes.find((license) => license.id === order.license_type_id)?.name || "License"
+      license_name: demoLicenseTypes.find((license) => license.id === order.license_type_id)?.name || "License",
+      recent_activity: []
     }));
   }
 
   const supabase = createPrivilegedSupabaseClient();
-
-  const { data } = await supabase
+  const primaryOrders = await supabase
     .from("orders")
     .select(
       `
@@ -360,8 +361,13 @@ export async function getAdminOrders() {
         checkout_created_at,
         paid_at,
         agreement_generated_at,
+        agreement_path,
+        agreement_generation_error,
         fulfilled_at,
         refunded_at,
+        last_webhook_event_type,
+        last_webhook_processed_at,
+        last_webhook_error,
         created_at,
         track_id,
         license_type_id,
@@ -375,15 +381,120 @@ export async function getAdminOrders() {
     )
     .order("created_at", { ascending: false });
 
-  const buyerNameById = await getUserNameMap(Array.from(new Set((data || []).map((order: any) => order.buyer_user_id).filter(Boolean))));
+  let orders = (primaryOrders.data || []) as any[];
+  let schemaDegraded = false;
 
-  return (data || []).map((order: any) => ({
+  if (primaryOrders.error) {
+    if (!isMissingColumnError(primaryOrders.error, ["agreement_path", "agreement_generation_error", "last_webhook_event_type"])) {
+      throw new Error(primaryOrders.error.message);
+    }
+
+    warnSchemaFallbackOnce(
+      "admin-orders-read",
+      "Admin order lifecycle metadata is not fully available yet; order cards will show a reduced view until migration 0010 is applied.",
+      primaryOrders.error
+    );
+
+    const fallback = await supabase
+      .from("orders")
+      .select(
+        `
+          id,
+          amount_cents,
+          buyer_user_id,
+          agreement_url,
+          status,
+          stripe_checkout_session_id,
+          stripe_payment_intent_id,
+          checkout_created_at,
+          paid_at,
+          agreement_generated_at,
+          fulfilled_at,
+          refunded_at,
+          created_at,
+          track_id,
+          license_type_id,
+          tracks (
+            title
+          ),
+          license_types (
+            name
+          )
+        `
+      )
+      .order("created_at", { ascending: false });
+
+    if (fallback.error) {
+      throw new Error(fallback.error.message);
+    }
+
+    orders = (fallback.data || []).map((order: any) => ({
+      ...order,
+      agreement_path: null,
+      agreement_generation_error: null,
+      last_webhook_event_type: null,
+      last_webhook_processed_at: null,
+      last_webhook_error: null
+    }));
+    schemaDegraded = true;
+  }
+
+  const orderIds = Array.from(new Set(orders.map((order: any) => order.id).filter(Boolean)));
+  const buyerNameById = await getUserNameMap(Array.from(new Set(orders.map((order: any) => order.buyer_user_id).filter(Boolean))));
+  let activityRows: any[] = [];
+  let activityDegraded = false;
+
+  if (orderIds.length) {
+    const activityResult = await supabase
+      .from("order_activity_log")
+      .select("id, order_id, event_type, message, created_at")
+      .in("order_id", orderIds)
+      .order("created_at", { ascending: false });
+
+    if (activityResult.error) {
+      if (!isMissingRelationError(activityResult.error, "order_activity_log")) {
+        throw new Error(activityResult.error.message);
+      }
+
+      warnSchemaFallbackOnce(
+        "admin-order-activity-read",
+        "order_activity_log is not available yet; admin order cards will omit recent activity until migration 0010 is applied.",
+        activityResult.error
+      );
+      activityDegraded = true;
+    } else {
+      activityRows = activityResult.data || [];
+    }
+  }
+
+  const activityByOrderId = new Map<string, Array<{ id: string; event_type: string; message: string | null; created_at: string }>>();
+
+  for (const row of activityRows) {
+    const current = activityByOrderId.get(row.order_id) || [];
+    if (current.length < 3) {
+      current.push(row);
+      activityByOrderId.set(row.order_id, current);
+    }
+  }
+
+  return orders.map((order: any) => ({
     ...order,
     amount_paid: Number(order.amount_cents || 0) / 100,
     order_status: order.status,
+    agreement_delivery_blocked: Boolean(order.agreement_generated_at && !order.agreement_path),
+    schema_degraded: schemaDegraded,
+    activity_degraded: activityDegraded,
+    degraded_messages: [
+      ...(schemaDegraded ? ["Extended fulfillment metadata is unavailable until migration 0010 is applied."] : []),
+      ...(activityDegraded ? ["Recent order activity is unavailable until order_activity_log is live."] : []),
+      ...(order.agreement_generated_at && !order.agreement_path
+        ? ["Agreement generation completed, but secure buyer delivery remains blocked until agreement_path metadata is available."]
+        : [])
+    ],
     buyer_name: buyerNameById.get(order.buyer_user_id) || "Buyer",
     track_title: order.tracks?.title || "Track",
-    license_name: order.license_types?.name || "License"
+    license_name: order.license_types?.name || "License",
+    recent_activity: activityByOrderId.get(order.id) || []
   }));
 }
 

@@ -61,6 +61,7 @@ Useful verification commands:
 ```bash
 npm run validate:env
 npm run verify:supabase
+npm run create:admin
 npm run typecheck
 npm run build
 ROUTE_VERIFY_REQUIRE_EXISTING=1 npm run verify:smoke
@@ -115,6 +116,52 @@ stripe listen --forward-to 127.0.0.1:3000/api/webhooks/stripe
 ```
 
 - A lightweight local Stripe verification page is available at [http://127.0.0.1:3000/test-checkout](http://127.0.0.1:3000/test-checkout).
+
+## One-Time Admin Bootstrap
+
+Use the server-side bootstrap script to create or elevate the initial admin account for:
+
+- `malcolm@thesyncexchange.com`
+
+This script:
+
+- creates the user through Supabase Auth using the service-role key
+- confirms the email immediately
+- updates existing auth metadata if the user already exists
+- upserts `public.user_profiles` with `role = 'admin'`
+- stays idempotent
+
+Set the password only through environment variables. Do not commit it.
+
+Recommended one-time run from your shell:
+
+```bash
+ADMIN_BOOTSTRAP_PASSWORD='your-initial-password-here' npm run create:admin
+```
+
+Optional behavior for an already-existing account:
+
+```bash
+ADMIN_BOOTSTRAP_PASSWORD='your-initial-password-here' ADMIN_BOOTSTRAP_RESET_PASSWORD=true npm run create:admin
+```
+
+If you prefer `.env.local`, set these temporarily:
+
+- `ADMIN_BOOTSTRAP_EMAIL=malcolm@thesyncexchange.com`
+- `ADMIN_BOOTSTRAP_FULL_NAME=Malcolm`
+- `ADMIN_BOOTSTRAP_PASSWORD=...`
+- `ADMIN_BOOTSTRAP_RESET_PASSWORD=false`
+
+After the script succeeds:
+
+1. remove `ADMIN_BOOTSTRAP_PASSWORD` from `.env.local` or unset it in your shell
+2. sign in normally at `/login`
+
+Important:
+
+- if `npm run verify:supabase` reports `apply_foundation_bootstrap`, run that SQL first
+- the admin role is enforced from `public.user_profiles.role` and checked throughout the app with `public.is_admin()`
+- the script never exposes the service-role key or password to the browser
 
 ## Buyer/Admin QA Flow
 

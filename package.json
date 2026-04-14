@@ -10,6 +10,7 @@
     "typecheck": "node scripts/prepare-typecheck.mjs && tsc --noEmit",
     "validate:env": "node scripts/validate-env.mjs",
     "verify:supabase": "node scripts/diagnose-supabase-project.mjs",
+    "create:admin": "node scripts/create-admin.mjs",
     "verify:routes": "zsh scripts/verify-routes.sh",
     "verify:smoke": "zsh scripts/verify-routes.sh",
     "verify:roles": "zsh scripts/verify-role-flows.sh",

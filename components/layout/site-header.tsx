@@ -72,16 +72,36 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/80 bg-background/95 backdrop-blur">
-      <div className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
+        <div className="shrink-0 md:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-site-menu"
+            onClick={() => setIsMenuOpen((open) => !open)}
+            className="h-9 w-9 px-0"
+          >
+            {isMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </Button>
+        </div>
+
         <Link
           href="/"
-          className="flex min-w-0 items-center gap-3 text-sm font-semibold uppercase tracking-[0.2em] text-foreground"
+          className="flex min-w-0 flex-1 items-center gap-2 text-foreground sm:gap-3"
           onClick={() => setIsMenuOpen(false)}
         >
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-base tracking-normal">
             TS
           </span>
-          <span className="truncate">The Sync Exchange</span>
+          <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] max-[420px]:hidden sm:text-sm sm:tracking-[0.2em]">
+            The Sync Exchange
+          </span>
+          <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] min-[421px]:hidden">
+            Sync Exchange
+          </span>
         </Link>
 
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-4 overflow-x-auto text-xs text-muted-foreground md:flex lg:gap-6 lg:text-sm">
@@ -109,21 +129,6 @@ export function SiteHeader() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 md:hidden">
-          <ThemeToggle />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-label={isMenuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={isMenuOpen}
-            aria-controls="mobile-site-menu"
-            onClick={() => setIsMenuOpen((open) => !open)}
-            className="h-9 w-9 px-0"
-          >
-            {isMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </Button>
-        </div>
       </div>
 
       <div

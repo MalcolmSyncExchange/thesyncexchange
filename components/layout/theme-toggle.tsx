@@ -23,8 +23,11 @@ export function ThemeToggle({ className, size = "sm" }: { className?: string; si
       type="button"
       variant="outline"
       size={size}
-      disabled={!mounted}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={() => {
+        if (!mounted) return;
+        setTheme(isDark ? "light" : "dark");
+      }}
+      aria-disabled={!mounted}
       aria-label="Toggle color theme"
       title={mounted ? `Switch to ${isDark ? "light" : "dark"} mode` : "Loading theme controls"}
       className={cn(className)}

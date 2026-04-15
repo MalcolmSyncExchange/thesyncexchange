@@ -83,14 +83,14 @@ export function SiteHeader() {
             aria-controls="mobile-site-menu"
             onClick={() => setIsMenuOpen((open) => !open)}
             className={cn(
-              "h-9 w-9 border-border/90 bg-card px-0 shadow-sm",
-              isMenuOpen && "border-accent bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground"
+              "h-9 w-9 border border-black/20 bg-background px-0 text-foreground shadow-sm hover:bg-muted dark:border-white/20 dark:bg-background",
+              isMenuOpen && "bg-muted text-foreground hover:bg-muted"
             )}
           >
             {isMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>
 
-          <ThemeToggle className="h-9 w-9 border-border/90 bg-card px-0 shadow-sm" />
+          <ThemeToggle className="h-9 w-9 border border-black/20 bg-background px-0 text-foreground shadow-sm hover:bg-muted dark:border-white/20 dark:bg-background" />
         </div>
 
         <Link
@@ -125,7 +125,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden shrink-0 items-center gap-2 md:flex lg:gap-3">
-          <ThemeToggle className="border-border/90 bg-card shadow-sm" />
+          <ThemeToggle className="border border-black/20 bg-background text-foreground shadow-sm hover:bg-muted dark:border-white/20 dark:bg-background" />
           <Button asChild variant="ghost" size="sm" className="px-3 lg:px-4">
             <Link href="/login">Log in</Link>
           </Button>
@@ -138,7 +138,7 @@ export function SiteHeader() {
 
       <div
         className={cn(
-          "fixed inset-0 top-[72px] bg-background/80 backdrop-blur-sm transition-opacity duration-200 md:hidden dark:bg-black/55",
+          "fixed inset-0 top-[72px] bg-black/30 transition-opacity duration-200 md:hidden dark:bg-black/55",
           isMenuOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={() => setIsMenuOpen(false)}
@@ -148,7 +148,7 @@ export function SiteHeader() {
       <div
         id="mobile-site-menu"
         className={cn(
-          "absolute inset-x-0 top-full border-b border-border/80 bg-background shadow-2xl supports-[backdrop-filter]:bg-background/95 supports-[backdrop-filter]:backdrop-blur transition-all duration-200 md:hidden",
+          "absolute inset-x-0 top-full border-b border-black/20 bg-background shadow-2xl transition-all duration-200 md:hidden dark:border-white/20 dark:bg-background",
           isMenuOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"
         )}
       >

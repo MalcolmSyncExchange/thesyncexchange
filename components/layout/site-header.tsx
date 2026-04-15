@@ -72,8 +72,8 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/80 bg-background/95 backdrop-blur">
-      <div className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
-        <div className="shrink-0 md:hidden">
+      <div className="relative mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
+        <div className="flex shrink-0 items-center gap-2 md:hidden">
           <Button
             type="button"
             variant="outline"
@@ -82,10 +82,15 @@ export function SiteHeader() {
             aria-expanded={isMenuOpen}
             aria-controls="mobile-site-menu"
             onClick={() => setIsMenuOpen((open) => !open)}
-            className="h-9 w-9 px-0"
+            className={cn(
+              "h-9 w-9 border-border/90 bg-card px-0 shadow-sm",
+              isMenuOpen && "border-accent bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground"
+            )}
           >
             {isMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>
+
+          <ThemeToggle className="h-9 w-9 border-border/90 bg-card px-0 shadow-sm" />
         </div>
 
         <Link
@@ -120,7 +125,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden shrink-0 items-center gap-2 md:flex lg:gap-3">
-          <ThemeToggle />
+          <ThemeToggle className="border-border/90 bg-card shadow-sm" />
           <Button asChild variant="ghost" size="sm" className="px-3 lg:px-4">
             <Link href="/login">Log in</Link>
           </Button>
@@ -133,7 +138,7 @@ export function SiteHeader() {
 
       <div
         className={cn(
-          "fixed inset-0 top-[72px] bg-black/45 transition-opacity duration-200 md:hidden",
+          "fixed inset-0 top-[72px] bg-background/80 backdrop-blur-sm transition-opacity duration-200 md:hidden dark:bg-black/55",
           isMenuOpen ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={() => setIsMenuOpen(false)}
@@ -143,7 +148,7 @@ export function SiteHeader() {
       <div
         id="mobile-site-menu"
         className={cn(
-          "absolute inset-x-0 top-full border-b border-border/80 bg-background/98 shadow-2xl backdrop-blur transition-all duration-200 md:hidden",
+          "absolute inset-x-0 top-full border-b border-border/80 bg-background shadow-2xl supports-[backdrop-filter]:bg-background/95 supports-[backdrop-filter]:backdrop-blur transition-all duration-200 md:hidden",
           isMenuOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"
         )}
       >

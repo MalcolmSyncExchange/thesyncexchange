@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export function ThemeToggle() {
+export function ThemeToggle({ className, size = "sm" }: { className?: string; size?: "sm" | "default" | "lg" }) {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -21,11 +22,12 @@ export function ThemeToggle() {
     <Button
       type="button"
       variant="outline"
-      size="sm"
+      size={size}
       disabled={!mounted}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label="Toggle color theme"
       title={mounted ? `Switch to ${isDark ? "light" : "dark"} mode` : "Loading theme controls"}
+      className={cn(className)}
     >
       {isDark ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </Button>

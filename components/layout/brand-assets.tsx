@@ -17,7 +17,7 @@ export function BrandLogo({ className, priority = false, alt = "The Sync Exchang
         width={2400}
         height={1200}
         priority={priority}
-        className={cn("h-auto w-[148px] dark:hidden sm:w-[172px] lg:w-[196px]", className)}
+        className={cn("block h-auto w-[148px] dark:hidden sm:w-[172px] lg:w-[196px]", className)}
       />
       <Image
         src="/brand/the-sync-exchange/logos/Primary_Logo_Dark_Mode.png"

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, MailCheck } from "lucide-react";
 
+import { BrandLogo } from "@/components/layout/brand-assets";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -36,8 +37,8 @@ export function AuthPageShell({
           ))}
         </div>
 
-        <div className="mt-10 rounded-lg border border-border bg-background/80 p-5">
-          <p className="text-sm font-medium text-foreground">The Sync Exchange</p>
+        <div className="mt-10 max-w-lg">
+          <BrandLogo className="w-[170px] sm:w-[196px]" />
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Premium sync licensing infrastructure for artists, buyers, and teams that need speed without sacrificing rights clarity.
           </p>

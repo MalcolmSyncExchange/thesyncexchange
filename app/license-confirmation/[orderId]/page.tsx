@@ -1,6 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { BrandLogo } from "@/components/layout/brand-assets";
 import { OrderStatusProgress } from "@/components/orders/order-status-progress";
 import { OrderStatusBadge } from "@/components/shared/state-badges";
 import { Button } from "@/components/ui/button";
@@ -59,7 +61,18 @@ export default async function LicenseConfirmationPage({
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-16">
+    <main className="relative mx-auto max-w-3xl overflow-hidden px-4 py-16">
+      <div className="mb-6">
+        <BrandLogo className="w-[170px] sm:w-[196px]" />
+      </div>
+      <Image
+        src="/brand/the-sync-exchange/watermark/Watermark.png"
+        alt=""
+        width={2400}
+        height={400}
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-10 right-0 -z-10 w-[260px] max-w-[45%] opacity-[0.06]"
+      />
       <Card>
         <CardHeader>
           <CardTitle>License confirmation</CardTitle>

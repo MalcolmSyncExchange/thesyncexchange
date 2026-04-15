@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { BrandLogo } from "@/components/layout/brand-assets";
+
 const footerColumns = [
   {
     title: "Platform",
@@ -26,7 +28,7 @@ export function SiteFooter() {
     <footer className="border-t border-border">
       <div className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.2fr,1fr] lg:px-8">
         <div className="space-y-4">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">The Sync Exchange</p>
+          <BrandLogo className="w-[176px] sm:w-[196px]" />
           <p className="max-w-xl text-sm leading-6 text-muted-foreground">
             Premium music licensing infrastructure for artists, supervisors, agencies, and brands that need fast clearance and credible catalog quality.
           </p>

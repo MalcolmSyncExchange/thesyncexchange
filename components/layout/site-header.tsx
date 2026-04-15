@@ -5,6 +5,7 @@ import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
+import { BrandIcon, BrandLogo } from "@/components/layout/brand-assets";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -95,18 +96,15 @@ export function SiteHeader() {
 
         <Link
           href="/"
-          className="flex min-w-0 flex-1 items-center gap-2 text-foreground sm:gap-3"
+          className="flex min-w-0 flex-1 items-center gap-3 text-foreground"
           onClick={() => setIsMenuOpen(false)}
         >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-base tracking-normal">
-            TS
-          </span>
-          <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] max-[420px]:hidden sm:text-sm sm:tracking-[0.2em]">
-            The Sync Exchange
-          </span>
-          <span className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] min-[421px]:hidden">
-            Sync Exchange
-          </span>
+          <div className="md:hidden">
+            <BrandIcon priority className="w-9" />
+          </div>
+          <div className="hidden md:block">
+            <BrandLogo priority className="w-[156px] lg:w-[184px]" />
+          </div>
         </Link>
 
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-4 overflow-x-auto text-xs text-muted-foreground md:flex lg:gap-6 lg:text-sm">

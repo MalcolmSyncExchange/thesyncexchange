@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { LogOut } from "lucide-react";
 
+import { BrandLogo } from "@/components/layout/brand-assets";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/services/auth/actions";
@@ -45,9 +46,9 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
     <div className="min-h-screen bg-muted/30">
       <header className="border-b border-border bg-background">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <Link href="/" className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              The Sync Exchange
+          <div className="min-w-0">
+            <Link href="/" className="flex items-center">
+              <BrandLogo className="w-[164px] sm:w-[188px]" />
             </Link>
             <p className="mt-1 text-sm text-foreground">{user.fullName}</p>
           </div>

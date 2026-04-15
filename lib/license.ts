@@ -52,6 +52,8 @@ export function renderLicenseAgreementPdf(input: AgreementArtifactInput) {
 }
 
 export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
+  const brandLogoUrl = "/brand/the-sync-exchange/logos/Full Logo.png";
+  const watermarkUrl = "/brand/the-sync-exchange/watermark/Watermark.png";
   const rightsMarkup = input.rightsHolders.length
     ? input.rightsHolders
         .map(
@@ -91,9 +93,30 @@ export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
         border: 1px solid #d8dee8;
         border-radius: 12px;
         padding: 40px;
+        position: relative;
+        overflow: hidden;
       }
       h1, h2, h3, p {
         margin: 0;
+      }
+      .brand-mark {
+        display: block;
+        width: 220px;
+        max-width: 100%;
+        height: auto;
+      }
+      .watermark {
+        position: absolute;
+        right: 36px;
+        bottom: 36px;
+        width: 240px;
+        max-width: 36%;
+        opacity: 0.08;
+        pointer-events: none;
+      }
+      .content {
+        position: relative;
+        z-index: 1;
       }
       .eyebrow {
         text-transform: uppercase;
@@ -175,79 +198,83 @@ export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
   </head>
   <body>
     <main class="sheet">
-      <p class="eyebrow">The Sync Exchange</p>
-      <h1 class="headline">Sync License Agreement</h1>
-      <p class="lede">
-        This agreement artifact was generated automatically after payment confirmation. It packages the commercial record for the order below while final long-form legal language remains under counsel review.
-      </p>
-
-      <section class="grid">
-        <div class="panel">
-          <p class="label">Order</p>
-          <p class="value">${escapeHtml(input.orderId)}</p>
-        </div>
-        <div class="panel">
-          <p class="label">Generated</p>
-          <p class="value">${escapeHtml(input.createdAt)}</p>
-        </div>
-        <div class="panel">
-          <p class="label">Track</p>
-          <p class="value">${escapeHtml(input.trackTitle)}</p>
-        </div>
-        <div class="panel">
-          <p class="label">Artist</p>
-          <p class="value">${escapeHtml(input.artistName)}</p>
-        </div>
-        <div class="panel">
-          <p class="label">License</p>
-          <p class="value">${escapeHtml(input.licenseName)}</p>
-        </div>
-        <div class="panel">
-          <p class="label">Fee</p>
-          <p class="value">${escapeHtml(formatCurrency(input.amountPaid, input.currency))}</p>
-        </div>
-        <div class="panel">
-          <p class="label">Buyer</p>
-          <p class="value">${escapeHtml(input.buyerName)}</p>
-        </div>
-        <div class="panel">
-          <p class="label">Billing Contact</p>
-          <p class="value">${escapeHtml(input.buyerEmail)}</p>
-        </div>
-      </section>
-
-      <section class="section">
-        <h2>Licensed Recording</h2>
-        <p class="body-copy">
-          The Sync Exchange confirms receipt of payment for the selected license tier and records the licensed composition and master metadata shown in this artifact.
+      <img class="watermark" src="${watermarkUrl}" alt="" />
+      <div class="content">
+        <img class="brand-mark" src="${brandLogoUrl}" alt="The Sync Exchange" />
+        <p class="eyebrow">The Sync Exchange</p>
+        <h1 class="headline">Sync License Agreement</h1>
+        <p class="lede">
+          This agreement artifact was generated automatically after payment confirmation. It packages the commercial record for the order below while final long-form legal language remains under counsel review.
         </p>
-      </section>
 
-      <section class="section">
-        <h2>Rights Holders</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Ownership</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rightsMarkup}
-          </tbody>
-        </table>
-      </section>
+        <section class="grid">
+          <div class="panel">
+            <p class="label">Order</p>
+            <p class="value">${escapeHtml(input.orderId)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Generated</p>
+            <p class="value">${escapeHtml(input.createdAt)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Track</p>
+            <p class="value">${escapeHtml(input.trackTitle)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Artist</p>
+            <p class="value">${escapeHtml(input.artistName)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">License</p>
+            <p class="value">${escapeHtml(input.licenseName)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Fee</p>
+            <p class="value">${escapeHtml(formatCurrency(input.amountPaid, input.currency))}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Buyer</p>
+            <p class="value">${escapeHtml(input.buyerName)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Billing Contact</p>
+            <p class="value">${escapeHtml(input.buyerEmail)}</p>
+          </div>
+        </section>
 
-      <section class="section">
-        <h2>Commercial Notes</h2>
-        <p class="body-copy">
-          Exclusive restrictions, term, territory, media scope, indemnities, and credit obligations remain subject to The Sync Exchange legal review workflow.
-        </p>
-      </section>
+        <section class="section">
+          <h2>Licensed Recording</h2>
+          <p class="body-copy">
+            The Sync Exchange confirms receipt of payment for the selected license tier and records the licensed composition and master metadata shown in this artifact.
+          </p>
+        </section>
 
-      <div class="notice">
-        TODO: Legal review required before this generated artifact is used as the final production contract or countersigned legal instrument.
+        <section class="section">
+          <h2>Rights Holders</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Ownership</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rightsMarkup}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section">
+          <h2>Commercial Notes</h2>
+          <p class="body-copy">
+            Exclusive restrictions, term, territory, media scope, indemnities, and credit obligations remain subject to The Sync Exchange legal review workflow.
+          </p>
+        </section>
+
+        <div class="notice">
+          TODO: Legal review required before this generated artifact is used as the final production contract or countersigned legal instrument.
+        </div>
       </div>
     </main>
   </body>

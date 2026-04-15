@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Check, ChevronRight } from "lucide-react";
 
+import { BrandLogo } from "@/components/layout/brand-assets";
 import { cn } from "@/lib/utils";
 
 export function OnboardingShell({
@@ -29,11 +30,8 @@ export function OnboardingShell({
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4 border-b border-border/80 pb-5">
-          <Link href="/" className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-base tracking-normal text-foreground">
-              TS
-            </span>
-            The Sync Exchange
+          <Link href="/" className="flex items-center">
+            <BrandLogo className="w-[164px] sm:w-[188px]" />
           </Link>
           <span className="inline-flex rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
             {roleLabel}

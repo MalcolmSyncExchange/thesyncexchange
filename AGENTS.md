@@ -64,9 +64,32 @@ Never override auth or routing rules for convenience.
 
 ---
 
-## Local Development
+# The Sync Exchange brand asset rules
 
-Install:
+All approved brand assets live in:
 
-```bash
-npm install
+/public/brand/the-sync-exchange/
+
+## Logos
+- /public/brand/the-sync-exchange/logos/Full Logo.png
+- /public/brand/the-sync-exchange/logos/Icon_Gold.png
+
+## App icons
+- /public/brand/the-sync-exchange/app/AppIcon_1024.png
+- /public/brand/the-sync-exchange/app/AppIcon_512.png
+- /public/brand/the-sync-exchange/app/AppIcon_256.png
+
+## Watermark
+- /public/brand/the-sync-exchange/watermark/Watermark.png
+
+## Usage rules
+- Use /public/brand/the-sync-exchange/logos/Full Logo.png as the primary logo across marketing, auth, onboarding, dashboard, and platform surfaces unless a compact icon is more appropriate
+- Use /public/brand/the-sync-exchange/logos/Icon_Gold.png for compact icon placements, favicon-style references, auth screens, badges, and UI areas where the full horizontal logo is too large
+- Use /public/brand/the-sync-exchange/app/AppIcon_1024.png, /AppIcon_512.png, and /AppIcon_256.png for app icon and metadata references where appropriate
+- Use /public/brand/the-sync-exchange/watermark/Watermark.png for licensing, export, delivery, confirmation, and downloaded asset experiences
+- Do not invent new logo treatments
+- Do not redraw the logo using text
+- Do not crop, stretch, rotate, recolor, or restyle the logo assets
+- Preserve aspect ratio
+- Remove any mismatched background containers, cards, pills, shadows, borders, or surface styling behind logo images if they make the logo appear boxed in
+- If a PNG has a baked-in background that cannot be fixed in code, implement it as cleanly as possible and report where a transparent replacement asset is needed

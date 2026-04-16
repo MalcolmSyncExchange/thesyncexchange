@@ -50,14 +50,14 @@ export default async function AdminOrdersPage() {
                       {order.stripe_checkout_session_id ? <span>Checkout {order.stripe_checkout_session_id.slice(0, 18)}...</span> : null}
                       {order.stripe_payment_intent_id ? <span>Payment {order.stripe_payment_intent_id.slice(0, 18)}...</span> : null}
                       {order.paid_at ? <span>Paid recorded</span> : null}
-                      {order.agreement_generated_at ? (
-                        <span>{order.agreement_delivery_blocked ? "Agreement generated, delivery blocked" : "Agreement ready"}</span>
+                      {order.agreement_generated ? (
+                        <span>{order.agreement_delivery_blocked ? "Agreement generated, delivery blocked" : "Agreement ready for buyer delivery"}</span>
                       ) : null}
                       {order.last_webhook_processed_at ? <span>Webhook {formatDateTime(order.last_webhook_processed_at)}</span> : null}
                     </div>
-                    {order.agreement_url && !order.agreement_delivery_blocked ? (
+                    {order.agreement_ready && order.agreement_url ? (
                       <Link href={order.agreement_url} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
-                        Open agreement document
+                        Open Agreement Document
                       </Link>
                     ) : null}
                   </div>

@@ -62,6 +62,7 @@ Useful verification commands:
 npm run validate:env
 npm run verify:supabase
 npm run create:admin
+npm run seed:qa-accounts
 npm run typecheck
 npm run build
 ROUTE_VERIFY_REQUIRE_EXISTING=1 npm run verify:smoke
@@ -88,13 +89,14 @@ curl -s http://127.0.0.1:3000/api/health/readiness
   - [`supabase/storage-setup.md`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-setup.md)
   - [`supabase/storage-policies.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-policies.sql)
   - [`supabase/manual-apply.md`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply.md)
+  - [`docs/supabase-finalization.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/supabase-finalization.md)
 - Create or verify the required buckets with:
 
 ```bash
 npm run setup:storage
 ```
 
-- Diagnose whether the connected Supabase project needs the full schema bootstrap or only the later follow-up bundle:
+- Diagnose whether the connected Supabase project is ready for the finalization bundle:
 
 ```bash
 npm run verify:supabase
@@ -165,6 +167,16 @@ Important:
 
 ## Buyer/Admin QA Flow
 
+Detailed operator docs now live in:
+
+- [`docs/happy-path-qa.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/happy-path-qa.md)
+- [`docs/e2e.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/e2e.md)
+- [`docs/test-accounts.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/test-accounts.md)
+- [`docs/fulfillment-hardening.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/fulfillment-hardening.md)
+- [`docs/deployment-checklist.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/deployment-checklist.md)
+- [`docs/permissions-and-buckets-audit.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/permissions-and-buckets-audit.md)
+- [`docs/legal-review-notes.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/legal-review-notes.md)
+
 1. Create `.env.local` from `.env.example` and set:
    - `SYNC_EXCHANGE_DEMO_MODE=false`
    - `NEXT_PUBLIC_SUPABASE_URL`
@@ -186,11 +198,9 @@ npm run verify:supabase
 ```
 
 4. Apply the Supabase SQL that matches that diagnosis:
-   - if foundational app tables like `tracks` and `license_types` are missing, apply:
+   - apply the single finalization bundle:
      - [`supabase/manual-apply/2026-04-foundation-bootstrap.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql)
-   - if the base schema is already present but readiness is still degraded for fulfillment/storage/avatar support, apply:
-     - [`supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql)
-   - the underlying migration chain is:
+   - the underlying migration chain included in that bundle is:
    - [`supabase/migrations/0008_database_foundation.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0008_database_foundation.sql)
    - [`supabase/migrations/0009_order_lifecycle.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0009_order_lifecycle.sql)
    - [`supabase/migrations/0010_order_fulfillment_hardening.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0010_order_fulfillment_hardening.sql)

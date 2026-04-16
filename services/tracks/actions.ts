@@ -187,11 +187,39 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       };
     }
 
-    const { data: existingTrack } = await supabase
-      .from("tracks")
-      .select("id, artist_user_id, cover_art_path, audio_file_path, preview_file_path, waveform_path")
-      .eq("id", trackId)
-      .maybeSingle();
+    const [
+      { data: existingTrack, error: existingTrackError },
+      { data: existingRightsHolders, error: existingRightsHoldersError },
+      { data: existingLicenseOptions, error: existingLicenseOptionsError }
+    ] = await Promise.all([
+      supabase
+        .from("tracks")
+        .select(
+          "id, artist_user_id, title, slug, description, genre, subgenre, moods, bpm, musical_key, duration_seconds, instrumental, vocals, explicit, lyrics, release_year, status, cover_art_path, audio_file_path, preview_file_path, waveform_path"
+        )
+        .eq("id", trackId)
+        .maybeSingle(),
+      supabase
+        .from("rights_holders")
+        .select("user_id, name, email, role_type, ownership_percent, approval_status")
+        .eq("track_id", trackId),
+      supabase
+        .from("track_license_options")
+        .select("license_type_id, price_cents, active")
+        .eq("track_id", trackId)
+    ]);
+
+    if (existingTrackError || existingRightsHoldersError || existingLicenseOptionsError) {
+      await cleanupUploadedAssets(uploadedAssets);
+      return {
+        success: false,
+        message:
+          existingTrackError?.message ||
+          existingRightsHoldersError?.message ||
+          existingLicenseOptionsError?.message ||
+          "Unable to load the current track state before updating it."
+      };
+    }
 
     if (!existingTrack || existingTrack.artist_user_id !== user.id) {
       await cleanupUploadedAssets(uploadedAssets);
@@ -207,64 +235,30 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
         ? existingSlug
         : await ensureUniqueTrackSlug(supabase, nextSlugBase, trackId);
     const status = parsed.saveMode === "publish" ? "pending_review" : "draft";
-
-    const { error: trackError } = await supabase
-      .from("tracks")
-      .update({
-        title: parsed.title,
-        slug: nextSlug,
-        description: parsed.description,
-        genre: parsed.genre,
-        subgenre: parsed.subgenre,
-        moods: parsed.moods
-          .split(",")
-          .map((value: string) => value.trim())
-          .filter(Boolean),
-        bpm: parsed.bpm,
-        musical_key: parsed.key,
-        duration_seconds: parsed.duration,
-        instrumental: parsed.instrumental,
-        vocals: parsed.vocals,
-        explicit: parsed.explicit,
-        lyrics: parsed.lyrics || null,
-        release_year: parsed.releaseYear,
-        waveform_path: parsed.waveformPath || null,
-        audio_file_path: parsed.audioFilePath,
-        preview_file_path: parsed.previewFilePath || null,
-        cover_art_path: parsed.coverArtPath,
-        status
-      })
-      .eq("id", trackId);
-
-    if (trackError) {
-      await cleanupUploadedAssets(uploadedAssets);
-      return {
-        success: false,
-        message: trackError.message
-      };
-    }
-
-    const { error: deleteRightsError } = await supabase.from("rights_holders").delete().eq("track_id", trackId);
-    if (deleteRightsError) {
-      await cleanupUploadedAssets(uploadedAssets);
-      return { success: false, message: deleteRightsError.message };
-    }
-
-    const { error: rightsError } = await supabase.from("rights_holders").insert(
-      parsed.rightsHolders.map((holder: (typeof parsed.rightsHolders)[number]) => ({
-        track_id: trackId,
-        name: holder.name,
-        email: holder.email,
-        role_type: holder.roleType,
-        ownership_percent: holder.ownershipPercent,
-        approval_status: holder.email === user.email ? "approved" : "pending"
-      }))
-    );
-
-    if (rightsError) {
-      await cleanupUploadedAssets(uploadedAssets);
-      return { success: false, message: rightsError.message };
-    }
+    const updatedTrackValues = {
+      title: parsed.title,
+      slug: nextSlug,
+      description: parsed.description,
+      genre: parsed.genre,
+      subgenre: parsed.subgenre,
+      moods: parsed.moods
+        .split(",")
+        .map((value: string) => value.trim())
+        .filter(Boolean),
+      bpm: parsed.bpm,
+      musical_key: parsed.key,
+      duration_seconds: parsed.duration,
+      instrumental: parsed.instrumental,
+      vocals: parsed.vocals,
+      explicit: parsed.explicit,
+      lyrics: parsed.lyrics || null,
+      release_year: parsed.releaseYear,
+      waveform_path: parsed.waveformPath || null,
+      audio_file_path: parsed.audioFilePath,
+      preview_file_path: parsed.previewFilePath || null,
+      cover_art_path: parsed.coverArtPath,
+      status
+    } satisfies Database["public"]["Tables"]["tracks"]["Update"];
 
     const { data: licenseTypes, error: licenseTypeError } = await supabase
       .from("license_types")
@@ -279,30 +273,74 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       };
     }
 
-    const { error: deleteLicenseOptionsError } = await supabase.from("track_license_options").delete().eq("track_id", trackId);
-    if (deleteLicenseOptionsError) {
-      await cleanupUploadedAssets(uploadedAssets);
-      return { success: false, message: deleteLicenseOptionsError.message };
-    }
-
     const priceMap = new Map<string, number>([
       ["digital-campaign", parsed.priceDigital],
       ["broadcast", parsed.priceBroadcast],
       ["exclusive-buyout", parsed.priceExclusive]
     ]);
+    const nextRightsHolders = parsed.rightsHolders.map((holder: (typeof parsed.rightsHolders)[number]) => ({
+      track_id: trackId,
+      name: holder.name,
+      email: holder.email,
+      role_type: holder.roleType,
+      ownership_percent: holder.ownershipPercent,
+      approval_status: holder.email === user.email ? "approved" : "pending"
+    }));
+    const nextLicenseOptions = licenseTypes.map((licenseType: { id: string; slug: string }) => ({
+      track_id: trackId,
+      license_type_id: licenseType.id,
+      price_cents: priceMap.get(licenseType.slug) ? Math.round((priceMap.get(licenseType.slug) || 0) * 100) : null,
+      active: true
+    }));
 
-    const { error: licenseOptionError } = await supabase.from("track_license_options").insert(
-      licenseTypes.map((licenseType: { id: string; slug: string }) => ({
-        track_id: trackId,
-        license_type_id: licenseType.id,
-        price_cents: priceMap.get(licenseType.slug) ? Math.round((priceMap.get(licenseType.slug) || 0) * 100) : null,
-        active: true
-      }))
-    );
+    let rollbackError: Error | null = null;
 
-    if (licenseOptionError) {
+    try {
+      const { error: trackError } = await supabase.from("tracks").update(updatedTrackValues).eq("id", trackId);
+      if (trackError) {
+        throw new Error(trackError.message);
+      }
+
+      const { error: deleteRightsError } = await supabase.from("rights_holders").delete().eq("track_id", trackId);
+      if (deleteRightsError) {
+        throw new Error(deleteRightsError.message);
+      }
+
+      const { error: rightsError } = await supabase.from("rights_holders").insert(nextRightsHolders);
+      if (rightsError) {
+        throw new Error(rightsError.message);
+      }
+
+      const { error: deleteLicenseOptionsError } = await supabase.from("track_license_options").delete().eq("track_id", trackId);
+      if (deleteLicenseOptionsError) {
+        throw new Error(deleteLicenseOptionsError.message);
+      }
+
+      const { error: licenseOptionError } = await supabase.from("track_license_options").insert(nextLicenseOptions);
+      if (licenseOptionError) {
+        throw new Error(licenseOptionError.message);
+      }
+    } catch (mutationError) {
+      rollbackError = await rollbackTrackUpdateMutation(supabase, {
+        trackId,
+        snapshot: existingTrack,
+        rightsHolders: existingRightsHolders || [],
+        licenseOptions: existingLicenseOptions || []
+      });
+
       await cleanupUploadedAssets(uploadedAssets);
-      return { success: false, message: licenseOptionError.message };
+
+      return {
+        success: false,
+        message:
+          mutationError instanceof Error
+            ? rollbackError
+              ? `${mutationError.message} Automatic rollback also failed: ${rollbackError.message}`
+              : mutationError.message
+            : rollbackError
+              ? `Track update failed and rollback also failed: ${rollbackError.message}`
+              : "Unable to update this track."
+      };
     }
 
     await appendTrackAuditLog(supabase, trackId, user.id, "track_updated", {
@@ -469,4 +507,120 @@ function buildSupersededTrackAssets(
   }
 
   return nextAssets;
+}
+
+async function rollbackTrackUpdateMutation(
+  supabase: SupabaseClient<Database>,
+  {
+    trackId,
+    snapshot,
+    rightsHolders,
+    licenseOptions
+  }: {
+    trackId: string;
+    snapshot: Pick<
+      Database["public"]["Tables"]["tracks"]["Row"],
+      | "title"
+      | "slug"
+      | "description"
+      | "genre"
+      | "subgenre"
+      | "moods"
+      | "bpm"
+      | "musical_key"
+      | "duration_seconds"
+      | "instrumental"
+      | "vocals"
+      | "explicit"
+      | "lyrics"
+      | "release_year"
+      | "status"
+      | "cover_art_path"
+      | "audio_file_path"
+      | "preview_file_path"
+      | "waveform_path"
+    >;
+    rightsHolders: Array<
+      Pick<
+        Database["public"]["Tables"]["rights_holders"]["Row"],
+        "user_id" | "name" | "email" | "role_type" | "ownership_percent" | "approval_status"
+      >
+    >;
+    licenseOptions: Array<
+      Pick<Database["public"]["Tables"]["track_license_options"]["Row"], "license_type_id" | "price_cents" | "active">
+    >;
+  }
+) {
+  try {
+    const restoreTrack = await supabase
+      .from("tracks")
+      .update({
+        title: snapshot.title,
+        slug: snapshot.slug,
+        description: snapshot.description,
+        genre: snapshot.genre,
+        subgenre: snapshot.subgenre,
+        moods: snapshot.moods,
+        bpm: snapshot.bpm,
+        musical_key: snapshot.musical_key,
+        duration_seconds: snapshot.duration_seconds,
+        instrumental: snapshot.instrumental,
+        vocals: snapshot.vocals,
+        explicit: snapshot.explicit,
+        lyrics: snapshot.lyrics,
+        release_year: snapshot.release_year,
+        status: snapshot.status,
+        cover_art_path: snapshot.cover_art_path,
+        audio_file_path: snapshot.audio_file_path,
+        preview_file_path: snapshot.preview_file_path,
+        waveform_path: snapshot.waveform_path
+      })
+      .eq("id", trackId);
+    if (restoreTrack.error) {
+      throw new Error(restoreTrack.error.message);
+    }
+
+    const deleteRights = await supabase.from("rights_holders").delete().eq("track_id", trackId);
+    if (deleteRights.error) {
+      throw new Error(deleteRights.error.message);
+    }
+    if (rightsHolders.length) {
+      const restoreRights = await supabase.from("rights_holders").insert(
+        rightsHolders.map((holder) => ({
+          track_id: trackId,
+          user_id: holder.user_id,
+          name: holder.name,
+          email: holder.email,
+          role_type: holder.role_type,
+          ownership_percent: holder.ownership_percent,
+          approval_status: holder.approval_status
+        }))
+      );
+      if (restoreRights.error) {
+        throw new Error(restoreRights.error.message);
+      }
+    }
+
+    const deleteLicenseOptions = await supabase.from("track_license_options").delete().eq("track_id", trackId);
+    if (deleteLicenseOptions.error) {
+      throw new Error(deleteLicenseOptions.error.message);
+    }
+    if (licenseOptions.length) {
+      const restoreLicenseOptions = await supabase.from("track_license_options").insert(
+        licenseOptions.map((option) => ({
+          track_id: trackId,
+          license_type_id: option.license_type_id,
+          price_cents: option.price_cents,
+          active: option.active
+        }))
+      );
+      if (restoreLicenseOptions.error) {
+        throw new Error(restoreLicenseOptions.error.message);
+      }
+    }
+
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error : new Error("Rollback failed.");
+  }
 }

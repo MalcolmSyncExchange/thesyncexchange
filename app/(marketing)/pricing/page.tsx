@@ -22,9 +22,9 @@ export default function PricingPage() {
         />
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
           {[
-            ["Artist Plan", "$39/mo", "Submission workflow, rights management, and buyer-ready catalog presence.", "Start submitting"],
-            ["Buyer Access", "Free to browse", "Search, shortlist, and purchase licenses only when needed.", "Browse catalog"],
-            ["Enterprise", "Custom", "Negotiated sourcing, white-glove licensing, and tailored terms.", "Contact sales"]
+            ["Artist Plan", "$39/mo", "Submission workflow, rights management, and buyer-ready catalog presence.", "Start Submitting"],
+            ["Buyer Access", "Free to browse", "Search, shortlist, and purchase licenses only when needed.", "Browse Catalog"],
+            ["Enterprise", "Custom", "Negotiated sourcing, white-glove licensing, and tailored terms.", "Contact Sales"]
           ].map(([title, price, copy, cta]) => (
             <Card key={title}>
               <CardHeader>
@@ -46,7 +46,7 @@ export default function PricingPage() {
         description="Enterprise pathways can accommodate bespoke pricing, higher-touch search support, and tailored rights handling."
         actions={
           <Button asChild>
-            <Link href="/contact">Start a conversation</Link>
+            <Link href="/contact">Start a Conversation</Link>
           </Button>
         }
       />

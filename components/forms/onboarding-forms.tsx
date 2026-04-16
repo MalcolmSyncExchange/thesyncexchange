@@ -183,7 +183,7 @@ function ArtistBasicsStep({
           icon={<Globe2 className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions submitLabel="Continue to profile" pendingLabel="Saving basics..." />
+      <FormActions submitLabel="Continue to Profile" pendingLabel="Saving Basics..." />
     </form>
   );
 }
@@ -198,7 +198,7 @@ function ArtistProfileStep({
   const hasLinks = Boolean(values.website || values.instagram || values.spotify || values.youtube);
 
   return (
-    <form action={action} className="space-y-8">
+    <form action={action} className="space-y-8" data-testid="artist-onboarding-profile-form">
       <input type="hidden" name="step" value="profile" />
       <StepHeader
         eyebrow="Step 2"
@@ -244,7 +244,7 @@ function ArtistProfileStep({
           icon={<ShieldCheck className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions backHref="/onboarding/artist?step=basics" submitLabel="Continue to licensing" pendingLabel="Saving profile..." />
+      <FormActions backHref="/onboarding/artist?step=basics" submitLabel="Continue to Licensing" pendingLabel="Saving Profile..." />
     </form>
   );
 }
@@ -306,8 +306,8 @@ function ArtistLicensingStep({
       </SurfaceSection>
       <FormActions
         backHref="/onboarding/artist?step=profile"
-        submitLabel="Continue to first track"
-        pendingLabel="Saving licensing setup..."
+        submitLabel="Continue to First Track"
+        pendingLabel="Saving Licensing Setup..."
       />
     </form>
   );
@@ -333,7 +333,7 @@ function ArtistFirstTrackStep({
           name="firstTrackChoice"
           value="upload"
           defaultChecked={values.firstTrackChoice === "upload"}
-          title="Upload first track now"
+          title="Upload First Track Now"
           description="Finish setup, then head directly into the submission workflow with no extra clicks."
           icon={<UploadCloud className="h-4 w-4" />}
         />
@@ -346,7 +346,7 @@ function ArtistFirstTrackStep({
           icon={<Disc3 className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions backHref="/onboarding/artist?step=licensing" submitLabel="Review completion" pendingLabel="Saving preference..." />
+      <FormActions backHref="/onboarding/artist?step=licensing" submitLabel="Review Completion" pendingLabel="Saving Preference..." />
     </form>
   );
 }
@@ -379,20 +379,20 @@ function ArtistCompletionStep({
       <div className="flex flex-wrap gap-3">
         <form action={action}>
           <input type="hidden" name="destination" value={primaryDestination} />
-          <FormSubmitButton pendingLabel="Finishing setup...">
-            {primaryDestination === "submit" ? "Upload first track now" : "Go to artist dashboard"}
+          <FormSubmitButton pendingLabel="Finishing Setup...">
+            {primaryDestination === "submit" ? "Upload First Track Now" : "Go to Artist Dashboard"}
           </FormSubmitButton>
         </form>
         <form action={action}>
           <input type="hidden" name="destination" value="dashboard" />
-          <FormSubmitButton variant="outline" pendingLabel="Opening dashboard...">
-            Go to artist dashboard
+          <FormSubmitButton variant="outline" pendingLabel="Opening Dashboard...">
+            Go to Artist Dashboard
           </FormSubmitButton>
         </form>
         <form action={action}>
           <input type="hidden" name="destination" value="submit" />
-          <FormSubmitButton variant="ghost" pendingLabel="Opening submit flow...">
-            Upload first track
+          <FormSubmitButton variant="ghost" pendingLabel="Opening Submit Flow...">
+            Upload First Track
           </FormSubmitButton>
         </form>
       </div>
@@ -418,7 +418,15 @@ function BuyerBasicsStep({
       <SurfaceSection>
         <div className="grid gap-6 md:grid-cols-2">
           <Field label="Full name" htmlFor="fullName">
-            <Input id="fullName" name="fullName" defaultValue={values.fullName} placeholder="Your full name" required className="h-11" />
+            <Input
+              id="fullName"
+              name="fullName"
+              defaultValue={values.fullName}
+              placeholder="Your full name"
+              required
+              className="h-11"
+              data-testid="buyer-onboarding-full-name"
+            />
           </Field>
           <Field label="Company name" htmlFor="companyName">
             <Input
@@ -428,6 +436,7 @@ function BuyerBasicsStep({
               placeholder="Agency, brand, studio, or company"
               required
               className="h-11"
+              data-testid="buyer-onboarding-company-name"
             />
           </Field>
         </div>
@@ -442,7 +451,7 @@ function BuyerBasicsStep({
           icon={<Building2 className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions submitLabel="Continue to buyer profile" pendingLabel="Saving basics..." />
+      <FormActions submitLabel="Continue to Buyer Profile" pendingLabel="Saving Basics..." />
     </form>
   );
 }
@@ -455,7 +464,7 @@ function BuyerProfileStep({
   values: BuyerOnboardingValues;
 }) {
   return (
-    <form action={action} className="space-y-8">
+    <form action={action} className="space-y-8" data-testid="buyer-onboarding-profile-form">
       <input type="hidden" name="step" value="profile" />
       <StepHeader
         eyebrow="Step 2"
@@ -465,7 +474,14 @@ function BuyerProfileStep({
       <SurfaceSection>
         <div className="grid gap-6 md:grid-cols-2">
           <Field label="Buyer type" htmlFor="buyerType">
-            <select id="buyerType" name="buyerType" defaultValue={values.buyerType} className={selectClassName} required>
+            <select
+              id="buyerType"
+              name="buyerType"
+              defaultValue={values.buyerType}
+              className={selectClassName}
+              required
+              data-testid="buyer-onboarding-buyer-type"
+            >
               <option value="">Select buyer type</option>
               {buyerTypeOptions.map((option) => (
                 <option key={option} value={option}>
@@ -475,7 +491,14 @@ function BuyerProfileStep({
             </select>
           </Field>
           <Field label="Industry type" htmlFor="industryType">
-            <select id="industryType" name="industryType" defaultValue={values.industryType} className={selectClassName} required>
+            <select
+              id="industryType"
+              name="industryType"
+              defaultValue={values.industryType}
+              className={selectClassName}
+              required
+              data-testid="buyer-onboarding-industry-type"
+            >
               <option value="">Select industry type</option>
               {industryTypeOptions.map((option) => (
                 <option key={option} value={option}>
@@ -494,6 +517,7 @@ function BuyerProfileStep({
             placeholder="billing@company.com"
             required
             className="h-11"
+            data-testid="buyer-onboarding-billing-email"
           />
         </Field>
         <InlineState
@@ -505,8 +529,8 @@ function BuyerProfileStep({
       </SurfaceSection>
       <FormActions
         backHref="/onboarding/buyer?step=basics"
-        submitLabel="Continue to music interests"
-        pendingLabel="Saving buyer profile..."
+        submitLabel="Continue to Music Interests"
+        pendingLabel="Saving Buyer Profile..."
       />
     </form>
   );
@@ -522,7 +546,7 @@ function BuyerInterestsStep({
   const hasPreferences = values.genres.length > 0 || values.moods.length > 0;
 
   return (
-    <form action={action} className="space-y-8">
+    <form action={action} className="space-y-8" data-testid="buyer-onboarding-interests-form">
       <input type="hidden" name="step" value="interests" />
       <StepHeader
         eyebrow="Step 3"
@@ -563,7 +587,7 @@ function BuyerInterestsStep({
           icon={<ShieldCheck className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions backHref="/onboarding/buyer?step=profile" submitLabel="Review completion" pendingLabel="Saving interests..." />
+      <FormActions backHref="/onboarding/buyer?step=profile" submitLabel="Review Completion" pendingLabel="Saving Interests..." />
     </form>
   );
 }
@@ -592,14 +616,14 @@ function BuyerCompletionStep({
       ]}
     >
       <div className="flex flex-wrap gap-3">
-        <form action={action}>
+        <form action={action} data-testid="buyer-onboarding-finish-dashboard-form">
           <input type="hidden" name="destination" value="dashboard" />
-          <FormSubmitButton pendingLabel="Opening dashboard...">Go to buyer dashboard</FormSubmitButton>
+          <FormSubmitButton pendingLabel="Opening Dashboard...">Go to Buyer Dashboard</FormSubmitButton>
         </form>
-        <form action={action}>
+        <form action={action} data-testid="buyer-onboarding-finish-catalog-form">
           <input type="hidden" name="destination" value="catalog" />
-          <FormSubmitButton variant="outline" pendingLabel="Opening catalog...">
-            Browse catalog now
+          <FormSubmitButton variant="outline" pendingLabel="Opening Catalog...">
+            Browse Catalog Now
           </FormSubmitButton>
         </form>
       </div>

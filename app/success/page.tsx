@@ -17,7 +17,7 @@ export default function SuccessPage() {
           </p>
           <div className="mt-8">
             <Button asChild>
-              <Link href="/test-checkout">Run the test again</Link>
+              <Link href="/test-checkout">Run the Test Again</Link>
             </Button>
           </div>
         </div>

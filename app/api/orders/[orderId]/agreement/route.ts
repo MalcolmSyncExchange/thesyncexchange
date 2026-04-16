@@ -6,6 +6,7 @@ import { renderLicenseAgreementHtml } from "@/lib/license";
 import { formatDateTime } from "@/lib/utils";
 import { createAgreementSignedUrl, downloadAgreementArtifact } from "@/services/agreements/server";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
+import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import { createServerSupabaseClient } from "@/services/supabase/server";
@@ -70,14 +71,32 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
   }
 
   if (role !== "admin" && order.buyer_user_id !== user.id) {
+    await logAgreementAccessEvent(supabase, {
+      orderId: order.id,
+      actorId: user.id,
+      eventType: "agreement_download_forbidden",
+      message: "A non-owner attempted to access a private agreement artifact."
+    });
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
   if (!order.agreement_url && order.status === "pending") {
+    await logAgreementAccessEvent(supabase, {
+      orderId: order.id,
+      actorId: user.id,
+      eventType: "agreement_download_blocked",
+      message: "Agreement download was requested before payment completed."
+    });
     return NextResponse.json({ error: "Agreement artifact is not ready until payment has completed." }, { status: 409 });
   }
 
   if (order.agreement_generation_error) {
+    await logAgreementAccessEvent(supabase, {
+      orderId: order.id,
+      actorId: user.id,
+      eventType: "agreement_download_blocked",
+      message: `Agreement download was requested while generation errors remained: ${order.agreement_generation_error}`
+    });
     return NextResponse.json(
       {
         error: `Agreement generation still needs attention: ${order.agreement_generation_error}`
@@ -88,6 +107,12 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
 
   try {
     if (!order.agreement_generated_at) {
+      await logAgreementAccessEvent(supabase, {
+        orderId: order.id,
+        actorId: user.id,
+        eventType: "agreement_download_blocked",
+        message: "Agreement download was requested before artifact generation completed."
+      });
       return NextResponse.json(
         {
           error: "Agreement artifact is not ready yet. Please try again shortly or contact support if this persists."
@@ -97,6 +122,12 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
     }
 
     if (!order.agreement_path) {
+      await logAgreementAccessEvent(supabase, {
+        orderId: order.id,
+        actorId: user.id,
+        eventType: "agreement_download_blocked",
+        message: "Agreement generation completed, but secure delivery metadata is still unavailable."
+      });
       return NextResponse.json(
         {
           error:
@@ -110,16 +141,35 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
     const contentType = order.agreement_content_type || "application/pdf";
     const signedUrl = await createAgreementSignedUrl(agreementPath, 60).catch(() => null);
     if (signedUrl) {
+      await logAgreementAccessEvent(supabase, {
+        orderId: order.id,
+        actorId: user.id,
+        eventType: "agreement_download_authorized",
+        message: "Agreement delivery succeeded through a short-lived signed URL."
+      });
       const response = NextResponse.redirect(signedUrl);
       response.headers.set("cache-control", "private, no-store, max-age=0");
       return response;
     }
 
     const file = await downloadAgreementArtifact(agreementPath);
+    await logAgreementAccessEvent(supabase, {
+      orderId: order.id,
+      actorId: user.id,
+      eventType: "agreement_download_authorized",
+      message: "Agreement artifact was streamed directly after signed URL creation was unavailable."
+    });
     return new Response(file, {
       headers: agreementHeaders(order.id, contentType)
     });
   } catch (error) {
+    await logAgreementAccessEvent(supabase, {
+      orderId: order.id,
+      actorId: user.id,
+      eventType: "agreement_download_failed",
+      message: error instanceof Error ? error.message : "Unable to load agreement artifact."
+    });
+
     if (!order.agreement_path) {
       return NextResponse.json(
         {
@@ -197,4 +247,27 @@ async function loadAgreementOrderCompat(
         "id" | "buyer_user_id" | "status" | "agreement_url" | "agreement_path" | "agreement_content_type" | "agreement_generated_at" | "agreement_generation_error"
       >)
     : null;
+}
+
+async function logAgreementAccessEvent(
+  supabase: NonNullable<ReturnType<typeof createAdminSupabaseClient>>,
+  {
+    orderId,
+    actorId,
+    eventType,
+    message
+  }: {
+    orderId: string;
+    actorId?: string | null;
+    eventType: string;
+    message: string;
+  }
+) {
+  await appendOrderActivityLog(supabase, {
+    orderId,
+    actorId: actorId || null,
+    source: "system",
+    eventType,
+    message
+  }).catch(() => undefined);
 }

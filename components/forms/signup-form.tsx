@@ -44,18 +44,18 @@ export function SignupForm({
 
         <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">{helper}</div>
 
-        <FormSubmitButton className="w-full" pendingLabel="Creating account...">
-          Create account
+        <FormSubmitButton className="w-full" pendingLabel="Creating Account...">
+          Create Account
         </FormSubmitButton>
 
         <div className="space-y-3 text-sm text-muted-foreground">
-          <AuthFooterLink href="/login" label="Already have an account?" actionLabel="Log in" />
+          <AuthFooterLink href="/login" label="Already have an account?" actionLabel="Log In" />
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             <Link href="/signup/artist" className="font-medium text-foreground underline-offset-4 hover:underline">
-              Start as artist instead
+              Start as Artist Instead
             </Link>
             <Link href="/signup/buyer" className="font-medium text-foreground underline-offset-4 hover:underline">
-              Start as buyer instead
+              Start as Buyer Instead
             </Link>
           </div>
         </div>

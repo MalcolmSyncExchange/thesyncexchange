@@ -50,7 +50,7 @@ export default async function BuyerOrdersPage() {
                       ? "Payment cleared, but agreement generation needs attention from the Sync Exchange team."
                       : order.agreement_delivery_blocked
                         ? "Payment cleared and the document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied."
-                      : order.agreement_url
+                      : order.agreement_ready
                       ? "Agreement generated and ready for download."
                       : order.paid_at
                         ? "Payment received. Agreement generation is in progress."
@@ -60,11 +60,11 @@ export default async function BuyerOrdersPage() {
                   </p>
                   <div className="flex items-center gap-4">
                     <Link href={`/license-confirmation/${order.id}`} className="font-medium text-foreground underline-offset-4 hover:underline">
-                      View confirmation
+                      View Confirmation
                     </Link>
-                    {order.agreement_url && !order.agreement_delivery_blocked ? (
+                    {order.agreement_ready && order.agreement_url ? (
                       <Link href={order.agreement_url} className="font-medium text-foreground underline-offset-4 hover:underline">
-                        Open agreement document
+                        Open Agreement Document
                       </Link>
                     ) : null}
                   </div>

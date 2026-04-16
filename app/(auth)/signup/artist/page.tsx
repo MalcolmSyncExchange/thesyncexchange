@@ -34,7 +34,7 @@ export default async function ArtistSignupPage({
           returnTo="/signup/artist"
           alternateHref="/signup/buyer"
           alternateLabel="Need buyer access instead?"
-          alternateActionLabel="Create a buyer account"
+          alternateActionLabel="Create a Buyer Account"
           error={searchParams?.error}
           success={searchParams?.success}
         />

@@ -46,24 +46,22 @@ const presentBuckets = new Set((bucketResult.data || []).map((bucket) => bucket.
 const missingBuckets = requiredBuckets.filter((bucket) => !presentBuckets.has(bucket));
 
 const foundationVisible = tableDiagnostics.tracks.ok && tableDiagnostics.license_types.ok;
-const fullReady =
+const finalizationReady =
   foundationVisible &&
   tableDiagnostics.user_profiles.ok &&
   tableDiagnostics.orders.ok &&
-  tableDiagnostics.order_activity_log.ok &&
-  missingBuckets.length === 0;
+  tableDiagnostics.order_activity_log.ok;
+const fullReady = finalizationReady && missingBuckets.length === 0;
 
 let recommendedAction = "none";
 let recommendedBundle = null;
 
-if (!foundationVisible) {
-  recommendedAction = "apply_foundation_bootstrap";
-  recommendedBundle = "supabase/manual-apply/2026-04-foundation-bootstrap.sql";
-} else if (!tableDiagnostics.user_profiles.ok || !tableDiagnostics.orders.ok || !tableDiagnostics.order_activity_log.ok) {
-  recommendedAction = "apply_follow_up_bundle";
-  recommendedBundle = "supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql";
-} else if (missingBuckets.length > 0) {
+if (missingBuckets.length > 0) {
   recommendedAction = "run_storage_setup";
+  recommendedBundle = "supabase/manual-apply/2026-04-foundation-bootstrap.sql";
+} else if (!finalizationReady) {
+  recommendedAction = "apply_finalization_bundle";
+  recommendedBundle = "supabase/manual-apply/2026-04-foundation-bootstrap.sql";
 }
 
 const result = {
@@ -73,8 +71,9 @@ const result = {
   tableDiagnostics,
   recommendedAction,
   recommendedBundle,
+  runbook: "docs/supabase-finalization.md",
   nextSteps:
-    recommendedAction === "apply_foundation_bootstrap"
+    recommendedAction === "apply_finalization_bundle"
       ? [
           "Run npm run setup:storage",
           "Open the Supabase SQL Editor",
@@ -82,15 +81,7 @@ const result = {
           "Run the query once",
           "Re-check with npm run verify:supabase or /api/health/readiness"
         ]
-      : recommendedAction === "apply_follow_up_bundle"
-        ? [
-            "Run npm run setup:storage",
-            "Open the Supabase SQL Editor",
-            "Paste supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql",
-            "Run the query once",
-            "Re-check with npm run verify:supabase or /api/health/readiness"
-          ]
-        : recommendedAction === "run_storage_setup"
+      : recommendedAction === "run_storage_setup"
           ? ["Run npm run setup:storage and then re-check readiness."]
           : ["Supabase storage and table visibility look healthy from the service-role client."]
 };

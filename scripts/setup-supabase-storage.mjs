@@ -71,7 +71,7 @@ for (const bucket of bucketConfig) {
 
 console.log("");
 console.log("Storage buckets are configured.");
-console.log("Next step: apply the SQL in supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql (or the matching migrations) to enforce object-level access rules.");
+console.log("Next step: apply the final Supabase SQL bundle in supabase/manual-apply/2026-04-foundation-bootstrap.sql and then re-check /api/health/readiness.");
 
 async function createOrUpdateBucket(mode, bucketId, options) {
   const run = (nextOptions) =>

@@ -34,11 +34,11 @@ export default function ForgotPasswordPage({
           <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
             If the account exists, the reset email will arrive with a secure link back into the password update flow.
           </div>
-          <FormSubmitButton className="w-full" pendingLabel="Sending instructions...">
-            Send reset instructions
+          <FormSubmitButton className="w-full" pendingLabel="Sending Instructions...">
+            Send Reset Instructions
           </FormSubmitButton>
           <div className="text-sm text-muted-foreground">
-            <AuthFooterLink href="/login" label="Remembered your password?" actionLabel="Back to login" />
+            <AuthFooterLink href="/login" label="Remembered your password?" actionLabel="Back to Login" />
           </div>
         </form>
       </AuthPanel>

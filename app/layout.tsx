@@ -11,7 +11,31 @@ export const metadata: Metadata = {
   title: "The Sync Exchange",
   description: "Premium sync licensing marketplace for artists, buyers, and music teams that need speed, trust, and clean rights management.",
   icons: {
+    shortcut: "/favicon.ico",
     icon: [
+      {
+        url: "/favicon.svg",
+        sizes: "any",
+        type: "image/svg+xml"
+      },
+      {
+        url: "/favicon.ico"
+      },
+      {
+        url: "/favicon-16x16.png",
+        sizes: "16x16",
+        type: "image/png"
+      },
+      {
+        url: "/favicon-32x32.png",
+        sizes: "32x32",
+        type: "image/png"
+      },
+      {
+        url: "/favicon-48x48.png",
+        sizes: "48x48",
+        type: "image/png"
+      },
       {
         url: "/brand/the-sync-exchange/app/AppIcon_256.png",
         sizes: "256x256",
@@ -25,12 +49,11 @@ export const metadata: Metadata = {
     ],
     apple: [
       {
-        url: "/brand/the-sync-exchange/app/AppIcon_512.png",
-        sizes: "512x512",
+        url: "/apple-touch-icon.png",
+        sizes: "180x180",
         type: "image/png"
       }
-    ],
-    shortcut: "/brand/the-sync-exchange/app/AppIcon_256.png"
+    ]
   },
   openGraph: {
     title: "The Sync Exchange",

@@ -29,7 +29,7 @@ export function SignupRoleForm({
   error?: string;
   success?: string;
 }) {
-  const submitLabel = role === "artist" ? "Create artist account" : "Create buyer account";
+  const submitLabel = role === "artist" ? "Create Artist Account" : "Create Buyer Account";
 
   return (
     <AuthPanel eyebrow={`${role[0].toUpperCase()}${role.slice(1)} signup`} title={title} description={description}>
@@ -60,7 +60,7 @@ export function SignupRoleForm({
         </FormSubmitButton>
 
         <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-          <AuthFooterLink href="/login" label="Already have an account?" actionLabel="Log in" />
+          <AuthFooterLink href="/login" label="Already have an account?" actionLabel="Log In" />
           <span>
             {alternateLabel}{" "}
             <Link href={alternateHref} className="font-medium text-foreground underline-offset-4 hover:underline">

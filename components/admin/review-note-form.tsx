@@ -8,7 +8,7 @@ export function ReviewNoteForm({ trackId }: { trackId: string }) {
       <input type="hidden" name="trackId" value={trackId} />
       <Textarea name="note" placeholder="Add a reviewer note for this submission." className="min-h-[100px]" required />
       <Button type="submit" size="sm">
-        Add note
+        Add Note
       </Button>
     </form>
   );

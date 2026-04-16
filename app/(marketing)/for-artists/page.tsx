@@ -15,7 +15,7 @@ export default function ForArtistsPage() {
         description="The artist workflow is designed to help serious creators package tracks for real sync opportunities."
         actions={
           <Button asChild>
-            <Link href="/signup/artist">Create artist account</Link>
+            <Link href="/signup/artist">Create Artist Account</Link>
           </Button>
         }
       />
@@ -42,7 +42,7 @@ export default function ForArtistsPage() {
         description="Start with structured submissions, cleaner splits, and a presentation designed for serious buyers."
         actions={
           <Button asChild>
-            <Link href="/signup/artist">Start as an artist</Link>
+            <Link href="/signup/artist">Start as an Artist</Link>
           </Button>
         }
       />

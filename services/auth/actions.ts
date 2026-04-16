@@ -2,10 +2,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { ZodError } from "zod";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
+import { reportOperationalError } from "@/lib/monitoring";
 import { isAbsoluteAssetReference } from "@/lib/storage";
 import { uploadManagedAsset } from "@/services/storage/assets";
+import { inferOnboardingCompletionState } from "@/services/auth/onboarding-completion";
 import { deleteStorageAssetsWithServerAccess } from "@/services/storage/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import {
@@ -20,10 +23,20 @@ import {
   parseBuyerInterests,
   parseBuyerProfile
 } from "@/lib/validation/onboarding";
-import { clearDemoSession, getDemoDirectoryUserByEmail, setDemoSession, toSessionUser, upsertDemoArtistProfile, upsertDemoBuyerProfile, upsertDemoDirectoryUser } from "@/services/auth/demo-store";
+import {
+  clearDemoSession,
+  getDemoBuyerProfile,
+  getDemoDirectoryUserByEmail,
+  setDemoSession,
+  toSessionUser,
+  upsertDemoArtistProfile,
+  upsertDemoBuyerProfile,
+  upsertDemoDirectoryUser
+} from "@/services/auth/demo-store";
 import { selectUserProfileCompat, upsertUserProfileCompat } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { getSessionUser, resolveOnboardingPath, resolvePostLoginRedirect, resolveRoleRedirect } from "@/services/auth/session";
+import { buildBuyerProfileUpsert } from "@/services/auth/buyer-onboarding";
 import type { Database } from "@/types/database";
 import type { SessionUser, UserRole } from "@/types/models";
 
@@ -516,7 +529,8 @@ export async function saveBuyerOnboardingStepAction(formData: FormData) {
         },
         profileUpdates: {
           company_name: data.companyName
-        }
+        },
+        requireBuyerProfileRecord: false
       });
       nextPath = "/onboarding/buyer?step=profile";
     } else if (step === "profile") {
@@ -534,7 +548,8 @@ export async function saveBuyerOnboardingStepAction(formData: FormData) {
           buyer_type: data.buyerType,
           industry_type: data.industryType,
           billing_email: data.billingEmail
-        }
+        },
+        requireBuyerProfileRecord: true
       });
       nextPath = "/onboarding/buyer?step=interests";
     } else {
@@ -554,12 +569,17 @@ export async function saveBuyerOnboardingStepAction(formData: FormData) {
             moods: data.moods,
             intended_use: data.intendedUse || ""
           }
-        }
+        },
+        requireBuyerProfileRecord: true
       });
       nextPath = "/onboarding/buyer?step=complete";
     }
   } catch (error) {
-    redirect(`/onboarding/buyer?step=${encodeURIComponent(step)}&error=${encodeURIComponent(getValidationErrorMessage(error))}`);
+    reportOperationalError("buyer_onboarding_save_failed", error, {
+      userId: user.id,
+      step
+    });
+    redirect(`/onboarding/buyer?step=${encodeURIComponent(step)}&error=${encodeURIComponent(getOnboardingStepErrorMessage(error))}`);
   }
 
   redirect(nextPath);
@@ -620,15 +640,18 @@ async function hasCompletedOnboarding(userId: string, role: UserRole | null) {
 
   const client = getMutationClient();
   const { data: userRow } = (await selectUserProfileCompat(client, userId)) as {
-    data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "onboarding_completed_at"> | null;
+    data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "onboarding_completed_at" | "onboarding_step"> | null;
   };
-  if (userRow?.onboarding_completed_at) {
-    return true;
-  }
 
   const table = role === "artist" ? "artist_profiles" : "buyer_profiles";
   const { data } = await client.from(table).select("id").eq("user_id", userId).maybeSingle();
-  return Boolean(data);
+  return inferOnboardingCompletionState({
+    role,
+    onboardingCompletedAt: userRow?.onboarding_completed_at,
+    onboardingStep: userRow?.onboarding_step,
+    hasArtistProfile: role === "artist" ? Boolean(data) : false,
+    hasBuyerProfile: role === "buyer" ? Boolean(data) : false
+  });
 }
 
 async function requireAuthenticatedUser(role: "artist" | "buyer"): Promise<SessionUser> {
@@ -739,13 +762,15 @@ async function persistBuyerOnboarding({
   nextStep,
   payload,
   userUpdates,
-  profileUpdates
+  profileUpdates,
+  requireBuyerProfileRecord = false
 }: {
   user: SessionUser;
   nextStep: string;
   payload: Record<string, unknown>;
   userUpdates?: Record<string, unknown>;
   profileUpdates?: Record<string, unknown>;
+  requireBuyerProfileRecord?: boolean;
 }) {
   const now = new Date().toISOString();
 
@@ -774,17 +799,32 @@ async function persistBuyerOnboarding({
       throw userError;
     }
 
-    if (profileUpdates) {
-      const { error: profileError } = await client.from("buyer_profiles").upsert(
-        {
-          user_id: user.id,
-          ...(profileUpdates || {})
-        } as Database["public"]["Tables"]["buyer_profiles"]["Insert"],
-        { onConflict: "user_id" }
-      );
+    if (profileUpdates || requireBuyerProfileRecord) {
+      const existingProfileResult = await client.from("buyer_profiles").select("*").eq("user_id", user.id).maybeSingle();
+      if (existingProfileResult.error) {
+        throw existingProfileResult.error;
+      }
 
-      if (profileError) {
-        throw profileError;
+      const buyerProfileWrite = buildBuyerProfileUpsert({
+        userId: user.id,
+        onboardingPayload: payload,
+        profileUpdates,
+        existingProfile: existingProfileResult.data
+      });
+
+      if (buyerProfileWrite.upsert) {
+        const { error: profileError } = await client.from("buyer_profiles").upsert(
+          buyerProfileWrite.upsert as Database["public"]["Tables"]["buyer_profiles"]["Insert"],
+          { onConflict: "user_id" }
+        );
+
+        if (profileError) {
+          throw profileError;
+        }
+      } else if (requireBuyerProfileRecord) {
+        throw new Error(
+          `Buyer onboarding is missing required profile fields: ${buyerProfileWrite.missingRequiredFields.join(", ")}`
+        );
       }
     }
 
@@ -804,11 +844,19 @@ async function persistBuyerOnboarding({
     onboardingData: payload
   });
 
-  if (profileUpdates) {
-    upsertDemoBuyerProfile(user.id, {
-      user_id: user.id,
-      ...(profileUpdates as Record<string, unknown>)
+  if (profileUpdates || requireBuyerProfileRecord) {
+    const buyerProfileWrite = buildBuyerProfileUpsert({
+      userId: user.id,
+      onboardingPayload: payload,
+      profileUpdates,
+      existingProfile: getDemoBuyerProfileSnapshot(user.id)
     });
+
+    if (buyerProfileWrite.upsert) {
+      upsertDemoBuyerProfile(user.id, buyerProfileWrite.upsert as Parameters<typeof upsertDemoBuyerProfile>[1]);
+    } else if (requireBuyerProfileRecord) {
+      throw new Error(`Buyer onboarding is missing required profile fields: ${buyerProfileWrite.missingRequiredFields.join(", ")}`);
+    }
   }
 
   setDemoSession({
@@ -821,6 +869,35 @@ async function persistBuyerOnboarding({
     onboardingData: payload,
     onboardingComplete: false
   });
+}
+
+function getOnboardingStepErrorMessage(error: unknown) {
+  if (error instanceof ZodError) {
+    return error.issues[0]?.message || "Please review the highlighted fields and try again.";
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error && "message" in error && typeof error.message === "string") {
+    return "We couldn't save this step. Please try again.";
+  }
+
+  return "Something went wrong. Please try again.";
+}
+
+function getDemoBuyerProfileSnapshot(userId: string) {
+  const profile = getDemoBuyerProfile(userId);
+  return profile
+    ? {
+        company_name: profile.company_name,
+        buyer_type: profile.buyer_type,
+        industry_type: profile.industry_type,
+        billing_email: profile.billing_email,
+        music_preferences: profile.music_preferences || {}
+      }
+    : null;
 }
 
 async function finalizeOnboarding(user: SessionUser, nextStep: string) {

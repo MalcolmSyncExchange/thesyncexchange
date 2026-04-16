@@ -33,13 +33,13 @@ export default async function ReviewQueuePage() {
           <div className="flex flex-wrap gap-3">
             <Button asChild variant="outline">
               <Link href="/admin/compliance">
-                Open compliance
+                Open Compliance
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button asChild>
               <Link href="/admin/tracks">
-                Open all tracks
+                Open All Tracks
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -97,10 +97,10 @@ export default async function ReviewQueuePage() {
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Button asChild variant="outline">
-                  <Link href="/admin/compliance">Review compliance</Link>
+                  <Link href="/admin/compliance">Review Compliance</Link>
                 </Button>
                 <Button asChild variant="ghost">
-                  <Link href="/admin/dashboard">Back to dashboard</Link>
+                  <Link href="/admin/dashboard">Back to Dashboard</Link>
                 </Button>
               </div>
             </div>

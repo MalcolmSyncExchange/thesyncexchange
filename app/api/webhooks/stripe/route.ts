@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { env, hasStripeEnv } from "@/lib/env";
+import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import {
   getStripeServerClient,
   markOrderRefundedByPaymentIntent,
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.client_reference_id || session.metadata?.orderId;
 
-        console.log("[stripe webhook] checkout.session.completed", {
+        reportOperationalEvent("stripe_checkout_session_completed", "Stripe checkout completion received.", {
           sessionId: session.id,
           orderId: orderId || null,
           paymentStatus: session.payment_status
@@ -73,6 +74,10 @@ export async function POST(request: Request) {
 
         if (paymentIntentId) {
           const order = await markOrderRefundedByPaymentIntent(paymentIntentId, event.id, event.type);
+          reportOperationalEvent("stripe_charge_refunded", "Stripe refund received.", {
+            paymentIntentId,
+            orderId: order?.id || null
+          });
           revalidateBuyerOrderPaths(order?.id);
         }
         break;
@@ -81,6 +86,10 @@ export async function POST(request: Request) {
         break;
     }
   } catch (error) {
+    reportOperationalError("stripe_webhook_processing_failed", error, {
+      eventId: event.id,
+      eventType: event.type
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Stripe webhook fulfillment failed."

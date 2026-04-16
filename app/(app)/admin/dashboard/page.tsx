@@ -108,7 +108,7 @@ export default async function AdminDashboardPage() {
             </div>
             <Button asChild variant="outline">
               <Link href="/admin/review-queue">
-                Open queue
+                Open Queue
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -121,7 +121,7 @@ export default async function AdminDashboardPage() {
                 title="The review queue is clear."
                 description="New submissions will surface here as soon as artists publish them for review."
                 href="/admin/tracks"
-                cta="Open track management"
+                cta="Open Track Management"
               />
             )}
           </CardContent>
@@ -167,7 +167,7 @@ export default async function AdminDashboardPage() {
 
               <Button asChild variant="ghost" className="w-full justify-between">
                 <Link href="/admin/compliance">
-                  Review compliance queue
+                  Review Compliance Queue
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -217,7 +217,7 @@ export default async function AdminDashboardPage() {
             <CardDescription>Fresh license activity and current order state from the buyer side of the platform.</CardDescription>
           </div>
           <Button asChild variant="outline">
-            <Link href="/admin/orders">Open orders</Link>
+            <Link href="/admin/orders">Open Orders</Link>
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -245,7 +245,7 @@ export default async function AdminDashboardPage() {
               title="No order activity yet."
               description="Orders will appear here once buyers begin licensing tracks from the approved catalog."
               href="/admin/orders"
-              cta="Open order management"
+              cta="Open Order Management"
             />
           )}
         </CardContent>

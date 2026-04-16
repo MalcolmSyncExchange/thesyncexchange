@@ -1,7 +1,7 @@
 import { favorites as demoFavorites, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
-import { hasExtendedOrderMetadata } from "@/lib/orders";
+import { hasAgreementBeenGenerated, hasExtendedOrderMetadata, hasSecureAgreementDelivery, isAgreementDeliveryBlocked } from "@/lib/orders";
 import { withTrackAudioAccess } from "@/services/storage/server";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { LicenseType, Order, RightsHolder, Track, TrackStatus } from "@/types/models";
@@ -124,7 +124,9 @@ export async function getBuyerOrders(buyerUserId: string) {
     ...row,
     amount_paid: Number(row.amount_cents || 0) / 100,
     order_status: row.status,
-    agreement_delivery_blocked: Boolean(row.agreement_generated_at && !row.agreement_path),
+    agreement_generated: hasAgreementBeenGenerated(row),
+    agreement_ready: hasSecureAgreementDelivery(row),
+    agreement_delivery_blocked: isAgreementDeliveryBlocked(row),
     schema_degraded: !hasExtendedOrderMetadata(row),
     degraded_messages: !hasExtendedOrderMetadata(row)
       ? [
@@ -198,7 +200,9 @@ export async function getOrderById(orderId: string) {
     ...row,
     amount_paid: Number(row.amount_cents || 0) / 100,
     order_status: row.status,
-    agreement_delivery_blocked: Boolean(row.agreement_generated_at && !row.agreement_path),
+    agreement_generated: hasAgreementBeenGenerated(row),
+    agreement_ready: hasSecureAgreementDelivery(row),
+    agreement_delivery_blocked: isAgreementDeliveryBlocked(row),
     schema_degraded: !hasExtendedOrderMetadata(row),
     degraded_messages: !hasExtendedOrderMetadata(row)
       ? [

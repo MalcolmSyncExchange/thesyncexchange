@@ -52,12 +52,16 @@ export default async function CheckoutPage({
             <p className="text-sm text-muted-foreground">
               Select a license option to create a pending order and continue into secure Stripe checkout. Your order record stays attached to the payment session so confirmation and admin reporting stay in sync.
             </p>
-            <form action={createOrderAction} className="space-y-4">
+            <form action={createOrderAction} className="space-y-4" data-testid="buyer-checkout-form">
               <input type="hidden" name="trackId" value={track.id} />
               <input type="hidden" name="trackSlug" value={track.slug} />
               <div className="space-y-3">
                 {track.license_options.map((option, index) => (
-                  <label key={option.id} className="flex cursor-pointer items-center justify-between rounded-md border border-border p-4 text-sm">
+                  <label
+                    key={option.id}
+                    className="flex cursor-pointer items-center justify-between rounded-md border border-border p-4 text-sm"
+                    data-testid={`license-option-${option.slug || option.id}`}
+                  >
                     <div>
                       <p className="font-medium">{option.name}</p>
                       <p className="text-muted-foreground">{option.terms_summary}</p>
@@ -69,12 +73,13 @@ export default async function CheckoutPage({
                         name="licenseSelection"
                         value={`${option.id}|${option.price_override || option.base_price}`}
                         defaultChecked={index === 0}
+                        data-testid={`license-radio-${option.slug || option.id}`}
                       />
                     </div>
                   </label>
                 ))}
               </div>
-              <Button className="w-full">Continue to secure checkout</Button>
+              <Button className="w-full" data-testid="buyer-checkout-submit">Continue to Secure Checkout</Button>
             </form>
           </CardContent>
         </Card>

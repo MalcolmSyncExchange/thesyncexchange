@@ -20,23 +20,23 @@ export const env = {
 export const hasSupabaseEnv = Boolean(env.supabaseUrl && env.supabaseAnonKey);
 export const hasStripeEnv = Boolean(env.stripeSecretKey);
 
-export function getMissingCoreEnvKeys() {
+export function getMissingCoreEnvKeys(): string[] {
   return [
     ["NEXT_PUBLIC_APP_URL", env.appUrl],
     ["NEXT_PUBLIC_SUPABASE_URL", env.supabaseUrl],
     ["NEXT_PUBLIC_SUPABASE_ANON_KEY", env.supabaseAnonKey]
   ]
-    .filter(([, value]) => !value)
+    .filter((entry): entry is [string, undefined] => !entry[1])
     .map(([key]) => key);
 }
 
-export function getMissingOperationalEnvKeys() {
+export function getMissingOperationalEnvKeys(): string[] {
   return [
     ["SUPABASE_SERVICE_ROLE_KEY", env.supabaseServiceRoleKey],
     ["STRIPE_SECRET_KEY", env.stripeSecretKey],
     ["STRIPE_WEBHOOK_SECRET", env.stripeWebhookSecret],
     ["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", env.stripePublishableKey]
   ]
-    .filter(([, value]) => !value)
+    .filter((entry): entry is [string, undefined] => !entry[1])
     .map(([key]) => key);
 }

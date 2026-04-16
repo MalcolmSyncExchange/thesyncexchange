@@ -5,18 +5,20 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "The Sync Exchange",
     short_name: "Sync Exchange",
     description: "Premium sync licensing marketplace for artists, buyers, and music teams that need speed, trust, and clean rights management.",
+    id: "/",
+    scope: "/",
     start_url: "/",
     display: "standalone",
-    background_color: "#0b0b0b",
-    theme_color: "#0b0b0b",
+    background_color: "#11161c",
+    theme_color: "#11161c",
     icons: [
       {
-        src: "/brand/the-sync-exchange/app/AppIcon_256.png",
-        sizes: "256x256",
+        src: "/android-chrome-192x192.png",
+        sizes: "192x192",
         type: "image/png"
       },
       {
-        src: "/brand/the-sync-exchange/app/AppIcon_512.png",
+        src: "/android-chrome-512x512.png",
         sizes: "512x512",
         type: "image/png"
       }

@@ -22,14 +22,14 @@ export function TrackReviewActions({
           <form action={updateTrackStatusAction}>
             <input type="hidden" name="trackId" value={trackId} />
             <input type="hidden" name="status" value="approved" />
-            <FormSubmitButton size="sm" pendingLabel="Approving...">
+            <FormSubmitButton size="sm" pendingLabel="Approving..." data-testid={`approve-track-${trackId}`}>
               Approve
             </FormSubmitButton>
           </form>
           <form action={updateTrackStatusAction}>
             <input type="hidden" name="trackId" value={trackId} />
             <input type="hidden" name="status" value="rejected" />
-            <FormSubmitButton size="sm" variant="outline" pendingLabel="Rejecting...">
+            <FormSubmitButton size="sm" variant="outline" pendingLabel="Rejecting..." data-testid={`reject-track-${trackId}`}>
               Reject
             </FormSubmitButton>
           </form>
@@ -44,7 +44,7 @@ export function TrackReviewActions({
       </form>
       {detailHref ? (
         <Button asChild size="sm" variant="ghost">
-          <Link href={detailHref}>Open record</Link>
+          <Link href={detailHref}>Open Record</Link>
         </Button>
       ) : null}
     </div>

@@ -15,7 +15,7 @@ export default function CancelPage() {
           </p>
           <div className="mt-8">
             <Button asChild variant="outline">
-              <Link href="/test-checkout">Back to test checkout</Link>
+              <Link href="/test-checkout">Back to Test Checkout</Link>
             </Button>
           </div>
         </div>

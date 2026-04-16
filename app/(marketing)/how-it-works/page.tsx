@@ -46,7 +46,7 @@ export default function HowItWorksPage() {
         description="The workflow is intentionally structured so music teams, producers, and agencies can move with more confidence."
         actions={
           <Button asChild>
-            <Link href="/signup">Get started</Link>
+            <Link href="/signup">Get Started</Link>
           </Button>
         }
       />

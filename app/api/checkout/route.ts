@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { env, hasStripeEnv, hasSupabaseEnv } from "@/lib/env";
+import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -126,6 +127,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: fallbackUpdate.error.message }, { status: 500 });
     }
   }
+
+  await appendOrderActivityLog(supabase, {
+    orderId,
+    actorId: user.id,
+    source: "buyer",
+    eventType: "checkout_created_via_api",
+    message: "Hosted Stripe Checkout Session created through the checkout API route.",
+    metadata: {
+      sessionId: session.id
+    }
+  }).catch(() => undefined);
 
   return NextResponse.json({
     url: session.url,

@@ -36,7 +36,21 @@ export async function deleteStorageAssetsWithServerAccess(assets: StorageAssetRe
   const grouped = groupStorageAssetsByBucket(assets);
 
   await Promise.all(
-    Array.from(grouped.entries()).map(([bucket, paths]) => supabase.storage.from(bucket).remove(paths))
+    Array.from(grouped.entries()).map(async ([bucket, paths]) => {
+      const uniquePaths = Array.from(new Set(paths.filter(Boolean)));
+      if (!uniquePaths.length) {
+        return;
+      }
+
+      const { error } = await supabase.storage.from(bucket).remove(uniquePaths);
+      if (error) {
+        console.warn("[storage cleanup] remove failed", {
+          bucket,
+          pathCount: uniquePaths.length,
+          message: error.message
+        });
+      }
+    })
   );
 }
 

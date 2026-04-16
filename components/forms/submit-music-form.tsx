@@ -256,7 +256,7 @@ export function SubmitMusicForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onValidSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onValidSubmit)} className="space-y-6" data-testid="track-submit-form">
       <input type="hidden" {...register("saveMode")} value={submitMode} readOnly />
 
       {state.message ? (
@@ -270,7 +270,7 @@ export function SubmitMusicForm({
         <CardContent className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="title">Track title</Label>
-            <Input id="title" {...register("title")} />
+            <Input id="title" {...register("title")} data-testid="track-title-input" />
             <FieldError message={getErrorMessage(errors.title)} />
           </div>
           <div className="space-y-2 md:col-span-2">
@@ -302,6 +302,7 @@ export function SubmitMusicForm({
           <Field label="Cover art upload" error={assetErrors.coverArt}>
             <Input
               id="coverArtFile"
+              data-testid="track-cover-art-input"
               ref={coverArtInputRef}
               type="file"
               accept=".jpg,.jpeg,.png,.webp"
@@ -316,6 +317,7 @@ export function SubmitMusicForm({
           <Field label="Audio upload" error={assetErrors.audioFile}>
             <Input
               id="audioFile"
+              data-testid="track-audio-input"
               ref={audioInputRef}
               type="file"
               accept=".mp3,.wav,.aiff,.flac"
@@ -330,6 +332,7 @@ export function SubmitMusicForm({
           <Field label="Preview audio upload" error={assetErrors.previewFile}>
             <Input
               id="previewFile"
+              data-testid="track-preview-input"
               ref={previewInputRef}
               type="file"
               accept=".mp3,.wav,.aiff,.flac"
@@ -414,7 +417,7 @@ export function SubmitMusicForm({
               {fields.length > 1 ? (
                 <div className="md:col-span-4">
                   <Button type="button" variant="outline" onClick={() => remove(index)}>
-                    Remove holder
+                    Remove Holder
                   </Button>
                 </div>
               ) : null}
@@ -426,7 +429,7 @@ export function SubmitMusicForm({
             variant="outline"
             onClick={() => append({ name: "", email: "", roleType: "writer", ownershipPercent: 0 })}
           >
-            Add rights holder
+            Add Rights Holder
           </Button>
         </CardContent>
       </Card>
@@ -444,6 +447,7 @@ export function SubmitMusicForm({
           variant="outline"
           value="publish"
           disabled={isPending}
+          data-testid="track-publish-submit"
         >
           {isPending && submitMode === "publish" ? "Submitting..." : "Publish for Review"}
         </Button>

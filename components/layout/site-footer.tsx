@@ -17,8 +17,8 @@ const footerColumns = [
     links: [
       { href: "/about", label: "About" },
       { href: "/contact", label: "Contact" },
-      { href: "/login", label: "Log in" },
-      { href: "/signup", label: "Create account" }
+      { href: "/login", label: "Log In" },
+      { href: "/signup", label: "Create Account" }
     ]
   }
 ];

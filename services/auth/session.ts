@@ -5,6 +5,7 @@ import { cache } from "react";
 import { demoSessionUsers } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { resolvePublicStorageAssetUrl, storageBuckets } from "@/lib/storage";
+import { inferOnboardingCompletionState } from "@/services/auth/onboarding-completion";
 import { getDemoDirectoryUserByEmail, getDemoDirectoryUserById, toSessionUser } from "@/services/auth/demo-store";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
@@ -196,11 +197,11 @@ async function getPersistedUserState(
   const userRow = userResult.data;
   const role = resolveUserRole(userRow?.role) || fallbackRole || detectPersistedRole(artistProfileResult.data, buyerProfileResult.data);
   const fullName = String(userRow?.full_name || fallbackFullName);
+  const onboardingStep = role === "admin" ? null : String(userRow?.onboarding_step || "");
   const onboardingComplete = await resolveOnboardingCompletionState(
-    supabase,
-    userId,
     role,
     userRow?.onboarding_completed_at,
+    onboardingStep,
     artistProfileResult.data,
     buyerProfileResult.data
   );
@@ -218,47 +219,26 @@ async function getPersistedUserState(
     }),
     onboardingStartedAt: userRow?.onboarding_started_at || null,
     onboardingCompletedAt: userRow?.onboarding_completed_at || null,
-    onboardingStep: role === "admin" ? null : String(userRow?.onboarding_step || ""),
+    onboardingStep,
     onboardingData: (userRow?.onboarding_payload as Record<string, unknown> | null) || {},
     onboardingComplete
   } satisfies SessionUser;
 }
 
 async function resolveOnboardingCompletionState(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
-  userId: string,
   role: UserRole | null,
   completedAt?: string | null,
+  onboardingStep?: string | null,
   artistProfile?: { id: string } | null,
   buyerProfile?: { id: string } | null
 ) {
-  if (role === "admin") {
-    return true;
-  }
-
-  if (!role) {
-    return false;
-  }
-
-  if (completedAt) {
-    return true;
-  }
-
-  if (role === "artist") {
-    if (artistProfile) {
-      return true;
-    }
-
-    const { data: legacyProfile } = await supabase.from("artist_profiles").select("id").eq("user_id", userId).maybeSingle();
-    return Boolean(legacyProfile);
-  }
-
-  if (buyerProfile) {
-    return true;
-  }
-
-  const { data: legacyProfile } = await supabase.from("buyer_profiles").select("id").eq("user_id", userId).maybeSingle();
-  return Boolean(legacyProfile);
+  return inferOnboardingCompletionState({
+    role,
+    onboardingCompletedAt: completedAt,
+    onboardingStep,
+    hasArtistProfile: Boolean(artistProfile),
+    hasBuyerProfile: Boolean(buyerProfile)
+  });
 }
 
 function detectPersistedRole(artistProfile?: { id: string } | null, buyerProfile?: { id: string } | null): UserRole | null {

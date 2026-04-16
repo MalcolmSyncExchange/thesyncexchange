@@ -1,5 +1,6 @@
 import { adminFlags as demoFlags, demoUsers, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
+import { hasAgreementBeenGenerated, hasSecureAgreementDelivery, isAgreementDeliveryBlocked } from "@/lib/orders";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { withTrackAudioAccess } from "@/services/storage/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
@@ -481,7 +482,9 @@ export async function getAdminOrders() {
     ...order,
     amount_paid: Number(order.amount_cents || 0) / 100,
     order_status: order.status,
-    agreement_delivery_blocked: Boolean(order.agreement_generated_at && !order.agreement_path),
+    agreement_generated: hasAgreementBeenGenerated(order),
+    agreement_ready: hasSecureAgreementDelivery(order),
+    agreement_delivery_blocked: isAgreementDeliveryBlocked(order),
     schema_degraded: schemaDegraded,
     activity_degraded: activityDegraded,
     degraded_messages: [

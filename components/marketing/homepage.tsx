@@ -65,7 +65,7 @@ export function Homepage() {
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/login">Log in</Link>
+                <Link href="/login">Log In</Link>
               </Button>
             </div>
 
@@ -193,10 +193,10 @@ export function Homepage() {
         actions={
           <>
             <Button asChild>
-              <Link href="/signup/artist">Create an artist account</Link>
+              <Link href="/signup/artist">Create an Artist Account</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/signup/buyer">Create a buyer account</Link>
+              <Link href="/signup/buyer">Create a Buyer Account</Link>
             </Button>
           </>
         }

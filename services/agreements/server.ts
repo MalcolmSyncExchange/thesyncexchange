@@ -1,4 +1,5 @@
 import { buildAgreementStoragePath, getAgreementAccessUrl, renderLicenseAgreementPdf } from "@/lib/license";
+import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import { env } from "@/lib/env";
 import { storageBuckets } from "@/lib/storage";
 import { formatDateTime } from "@/lib/utils";
@@ -117,6 +118,14 @@ export async function generateAgreementArtifactForOrder(orderId: string) {
       }
     }).catch(() => undefined);
 
+    reportOperationalEvent("agreement_generated", "Agreement artifact generated successfully.", {
+      orderId,
+      agreementPath: path,
+      contentType,
+      sizeBytes,
+      orderStatus: persistedStatus
+    });
+
     return {
       path,
       agreementUrl,
@@ -142,6 +151,12 @@ export async function generateAgreementArtifactForOrder(orderId: string) {
         agreementPath: path
       }
     }).catch(() => undefined);
+
+    reportOperationalError("agreement_generation_failed", error, {
+      orderId,
+      agreementPath: path,
+      nextStatus: normalizedOrder.status === "refunded" ? "refunded" : "paid"
+    });
 
     throw error;
   }

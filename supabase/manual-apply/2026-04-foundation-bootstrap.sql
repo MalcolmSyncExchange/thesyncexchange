@@ -7,26 +7,51 @@
 
 create extension if not exists "pgcrypto";
 
-create type public.user_role as enum ('artist', 'buyer', 'admin');
-create type public.verification_status as enum ('unverified', 'pending', 'verified');
-create type public.track_status as enum ('draft', 'pending_review', 'approved', 'rejected');
-create type public.approval_status as enum ('pending', 'approved', 'rejected');
-create type public.order_status as enum ('pending', 'paid', 'fulfilled', 'refunded');
-create type public.flag_status as enum ('open', 'resolved');
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'user_role') then
+    create type public.user_role as enum ('artist', 'buyer', 'admin');
+  end if;
+end $$;
 
-create table if not exists public.users (
-  id uuid primary key default gen_random_uuid(),
-  email text not null unique,
-  role public.user_role not null,
-  full_name text not null,
-  avatar_url text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'verification_status') then
+    create type public.verification_status as enum ('unverified', 'pending', 'verified');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'track_status') then
+    create type public.track_status as enum ('draft', 'pending_review', 'approved', 'rejected');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'approval_status') then
+    create type public.approval_status as enum ('pending', 'approved', 'rejected');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'order_status') then
+    create type public.order_status as enum ('pending', 'paid', 'fulfilled', 'refunded');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'flag_status') then
+    create type public.flag_status as enum ('open', 'resolved');
+  end if;
+end $$;
 
 create table if not exists public.artist_profiles (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.users(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
   artist_name text not null,
   bio text not null default '',
   location text not null default '',
@@ -40,7 +65,7 @@ create table if not exists public.artist_profiles (
 
 create table if not exists public.buyer_profiles (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.users(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
   company_name text not null,
   industry_type text not null,
   buyer_type text not null,
@@ -51,7 +76,7 @@ create table if not exists public.buyer_profiles (
 
 create table if not exists public.tracks (
   id uuid primary key default gen_random_uuid(),
-  artist_user_id uuid not null references public.users(id) on delete cascade,
+  artist_user_id uuid not null references auth.users(id) on delete cascade,
   title text not null,
   slug text not null unique,
   description text not null default '',
@@ -109,7 +134,7 @@ create table if not exists public.track_license_options (
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
-  buyer_user_id uuid not null references public.users(id) on delete cascade,
+  buyer_user_id uuid not null references auth.users(id) on delete cascade,
   track_id uuid not null references public.tracks(id),
   license_type_id uuid not null references public.license_types(id),
   stripe_checkout_session_id text,
@@ -124,7 +149,7 @@ create table if not exists public.orders (
 
 create table if not exists public.favorites (
   id uuid primary key default gen_random_uuid(),
-  buyer_user_id uuid not null references public.users(id) on delete cascade,
+  buyer_user_id uuid not null references auth.users(id) on delete cascade,
   track_id uuid not null references public.tracks(id) on delete cascade,
   created_at timestamptz not null default now(),
   unique(buyer_user_id, track_id)
@@ -136,7 +161,7 @@ create table if not exists public.admin_flags (
   flag_type text not null,
   notes text not null,
   status public.flag_status not null default 'open',
-  created_by uuid not null references public.users(id),
+  created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -149,15 +174,19 @@ begin
 end;
 $$ language plpgsql;
 
-create trigger update_users_updated_at before update on public.users for each row execute function public.update_updated_at_column();
+drop trigger if exists update_artist_profiles_updated_at on public.artist_profiles;
 create trigger update_artist_profiles_updated_at before update on public.artist_profiles for each row execute function public.update_updated_at_column();
+drop trigger if exists update_buyer_profiles_updated_at on public.buyer_profiles;
 create trigger update_buyer_profiles_updated_at before update on public.buyer_profiles for each row execute function public.update_updated_at_column();
+drop trigger if exists update_tracks_updated_at on public.tracks;
 create trigger update_tracks_updated_at before update on public.tracks for each row execute function public.update_updated_at_column();
+drop trigger if exists update_rights_holders_updated_at on public.rights_holders;
 create trigger update_rights_holders_updated_at before update on public.rights_holders for each row execute function public.update_updated_at_column();
+drop trigger if exists update_orders_updated_at on public.orders;
 create trigger update_orders_updated_at before update on public.orders for each row execute function public.update_updated_at_column();
+drop trigger if exists update_admin_flags_updated_at on public.admin_flags;
 create trigger update_admin_flags_updated_at before update on public.admin_flags for each row execute function public.update_updated_at_column();
 
-alter table public.users enable row level security;
 alter table public.artist_profiles enable row level security;
 alter table public.buyer_profiles enable row level security;
 alter table public.tracks enable row level security;
@@ -167,16 +196,23 @@ alter table public.orders enable row level security;
 alter table public.favorites enable row level security;
 alter table public.admin_flags enable row level security;
 
-create policy "Users can read their own record" on public.users for select using (auth.uid() = id);
+drop policy if exists "Artists can manage their profile" on public.artist_profiles;
 create policy "Artists can manage their profile" on public.artist_profiles for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Buyers can manage their profile" on public.buyer_profiles;
 create policy "Buyers can manage their profile" on public.buyer_profiles for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Approved tracks are public" on public.tracks;
 create policy "Approved tracks are public" on public.tracks for select using (status = 'approved' or auth.uid() = artist_user_id);
+drop policy if exists "Artists can manage their tracks" on public.tracks;
 create policy "Artists can manage their tracks" on public.tracks for all using (auth.uid() = artist_user_id) with check (auth.uid() = artist_user_id);
+drop policy if exists "Track rights holders visible to owner" on public.rights_holders;
 create policy "Track rights holders visible to owner" on public.rights_holders for select using (
   exists(select 1 from public.tracks where tracks.id = rights_holders.track_id and tracks.artist_user_id = auth.uid())
 );
+drop policy if exists "Track license options are public for approved tracks" on public.track_license_options;
 create policy "Track license options are public for approved tracks" on public.track_license_options for select using (true);
+drop policy if exists "Buyers manage their orders" on public.orders;
 create policy "Buyers manage their orders" on public.orders for select using (auth.uid() = buyer_user_id);
+drop policy if exists "Buyers manage their favorites" on public.favorites;
 create policy "Buyers manage their favorites" on public.favorites for all using (auth.uid() = buyer_user_id) with check (auth.uid() = buyer_user_id);
 
 comment on table public.orders is 'TODO: legal review required before agreement_url is treated as production contract output.';
@@ -184,6 +220,7 @@ comment on table public.orders is 'TODO: legal review required before agreement_
 
 -- 0002_submission_policies.sql
 
+drop policy if exists "Artists can manage rights holders for owned tracks" on public.rights_holders;
 create policy "Artists can manage rights holders for owned tracks"
 on public.rights_holders
 for all
@@ -204,6 +241,7 @@ with check (
   )
 );
 
+drop policy if exists "Artists can manage license options for owned tracks" on public.track_license_options;
 create policy "Artists can manage license options for owned tracks"
 on public.track_license_options
 for all
@@ -230,7 +268,7 @@ with check (
 create table if not exists public.review_notes (
   id uuid primary key default gen_random_uuid(),
   track_id uuid not null references public.tracks(id) on delete cascade,
-  author_id uuid not null references public.users(id) on delete cascade,
+  author_id uuid not null references auth.users(id) on delete cascade,
   note text not null,
   created_at timestamptz not null default now()
 );
@@ -238,7 +276,7 @@ create table if not exists public.review_notes (
 create table if not exists public.track_audit_log (
   id uuid primary key default gen_random_uuid(),
   track_id uuid not null references public.tracks(id) on delete cascade,
-  actor_id uuid references public.users(id) on delete set null,
+  actor_id uuid references auth.users(id) on delete set null,
   action text not null,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
@@ -272,34 +310,13 @@ comment on column public.admin_flags.severity is 'Internal moderation severity u
 
 -- 0006_onboarding_status.sql
 
-alter table public.users
-  add column if not exists onboarding_started_at timestamptz,
-  add column if not exists onboarding_completed_at timestamptz,
-  add column if not exists onboarding_step text,
-  add column if not exists onboarding_payload jsonb not null default '{}'::jsonb;
-
 alter table public.artist_profiles
   add column if not exists default_licensing_preferences text;
 
 alter table public.buyer_profiles
   add column if not exists music_preferences jsonb not null default '{}'::jsonb;
-
-drop policy if exists "Users can update their own record" on public.users;
-drop policy if exists "Users can insert their own record" on public.users;
-create policy "Users can insert their own record" on public.users for insert with check (auth.uid() = id);
-create policy "Users can update their own record" on public.users for update using (auth.uid() = id) with check (auth.uid() = id);
-
-comment on column public.users.onboarding_payload is 'Partial onboarding data persisted between steps so refreshes and re-logins resume safely.';
 comment on column public.artist_profiles.default_licensing_preferences is 'TODO: legal/business review required before default licensing preferences become production policy.';
 comment on column public.buyer_profiles.music_preferences is 'Stored onboarding preferences for discovery, recommendation, and buyer workflow tuning.';
-
-
--- 0007_users_role_nullable.sql
-
-alter table public.users
-  alter column role drop not null;
-
-comment on column public.users.role is 'Nullable until onboarding role selection is completed. Do not infer buyer or artist without an explicit user choice.';
 
 
 -- 0008_database_foundation.sql
@@ -1194,7 +1211,7 @@ using (public.is_admin())
 with check (public.is_admin());
 
 comment on table public.user_profiles is 'Application profile state keyed 1:1 to auth.users. auth.users remains the identity source.';
-comment on table public.track_rights_holders_public is 'Safe buyer-facing rights holder projection without email addresses.';
+comment on view public.track_rights_holders_public is 'Safe buyer-facing rights holder projection without email addresses.';
 comment on column public.user_profiles.role is 'Nullable until onboarding role selection is completed. Never infer buyer or artist without explicit user choice.';
 comment on column public.license_types.default_price_cents is 'Stored in the smallest currency unit for Stripe and accounting consistency.';
 comment on column public.track_license_options.price_cents is 'Optional track-level override stored in the smallest currency unit.';
@@ -1319,130 +1336,14 @@ comment on table public.order_activity_log is 'Operational audit trail for order
 
 
 -- 0011_storage_object_policies.sql
-
-alter table storage.objects enable row level security;
-
-drop policy if exists "Public avatars are readable" on storage.objects;
-drop policy if exists "Owners can manage avatars" on storage.objects;
-drop policy if exists "Admins can manage avatars" on storage.objects;
-
-drop policy if exists "Public cover art is readable" on storage.objects;
-drop policy if exists "Artists can manage cover art" on storage.objects;
-drop policy if exists "Admins can manage cover art" on storage.objects;
-
-drop policy if exists "Public track previews are readable" on storage.objects;
-drop policy if exists "Artists can manage track previews" on storage.objects;
-drop policy if exists "Admins can manage track previews" on storage.objects;
-
-drop policy if exists "Artists can manage private track audio" on storage.objects;
-drop policy if exists "Admins can manage private track audio" on storage.objects;
-
-drop policy if exists "Admins can manage agreements" on storage.objects;
-
-create policy "Public avatars are readable"
-on storage.objects
-for select
-to public
-using (bucket_id = 'avatars');
-
-create policy "Owners can manage avatars"
-on storage.objects
-for all
-to authenticated
-using (
-  bucket_id = 'avatars'
-  and (storage.foldername(name))[1] = auth.uid()::text
-)
-with check (
-  bucket_id = 'avatars'
-  and (storage.foldername(name))[1] = auth.uid()::text
-);
-
-create policy "Admins can manage avatars"
-on storage.objects
-for all
-to authenticated
-using (bucket_id = 'avatars' and public.is_admin())
-with check (bucket_id = 'avatars' and public.is_admin());
-
-create policy "Public cover art is readable"
-on storage.objects
-for select
-to public
-using (bucket_id = 'cover-art');
-
-create policy "Artists can manage cover art"
-on storage.objects
-for all
-to authenticated
-using (
-  bucket_id = 'cover-art'
-  and (storage.foldername(name))[1] = auth.uid()::text
-)
-with check (
-  bucket_id = 'cover-art'
-  and (storage.foldername(name))[1] = auth.uid()::text
-);
-
-create policy "Admins can manage cover art"
-on storage.objects
-for all
-to authenticated
-using (bucket_id = 'cover-art' and public.is_admin())
-with check (bucket_id = 'cover-art' and public.is_admin());
-
-create policy "Public track previews are readable"
-on storage.objects
-for select
-to public
-using (bucket_id = 'track-previews');
-
-create policy "Artists can manage track previews"
-on storage.objects
-for all
-to authenticated
-using (
-  bucket_id = 'track-previews'
-  and (storage.foldername(name))[1] = auth.uid()::text
-)
-with check (
-  bucket_id = 'track-previews'
-  and (storage.foldername(name))[1] = auth.uid()::text
-);
-
-create policy "Admins can manage track previews"
-on storage.objects
-for all
-to authenticated
-using (bucket_id = 'track-previews' and public.is_admin())
-with check (bucket_id = 'track-previews' and public.is_admin());
-
-create policy "Artists can manage private track audio"
-on storage.objects
-for all
-to authenticated
-using (
-  bucket_id = 'track-audio'
-  and (storage.foldername(name))[1] = auth.uid()::text
-)
-with check (
-  bucket_id = 'track-audio'
-  and (storage.foldername(name))[1] = auth.uid()::text
-);
-
-create policy "Admins can manage private track audio"
-on storage.objects
-for all
-to authenticated
-using (bucket_id = 'track-audio' and public.is_admin())
-with check (bucket_id = 'track-audio' and public.is_admin());
-
-create policy "Admins can manage agreements"
-on storage.objects
-for all
-to authenticated
-using (bucket_id = 'agreements' and public.is_admin())
-with check (bucket_id = 'agreements' and public.is_admin());
+--
+-- Intentionally excluded from the hosted SQL Editor bootstrap.
+-- In hosted Supabase projects, SQL Editor execution may not own storage.objects,
+-- which makes ALTER TABLE / DROP POLICY / CREATE POLICY on storage.objects fail
+-- with "must be owner of table objects".
+--
+-- If you need to manage storage.objects policies separately, use:
+--   supabase/manual-apply/2026-04-storage-owner-required.sql
 
 
 -- 0012_avatar_storage_path.sql

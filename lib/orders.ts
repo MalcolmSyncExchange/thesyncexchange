@@ -20,7 +20,7 @@ export const ORDER_LIFECYCLE_STEPS: Array<{ key: OrderLifecycleStep; label: stri
   { key: "pending", label: "Order created" },
   { key: "checkout_created", label: "Checkout created" },
   { key: "paid", label: "Payment confirmed" },
-  { key: "agreement_generated", label: "Agreement ready" },
+  { key: "agreement_generated", label: "Agreement generated" },
   { key: "fulfilled", label: "Order fulfilled" }
 ];
 
@@ -39,7 +39,15 @@ export function hasPaymentCleared(order: OrderLifecycleSnapshot) {
 }
 
 export function hasAgreementBeenGenerated(order: OrderLifecycleSnapshot) {
-  return Boolean(order.agreement_generated_at || order.agreement_url || order.agreement_path);
+  return Boolean(order.agreement_generated_at || order.agreement_path);
+}
+
+export function hasSecureAgreementDelivery(order: OrderLifecycleSnapshot) {
+  return Boolean(order.agreement_path && hasAgreementBeenGenerated(order) && !order.agreement_generation_error);
+}
+
+export function isAgreementDeliveryBlocked(order: OrderLifecycleSnapshot) {
+  return hasAgreementBeenGenerated(order) && !hasSecureAgreementDelivery(order);
 }
 
 export function hasOrderBeenFulfilled(order: OrderLifecycleSnapshot) {
@@ -76,7 +84,13 @@ export function getCurrentLifecycleStep(order: OrderLifecycleSnapshot): OrderLif
 }
 
 export function hasExtendedOrderMetadata(order: Record<string, unknown>) {
-  return "agreement_path" in order && "agreement_generation_error" in order && "last_webhook_event_type" in order;
+  return (
+    "agreement_path" in order &&
+    "agreement_generation_error" in order &&
+    "last_webhook_event_type" in order &&
+    "last_webhook_processed_at" in order &&
+    "last_webhook_error" in order
+  );
 }
 
 export function timestampForLifecycleStep(order: OrderLifecycleSnapshot, step: OrderLifecycleStep) {

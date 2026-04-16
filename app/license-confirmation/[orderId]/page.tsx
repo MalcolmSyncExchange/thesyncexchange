@@ -97,7 +97,7 @@ export default async function LicenseConfirmationPage({
               Payment was recorded, but agreement generation still needs attention: {order.agreement_generation_error}
             </div>
           ) : null}
-          {order?.agreement_generated_at && !order?.agreement_path ? (
+          {order?.agreement_delivery_blocked ? (
             <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
               The agreement document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied.
             </div>
@@ -143,11 +143,11 @@ export default async function LicenseConfirmationPage({
             ) : null}
           </div>
           <Button asChild>
-            <Link href="/buyer/orders">View order history</Link>
+            <Link href="/buyer/orders">View Order History</Link>
           </Button>
-          {order?.agreement_url && order?.agreement_path ? (
+          {order?.agreement_ready && order?.agreement_url ? (
             <Button asChild variant="outline">
-              <Link href={order.agreement_url}>Open agreement document</Link>
+              <Link href={order.agreement_url}>Open Agreement Document</Link>
             </Button>
           ) : null}
         </CardContent>

@@ -27,10 +27,10 @@ export default function MarketingError({
       </div>
       <div className="flex flex-wrap gap-3">
         <Button type="button" onClick={() => reset()}>
-          Try again
+          Try Again
         </Button>
         <Button asChild variant="outline">
-          <Link href="/">Back to homepage</Link>
+          <Link href="/">Back to Homepage</Link>
         </Button>
       </div>
     </main>

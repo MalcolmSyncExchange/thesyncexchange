@@ -888,7 +888,7 @@ using (public.is_admin())
 with check (public.is_admin());
 
 comment on table public.user_profiles is 'Application profile state keyed 1:1 to auth.users. auth.users remains the identity source.';
-comment on table public.track_rights_holders_public is 'Safe buyer-facing rights holder projection without email addresses.';
+comment on view public.track_rights_holders_public is 'Safe buyer-facing rights holder projection without email addresses.';
 comment on column public.user_profiles.role is 'Nullable until onboarding role selection is completed. Never infer buyer or artist without explicit user choice.';
 comment on column public.license_types.default_price_cents is 'Stored in the smallest currency unit for Stripe and accounting consistency.';
 comment on column public.track_license_options.price_cents is 'Optional track-level override stored in the smallest currency unit.';

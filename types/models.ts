@@ -138,6 +138,8 @@ export interface Order {
   agreement_content_type?: string | null;
   agreement_size_bytes?: number | null;
   agreement_generation_error?: string | null;
+  agreement_generated?: boolean;
+  agreement_ready?: boolean;
   checkout_created_at?: string | null;
   paid_at?: string | null;
   agreement_generated_at?: string | null;

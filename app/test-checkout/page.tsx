@@ -25,7 +25,7 @@ export default function TestCheckoutPage() {
           <div className="mt-6 text-sm text-muted-foreground">
             Need the current auth flow instead?{" "}
             <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
-              Log in
+              Log In
             </Link>
           </div>
         </div>

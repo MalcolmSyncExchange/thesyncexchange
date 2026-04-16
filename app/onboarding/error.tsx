@@ -36,13 +36,13 @@ export default function OnboardingError({
           <div className="mt-8 flex flex-wrap gap-3">
             <Button onClick={reset}>
               <RotateCcw className="h-4 w-4" />
-              Try this step again
+              Try This Step Again
             </Button>
             <Button asChild variant="outline">
-              <Link href="/login">Return to login</Link>
+              <Link href="/login">Return to Login</Link>
             </Button>
             <Button asChild variant="ghost">
-              <Link href="/">Back to home</Link>
+              <Link href="/">Back to Home</Link>
             </Button>
           </div>
         </div>

@@ -8,12 +8,22 @@ import { isMissingColumnError, isMissingRelationError, isSchemaCacheTableError }
 type CapabilityStatus = "available" | "degraded" | "blocked";
 type ReadinessStatus = "healthy" | "degraded" | "blocked";
 type TableDiagnosticStatus = "visible" | "missing_or_stale" | "schema_exposure_blocked" | "unknown";
-type RecommendedManualAction = "none" | "apply_foundation_bootstrap" | "apply_follow_up_bundle" | "verify_project_exposure";
+type RecommendedManualAction = "none" | "run_storage_setup" | "apply_finalization_bundle" | "verify_project_exposure";
 
 type CapabilityReport = {
   status: CapabilityStatus;
   summary: string;
 };
+
+type DomainReport = {
+  status: CapabilityStatus;
+  summary: string;
+};
+
+const FINALIZATION_BUNDLE =
+  "/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql" as const;
+const FINALIZATION_RUNBOOK =
+  "/Users/malcolmw/Documents/The Sync Exchange.2/docs/supabase-finalization.md" as const;
 
 type TableDiagnostic = {
   status: TableDiagnosticStatus;
@@ -89,10 +99,7 @@ export async function GET() {
     }
   };
   let recommendedManualAction: RecommendedManualAction = "none";
-  let recommendedManualBundle:
-    | "/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql"
-    | "/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql"
-    | null = null;
+  let recommendedManualBundle: typeof FINALIZATION_BUNDLE | null = null;
 
   if (!hasSupabaseEnv) {
     notes.push("Supabase public environment variables are missing, so live auth/data/storage flows are unavailable.");
@@ -204,26 +211,26 @@ export async function GET() {
       }
     }
 
-    const foundationMissing =
-      foundationDiagnostics.tracks.status !== "visible" || foundationDiagnostics.license_types.status !== "visible";
-    const followUpMissing =
+    const finalizationMissing =
+      foundationDiagnostics.tracks.status !== "visible" ||
+      foundationDiagnostics.license_types.status !== "visible" ||
       tableDiagnostics.user_profiles.status !== "visible" ||
       tableDiagnostics.orders.status !== "visible" ||
       tableDiagnostics.order_activity_log.status !== "visible" ||
       capabilities.avatarPathSupport.status !== "available" ||
-      capabilities.fulfillmentMetadataSupport.status !== "available";
+      capabilities.fulfillmentMetadataSupport.status !== "available" ||
+      capabilities.orderActivitySupport.status !== "available";
 
-    if (foundationMissing) {
-      recommendedManualAction = "apply_foundation_bootstrap";
-      recommendedManualBundle =
-        "/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql";
+    if (storage.missingBuckets.length) {
+      recommendedManualAction = "run_storage_setup";
+      recommendedManualBundle = FINALIZATION_BUNDLE;
+      notes.push("Required storage buckets are missing. Run npm run setup:storage before applying the finalization SQL bundle.");
+    } else if (finalizationMissing) {
+      recommendedManualAction = "apply_finalization_bundle";
+      recommendedManualBundle = FINALIZATION_BUNDLE;
       notes.push(
-        "Foundational app tables are not visible. Apply the full foundation bootstrap bundle first. If readiness is still blocked afterward, then verify project credentials, schema exposure, and PostgREST cache health."
+        "Critical marketplace schema or policy objects are missing or stale. Apply the single finalization SQL bundle, then recheck readiness. If tables still appear unavailable afterward, verify project credentials, public-schema exposure, and PostgREST cache health."
       );
-    } else if (followUpMissing) {
-      recommendedManualAction = "apply_follow_up_bundle";
-      recommendedManualBundle =
-        "/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql";
     } else {
       recommendedManualAction = "none";
       recommendedManualBundle = null;
@@ -236,11 +243,26 @@ export async function GET() {
   const degradedFeatures = Object.entries(capabilities)
     .filter(([, value]) => value.status === "degraded")
     .map(([key]) => key);
-
+  const domains = buildReadinessDomains({
+    hasSupabaseEnv,
+    storage,
+    capabilities,
+    missingCore,
+    missingOperational
+  });
+  const blockedDomains = Object.entries(domains)
+    .filter(([, value]) => value.status === "blocked")
+    .map(([key]) => key);
+  const degradedDomains = Object.entries(domains)
+    .filter(([, value]) => value.status === "degraded")
+    .map(([key]) => key);
+  const criticalOperationalMissing = missingOperational.filter((key) =>
+    ["SUPABASE_SERVICE_ROLE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].includes(key)
+  );
   const status: ReadinessStatus =
-    missingCore.length > 0 || !storage.serviceRoleReady || blockedFeatures.length > 0 || !storage.bucketsPresent
+    missingCore.length > 0 || criticalOperationalMissing.length > 0 || blockedDomains.length > 0
       ? "blocked"
-      : degradedFeatures.length > 0 || missingOperational.length > 0
+      : degradedDomains.length > 0 || missingOperational.length > 0
         ? "degraded"
         : "healthy";
 
@@ -248,7 +270,7 @@ export async function GET() {
     {
       status,
       ok: status === "healthy",
-      manualSupabaseActionRequired: status !== "healthy",
+      manualSupabaseActionRequired: recommendedManualAction === "apply_finalization_bundle" || recommendedManualAction === "run_storage_setup",
       missingCore,
       missingOperational,
       postgrest,
@@ -256,10 +278,14 @@ export async function GET() {
       tableDiagnostics,
       storage,
       capabilities,
+      domains,
       recommendedManualAction,
       recommendedManualBundle,
+      runbook: FINALIZATION_RUNBOOK,
       blockedFeatures,
       degradedFeatures,
+      blockedDomains,
+      degradedDomains,
       notes
     },
     { status: status === "healthy" ? 200 : status === "degraded" ? 200 : 503 }
@@ -476,5 +502,104 @@ function evaluateOrderActivityCapability({
   return {
     status: "blocked",
     summary: `Unable to verify order activity support: ${String(activityError?.message || "unknown error")}`
+  };
+}
+
+function buildReadinessDomains({
+  hasSupabaseEnv,
+  storage,
+  capabilities,
+  missingCore,
+  missingOperational
+}: {
+  hasSupabaseEnv: boolean;
+  storage: {
+    serviceRoleReady: boolean;
+    bucketsPresent: boolean;
+    missingBuckets: string[];
+  };
+  capabilities: Record<
+    "avatarPathSupport" | "fulfillmentMetadataSupport" | "agreementMetadataSupport" | "orderActivitySupport",
+    CapabilityReport
+  >;
+  missingCore: string[];
+  missingOperational: string[];
+}): Record<
+  "authProfile" | "storage" | "orders" | "agreements" | "activityLog" | "webhook" | "purchaseFlow",
+  DomainReport
+> {
+  const authProfile =
+    !hasSupabaseEnv || missingCore.length > 0
+      ? {
+          status: "blocked" as CapabilityStatus,
+          summary: "Supabase public auth/profile environment variables are missing, so the live profile contract is unavailable."
+        }
+      : capabilities.avatarPathSupport;
+
+  const storageDomain: DomainReport = !storage.serviceRoleReady
+    ? {
+        status: "blocked",
+        summary: "SUPABASE_SERVICE_ROLE_KEY is missing, so private storage operations cannot complete."
+      }
+    : !storage.bucketsPresent
+      ? {
+          status: "blocked",
+          summary: `Storage buckets are incomplete. Missing: ${storage.missingBuckets.join(", ")}.`
+        }
+      : {
+          status: "available",
+          summary: "Required storage buckets are present."
+        };
+
+  const orders = capabilities.fulfillmentMetadataSupport;
+  const agreements = capabilities.agreementMetadataSupport;
+  const activityLog = capabilities.orderActivitySupport;
+
+  const webhook: DomainReport = missingOperational.includes("STRIPE_SECRET_KEY") || missingOperational.includes("STRIPE_WEBHOOK_SECRET")
+    ? {
+        status: "blocked",
+        summary: "Stripe secret/webhook credentials are missing, so the real paid order fulfillment loop cannot complete."
+      }
+    : orders.status === "blocked"
+      ? {
+          status: "blocked",
+          summary: "Webhook processing is blocked because the orders/fulfillment schema contract is not available."
+        }
+      : activityLog.status === "degraded"
+        ? {
+            status: "degraded",
+            summary: "Webhook fulfillment can run, but audit logging and dedupe stay in compatibility mode until order_activity_log is fully live."
+          }
+        : {
+            status: "available",
+            summary: "Stripe webhook credentials and order fulfillment metadata are present."
+          };
+
+  const domainValues = [authProfile, storageDomain, orders, agreements, activityLog, webhook];
+  const purchaseFlow: DomainReport = domainValues.some((domain) => domain.status === "blocked")
+    ? {
+        status: "blocked",
+        summary:
+          "The marketplace cannot complete a real artist-to-buyer purchase flow yet because one or more critical domains are still blocked."
+      }
+    : domainValues.some((domain) => domain.status === "degraded")
+      ? {
+          status: "degraded",
+          summary:
+            "The marketplace can run in compatibility mode, but a real purchase flow still has degraded infrastructure that should be finalized before launch."
+        }
+      : {
+          status: "available",
+          summary: "The app has the core dependencies needed to complete the real marketplace purchase flow."
+        };
+
+  return {
+    authProfile,
+    storage: storageDomain,
+    orders,
+    agreements,
+    activityLog,
+    webhook,
+    purchaseFlow
   };
 }

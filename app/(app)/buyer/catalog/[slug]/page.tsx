@@ -36,7 +36,7 @@ export default async function BuyerTrackDetailPage({ params }: { params: { slug:
         </div>
         <div className="flex items-center gap-3">
           <FavoriteButton trackId={track.id} initialFavorite={Boolean(track.is_favorite)} revalidatePathname={`/buyer/catalog/${track.slug}`} />
-          <Button asChild size="lg">
+          <Button asChild size="lg" data-testid="license-track-button">
             <Link href={`/buyer/checkout/${track.slug}`}>License This Track</Link>
           </Button>
         </div>

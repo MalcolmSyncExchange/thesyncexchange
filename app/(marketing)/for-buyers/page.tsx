@@ -15,7 +15,7 @@ export default function ForBuyersPage() {
         description="The buyer experience is tuned for supervisors, agencies, and producers who need fast, high-trust decision support."
         actions={
           <Button asChild>
-            <Link href="/signup/buyer">Create buyer account</Link>
+            <Link href="/signup/buyer">Create Buyer Account</Link>
           </Button>
         }
       />
@@ -42,7 +42,7 @@ export default function ForBuyersPage() {
         description="The marketplace is positioned for music supervisors, agencies, brands, and screen teams that value speed with clarity."
         actions={
           <Button asChild>
-            <Link href="/signup/buyer">Start as a buyer</Link>
+            <Link href="/signup/buyer">Start as a Buyer</Link>
           </Button>
         }
       />

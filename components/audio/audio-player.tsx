@@ -67,7 +67,7 @@ export function AudioPlayer({ title, artist, src }: { title: string; artist: str
         </div>
         <Button type="button" onClick={togglePlayback} disabled={!src}>
           {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          {!src ? "Preview unavailable" : playing ? "Pause" : "Play"}
+          {!src ? "Preview Unavailable" : playing ? "Pause" : "Play"}
         </Button>
       </div>
       <audio ref={audioRef} src={src || undefined} preload="none" />

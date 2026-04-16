@@ -35,11 +35,11 @@ export default function ResetPasswordPage({
             <Label htmlFor="confirmPassword">Confirm password</Label>
             <Input id="confirmPassword" name="confirmPassword" type="password" required className="h-11" />
           </div>
-          <FormSubmitButton className="w-full" pendingLabel="Updating password...">
-            Update password
+          <FormSubmitButton className="w-full" pendingLabel="Updating Password...">
+            Update Password
           </FormSubmitButton>
           <div className="text-sm text-muted-foreground">
-            <AuthFooterLink href="/login" label="Need to return?" actionLabel="Back to login" />
+            <AuthFooterLink href="/login" label="Need to return?" actionLabel="Back to Login" />
           </div>
         </form>
       </AuthPanel>

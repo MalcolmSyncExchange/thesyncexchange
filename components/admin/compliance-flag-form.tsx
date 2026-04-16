@@ -45,7 +45,7 @@ export function ComplianceFlagForm({ trackId }: { trackId: string }) {
         <Textarea id="flagNotes" name="notes" placeholder="Describe the issue and the next review step." required />
       </div>
       <Button type="submit" size="sm">
-        Create flag
+        Create Flag
       </Button>
     </form>
   );

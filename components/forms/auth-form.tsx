@@ -116,11 +116,11 @@ export function AuthConfirmationNotice({
           <form action={action} className="flex flex-wrap items-center gap-3 pt-1">
             <input type="hidden" name="email" value={email} />
             <input type="hidden" name="returnTo" value={returnTo} />
-            <FormSubmitButton variant="outline" pendingLabel="Sending confirmation...">
-              Resend confirmation email
+            <FormSubmitButton variant="outline" pendingLabel="Sending Confirmation...">
+              Resend Confirmation Email
             </FormSubmitButton>
             <Link href="/login" className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
-              Back to login
+              Back to Login
             </Link>
           </form>
         </div>
@@ -157,7 +157,7 @@ export function AuthSessionNotice({
           </p>
         </div>
         <Link href={continueHref} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
-          Continue to workspace
+          Continue to Workspace
         </Link>
       </div>
     </div>

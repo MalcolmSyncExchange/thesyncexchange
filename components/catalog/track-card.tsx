@@ -11,7 +11,7 @@ import type { Track } from "@/types/models";
 
 export function TrackCard({ track, href }: { track: Track; href: string }) {
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden" data-testid="catalog-track-card">
       <div className="relative aspect-[4/3] overflow-hidden">
         {track.cover_art_url ? (
           <Image src={track.cover_art_url} alt={track.title} fill className="object-cover" />

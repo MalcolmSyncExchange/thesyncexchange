@@ -30,6 +30,16 @@ npm run setup:storage
 curl -s http://127.0.0.1:3000/api/health/readiness
 ```
 
+6. If readiness reports missing marketplace license types, seed them:
+
+```bash
+npm run seed:license-types
+```
+
+7. If buyer-authenticated catalog or favorites reads fail with a Postgres stack-depth / recursive policy error after readiness is already healthy, apply:
+
+- [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-rls-recursion-fix.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-rls-recursion-fix.sql)
+
 ## Readiness meanings
 
 ### `status = "healthy"`

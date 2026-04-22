@@ -247,6 +247,67 @@ alter table public.license_types
 create unique index if not exists license_types_code_key on public.license_types(code);
 create unique index if not exists license_types_slug_key on public.license_types(slug);
 
+insert into public.license_types (
+  name,
+  slug,
+  code,
+  description,
+  exclusive,
+  default_price_cents,
+  terms_summary,
+  active
+)
+values
+  (
+    'Digital Campaign',
+    'digital-campaign',
+    'digital-campaign',
+    'Ideal for paid social, web spots, and short-form branded content.',
+    false,
+    120000,
+    '12-month campaign use, digital only.',
+    true
+  ),
+  (
+    'Broadcast',
+    'broadcast',
+    'broadcast',
+    'For TV, streaming spots, and regional or national campaign rollouts.',
+    false,
+    480000,
+    'Broadcast and streaming usage, term defined at checkout.',
+    true
+  ),
+  (
+    'Trailer / Promo',
+    'trailer-promo',
+    'trailer-promo',
+    'Built for cinematic promo placements and high-impact cutdowns.',
+    false,
+    680000,
+    'Promo/trailer use, non-exclusive.',
+    true
+  ),
+  (
+    'Exclusive Buyout',
+    'exclusive-buyout',
+    'exclusive-buyout',
+    'Full exclusive negotiation scaffold for premium placements.',
+    true,
+    1800000,
+    'Exclusive placement placeholder terms. TODO: legal review.',
+    true
+  )
+on conflict (slug) do update
+set
+  name = excluded.name,
+  code = excluded.code,
+  description = excluded.description,
+  exclusive = excluded.exclusive,
+  default_price_cents = excluded.default_price_cents,
+  terms_summary = excluded.terms_summary,
+  active = excluded.active;
+
 do $$
 begin
   if exists (
@@ -391,6 +452,7 @@ create or replace function public.current_app_role()
 returns public.user_role
 language sql
 stable
+security definer
 set search_path = public
 as $$
   select role
@@ -402,6 +464,7 @@ create or replace function public.is_admin()
 returns boolean
 language sql
 stable
+security definer
 set search_path = public
 as $$
   select coalesce(public.current_app_role() = 'admin', false)

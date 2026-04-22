@@ -30,6 +30,12 @@ npm run setup:storage
 curl -s http://127.0.0.1:3000/api/health/readiness
 ```
 
+- marketplace license types seeded:
+
+```bash
+npm run seed:license-types
+```
+
 - QA accounts seeded:
 
 ```bash
@@ -214,6 +220,8 @@ Expected:
 ```bash
 npm run validate:env
 npm run verify:supabase
+ARTIST_ONBOARDING_TEST_PASSWORD='your-strong-local-password' npm run verify:artist-onboarding
+BUYER_ONBOARDING_TEST_PASSWORD='your-strong-local-password' npm run verify:buyer-onboarding
 ROUTE_VERIFY_REQUIRE_EXISTING=1 npm run verify:smoke
 curl -s http://127.0.0.1:3000/api/health/readiness
 ```

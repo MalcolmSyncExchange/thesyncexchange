@@ -25,6 +25,7 @@ import {
 } from "@/lib/validation/onboarding";
 import {
   clearDemoSession,
+  getDemoArtistProfile,
   getDemoBuyerProfile,
   getDemoDirectoryUserByEmail,
   setDemoSession,
@@ -495,6 +496,10 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         }
       ]).catch(() => undefined);
     }
+    reportOperationalError("artist_onboarding_save_failed", error, {
+      userId: user.id,
+      step
+    });
     redirect(`/onboarding/artist?step=${encodeURIComponent(step)}&error=${encodeURIComponent(getValidationErrorMessage(error))}`);
   }
 
@@ -708,11 +713,20 @@ async function persistArtistOnboarding({
     }
 
     if (profileUpdates) {
+      const existingProfileResult = await client.from("artist_profiles").select("*").eq("user_id", user.id).maybeSingle();
+      if (existingProfileResult.error) {
+        throw existingProfileResult.error;
+      }
+
+      const artistProfileWrite = buildArtistProfileUpsert({
+        userId: user.id,
+        onboardingPayload: payload,
+        profileUpdates,
+        existingProfile: existingProfileResult.data
+      });
+
       const { error: profileError } = await client.from("artist_profiles").upsert(
-        {
-          user_id: user.id,
-          ...(profileUpdates || {})
-        } as Database["public"]["Tables"]["artist_profiles"]["Insert"],
+        artistProfileWrite as Database["public"]["Tables"]["artist_profiles"]["Insert"],
         { onConflict: "user_id" }
       );
 
@@ -738,10 +752,15 @@ async function persistArtistOnboarding({
   });
 
   if (profileUpdates) {
-    upsertDemoArtistProfile(user.id, {
-      user_id: user.id,
-      ...(profileUpdates as Record<string, unknown>)
-    });
+    upsertDemoArtistProfile(
+      user.id,
+      buildArtistProfileUpsert({
+        userId: user.id,
+        onboardingPayload: payload,
+        profileUpdates,
+        existingProfile: getDemoArtistProfileSnapshot(user.id)
+      }) as Parameters<typeof upsertDemoArtistProfile>[1]
+    );
   }
 
   setDemoSession({
@@ -900,6 +919,25 @@ function getDemoBuyerProfileSnapshot(userId: string) {
     : null;
 }
 
+function getDemoArtistProfileSnapshot(userId: string) {
+  const profile = getDemoArtistProfile(userId);
+  return profile
+    ? {
+        artist_name: profile.artist_name,
+        bio: profile.bio,
+        location: profile.location,
+        website: profile.website,
+        instagram_url: profile.instagram_url,
+        spotify_url: profile.spotify_url,
+        youtube_url: profile.youtube_url,
+        social_links: profile.social_links || {},
+        payout_email: profile.payout_email,
+        default_licensing_preferences: profile.default_licensing_preferences,
+        verification_status: profile.verification_status
+      }
+    : null;
+}
+
 async function finalizeOnboarding(user: SessionUser, nextStep: string) {
   const completedAt = new Date().toISOString();
 
@@ -984,6 +1022,56 @@ function buildArtistSocialLinks(instagram: string, spotify: string, youtube: str
   }).filter(([, value]) => value);
 
   return Object.fromEntries(entries);
+}
+
+function buildArtistProfileUpsert({
+  userId,
+  onboardingPayload,
+  profileUpdates,
+  existingProfile
+}: {
+  userId: string;
+  onboardingPayload: Record<string, unknown>;
+  profileUpdates?: Record<string, unknown>;
+  existingProfile?: Partial<Database["public"]["Tables"]["artist_profiles"]["Row"]> | null;
+}) {
+  const nextArtistName =
+    String(profileUpdates?.artist_name || onboardingPayload.artistName || existingProfile?.artist_name || "").trim();
+
+  if (!nextArtistName) {
+    throw new Error("Artist onboarding is missing the artist name required to persist the profile.");
+  }
+
+  return {
+    user_id: userId,
+    artist_name: nextArtistName,
+    bio: String(profileUpdates?.bio || onboardingPayload.bio || existingProfile?.bio || ""),
+    location: String(profileUpdates?.location || onboardingPayload.location || existingProfile?.location || ""),
+    website: toNullableString(profileUpdates?.website || onboardingPayload.website || existingProfile?.website),
+    instagram_url: toNullableString(
+      profileUpdates?.instagram_url || onboardingPayload.instagram || existingProfile?.instagram_url
+    ),
+    spotify_url: toNullableString(profileUpdates?.spotify_url || onboardingPayload.spotify || existingProfile?.spotify_url),
+    youtube_url: toNullableString(profileUpdates?.youtube_url || onboardingPayload.youtube || existingProfile?.youtube_url),
+    social_links: {
+      ...((existingProfile?.social_links as Record<string, string> | null) || {}),
+      ...((profileUpdates?.social_links as Record<string, string> | undefined) || {})
+    },
+    payout_email: toNullableString(
+      profileUpdates?.payout_email || onboardingPayload.payoutEmail || existingProfile?.payout_email
+    ),
+    default_licensing_preferences: toNullableString(
+      profileUpdates?.default_licensing_preferences ||
+        onboardingPayload.defaultLicensingPreferences ||
+        existingProfile?.default_licensing_preferences
+    ),
+    verification_status: existingProfile?.verification_status || "unverified"
+  } satisfies Database["public"]["Tables"]["artist_profiles"]["Insert"];
+}
+
+function toNullableString(value: unknown) {
+  const normalized = String(value || "").trim();
+  return normalized || null;
 }
 
 async function resolvePersistedRole(userId: string, fallbackRole: UserRole | null) {

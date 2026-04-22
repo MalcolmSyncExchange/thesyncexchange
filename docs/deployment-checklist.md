@@ -25,6 +25,7 @@ Set all of these in the deployment platform:
 ## Supabase
 
 - run `npm run setup:storage` against the target project
+- run `npm run seed:license-types` against the target project environment
 - apply:
   - [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql)
 - confirm readiness is not blocked:

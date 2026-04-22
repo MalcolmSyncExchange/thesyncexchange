@@ -1,31 +1,55 @@
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
+import Stripe from "stripe";
 
 const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+loadEnvFile(path.join(rootDir, ".env.local"));
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
+const supabaseAdmin =
+  supabaseUrl && serviceRoleKey
+    ? createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      })
+    : null;
+const defaultFixturePaths = {
+  coverArt: path.join(rootDir, "tests/fixtures/cover-art.png"),
+  audio: path.join(rootDir, "tests/fixtures/full-track.wav"),
+  preview: path.join(rootDir, "tests/fixtures/preview-track.wav")
+};
 const sharedPassword = process.env.QA_TEST_ACCOUNT_PASSWORD || "";
 const accounts = {
   artist: {
-    email: process.env.E2E_ARTIST_EMAIL || process.env.QA_ARTIST_EMAIL || "",
+    email: process.env.E2E_ARTIST_EMAIL || process.env.QA_ARTIST_EMAIL || "qa-artist@thesyncexchange.com",
     password: process.env.E2E_ARTIST_PASSWORD || sharedPassword
   },
   admin: {
-    email: process.env.E2E_ADMIN_EMAIL || process.env.QA_ADMIN_EMAIL || "",
+    email: process.env.E2E_ADMIN_EMAIL || process.env.QA_ADMIN_EMAIL || "qa-admin@thesyncexchange.com",
     password: process.env.E2E_ADMIN_PASSWORD || sharedPassword
   },
   buyer: {
-    email: process.env.E2E_BUYER_EMAIL || process.env.QA_BUYER_EMAIL || "",
+    email: process.env.E2E_BUYER_EMAIL || process.env.QA_BUYER_EMAIL || "qa-buyer@thesyncexchange.com",
     password: process.env.E2E_BUYER_PASSWORD || sharedPassword
   },
   wrongBuyer: {
-    email: process.env.E2E_WRONG_BUYER_EMAIL || process.env.QA_WRONG_BUYER_EMAIL || "",
+    email: process.env.E2E_WRONG_BUYER_EMAIL || process.env.QA_WRONG_BUYER_EMAIL || "qa-buyer-two@thesyncexchange.com",
     password: process.env.E2E_WRONG_BUYER_PASSWORD || sharedPassword
   }
 };
 
 const fixtures = {
-  coverArt: process.env.E2E_COVER_ART_PATH || "",
-  audio: process.env.E2E_AUDIO_PATH || "",
-  preview: process.env.E2E_PREVIEW_AUDIO_PATH || ""
+  coverArt: process.env.E2E_COVER_ART_PATH || defaultFixturePaths.coverArt,
+  audio: process.env.E2E_AUDIO_PATH || defaultFixturePaths.audio,
+  preview: process.env.E2E_PREVIEW_AUDIO_PATH || defaultFixturePaths.preview
 };
 
 test.describe.serial("marketplace happy path", () => {
@@ -41,6 +65,8 @@ test.describe.serial("marketplace happy path", () => {
     await expect(artistPage.getByTestId("track-submit-form")).toBeVisible();
     await artistPage.getByTestId("track-title-input").fill(trackTitle);
     await artistPage.getByLabel("Description").fill("Playwright launch-readiness track submission for The Sync Exchange.");
+    await artistPage.getByTestId("track-subgenre-input").fill("Synthwave");
+    await artistPage.getByTestId("track-moods-input").fill("Driving, Bright, Confident");
     await artistPage.getByTestId("track-cover-art-input").setInputFiles(fixtures.coverArt);
     await artistPage.getByTestId("track-audio-input").setInputFiles(fixtures.audio);
     await artistPage.getByTestId("track-preview-input").setInputFiles(fixtures.preview);
@@ -60,34 +86,39 @@ test.describe.serial("marketplace happy path", () => {
       .poll(
         async () => {
           await buyerPage.goto("/buyer/catalog");
-          return buyerPage.getByRole("link", { name: trackTitle }).count();
+          return buyerPage.getByTestId("catalog-track-card").filter({ hasText: trackTitle }).count();
         },
         { timeout: 90_000, intervals: [1_500, 3_000, 5_000] }
       )
       .toBeGreaterThan(0);
 
     await buyerPage.goto("/buyer/catalog");
-    await buyerPage.getByRole("link", { name: trackTitle }).first().click();
+    await buyerPage.getByTestId("catalog-track-card").filter({ hasText: trackTitle }).first().getByRole("link", { name: "View Track" }).click();
     await buyerPage.getByTestId("license-track-button").click();
     await expect(buyerPage.getByTestId("buyer-checkout-form")).toBeVisible();
     await buyerPage.getByTestId("buyer-checkout-submit").click();
 
-    await completeStripeCheckout(buyerPage, accounts.buyer.email);
-    await buyerPage.waitForURL(/\/license-confirmation\/[^/?]+/, { timeout: 120_000 });
-    await expect(buyerPage.getByText("License confirmation")).toBeVisible();
+    await buyerPage.waitForURL(/stripe\.com|\/pay\//, { timeout: 120_000 });
+    const order = await waitForLatestOrder({
+      trackTitle,
+      buyerEmail: accounts.buyer.email
+    });
 
-    const orderId = buyerPage.url().match(/license-confirmation\/([^/?]+)/)?.[1];
-    expect(orderId, "order id should be present in the confirmation URL").toBeTruthy();
+    await triggerPaidCheckoutWebhook(order);
+    const buyerReturnContext = await browser.newContext({ baseURL });
+    const buyerReturnPage = await signIn(buyerReturnContext, accounts.buyer);
+    await buyerReturnPage.goto(`/license-confirmation/${order.id}`);
+    await expect(buyerReturnPage.getByText("License confirmation")).toBeVisible();
 
     await expect
       .poll(
         async () => {
-          await buyerPage.goto(`/license-confirmation/${orderId}`);
-          if (await buyerPage.getByText(/agreement generation still needs attention/i).count()) {
+          await buyerReturnPage.goto(`/license-confirmation/${order.id}`);
+          if (await buyerReturnPage.getByText(/agreement generation still needs attention/i).count()) {
             return "generation-error";
           }
 
-          if (await buyerPage.getByRole("link", { name: /open agreement document/i }).count()) {
+          if (await buyerReturnPage.getByRole("link", { name: /open agreement document/i }).count()) {
             return "ready";
           }
 
@@ -102,20 +133,20 @@ test.describe.serial("marketplace happy path", () => {
 
     const unauthenticatedResponse = await browser
       .newContext({ baseURL })
-      .then((context) => context.request.get(`/api/orders/${orderId}/agreement`, { maxRedirects: 0 }));
+      .then((context) => context.request.get(`/api/orders/${order.id}/agreement`, { maxRedirects: 0 }));
     expect(unauthenticatedResponse.status()).toBe(401);
 
-    const wrongBuyerResponse = await wrongBuyerContext.request.get(`/api/orders/${orderId}/agreement`, { maxRedirects: 0 });
+    const wrongBuyerResponse = await wrongBuyerContext.request.get(`/api/orders/${order.id}/agreement`, { maxRedirects: 0 });
     expect(wrongBuyerResponse.status()).toBe(403);
 
-    const buyerAgreementResponse = await buyerContext.request.get(`/api/orders/${orderId}/agreement`, { maxRedirects: 0 });
+    const buyerAgreementResponse = await buyerReturnContext.request.get(`/api/orders/${order.id}/agreement`, { maxRedirects: 0 });
     expect([200, 307]).toContain(buyerAgreementResponse.status());
 
-    const adminAgreementResponse = await adminContext.request.get(`/api/orders/${orderId}/agreement`, { maxRedirects: 0 });
+    const adminAgreementResponse = await adminContext.request.get(`/api/orders/${order.id}/agreement`, { maxRedirects: 0 });
     expect([200, 307]).toContain(adminAgreementResponse.status());
 
     await adminPage.goto("/admin/orders");
-    await expect(adminPage.getByText(orderId)).toBeVisible({ timeout: 60_000 });
+    await expect(adminPage.getByText(order.id)).toBeVisible({ timeout: 60_000 });
   });
 });
 
@@ -129,43 +160,102 @@ async function signIn(context, credentials) {
   return page;
 }
 
-async function completeStripeCheckout(page, email) {
-  await page.waitForURL(/stripe\.com|\/pay\//, { timeout: 120_000 });
+async function waitForLatestOrder({ trackTitle, buyerEmail }) {
+  expect(supabaseAdmin, "E2E requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.").toBeTruthy();
 
-  const emailField = page.locator('input[type="email"]').first();
-  if ((await emailField.count()) > 0 && (await emailField.isVisible().catch(() => false))) {
-    await emailField.fill(email);
-  }
+  const deadline = Date.now() + 90_000;
 
-  await fillStripeInput(page, ["input[name='cardNumber']", "input[name='cardnumber']", "input[autocomplete='cc-number']"], "4242424242424242");
-  await fillStripeInput(page, ["input[name='cardExpiry']", "input[name='exp-date']", "input[autocomplete='cc-exp']"], "1234");
-  await fillStripeInput(page, ["input[name='cardCvc']", "input[name='cvc']", "input[autocomplete='cc-csc']"], "123");
+  while (Date.now() < deadline) {
+    const [buyerProfileResult, trackResult] = await Promise.all([
+      supabaseAdmin.from("user_profiles").select("id").eq("email", buyerEmail).maybeSingle(),
+      supabaseAdmin.from("tracks").select("id, slug").eq("title", trackTitle).order("created_at", { ascending: false }).limit(1).maybeSingle()
+    ]);
 
-  const payButton = page.getByRole("button", { name: /pay|purchase/i }).first();
-  await expect(payButton).toBeVisible({ timeout: 30_000 });
-  await payButton.click();
-}
-
-async function fillStripeInput(page, selectors, value) {
-  for (const selector of selectors) {
-    const pageLocator = page.locator(selector).first();
-    if ((await pageLocator.count()) > 0 && (await pageLocator.isVisible().catch(() => false))) {
-      await pageLocator.fill(value);
-      return;
+    if (buyerProfileResult.error) {
+      throw new Error(`Unable to locate buyer profile for ${buyerEmail}: ${buyerProfileResult.error.message}`);
     }
-  }
 
-  for (const frame of page.frames()) {
-    for (const selector of selectors) {
-      const locator = frame.locator(selector).first();
-      if ((await locator.count()) > 0 && (await locator.isVisible().catch(() => false))) {
-        await locator.fill(value);
-        return;
+    if (trackResult.error) {
+      throw new Error(`Unable to locate track ${trackTitle}: ${trackResult.error.message}`);
+    }
+
+    if (buyerProfileResult.data?.id && trackResult.data?.id) {
+      const orderResult = await supabaseAdmin
+        .from("orders")
+        .select("id, buyer_user_id, track_id, license_type_id, amount_cents, currency, stripe_checkout_session_id, status")
+        .eq("buyer_user_id", buyerProfileResult.data.id)
+        .eq("track_id", trackResult.data.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (orderResult.error) {
+        throw new Error(`Unable to locate buyer order for ${trackTitle}: ${orderResult.error.message}`);
+      }
+
+      if (orderResult.data?.id && orderResult.data.stripe_checkout_session_id) {
+        return {
+          ...orderResult.data,
+          buyerEmail,
+          trackTitle,
+          trackSlug: trackResult.data.slug || "catalog"
+        };
       }
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
 
-  throw new Error(`Unable to find Stripe field for selectors: ${selectors.join(", ")}`);
+  throw new Error(`Timed out waiting for checkout order for track ${trackTitle}.`);
+}
+
+async function triggerPaidCheckoutWebhook(order) {
+  expect(stripeWebhookSecret, "E2E requires STRIPE_WEBHOOK_SECRET.").toBeTruthy();
+
+  const payload = JSON.stringify({
+    id: `evt_e2e_${Date.now()}`,
+    object: "event",
+    type: "checkout.session.completed",
+    data: {
+      object: {
+        id: order.stripe_checkout_session_id,
+        object: "checkout.session",
+        client_reference_id: order.id,
+        metadata: {
+          orderId: order.id,
+          buyerUserId: order.buyer_user_id,
+          trackId: order.track_id,
+          licenseTypeId: order.license_type_id || "",
+          trackSlug: order.trackSlug,
+          source: "playwright-e2e"
+        },
+        customer_email: order.buyerEmail,
+        mode: "payment",
+        status: "complete",
+        payment_status: "paid",
+        payment_intent: `pi_e2e_${Date.now()}`,
+        created: Math.floor(Date.now() / 1000)
+      }
+    }
+  });
+
+  const signature = Stripe.webhooks.generateTestHeaderString({
+    payload,
+    secret: stripeWebhookSecret
+  });
+
+  const response = await fetch(`${baseURL}/api/webhooks/stripe`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "stripe-signature": signature
+    },
+    body: payload
+  });
+
+  if (!response.ok) {
+    throw new Error(`Webhook trigger failed with ${response.status}: ${await response.text()}`);
+  }
 }
 
 function collectMissingRequirements() {
@@ -191,5 +281,39 @@ function collectMissingRequirements() {
     }
   }
 
+  if (!supabaseAdmin) {
+    missing.push("NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  if (!stripeWebhookSecret) {
+    missing.push("STRIPE_WEBHOOK_SECRET");
+  }
+
   return missing;
+}
+
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const contents = fs.readFileSync(filePath, "utf8");
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const equalsIndex = line.indexOf("=");
+    if (equalsIndex === -1) {
+      continue;
+    }
+
+    const key = line.slice(0, equalsIndex).trim();
+    if (!key || process.env[key]) {
+      continue;
+    }
+
+    process.env[key] = line.slice(equalsIndex + 1).trim().replace(/^['"]|['"]$/g, "");
+  }
 }

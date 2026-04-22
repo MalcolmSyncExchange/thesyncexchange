@@ -8,7 +8,12 @@ import { isMissingColumnError, isMissingRelationError, isSchemaCacheTableError }
 type CapabilityStatus = "available" | "degraded" | "blocked";
 type ReadinessStatus = "healthy" | "degraded" | "blocked";
 type TableDiagnosticStatus = "visible" | "missing_or_stale" | "schema_exposure_blocked" | "unknown";
-type RecommendedManualAction = "none" | "run_storage_setup" | "apply_finalization_bundle" | "verify_project_exposure";
+type RecommendedManualAction =
+  | "none"
+  | "run_storage_setup"
+  | "apply_finalization_bundle"
+  | "seed_license_types"
+  | "verify_project_exposure";
 
 type CapabilityReport = {
   status: CapabilityStatus;
@@ -24,6 +29,7 @@ const FINALIZATION_BUNDLE =
   "/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql" as const;
 const FINALIZATION_RUNBOOK =
   "/Users/malcolmw/Documents/The Sync Exchange.2/docs/supabase-finalization.md" as const;
+const REQUIRED_LICENSE_TYPE_SLUGS = ["digital-campaign", "broadcast", "exclusive-buyout"] as const;
 
 type TableDiagnostic = {
   status: TableDiagnosticStatus;
@@ -78,12 +84,20 @@ export async function GET() {
   };
 
   const capabilities: Record<
-    "avatarPathSupport" | "fulfillmentMetadataSupport" | "agreementMetadataSupport" | "orderActivitySupport",
+    | "avatarPathSupport"
+    | "licenseTypeSeedSupport"
+    | "fulfillmentMetadataSupport"
+    | "agreementMetadataSupport"
+    | "orderActivitySupport",
     CapabilityReport
   > = {
     avatarPathSupport: {
       status: "blocked",
       summary: "Avatar storage persistence cannot be verified yet."
+    },
+    licenseTypeSeedSupport: {
+      status: "blocked",
+      summary: "Required marketplace license types cannot be verified yet."
     },
     fulfillmentMetadataSupport: {
       status: "blocked",
@@ -159,6 +173,7 @@ export async function GET() {
 
     const userProfilesTable = await supabase.from("user_profiles").select("id").limit(1);
     const avatarColumn = await supabase.from("user_profiles").select("avatar_path").limit(1);
+    const seededLicenseTypes = await supabase.from("license_types").select("slug").in("slug", [...REQUIRED_LICENSE_TYPE_SLUGS]);
     const ordersTable = await supabase.from("orders").select("id,status").limit(1);
     const orderMetadata = await supabase
       .from("orders")
@@ -189,6 +204,12 @@ export async function GET() {
       baselineVisible: postgrest.baselineTablesVisible,
       userProfilesTableError: userProfilesTable.error,
       avatarColumnError: avatarColumn.error
+    });
+    capabilities.licenseTypeSeedSupport = evaluateLicenseTypeCapability({
+      baselineVisible: postgrest.baselineTablesVisible,
+      licenseTypesTableError: baselineLicenses.error,
+      seededLicenseTypesError: seededLicenseTypes.error,
+      availableSlugs: (seededLicenseTypes.data || []).map((licenseType) => licenseType.slug)
     });
 
     capabilities.fulfillmentMetadataSupport = evaluateFulfillmentCapability({
@@ -231,6 +252,10 @@ export async function GET() {
       notes.push(
         "Critical marketplace schema or policy objects are missing or stale. Apply the single finalization SQL bundle, then recheck readiness. If tables still appear unavailable afterward, verify project credentials, public-schema exposure, and PostgREST cache health."
       );
+    } else if (capabilities.licenseTypeSeedSupport.status !== "available") {
+      recommendedManualAction = "seed_license_types";
+      recommendedManualBundle = null;
+      notes.push("Required marketplace license types are missing. Run npm run seed:license-types before expecting artist submission or buyer checkout to work.");
     } else {
       recommendedManualAction = "none";
       recommendedManualBundle = null;
@@ -381,6 +406,58 @@ function evaluateAvatarCapability({
   };
 }
 
+function evaluateLicenseTypeCapability({
+  baselineVisible,
+  licenseTypesTableError,
+  seededLicenseTypesError,
+  availableSlugs
+}: {
+  baselineVisible: boolean;
+  licenseTypesTableError: { message?: string } | null;
+  seededLicenseTypesError: { message?: string } | null;
+  availableSlugs: string[];
+}): CapabilityReport {
+  if (licenseTypesTableError) {
+    if (isMissingRelationError(licenseTypesTableError, "license_types")) {
+      return {
+        status: "blocked",
+        summary:
+          "public.license_types is not reachable through PostgREST. Confirm the foundation schema migrations are applied and the connected Supabase project matches this app."
+      };
+    }
+
+    if (isSchemaCacheTableError(licenseTypesTableError, "license_types")) {
+      return {
+        status: baselineVisible ? "degraded" : "blocked",
+        summary:
+          baselineVisible
+            ? "public.license_types exists in the app contract but is stale in the current PostgREST schema cache."
+            : "public.license_types is not visible and baseline public tables are also unavailable."
+      };
+    }
+  }
+
+  if (seededLicenseTypesError) {
+    return {
+      status: "blocked",
+      summary: `Unable to verify required marketplace license types: ${String(seededLicenseTypesError.message || "unknown error")}`
+    };
+  }
+
+  const missingSlugs = REQUIRED_LICENSE_TYPE_SLUGS.filter((slug) => !availableSlugs.includes(slug));
+  if (missingSlugs.length > 0) {
+    return {
+      status: "blocked",
+      summary: `Required marketplace license types are missing: ${missingSlugs.join(", ")}. Run the license type seed/bootstrap before submitting tracks or expecting buyer checkout.`
+    };
+  }
+
+  return {
+    status: "available",
+    summary: "Required marketplace license types are present."
+  };
+}
+
 function evaluateFulfillmentCapability({
   baselineVisible,
   ordersTableError,
@@ -519,13 +596,17 @@ function buildReadinessDomains({
     missingBuckets: string[];
   };
   capabilities: Record<
-    "avatarPathSupport" | "fulfillmentMetadataSupport" | "agreementMetadataSupport" | "orderActivitySupport",
+    | "avatarPathSupport"
+    | "licenseTypeSeedSupport"
+    | "fulfillmentMetadataSupport"
+    | "agreementMetadataSupport"
+    | "orderActivitySupport",
     CapabilityReport
   >;
   missingCore: string[];
   missingOperational: string[];
 }): Record<
-  "authProfile" | "storage" | "orders" | "agreements" | "activityLog" | "webhook" | "purchaseFlow",
+  "authProfile" | "catalog" | "storage" | "orders" | "agreements" | "activityLog" | "webhook" | "purchaseFlow",
   DomainReport
 > {
   const authProfile =
@@ -551,6 +632,7 @@ function buildReadinessDomains({
           summary: "Required storage buckets are present."
         };
 
+  const catalog = capabilities.licenseTypeSeedSupport;
   const orders = capabilities.fulfillmentMetadataSupport;
   const agreements = capabilities.agreementMetadataSupport;
   const activityLog = capabilities.orderActivitySupport;
@@ -575,7 +657,7 @@ function buildReadinessDomains({
             summary: "Stripe webhook credentials and order fulfillment metadata are present."
           };
 
-  const domainValues = [authProfile, storageDomain, orders, agreements, activityLog, webhook];
+  const domainValues = [authProfile, catalog, storageDomain, orders, agreements, activityLog, webhook];
   const purchaseFlow: DomainReport = domainValues.some((domain) => domain.status === "blocked")
     ? {
         status: "blocked",
@@ -595,6 +677,7 @@ function buildReadinessDomains({
 
   return {
     authProfile,
+    catalog,
     storage: storageDomain,
     orders,
     agreements,

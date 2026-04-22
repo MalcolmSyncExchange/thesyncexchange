@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { generateAgreementPlaceholder } from "@/lib/license";
@@ -169,6 +170,10 @@ export async function createOrderAction(formData: FormData) {
 
     redirect(session.url);
   } catch (checkoutError) {
+    if (isRedirectError(checkoutError)) {
+      throw checkoutError;
+    }
+
     if (!checkoutSessionId && createdNewOrder) {
       await supabase.from("orders").delete().eq("id", orderId);
     }

@@ -23,9 +23,7 @@ export interface SubmitTrackState {
   redirectTo?: string;
 }
 
-const initialState: SubmitTrackState = {
-  success: false
-};
+const requiredTrackLicenseSlugs = ["digital-campaign", "broadcast", "exclusive-buyout"] as const;
 
 export async function submitTrackAction(_prevState: SubmitTrackState, formData: FormData): Promise<SubmitTrackState> {
   let uploadedAssets: StorageAssetRef[] = [];
@@ -98,17 +96,14 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
       };
     }
 
-    const { data: licenseTypes, error: licenseTypeError } = await supabase
-      .from("license_types")
-      .select("id, slug")
-      .in("slug", ["digital-campaign", "broadcast", "exclusive-buyout"]);
+    const { licenseTypes, errorMessage: licenseTypeMessage } = await loadRequiredLicenseTypes(supabase);
 
-    if (licenseTypeError || !licenseTypes) {
+    if (licenseTypeMessage || !licenseTypes) {
       await supabase.from("tracks").delete().eq("id", track.id);
       await cleanupUploadedAssets(uploadedAssets);
       return {
         success: false,
-        message: licenseTypeError?.message || "Unable to resolve license types."
+        message: licenseTypeMessage || "Unable to resolve license types."
       };
     }
 
@@ -260,16 +255,13 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       status
     } satisfies Database["public"]["Tables"]["tracks"]["Update"];
 
-    const { data: licenseTypes, error: licenseTypeError } = await supabase
-      .from("license_types")
-      .select("id, slug")
-      .in("slug", ["digital-campaign", "broadcast", "exclusive-buyout"]);
+    const { licenseTypes, errorMessage: licenseTypeMessage } = await loadRequiredLicenseTypes(supabase);
 
-    if (licenseTypeError || !licenseTypes) {
+    if (licenseTypeMessage || !licenseTypes) {
       await cleanupUploadedAssets(uploadedAssets);
       return {
         success: false,
-        message: licenseTypeError?.message || "Unable to resolve license types."
+        message: licenseTypeMessage || "Unable to resolve license types."
       };
     }
 
@@ -446,6 +438,37 @@ async function ensureUniqueTrackSlug(
   }
 }
 
+async function loadRequiredLicenseTypes(supabase: SupabaseClient<Database>) {
+  const { data, error } = await supabase
+    .from("license_types")
+    .select("id, slug")
+    .in("slug", [...requiredTrackLicenseSlugs]);
+
+  if (error) {
+    return {
+      licenseTypes: null,
+      errorMessage: error.message
+    };
+  }
+
+  const licenseTypes = (data || []) as Array<{ id: string; slug: string }>;
+  const missingSlugs = requiredTrackLicenseSlugs.filter(
+    (slug) => !licenseTypes.some((licenseType) => licenseType.slug === slug)
+  );
+
+  if (missingSlugs.length > 0) {
+    return {
+      licenseTypes: null,
+      errorMessage: `Required license types are missing: ${missingSlugs.join(", ")}. Run the license type seed/bootstrap before submitting tracks.`
+    };
+  }
+
+  return {
+    licenseTypes,
+    errorMessage: null
+  };
+}
+
 function flattenZodErrors(error: z.ZodError) {
   const result: Record<string, string> = {};
 
@@ -481,8 +504,6 @@ async function appendTrackAuditLog(
     metadata: metadata as Json
   });
 }
-
-export { initialState as submitTrackInitialState };
 
 function buildSupersededTrackAssets(
   existingTrack: Pick<Database["public"]["Tables"]["tracks"]["Row"], "cover_art_path" | "audio_file_path" | "preview_file_path" | "waveform_path">,

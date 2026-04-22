@@ -14,6 +14,10 @@ Storage policy SQL that touches `storage.objects` was intentionally split out be
 
 - [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-storage-owner-required.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-storage-owner-required.sql)
 
+If the marketplace schema is present but buyer-authenticated catalog/favorites reads fail with a Postgres stack-depth or recursive policy error, apply this follow-up function patch:
+
+- [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-rls-recursion-fix.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-rls-recursion-fix.sql)
+
 Do not run the storage-owner-required file unless you have confirmed the executing role owns `storage.objects` or has equivalent elevated privileges.
 
 ## Exact order

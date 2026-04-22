@@ -22,7 +22,6 @@ import {
 } from "@/lib/validation/track-submission";
 import {
   submitTrackAction,
-  submitTrackInitialState,
   type SubmitTrackState,
   updateTrackAction
 } from "@/services/tracks/actions";
@@ -51,6 +50,10 @@ const defaultValues: TrackSubmissionValues = {
     { name: "Primary Writer", email: "writer@example.com", roleType: "writer", ownershipPercent: 50 },
     { name: "Publisher", email: "publisher@example.com", roleType: "publisher", ownershipPercent: 50 }
   ]
+};
+
+const submitTrackInitialState: SubmitTrackState = {
+  success: false
 };
 
 export function SubmitMusicForm({
@@ -282,10 +285,10 @@ export function SubmitMusicForm({
             <Input {...register("genre")} />
           </Field>
           <Field label="Subgenre" error={getErrorMessage(errors.subgenre)}>
-            <Input {...register("subgenre")} />
+            <Input {...register("subgenre")} data-testid="track-subgenre-input" />
           </Field>
           <Field label="Mood(s)" error={getErrorMessage(errors.moods)}>
-            <Input {...register("moods")} placeholder="Driving, bright, confident" />
+            <Input {...register("moods")} placeholder="Driving, bright, confident" data-testid="track-moods-input" />
           </Field>
           <Field label="BPM" error={getErrorMessage(errors.bpm)}>
             <Input type="number" {...register("bpm", { valueAsNumber: true })} />

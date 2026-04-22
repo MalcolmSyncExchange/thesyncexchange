@@ -1,8 +1,10 @@
 import { CatalogBrowser } from "@/components/catalog/catalog-browser";
+import { requireSession } from "@/services/auth/session";
 import { getBuyerCatalogTracks } from "@/services/buyer/queries";
 
 export default async function BuyerCatalogPage() {
-  const tracks = await getBuyerCatalogTracks();
+  const user = await requireSession("buyer");
+  const tracks = await getBuyerCatalogTracks(user.id);
 
   return (
     <div className="space-y-6">

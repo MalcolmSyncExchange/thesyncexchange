@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
+import { reportOperationalError } from "@/lib/monitoring";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
@@ -24,7 +25,7 @@ export async function updateTrackStatusAction(formData: FormData) {
   const { data: trackContext } = await supabase.from("tracks").select("id, slug").eq("id", trackId).maybeSingle();
 
   const actorId = await getAdminActorId();
-  await supabase
+  const updateResult = await supabase
     .from("tracks")
     .update({
       status: status as Database["public"]["Enums"]["track_status"],
@@ -32,6 +33,16 @@ export async function updateTrackStatusAction(formData: FormData) {
       approved_by: status === "approved" ? actorId : null
     })
     .eq("id", trackId);
+
+  if (updateResult.error) {
+    reportOperationalError("admin_track_status_update_failed", updateResult.error, {
+      trackId,
+      status,
+      actorId: actorId || null
+    });
+    throw new Error(updateResult.error.message);
+  }
+
   await appendTrackAuditLog(supabase, trackId, "track_status_updated", { status });
 
   revalidatePath("/admin/dashboard");

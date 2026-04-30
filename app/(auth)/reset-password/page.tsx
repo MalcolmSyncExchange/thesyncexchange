@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { reportOperationalEvent } from "@/lib/monitoring";
 import { updatePasswordAction } from "@/services/auth/actions";
-import { buildRecoveryConfirmPath } from "@/services/auth/auth-flow";
+import { buildRecoveryConfirmPath, getResetPasswordRecoveryRoutingDecision } from "@/services/auth/auth-flow";
+import { createServerSupabaseClient } from "@/services/supabase/server";
 
-export default function ResetPasswordPage({
+export default async function ResetPasswordPage({
   searchParams
 }: {
   searchParams?: { code?: string; token_hash?: string; type?: string; error?: string };
@@ -16,14 +17,42 @@ export default function ResetPasswordPage({
   const code = searchParams?.code || null;
   const tokenHash = searchParams?.token_hash || null;
   const type = searchParams?.type || null;
+  const hasAuthParams = Boolean(code || tokenHash);
+  const supabase = createServerSupabaseClient();
+  const {
+    data: { session },
+    error: sessionError
+  } = await supabase.auth.getSession();
+  const hasSession = Boolean(session);
+  const routingDecision = getResetPasswordRecoveryRoutingDecision({ hasAuthParams, hasSession });
 
   reportOperationalEvent("reset_password_page_requested", "Reset password page requested.", {
     hasCode: Boolean(code),
     hasTokenHash: Boolean(tokenHash),
-    type: type || null
+    type: type || null,
+    hasSession,
+    sessionErrorCode: sessionError?.code || null,
+    sessionErrorMessage: sessionError?.message || null,
+    routingDecision
   });
 
-  if (code || tokenHash) {
+  if (routingDecision === "clean-url") {
+    reportOperationalEvent("reset_password_page_clean_url_redirect", "Reset password page cleaned one-time recovery parameters after session verification.", {
+      hasCode: Boolean(code),
+      hasTokenHash: Boolean(tokenHash),
+      hasSession,
+      routingDecision
+    });
+    redirect("/reset-password");
+  }
+
+  if (routingDecision === "confirm") {
+    reportOperationalEvent("reset_password_page_confirm_redirect", "Reset password page routed one-time recovery parameters through confirmation.", {
+      hasCode: Boolean(code),
+      hasTokenHash: Boolean(tokenHash),
+      hasSession,
+      routingDecision
+    });
     redirect(
       buildRecoveryConfirmPath({
         code,

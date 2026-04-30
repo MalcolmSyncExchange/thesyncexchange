@@ -11,7 +11,9 @@ import {
   buildPasswordResetRedirectUrl,
   buildRecoveryConfirmPath,
   canUpdatePasswordWithSession,
+  getAuthConfirmSuccessRedirectPath,
   getMissingLoginAccountMessage,
+  getResetPasswordRecoveryRoutingDecision,
   isRecoveryAuthFlow,
   normalizeAuthEmail,
   requestPasswordResetEmail,
@@ -167,6 +169,56 @@ test("token hash verification takes precedence over code exchange", () => {
       hasPkceVerifier: true
     }),
     false
+  );
+});
+
+test("successful recovery confirmation redirects to clean reset password URL", () => {
+  assert.equal(
+    getAuthConfirmSuccessRedirectPath({
+      nextPath: "/reset-password?token_hash=used-token&type=recovery&next=/reset-password",
+      recoveryFlow: true
+    }),
+    "/reset-password"
+  );
+});
+
+test("non-recovery confirmation preserves safe next path", () => {
+  assert.equal(
+    getAuthConfirmSuccessRedirectPath({
+      nextPath: "/onboarding",
+      recoveryFlow: false
+    }),
+    "/onboarding"
+  );
+});
+
+test("reset password with session and token hash cleans URL instead of reverifying", () => {
+  assert.equal(
+    getResetPasswordRecoveryRoutingDecision({
+      hasAuthParams: true,
+      hasSession: true
+    }),
+    "clean-url"
+  );
+});
+
+test("reset password without session routes auth params through confirmation", () => {
+  assert.equal(
+    getResetPasswordRecoveryRoutingDecision({
+      hasAuthParams: true,
+      hasSession: false
+    }),
+    "confirm"
+  );
+});
+
+test("reset password without auth params renders form", () => {
+  assert.equal(
+    getResetPasswordRecoveryRoutingDecision({
+      hasAuthParams: false,
+      hasSession: true
+    }),
+    "render"
   );
 });
 

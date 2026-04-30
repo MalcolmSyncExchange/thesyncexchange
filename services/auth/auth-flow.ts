@@ -145,6 +145,30 @@ export function shouldExchangeAuthCode({
   return true;
 }
 
+export function getAuthConfirmSuccessRedirectPath({
+  nextPath,
+  recoveryFlow
+}: {
+  nextPath: string;
+  recoveryFlow: boolean;
+}) {
+  return recoveryFlow ? "/reset-password" : nextPath;
+}
+
+export function getResetPasswordRecoveryRoutingDecision({
+  hasAuthParams,
+  hasSession
+}: {
+  hasAuthParams: boolean;
+  hasSession: boolean;
+}): "render" | "clean-url" | "confirm" {
+  if (!hasAuthParams) {
+    return "render";
+  }
+
+  return hasSession ? "clean-url" : "confirm";
+}
+
 export function canUpdatePasswordWithSession(hasSession: boolean) {
   return hasSession;
 }

@@ -8,6 +8,7 @@ import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring
 import {
   RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE,
   RESET_PASSWORD_SESSION_MISSING_MESSAGE,
+  getAuthConfirmSuccessRedirectPath,
   isRecoveryAuthFlow,
   shouldExchangeAuthCode
 } from "@/services/auth/auth-flow";
@@ -27,12 +28,14 @@ export async function GET(request: Request) {
   const type = requestUrl.searchParams.get("type") as EmailOtpType | null;
   const nextPath = resolveSafeNextPath(requestUrl.searchParams.get("next"), type === "recovery" ? "/reset-password" : "/onboarding");
   const recoveryFlow = isRecoveryAuthFlow({ type, nextPath });
+  const successRedirectPath = getAuthConfirmSuccessRedirectPath({ nextPath, recoveryFlow });
 
   reportOperationalEvent("auth_confirm_requested", "Supabase auth confirmation route requested.", {
     hasCode: Boolean(code),
     hasTokenHash: Boolean(tokenHash),
     type: type || null,
     nextPath,
+    successRedirectPath,
     recoveryFlow
   });
 
@@ -42,7 +45,7 @@ export async function GET(request: Request) {
 
   const cookieStore = cookies();
   const hasPkceVerifier = cookieStore.getAll().some((cookie) => cookie.name.includes("code-verifier"));
-  const response = NextResponse.redirect(new URL(nextPath, requestUrl.origin));
+  const response = NextResponse.redirect(new URL(successRedirectPath, requestUrl.origin));
   const supabase = createServerClient(env.supabaseUrl!, env.supabaseAnonKey!, {
     cookies: {
       get(name: string) {
@@ -91,6 +94,7 @@ export async function GET(request: Request) {
     reportOperationalEvent("auth_confirm_verify_succeeded", "Supabase OTP verification succeeded.", {
       type,
       nextPath,
+      successRedirectPath,
       recoveryFlow,
       hasSession: Boolean(session),
       hasUser: Boolean(session?.user),
@@ -168,6 +172,7 @@ export async function GET(request: Request) {
     reportOperationalEvent("auth_confirm_exchange_succeeded", "Supabase auth code exchange succeeded.", {
       type: type || null,
       nextPath,
+      successRedirectPath,
       recoveryFlow,
       hasSession: Boolean(session),
       hasUser: Boolean(session?.user),

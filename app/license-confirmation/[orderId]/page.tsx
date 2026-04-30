@@ -1,12 +1,6 @@
-import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { BrandLogo } from "@/components/layout/brand-assets";
-import { OrderStatusProgress } from "@/components/orders/order-status-progress";
-import { OrderStatusBadge } from "@/components/shared/state-badges";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LicenseConfirmationClient } from "@/components/orders/license-confirmation-client";
 import { generateAgreementPlaceholder } from "@/lib/license";
 import { env } from "@/lib/env";
 import { hasStripeSecretEnv } from "@/lib/server-env";
@@ -62,94 +56,5 @@ export default async function LicenseConfirmationPage({
     notFound();
   }
 
-  return (
-    <main className="relative mx-auto max-w-3xl overflow-hidden px-4 py-16">
-      <div className="mb-6">
-        <BrandLogo className="w-[170px] sm:w-[196px]" />
-      </div>
-      <Image
-        src="/brand/the-sync-exchange/watermark/Watermark.png"
-        alt=""
-        width={2400}
-        height={400}
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-10 right-0 -z-10 w-[260px] max-w-[45%] opacity-[0.06]"
-      />
-      <Card>
-        <CardHeader>
-          <CardTitle>License confirmation</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <p className="text-muted-foreground">
-            This confirmation tracks payment, agreement generation, and private delivery for your purchased sync license.
-          </p>
-          {order?.order_status === "pending" ? (
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
-              Payment confirmation is still syncing. If this page stays pending after Stripe checkout, verify the Stripe webhook is forwarding to
-              {" "}
-              <span className="font-medium">/api/webhooks/stripe</span>.
-            </div>
-          ) : null}
-          {order?.agreement_generation_error ? (
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
-              Payment was recorded, but agreement generation still needs attention: {order.agreement_generation_error}
-            </div>
-          ) : null}
-          {order?.agreement_delivery_blocked ? (
-            <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
-              The agreement document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied.
-            </div>
-          ) : null}
-          {order?.schema_degraded ? (
-            <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
-              {(order.degraded_messages || [
-                "Extended fulfillment diagnostics are running in compatibility mode until the manual Supabase order hardening SQL is applied."
-              ]).map((message: string) => (
-                <p key={message} className="mt-1 first:mt-0">
-                  {message}
-                </p>
-              ))}
-            </div>
-          ) : null}
-          <div className="rounded-lg border border-border bg-muted/40 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="font-medium">{agreement.trackTitle}</p>
-                <p className="text-sm text-muted-foreground">{agreement.artistName}</p>
-              </div>
-              {order ? <OrderStatusBadge status={order.order_status} /> : null}
-            </div>
-            <div className="mt-4 space-y-2 text-sm">
-              {agreement.summary.map((item) => (
-                <p key={item}>{item}</p>
-              ))}
-            </div>
-            {order ? (
-              <div className="mt-5">
-                <OrderStatusProgress
-                  status={order.order_status}
-                  stripe_checkout_session_id={order.stripe_checkout_session_id}
-                  stripe_payment_intent_id={order.stripe_payment_intent_id}
-                  agreement_url={order.agreement_url}
-                  checkout_created_at={order.checkout_created_at}
-                  paid_at={order.paid_at}
-                  agreement_generated_at={order.agreement_generated_at}
-                  fulfilled_at={order.fulfilled_at}
-                  refunded_at={order.refunded_at}
-                />
-              </div>
-            ) : null}
-          </div>
-          <Button asChild>
-            <Link href="/buyer/orders">View Order History</Link>
-          </Button>
-          {order?.agreement_ready && order?.agreement_url ? (
-            <Button asChild variant="outline">
-              <Link href={order.agreement_url}>Download License Agreement</Link>
-            </Button>
-          ) : null}
-        </CardContent>
-      </Card>
-    </main>
-  );
+  return <LicenseConfirmationClient orderId={params.orderId} initialOrder={order} initialAgreement={agreement} />;
 }

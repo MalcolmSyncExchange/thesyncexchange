@@ -28,7 +28,7 @@ export default function ResetPasswordPage({
       buildRecoveryConfirmPath({
         code,
         tokenHash,
-        type,
+        type: tokenHash ? type || "recovery" : type,
         nextPath: "/reset-password"
       })
     );

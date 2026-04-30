@@ -12,9 +12,11 @@ import {
   buildRecoveryConfirmPath,
   canUpdatePasswordWithSession,
   getMissingLoginAccountMessage,
+  isRecoveryAuthFlow,
   normalizeAuthEmail,
   requestPasswordResetEmail,
   resolveAuthMode,
+  shouldExchangeAuthCode,
   shouldRequestSupabasePasswordReset
 } from "../services/auth/auth-flow.ts";
 
@@ -112,6 +114,60 @@ test("recovery token hash is routed through auth confirm before showing reset fo
   });
 
   assert.equal(path, "/auth/confirm?token_hash=token-hash&type=recovery&next=%2Freset-password");
+});
+
+test("recovery auth flow is detected from type or reset-password next path", () => {
+  assert.equal(isRecoveryAuthFlow({ type: "recovery", nextPath: "/onboarding" }), true);
+  assert.equal(isRecoveryAuthFlow({ type: null, nextPath: "/reset-password" }), true);
+  assert.equal(isRecoveryAuthFlow({ type: "signup", nextPath: "/onboarding" }), false);
+});
+
+test("recovery code exchange is skipped without a PKCE verifier", () => {
+  assert.equal(
+    shouldExchangeAuthCode({
+      hasCode: true,
+      hasTokenHash: false,
+      isRecoveryFlow: true,
+      hasPkceVerifier: false
+    }),
+    false
+  );
+});
+
+test("recovery code exchange is allowed only when the PKCE verifier exists", () => {
+  assert.equal(
+    shouldExchangeAuthCode({
+      hasCode: true,
+      hasTokenHash: false,
+      isRecoveryFlow: true,
+      hasPkceVerifier: true
+    }),
+    true
+  );
+});
+
+test("non-recovery auth code exchange remains enabled", () => {
+  assert.equal(
+    shouldExchangeAuthCode({
+      hasCode: true,
+      hasTokenHash: false,
+      isRecoveryFlow: false,
+      hasPkceVerifier: false
+    }),
+    true
+  );
+});
+
+test("token hash verification takes precedence over code exchange", () => {
+  assert.equal(
+    shouldExchangeAuthCode({
+      hasCode: true,
+      hasTokenHash: true,
+      isRecoveryFlow: true,
+      hasPkceVerifier: true
+    }),
+    false
+  );
 });
 
 test("localhost password reset redirect is rejected in production", () => {

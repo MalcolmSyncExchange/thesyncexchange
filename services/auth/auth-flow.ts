@@ -23,6 +23,8 @@ export const FORGOT_PASSWORD_SUCCESS_MESSAGE = "If an account exists for this em
 export const FORGOT_PASSWORD_UNAVAILABLE_MESSAGE = "Password reset is temporarily unavailable. Please try again shortly.";
 export const RESET_PASSWORD_SESSION_MISSING_MESSAGE =
   "Your password reset session is missing or expired. Request a new reset link and try again.";
+export const RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE =
+  "This password reset link format cannot be completed securely. Request a new reset link and try again.";
 
 export function normalizeAuthEmail(value: unknown) {
   return String(value || "")
@@ -109,6 +111,38 @@ export function buildRecoveryConfirmPath({
 
   params.set("next", nextPath);
   return `/auth/confirm?${params.toString()}`;
+}
+
+export function isRecoveryAuthFlow({
+  type,
+  nextPath
+}: {
+  type?: string | null;
+  nextPath: string;
+}) {
+  return type === "recovery" || nextPath === "/reset-password";
+}
+
+export function shouldExchangeAuthCode({
+  hasCode,
+  hasTokenHash,
+  isRecoveryFlow,
+  hasPkceVerifier
+}: {
+  hasCode: boolean;
+  hasTokenHash: boolean;
+  isRecoveryFlow: boolean;
+  hasPkceVerifier: boolean;
+}) {
+  if (!hasCode || hasTokenHash) {
+    return false;
+  }
+
+  if (isRecoveryFlow) {
+    return hasPkceVerifier;
+  }
+
+  return true;
 }
 
 export function canUpdatePasswordWithSession(hasSession: boolean) {

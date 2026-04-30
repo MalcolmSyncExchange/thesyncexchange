@@ -20,6 +20,13 @@ const footerColumns = [
       { href: "/login", label: "Log In" },
       { href: "/signup", label: "Create Account" }
     ]
+  },
+  {
+    title: "Legal",
+    links: [
+      { href: "/terms", label: "Terms Of Use" },
+      { href: "/privacy", label: "Privacy Policy" }
+    ]
   }
 ];
 
@@ -34,7 +41,7 @@ export function SiteFooter() {
           </p>
           <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Fast clearance. Premium catalog. Institutional-grade trust.</p>
         </div>
-        <div className="grid gap-10 sm:grid-cols-2">
+        <div className="grid gap-10 sm:grid-cols-3">
           {footerColumns.map((column) => (
             <div key={column.title} className="space-y-4">
               <h3 className="text-sm font-medium">{column.title}</h3>

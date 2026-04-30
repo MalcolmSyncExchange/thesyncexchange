@@ -138,6 +138,72 @@ export interface Database {
         };
         Relationships: [];
       };
+      buyer_notification_preferences: {
+        Row: {
+          user_id: string;
+          purchase_receipts: boolean;
+          license_agreement_ready: boolean;
+          platform_updates: boolean;
+          security_alerts: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          purchase_receipts?: boolean;
+          license_agreement_ready?: boolean;
+          platform_updates?: boolean;
+          security_alerts?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          purchase_receipts?: boolean;
+          license_agreement_ready?: boolean;
+          platform_updates?: boolean;
+          security_alerts?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      buyer_team_invites: {
+        Row: {
+          id: string;
+          buyer_user_id: string;
+          invited_by: string;
+          email: string;
+          role: string;
+          status: string;
+          accepted_user_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          buyer_user_id: string;
+          invited_by: string;
+          email: string;
+          role: string;
+          status?: string;
+          accepted_user_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          buyer_user_id?: string;
+          invited_by?: string;
+          email?: string;
+          role?: string;
+          status?: string;
+          accepted_user_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       tracks: {
         Row: {
           id: string;

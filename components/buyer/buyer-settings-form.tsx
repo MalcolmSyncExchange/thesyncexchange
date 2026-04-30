@@ -7,7 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { isBuyerSettingsDirty, normalizeBuyerSettings, validateBuyerSettings } from "@/services/buyer/settings";
+import {
+  type BuyerNotificationPreferences,
+  defaultBuyerNotificationPreferences,
+  isBuyerSettingsDirty,
+  isNotificationPreferencesDirty,
+  normalizeBuyerSettings,
+  normalizeNotificationPreferences,
+  validateBuyerSettings
+} from "@/services/buyer/settings";
 
 type Feedback = {
   type: "success" | "error";
@@ -18,9 +26,46 @@ type BuyerSettingsFormProps = {
   initialCompanyName: string;
   initialBillingEmail: string;
   currentEmail: string;
+  initialNotificationPreferences?: BuyerNotificationPreferences;
+  initialTeamInvites?: TeamInvite[];
+  invoices?: InvoiceSummary[];
+  legalOrders?: LegalOrder[];
 };
 
-export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, currentEmail }: BuyerSettingsFormProps) {
+type TeamInvite = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: string;
+};
+
+type InvoiceSummary = {
+  id: string;
+  date: string;
+  amountCents: number;
+  currency: string;
+  status: string;
+  url: string | null;
+};
+
+type LegalOrder = {
+  id: string;
+  title: string;
+  licenseName: string;
+  agreementUrl: string;
+  createdAt: string;
+};
+
+export function BuyerSettingsForm({
+  initialCompanyName,
+  initialBillingEmail,
+  currentEmail,
+  initialNotificationPreferences = defaultBuyerNotificationPreferences,
+  initialTeamInvites = [],
+  invoices = [],
+  legalOrders = []
+}: BuyerSettingsFormProps) {
   const [profileBaseline, setProfileBaseline] = useState(() =>
     normalizeBuyerSettings({
       companyName: initialCompanyName,
@@ -33,16 +78,26 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [notificationBaseline, setNotificationBaseline] = useState(() => normalizeNotificationPreferences(initialNotificationPreferences));
+  const [notifications, setNotifications] = useState(() => normalizeNotificationPreferences(initialNotificationPreferences));
+  const [teamInvites, setTeamInvites] = useState(initialTeamInvites);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
   const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
   const [passwordFeedback, setPasswordFeedback] = useState<Feedback>(null);
   const [emailFeedback, setEmailFeedback] = useState<Feedback>(null);
   const [logoutFeedback, setLogoutFeedback] = useState<Feedback>(null);
   const [billingFeedback, setBillingFeedback] = useState<Feedback>(null);
+  const [notificationFeedback, setNotificationFeedback] = useState<Feedback>(null);
+  const [teamFeedback, setTeamFeedback] = useState<Feedback>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [emailSaving, setEmailSaving] = useState(false);
   const [logoutSaving, setLogoutSaving] = useState(false);
   const [billingSaving, setBillingSaving] = useState(false);
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [teamSaving, setTeamSaving] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const profileValues = useMemo(
     () =>
@@ -53,6 +108,7 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
     [billingEmail, companyName]
   );
   const profileDirty = isBuyerSettingsDirty(profileBaseline, profileValues);
+  const notificationDirty = isNotificationPreferencesDirty(notificationBaseline, notifications);
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -174,14 +230,14 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
       const response = await fetch("/api/user/logout-all", {
         method: "POST"
       });
-      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string; redirectTo?: string } | null;
 
       if (!response.ok) {
         throw new Error(payload?.error || "Unable to log out from all devices.");
       }
 
       setLogoutFeedback({ type: "success", message: payload?.message || "Logged out from all devices." });
-      window.location.assign("/");
+      window.location.assign(payload?.redirectTo || "/login?success=Logged%20out%20from%20all%20sessions.");
     } catch (error) {
       setLogoutFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to log out from all devices." });
       setLogoutSaving(false);
@@ -192,7 +248,7 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
     setBillingSaving(true);
     setBillingFeedback(null);
     try {
-      const response = await fetch("/api/user/billing-portal", {
+      const response = await fetch("/api/billing/portal", {
         method: "POST"
       });
       const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
@@ -205,6 +261,67 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
     } catch (error) {
       setBillingFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to open billing portal." });
       setBillingSaving(false);
+    }
+  }
+
+  async function saveNotifications(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setNotificationSaving(true);
+    setNotificationFeedback(null);
+    try {
+      const response = await fetch("/api/user/notification-preferences", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(notifications)
+      });
+      const payload = (await response.json().catch(() => null)) as { preferences?: BuyerNotificationPreferences; error?: string } | null;
+
+      if (!response.ok || !payload?.preferences) {
+        throw new Error(payload?.error || "Unable to save notification preferences.");
+      }
+
+      const nextPreferences = normalizeNotificationPreferences(payload.preferences);
+      setNotifications(nextPreferences);
+      setNotificationBaseline(nextPreferences);
+      setNotificationFeedback({ type: "success", message: "Notification preferences saved." });
+    } catch (error) {
+      setNotificationFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to save notification preferences." });
+    } finally {
+      setNotificationSaving(false);
+    }
+  }
+
+  async function inviteTeamMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTeamSaving(true);
+    setTeamFeedback(null);
+    try {
+      const response = await fetch("/api/user/team-invites", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: inviteEmail,
+          role: inviteRole
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as { invite?: TeamInvite; error?: string } | null;
+
+      if (!response.ok || !payload?.invite) {
+        throw new Error(payload?.error || "Unable to invite team member.");
+      }
+
+      setTeamInvites((current) => [payload.invite!, ...current.filter((invite) => invite.id !== payload.invite!.id)]);
+      setInviteEmail("");
+      setInviteRole("member");
+      setTeamFeedback({ type: "success", message: "Team invitation saved as pending." });
+    } catch (error) {
+      setTeamFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to invite team member." });
+    } finally {
+      setTeamSaving(false);
     }
   }
 
@@ -274,11 +391,11 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
           <div className="mt-6 border-t border-border pt-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-1">
-                <p className="text-sm font-medium">Logout From All Devices</p>
+                <p className="text-sm font-medium">Log Out From All Devices</p>
                 <p className="text-sm text-muted-foreground">End every active Supabase session for this account, including this browser.</p>
               </div>
-              <Button type="button" variant="outline" onClick={logoutAllDevices} disabled={logoutSaving}>
-                {logoutSaving ? "Logging Out..." : "Logout From All Devices"}
+              <Button type="button" variant="outline" onClick={() => setShowLogoutConfirm(true)} disabled={logoutSaving}>
+                {logoutSaving ? "Logging Out..." : "Log Out Of All Sessions"}
               </Button>
             </div>
             <div className="mt-4">
@@ -304,6 +421,37 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
             </Button>
           </div>
           <FormFeedback feedback={billingFeedback} />
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-medium">Invoices And Receipts</p>
+              <p className="mt-1 text-sm text-muted-foreground">Recent Stripe invoices and receipts for this buyer account.</p>
+            </div>
+            {invoices.length > 0 ? (
+              <div className="divide-y divide-border rounded-lg border border-border">
+                {invoices.map((invoice) => (
+                  <div key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+                    <div>
+                      <p className="font-medium">{formatDate(invoice.date)}</p>
+                      <p className="text-muted-foreground">
+                        {formatMoney(invoice.amountCents, invoice.currency)} · {toDisplayStatus(invoice.status)}
+                      </p>
+                    </div>
+                    {invoice.url ? (
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={invoice.url} target="_blank" rel="noreferrer">
+                          View Receipt
+                        </Link>
+                      </Button>
+                    ) : (
+                      <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Unavailable</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">No invoices yet.</div>
+            )}
+          </div>
           <form onSubmit={changeEmail} className="space-y-5">
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2">
@@ -329,21 +477,56 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
           <CardDescription>Control the workspace updates that should reach your team.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-3">
-            {[
-              "Order and agreement updates",
-              "Saved catalog activity",
-              "Platform and compliance notices"
-            ].map((label) => (
-              <label key={label} className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
-                <input type="checkbox" defaultChecked className="mt-1" disabled />
+          <form onSubmit={saveNotifications} className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-2">
+              {[
+                {
+                  key: "purchaseReceipts" as const,
+                  label: "Purchase Receipts",
+                  description: "Receipts and billing confirmations after checkout."
+                },
+                {
+                  key: "licenseAgreementReady" as const,
+                  label: "License Agreement Ready",
+                  description: "Notifications when agreements are generated and ready to download."
+                },
+                {
+                  key: "platformUpdates" as const,
+                  label: "Product And Platform Updates",
+                  description: "Occasional updates about buyer workspace improvements."
+                }
+              ].map((item) => (
+                <label key={item.key} className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={notifications[item.key]}
+                    onChange={(event) =>
+                      setNotifications((current) => ({
+                        ...current,
+                        [item.key]: event.target.checked
+                      }))
+                    }
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block font-medium text-foreground">{item.label}</span>
+                    <span className="mt-1 block text-muted-foreground">{item.description}</span>
+                  </span>
+                </label>
+              ))}
+              <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
+                <input type="checkbox" checked className="mt-1" disabled />
                 <span>
-                  <span className="block font-medium text-foreground">{label}</span>
-                  <span className="mt-1 block text-muted-foreground">Notification controls are prepared for workspace-level preferences.</span>
+                  <span className="block font-medium text-foreground">Security Alerts</span>
+                  <span className="mt-1 block text-muted-foreground">Required account protection notices. These cannot be disabled.</span>
                 </span>
               </label>
-            ))}
-          </div>
+            </div>
+            <FormFeedback feedback={notificationFeedback} />
+            <Button type="submit" disabled={!notificationDirty || notificationSaving}>
+              {notificationSaving ? "Saving Preferences..." : "Save Notifications"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
@@ -352,15 +535,57 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
           <CardTitle>Team</CardTitle>
           <CardDescription>Prepare account administration for collaborators, supervisors, and finance contacts.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
             <div>
-              <p className="text-sm font-medium">Team Access Foundation</p>
-              <p className="mt-1 text-sm text-muted-foreground">Invite management is not enabled yet, but this account is ready for future team seats and role controls.</p>
+              <p className="text-sm font-medium">{currentEmail || "Current User"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">Owner</p>
             </div>
-            <Button type="button" variant="outline" disabled>
-              Invite Team Member
-            </Button>
+          </div>
+          <form onSubmit={inviteTeamMember} className="grid gap-4 md:grid-cols-[1fr_180px_auto]">
+            <div className="space-y-2">
+              <Label htmlFor="inviteEmail">Team Member Email</Label>
+              <Input id="inviteEmail" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="finance@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="inviteRole">Role</Label>
+              <select
+                id="inviteRole"
+                value={inviteRole}
+                onChange={(event) => setInviteRole(event.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="admin">Admin</option>
+                <option value="member">Member</option>
+                <option value="billing">Billing</option>
+              </select>
+            </div>
+            <div className="flex items-end">
+              <Button type="submit" disabled={teamSaving || !inviteEmail.trim()}>
+                {teamSaving ? "Saving Invite..." : "Invite Team Member"}
+              </Button>
+            </div>
+          </form>
+          <FormFeedback feedback={teamFeedback} />
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Pending Invites</p>
+            {teamInvites.length > 0 ? (
+              <div className="divide-y divide-border rounded-lg border border-border">
+                {teamInvites.map((invite) => (
+                  <div key={invite.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+                    <div>
+                      <p className="font-medium">{invite.email}</p>
+                      <p className="text-muted-foreground">
+                        {toDisplayStatus(invite.role)} · {toDisplayStatus(invite.status)} · {formatDate(invite.created_at)}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">{toDisplayStatus(invite.status)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">No pending team invites.</div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -370,19 +595,96 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
           <CardTitle>Legal</CardTitle>
           <CardDescription>Review license history, past agreements, and order-linked legal records.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5">
           <div className="flex flex-wrap gap-3">
+            <Button asChild variant="outline">
+              <Link href="/terms">Terms Of Use</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/privacy">Privacy Policy</Link>
+            </Button>
             <Button asChild variant="outline">
               <Link href="/buyer/orders">License History</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/buyer/orders">Past Agreements</Link>
+              <Link href="/buyer/orders">Download Past Agreements</Link>
             </Button>
+          </div>
+          <div className="space-y-3">
+            <p className="text-sm font-medium">Recent Agreements</p>
+            {legalOrders.length > 0 ? (
+              <div className="divide-y divide-border rounded-lg border border-border">
+                {legalOrders.map((order) => (
+                  <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+                    <div>
+                      <p className="font-medium">{order.title}</p>
+                      <p className="text-muted-foreground">
+                        {order.licenseName} · {formatDate(order.createdAt)}
+                      </p>
+                    </div>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={order.agreementUrl}>Download Agreement</Link>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">No completed agreements yet.</div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {showLogoutConfirm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="logout-all-title">
+          <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-2xl">
+            <div className="space-y-2">
+              <h2 id="logout-all-title" className="text-lg font-semibold">
+                Log Out Of All Sessions?
+              </h2>
+              <p className="text-sm text-muted-foreground">This ends every active session for your account, including this browser. You will need to sign in again on each device.</p>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setShowLogoutConfirm(false)} disabled={logoutSaving}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={logoutAllDevices} disabled={logoutSaving}>
+                {logoutSaving ? "Logging Out..." : "Log Out Everywhere"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function formatMoney(amountCents: number, currency: string) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency || "USD"
+  }).format(amountCents / 100);
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Date Unavailable";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  }).format(date);
+}
+
+function toDisplayStatus(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function FormFeedback({ feedback }: { feedback: Feedback }) {

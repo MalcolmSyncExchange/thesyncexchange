@@ -21,6 +21,8 @@ export const SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE =
   "Supabase authentication is not configured. Check the public Supabase URL and anon key before signing in.";
 export const FORGOT_PASSWORD_SUCCESS_MESSAGE = "If an account exists for this email, we sent password reset instructions.";
 export const FORGOT_PASSWORD_UNAVAILABLE_MESSAGE = "Password reset is temporarily unavailable. Please try again shortly.";
+export const RESET_PASSWORD_SESSION_MISSING_MESSAGE =
+  "Your password reset session is missing or expired. Request a new reset link and try again.";
 
 export function normalizeAuthEmail(value: unknown) {
   return String(value || "")
@@ -78,6 +80,39 @@ export function buildAuthCallbackRedirectUrl({
   const callbackUrl = new URL("/auth/confirm", parsedAppUrl);
   callbackUrl.searchParams.set("next", nextPath);
   return callbackUrl.toString();
+}
+
+export function buildRecoveryConfirmPath({
+  code,
+  tokenHash,
+  type,
+  nextPath = "/reset-password"
+}: {
+  code?: string | null;
+  tokenHash?: string | null;
+  type?: string | null;
+  nextPath?: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (code) {
+    params.set("code", code);
+  }
+
+  if (tokenHash) {
+    params.set("token_hash", tokenHash);
+  }
+
+  if (type) {
+    params.set("type", type);
+  }
+
+  params.set("next", nextPath);
+  return `/auth/confirm?${params.toString()}`;
+}
+
+export function canUpdatePasswordWithSession(hasSession: boolean) {
+  return hasSession;
 }
 
 export function resolveAuthAppOrigin({

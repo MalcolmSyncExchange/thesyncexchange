@@ -42,9 +42,11 @@ import { getSessionUser, resolveOnboardingPath, resolvePostLoginRedirect, resolv
 import {
   DEMO_ACCOUNT_NOT_FOUND_MESSAGE,
   FORGOT_PASSWORD_UNAVAILABLE_MESSAGE,
+  RESET_PASSWORD_SESSION_MISSING_MESSAGE,
   SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE,
   buildPasswordResetRedirectUrl,
   buildAuthCallbackRedirectUrl,
+  canUpdatePasswordWithSession,
   getMissingLoginAccountMessage,
   normalizeAuthEmail,
   requestPasswordResetEmail,
@@ -489,10 +491,44 @@ export async function updatePasswordAction(formData: FormData) {
 
   if (authMode === "supabase") {
     const supabase = createServerSupabaseClient();
+    const {
+      data: { session },
+      error: sessionError
+    } = await supabase.auth.getSession();
+
+    reportOperationalEvent("reset_password_session_checked", "Checked Supabase recovery session before password update.", {
+      hasSession: Boolean(session),
+      hasUser: Boolean(session?.user),
+      sessionErrorCode: sessionError?.code || null,
+      sessionErrorMessage: sessionError?.message || null
+    });
+
+    if (sessionError || !canUpdatePasswordWithSession(Boolean(session))) {
+      if (sessionError) {
+        reportOperationalError("reset_password_session_check_failed", sessionError, {
+          hasSession: Boolean(session),
+          sessionErrorCode: sessionError.code || null,
+          sessionErrorMessage: sessionError.message
+        });
+      }
+
+      redirect(buildRelativePath("/forgot-password", { error: RESET_PASSWORD_SESSION_MISSING_MESSAGE }));
+    }
+
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
-      redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
+      reportOperationalError("reset_password_update_failed", error, {
+        hasSession: Boolean(session),
+        supabaseErrorCode: error.code || null,
+        supabaseErrorMessage: error.message
+      });
+      redirect(buildRelativePath("/reset-password", { error: error.message }));
     }
+
+    reportOperationalEvent("reset_password_update_succeeded", "Supabase password update succeeded.", {
+      hasSession: Boolean(session),
+      hasUser: Boolean(session?.user)
+    });
   } else if (authMode === "misconfigured") {
     redirect(buildRelativePath("/reset-password", { error: SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE }));
   }

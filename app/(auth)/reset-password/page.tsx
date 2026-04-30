@@ -1,14 +1,39 @@
+import { redirect } from "next/navigation";
+
 import { AuthFooterLink, AuthPageShell, AuthPanel, AuthStatusMessage } from "@/components/forms/auth-form";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { reportOperationalEvent } from "@/lib/monitoring";
 import { updatePasswordAction } from "@/services/auth/actions";
+import { buildRecoveryConfirmPath } from "@/services/auth/auth-flow";
 
 export default function ResetPasswordPage({
   searchParams
 }: {
-  searchParams?: { error?: string };
+  searchParams?: { code?: string; token_hash?: string; type?: string; error?: string };
 }) {
+  const code = searchParams?.code || null;
+  const tokenHash = searchParams?.token_hash || null;
+  const type = searchParams?.type || null;
+
+  reportOperationalEvent("reset_password_page_requested", "Reset password page requested.", {
+    hasCode: Boolean(code),
+    hasTokenHash: Boolean(tokenHash),
+    type: type || null
+  });
+
+  if (code || tokenHash) {
+    redirect(
+      buildRecoveryConfirmPath({
+        code,
+        tokenHash,
+        type,
+        nextPath: "/reset-password"
+      })
+    );
+  }
+
   return (
     <AuthPageShell
       eyebrow="Password update"

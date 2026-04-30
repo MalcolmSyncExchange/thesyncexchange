@@ -9,6 +9,8 @@ import {
   FORGOT_PASSWORD_UNAVAILABLE_MESSAGE,
   buildAuthCallbackRedirectUrl,
   buildPasswordResetRedirectUrl,
+  buildRecoveryConfirmPath,
+  canUpdatePasswordWithSession,
   getMissingLoginAccountMessage,
   normalizeAuthEmail,
   requestPasswordResetEmail,
@@ -92,6 +94,26 @@ test("password reset redirect can fall back to request origin outside production
   assert.equal(redirectUrl, "https://preview.thesyncexchange.com/reset-password");
 });
 
+test("recovery code is routed through auth confirm before showing reset form", () => {
+  const path = buildRecoveryConfirmPath({
+    code: "recovery-code",
+    type: "recovery",
+    nextPath: "/reset-password"
+  });
+
+  assert.equal(path, "/auth/confirm?code=recovery-code&type=recovery&next=%2Freset-password");
+});
+
+test("recovery token hash is routed through auth confirm before showing reset form", () => {
+  const path = buildRecoveryConfirmPath({
+    tokenHash: "token-hash",
+    type: "recovery",
+    nextPath: "/reset-password"
+  });
+
+  assert.equal(path, "/auth/confirm?token_hash=token-hash&type=recovery&next=%2Freset-password");
+});
+
 test("localhost password reset redirect is rejected in production", () => {
   assert.throws(
     () =>
@@ -102,6 +124,11 @@ test("localhost password reset redirect is rejected in production", () => {
       }),
     /localhost in production/
   );
+});
+
+test("updateUser is blocked without a recovery session", () => {
+  assert.equal(canUpdatePasswordWithSession(false), false);
+  assert.equal(canUpdatePasswordWithSession(true), true);
 });
 
 test("forgot password calls resetPasswordForEmail when demo mode is false", async () => {

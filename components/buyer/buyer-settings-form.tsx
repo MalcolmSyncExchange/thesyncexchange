@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -35,9 +36,13 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
   const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
   const [passwordFeedback, setPasswordFeedback] = useState<Feedback>(null);
   const [emailFeedback, setEmailFeedback] = useState<Feedback>(null);
+  const [logoutFeedback, setLogoutFeedback] = useState<Feedback>(null);
+  const [billingFeedback, setBillingFeedback] = useState<Feedback>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [emailSaving, setEmailSaving] = useState(false);
+  const [logoutSaving, setLogoutSaving] = useState(false);
+  const [billingSaving, setBillingSaving] = useState(false);
 
   const profileValues = useMemo(
     () =>
@@ -162,6 +167,47 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
     }
   }
 
+  async function logoutAllDevices() {
+    setLogoutSaving(true);
+    setLogoutFeedback(null);
+    try {
+      const response = await fetch("/api/user/logout-all", {
+        method: "POST"
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Unable to log out from all devices.");
+      }
+
+      setLogoutFeedback({ type: "success", message: payload?.message || "Logged out from all devices." });
+      window.location.assign("/");
+    } catch (error) {
+      setLogoutFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to log out from all devices." });
+      setLogoutSaving(false);
+    }
+  }
+
+  async function manageBilling() {
+    setBillingSaving(true);
+    setBillingFeedback(null);
+    try {
+      const response = await fetch("/api/user/billing-portal", {
+        method: "POST"
+      });
+      const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
+
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || "Unable to open billing portal.");
+      }
+
+      window.location.assign(payload.url);
+    } catch (error) {
+      setBillingFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to open billing portal." });
+      setBillingSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -225,15 +271,39 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
               </Button>
             </div>
           </form>
+          <div className="mt-6 border-t border-border pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Logout From All Devices</p>
+                <p className="text-sm text-muted-foreground">End every active Supabase session for this account, including this browser.</p>
+              </div>
+              <Button type="button" variant="outline" onClick={logoutAllDevices} disabled={logoutSaving}>
+                {logoutSaving ? "Logging Out..." : "Logout From All Devices"}
+              </Button>
+            </div>
+            <div className="mt-4">
+              <FormFeedback feedback={logoutFeedback} />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Billing</CardTitle>
-          <CardDescription>Change the login email for this buyer account. Supabase will send confirmation instructions before the change is active.</CardDescription>
+          <CardDescription>Manage billing contact details, account email changes, and Stripe billing portal access.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Stripe Billing Portal</p>
+              <p className="text-sm text-muted-foreground">Open Stripe to manage receipts, payment methods, and billing details when a Stripe customer profile exists.</p>
+            </div>
+            <Button type="button" variant="outline" onClick={manageBilling} disabled={billingSaving}>
+              {billingSaving ? "Opening Billing..." : "Manage Billing"}
+            </Button>
+          </div>
+          <FormFeedback feedback={billingFeedback} />
           <form onSubmit={changeEmail} className="space-y-5">
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2">
@@ -250,6 +320,65 @@ export function BuyerSettingsForm({ initialCompanyName, initialBillingEmail, cur
               {emailSaving ? "Sending Confirmation..." : "Change Email"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Notifications</CardTitle>
+          <CardDescription>Control the workspace updates that should reach your team.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              "Order and agreement updates",
+              "Saved catalog activity",
+              "Platform and compliance notices"
+            ].map((label) => (
+              <label key={label} className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
+                <input type="checkbox" defaultChecked className="mt-1" disabled />
+                <span>
+                  <span className="block font-medium text-foreground">{label}</span>
+                  <span className="mt-1 block text-muted-foreground">Notification controls are prepared for workspace-level preferences.</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Team</CardTitle>
+          <CardDescription>Prepare account administration for collaborators, supervisors, and finance contacts.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
+            <div>
+              <p className="text-sm font-medium">Team Access Foundation</p>
+              <p className="mt-1 text-sm text-muted-foreground">Invite management is not enabled yet, but this account is ready for future team seats and role controls.</p>
+            </div>
+            <Button type="button" variant="outline" disabled>
+              Invite Team Member
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Legal</CardTitle>
+          <CardDescription>Review license history, past agreements, and order-linked legal records.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild variant="outline">
+              <Link href="/buyer/orders">License History</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/buyer/orders">Past Agreements</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

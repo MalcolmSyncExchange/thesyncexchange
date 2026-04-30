@@ -7,6 +7,7 @@ import {
   SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE,
   FORGOT_PASSWORD_SUCCESS_MESSAGE,
   FORGOT_PASSWORD_UNAVAILABLE_MESSAGE,
+  buildCleanRecoverySuccessUrl,
   buildAuthCallbackRedirectUrl,
   buildPasswordResetRedirectUrl,
   buildRecoveryConfirmPath,
@@ -182,6 +183,20 @@ test("successful recovery confirmation redirects to clean reset password URL", (
   );
 });
 
+test("clean recovery success URL strips one-time auth query params", () => {
+  const finalUrl = buildCleanRecoverySuccessUrl(
+    "https://thesyncexchange.com/auth/confirm?token_hash=secret&type=recovery&next=/reset-password"
+  );
+  const parsed = new URL(finalUrl);
+
+  assert.equal(finalUrl, "https://thesyncexchange.com/reset-password");
+  assert.equal(parsed.pathname, "/reset-password");
+  assert.equal(parsed.search, "");
+  assert.equal(parsed.searchParams.has("token_hash"), false);
+  assert.equal(parsed.searchParams.has("type"), false);
+  assert.equal(parsed.searchParams.has("next"), false);
+});
+
 test("non-recovery confirmation preserves safe next path", () => {
   assert.equal(
     getAuthConfirmSuccessRedirectPath({
@@ -192,13 +207,13 @@ test("non-recovery confirmation preserves safe next path", () => {
   );
 });
 
-test("reset password with session and token hash cleans URL instead of reverifying", () => {
+test("reset password with session and token hash renders form instead of reverifying", () => {
   assert.equal(
     getResetPasswordRecoveryRoutingDecision({
       hasAuthParams: true,
       hasSession: true
     }),
-    "clean-url"
+    "render"
   );
 });
 

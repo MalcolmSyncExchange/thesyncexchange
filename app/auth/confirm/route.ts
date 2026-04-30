@@ -8,6 +8,7 @@ import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring
 import {
   RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE,
   RESET_PASSWORD_SESSION_MISSING_MESSAGE,
+  buildCleanRecoverySuccessUrl,
   getAuthConfirmSuccessRedirectPath,
   isRecoveryAuthFlow,
   shouldExchangeAuthCode
@@ -29,6 +30,9 @@ export async function GET(request: Request) {
   const nextPath = resolveSafeNextPath(requestUrl.searchParams.get("next"), type === "recovery" ? "/reset-password" : "/onboarding");
   const recoveryFlow = isRecoveryAuthFlow({ type, nextPath });
   const successRedirectPath = getAuthConfirmSuccessRedirectPath({ nextPath, recoveryFlow });
+  const successRedirectUrl = recoveryFlow ? buildCleanRecoverySuccessUrl(request.url) : new URL(successRedirectPath, request.url).toString();
+  const successRedirect = new URL(successRedirectUrl);
+  const authQueryParamsStripped = recoveryFlow && (Boolean(code) || Boolean(tokenHash) || Boolean(type) || requestUrl.searchParams.has("next"));
 
   reportOperationalEvent("auth_confirm_requested", "Supabase auth confirmation route requested.", {
     hasCode: Boolean(code),
@@ -36,6 +40,9 @@ export async function GET(request: Request) {
     type: type || null,
     nextPath,
     successRedirectPath,
+    successRedirectUrl,
+    successRedirectHasSearchParams: Boolean(successRedirect.search),
+    authQueryParamsStripped,
     recoveryFlow
   });
 
@@ -45,7 +52,7 @@ export async function GET(request: Request) {
 
   const cookieStore = cookies();
   const hasPkceVerifier = cookieStore.getAll().some((cookie) => cookie.name.includes("code-verifier"));
-  const response = NextResponse.redirect(new URL(successRedirectPath, requestUrl.origin));
+  const response = NextResponse.redirect(successRedirect);
   const supabase = createServerClient(env.supabaseUrl!, env.supabaseAnonKey!, {
     cookies: {
       get(name: string) {
@@ -95,6 +102,9 @@ export async function GET(request: Request) {
       type,
       nextPath,
       successRedirectPath,
+      successRedirectUrl,
+      successRedirectHasSearchParams: Boolean(successRedirect.search),
+      authQueryParamsStripped,
       recoveryFlow,
       hasSession: Boolean(session),
       hasUser: Boolean(session?.user),
@@ -173,6 +183,9 @@ export async function GET(request: Request) {
       type: type || null,
       nextPath,
       successRedirectPath,
+      successRedirectUrl,
+      successRedirectHasSearchParams: Boolean(successRedirect.search),
+      authQueryParamsStripped,
       recoveryFlow,
       hasSession: Boolean(session),
       hasUser: Boolean(session?.user),

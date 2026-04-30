@@ -33,18 +33,9 @@ export default async function ResetPasswordPage({
     hasSession,
     sessionErrorCode: sessionError?.code || null,
     sessionErrorMessage: sessionError?.message || null,
+    redirectsToConfirm: routingDecision === "confirm",
     routingDecision
   });
-
-  if (routingDecision === "clean-url") {
-    reportOperationalEvent("reset_password_page_clean_url_redirect", "Reset password page cleaned one-time recovery parameters after session verification.", {
-      hasCode: Boolean(code),
-      hasTokenHash: Boolean(tokenHash),
-      hasSession,
-      routingDecision
-    });
-    redirect("/reset-password");
-  }
 
   if (routingDecision === "confirm") {
     reportOperationalEvent("reset_password_page_confirm_redirect", "Reset password page routed one-time recovery parameters through confirmation.", {
@@ -62,6 +53,14 @@ export default async function ResetPasswordPage({
       })
     );
   }
+
+  reportOperationalEvent("reset_password_page_rendering_form", "Reset password page is rendering the password update form.", {
+    hasCode: Boolean(code),
+    hasTokenHash: Boolean(tokenHash),
+    hasSession,
+    redirectsToConfirm: false,
+    routingDecision
+  });
 
   return (
     <AuthPageShell

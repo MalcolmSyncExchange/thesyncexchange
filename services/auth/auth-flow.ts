@@ -155,18 +155,25 @@ export function getAuthConfirmSuccessRedirectPath({
   return recoveryFlow ? "/reset-password" : nextPath;
 }
 
+export function buildCleanRecoverySuccessUrl(requestUrl: string) {
+  const cleanUrl = new URL("/reset-password", requestUrl);
+  cleanUrl.search = "";
+  cleanUrl.hash = "";
+  return cleanUrl.toString();
+}
+
 export function getResetPasswordRecoveryRoutingDecision({
   hasAuthParams,
   hasSession
 }: {
   hasAuthParams: boolean;
   hasSession: boolean;
-}): "render" | "clean-url" | "confirm" {
-  if (!hasAuthParams) {
+}): "render" | "confirm" {
+  if (!hasAuthParams || hasSession) {
     return "render";
   }
 
-  return hasSession ? "clean-url" : "confirm";
+  return "confirm";
 }
 
 export function canUpdatePasswordWithSession(hasSession: boolean) {

@@ -40,6 +40,10 @@ const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
     }
   }
 
+  if (!env.demoMode) {
+    return null;
+  }
+
   const cookieStore = cookies();
   const raw = cookieStore.get(SESSION_COOKIE)?.value;
 
@@ -167,7 +171,11 @@ export function resolvePostLoginRedirect(
 }
 
 export function getAuthModeLabel() {
-  return hasSupabaseEnv && !env.demoMode ? "Supabase" : "Demo mode";
+  if (env.demoMode) {
+    return "Demo mode";
+  }
+
+  return hasSupabaseEnv ? "Supabase" : "Misconfigured";
 }
 
 function resolveUserRole(rawRole: unknown): UserRole | null {

@@ -1,7 +1,5 @@
-import { AuthFooterLink, AuthPageShell, AuthPanel, AuthStatusMessage } from "@/components/forms/auth-form";
-import { FormSubmitButton } from "@/components/forms/form-submit-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { AuthPageShell, AuthPanel } from "@/components/forms/auth-form";
+import { ForgotPasswordForm } from "@/components/forms/forgot-password-form";
 import { forgotPasswordAction } from "@/services/auth/actions";
 
 export default function ForgotPasswordPage({
@@ -25,30 +23,12 @@ export default function ForgotPasswordPage({
         title="Send recovery instructions"
         description="Enter the account email and we’ll send a secure reset link."
       >
-        <form action={forgotPasswordAction} className="space-y-5">
-          <AuthStatusMessage error={searchParams?.error} success={searchParams?.success} />
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              placeholder="name@company.com"
-              defaultValue={searchParams?.email || ""}
-              required
-              className="h-11"
-            />
-          </div>
-          <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
-            If the account exists and email delivery is configured correctly, the reset email will arrive with a secure link back into the password update flow.
-          </div>
-          <FormSubmitButton className="w-full" pendingLabel="Sending Instructions...">
-            Send Reset Instructions
-          </FormSubmitButton>
-          <div className="text-sm text-muted-foreground">
-            <AuthFooterLink href="/login" label="Remembered your password?" actionLabel="Back to Login" />
-          </div>
-        </form>
+        <ForgotPasswordForm
+          action={forgotPasswordAction}
+          initialEmail={searchParams?.email}
+          initialError={searchParams?.error}
+          initialSuccess={searchParams?.success}
+        />
       </AuthPanel>
     </AuthPageShell>
   );

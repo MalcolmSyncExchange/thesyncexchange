@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 loadEnvFile(path.join(rootDir, ".env.local"));
 
+const publicAppUrl = normalizeOptionalEnv(process.env.NEXT_PUBLIC_APP_URL) || normalizeOptionalEnv(process.env.NEXT_PUBLIC_SITE_URL);
 const requiredCore = [
-  "NEXT_PUBLIC_APP_URL",
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_ANON_KEY"
 ];
@@ -30,12 +30,16 @@ const stripePublishableKeyMode = getStripeKeyMode(process.env.NEXT_PUBLIC_STRIPE
 
 const appUrlWarnings = [];
 const blockingIssues = [];
-if (process.env.NEXT_PUBLIC_APP_URL) {
+if (!publicAppUrl) {
+  blockingIssues.push("NEXT_PUBLIC_APP_URL is missing. NEXT_PUBLIC_SITE_URL may be used as a fallback, but one public app origin is required.");
+}
+
+if (publicAppUrl) {
   try {
-    const appUrl = new URL(process.env.NEXT_PUBLIC_APP_URL);
+    const appUrl = new URL(publicAppUrl);
     if (["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(appUrl.hostname)) {
       const message =
-        "NEXT_PUBLIC_APP_URL is pointing at a local-only address. This is fine for local development, but production auth emails and Stripe redirects must use the public app domain.";
+        "The public app URL is pointing at a local-only address. This is fine for local development, but production auth emails and Stripe redirects must use the public app domain.";
 
       if (deploymentTarget === "production") {
         blockingIssues.push(message);
@@ -45,10 +49,10 @@ if (process.env.NEXT_PUBLIC_APP_URL) {
     }
 
     if (deploymentTarget === "production" && appUrl.protocol !== "https:") {
-      blockingIssues.push("NEXT_PUBLIC_APP_URL must use https:// in production.");
+      blockingIssues.push("The public app URL must use https:// in production.");
     }
   } catch {
-    blockingIssues.push("NEXT_PUBLIC_APP_URL is not a valid URL.");
+    blockingIssues.push("The public app URL is not a valid URL.");
   }
 }
 
@@ -138,6 +142,11 @@ function getStripeKeyMode(key, expectedPrefix) {
   }
 
   return "unknown";
+}
+
+function normalizeOptionalEnv(value) {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
 }
 
 function loadEnvFile(filePath) {

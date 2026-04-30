@@ -1,10 +1,12 @@
 "use server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect";
 import { ZodError } from "zod";
 
-import { env, getDeploymentTarget, hasSupabaseEnv, isLocalhostHost } from "@/lib/env";
+import { env, getDeploymentTarget, hasSupabaseEnv } from "@/lib/env";
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import { isAbsoluteAssetReference } from "@/lib/storage";
 import { uploadManagedAsset } from "@/services/storage/assets";
@@ -37,6 +39,18 @@ import {
 import { selectUserProfileCompat, upsertUserProfileCompat } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { getSessionUser, resolveOnboardingPath, resolvePostLoginRedirect, resolveRoleRedirect } from "@/services/auth/session";
+import {
+  DEMO_ACCOUNT_NOT_FOUND_MESSAGE,
+  FORGOT_PASSWORD_UNAVAILABLE_MESSAGE,
+  SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE,
+  buildPasswordResetRedirectUrl,
+  buildAuthCallbackRedirectUrl,
+  getMissingLoginAccountMessage,
+  normalizeAuthEmail,
+  requestPasswordResetEmail,
+  resolveAuthMode,
+  type ForgotPasswordActionState
+} from "@/services/auth/auth-flow";
 import { buildBuyerProfileUpsert } from "@/services/auth/buyer-onboarding";
 import type { Database } from "@/types/database";
 import type { SessionUser, UserRole } from "@/types/models";
@@ -78,43 +92,32 @@ function buildRelativePath(path: string, params: Record<string, string | null | 
   return query ? `${path}?${query}` : path;
 }
 
-function maskEmailAddress(email: string) {
-  const [localPart, domain = ""] = email.split("@");
-  if (!localPart) {
-    return email;
-  }
-
-  if (localPart.length <= 2) {
-    return `${localPart[0] || "*"}*@${domain}`;
-  }
-
-  return `${localPart[0]}***${localPart[localPart.length - 1]}@${domain}`;
-}
-
 function getEmailDomain(email: string) {
   return email.includes("@") ? email.split("@")[1] : null;
 }
 
+function getRequestOrigin() {
+  const headerStore = headers();
+  const origin = headerStore.get("origin");
+  if (origin) {
+    return origin;
+  }
+
+  const host = headerStore.get("x-forwarded-host") || headerStore.get("host");
+  if (!host) {
+    return null;
+  }
+
+  const protocol = headerStore.get("x-forwarded-proto") || (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+  return `${protocol}://${host}`;
+}
+
 function buildConfirmationRedirectUrl(nextPath: string) {
-  let appUrl: URL;
-
-  try {
-    appUrl = new URL(env.appUrl);
-  } catch {
-    throw new Error("NEXT_PUBLIC_APP_URL is invalid. Set it to the public app origin before sending authentication emails.");
-  }
-
-  if (getDeploymentTarget() === "production" && isLocalhostHost(appUrl.hostname)) {
-    throw new Error("NEXT_PUBLIC_APP_URL points to a local-only address. Update it to the public app domain before sending authentication emails.");
-  }
-
-  if (getDeploymentTarget() === "production" && appUrl.protocol !== "https:") {
-    throw new Error("NEXT_PUBLIC_APP_URL must use https:// before sending production authentication emails.");
-  }
-
-  const callbackUrl = new URL("/auth/confirm", appUrl);
-  callbackUrl.searchParams.set("next", nextPath);
-  return callbackUrl.toString();
+  return buildAuthCallbackRedirectUrl({
+    appUrl: env.appUrl,
+    deploymentTarget: getDeploymentTarget(),
+    nextPath
+  });
 }
 
 function isEmailConfirmationError(message: string) {
@@ -127,15 +130,16 @@ function getMutationClient() {
 }
 
 export async function loginAction(formData: FormData) {
-  const email = String(formData.get("email") || "").trim();
+  const email = normalizeAuthEmail(formData.get("email"));
   const password = String(formData.get("password") || "");
   const redirectTo = String(formData.get("redirectTo") || "").trim();
+  const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
 
   if (!email || !password) {
     redirect("/login?error=Enter%20your%20email%20and%20password.");
   }
 
-  if (hasSupabaseEnv && !env.demoMode) {
+  if (authMode === "supabase") {
     const supabase = createServerSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
@@ -169,9 +173,13 @@ export async function loginAction(formData: FormData) {
     redirect(resolvePostLoginRedirect({ role, onboardingComplete }, redirectTo));
   }
 
+  if (authMode === "misconfigured") {
+    redirect(buildRelativePath("/login", { error: getMissingLoginAccountMessage(authMode) }));
+  }
+
   const directoryUser = getDemoDirectoryUserByEmail(email);
   if (!directoryUser) {
-    redirect("/login?error=No%20demo%20account%20was%20found%20for%20that%20email.%20Create%20an%20account%20first.");
+    redirect(buildRelativePath("/login", { error: DEMO_ACCOUNT_NOT_FOUND_MESSAGE }));
   }
 
   const sessionUser = toSessionUser(directoryUser);
@@ -180,18 +188,19 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function signupAction(formData: FormData) {
-  const email = String(formData.get("email") || "").trim();
+  const email = normalizeAuthEmail(formData.get("email"));
   const password = String(formData.get("password") || "");
   const fullName = String(formData.get("fullName") || "").trim();
   const role = parseRole(formData.get("role"));
   const now = new Date().toISOString();
   const signupPath = resolveSignupReturnPath(formData, role);
+  const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
 
   if (!email || !password || !fullName) {
     redirect(`${signupPath}?error=${encodeURIComponent("Complete all required fields to create your account.")}`);
   }
 
-  if (hasSupabaseEnv && !env.demoMode) {
+  if (authMode === "supabase") {
     const supabase = createServerSupabaseClient();
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -241,6 +250,10 @@ export async function signupAction(formData: FormData) {
     }
 
     redirect(role === "admin" ? "/dashboard/admin" : "/onboarding");
+  }
+
+  if (authMode === "misconfigured") {
+    redirect(buildRelativePath(signupPath, { error: SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE }));
   }
 
   if (getDemoDirectoryUserByEmail(email)) {
@@ -343,84 +356,81 @@ export async function logoutAction() {
   redirect("/");
 }
 
-export async function forgotPasswordAction(formData: FormData) {
-  const email = String(formData.get("email") || "").trim().toLowerCase();
+export async function forgotPasswordAction(
+  _previousState: ForgotPasswordActionState,
+  formData: FormData
+): Promise<ForgotPasswordActionState> {
+  const email = normalizeAuthEmail(formData.get("email"));
+  const emailDomain = getEmailDomain(email);
+  const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
+
+  reportOperationalEvent("forgot_password_action_entered", "Forgot password action entered.", {
+    emailDomain,
+    demoMode: env.demoMode,
+    hasSupabaseEnv,
+    authMode
+  });
 
   if (!email) {
-    redirect("/forgot-password?error=Enter%20the%20email%20address%20for%20the%20account%20you%20want%20to%20recover.");
+    return {
+      status: "error",
+      message: "Enter the email address for the account you want to recover."
+    };
   }
-
-  const maskedEmail = maskEmailAddress(email);
-  const emailDomain = getEmailDomain(email);
 
   try {
-    const redirectTo = buildConfirmationRedirectUrl("/reset-password");
+    const redirectTo = buildPasswordResetRedirectUrl({
+      configuredAppUrl: env.configuredAppUrl,
+      requestOrigin: getRequestOrigin(),
+      deploymentTarget: getDeploymentTarget()
+    });
 
     reportOperationalEvent("forgot_password_requested", "Password reset email requested.", {
-      email: maskedEmail,
       emailDomain,
       redirectTo,
-      appUrlHost: new URL(env.appUrl).host,
-      supabaseEnabled: hasSupabaseEnv && !env.demoMode
+      appUrlHost: new URL(redirectTo).host,
+      demoMode: env.demoMode,
+      hasSupabaseEnv,
+      authMode,
+      resetPasswordForEmailCalled: false
     });
 
-    if (hasSupabaseEnv && !env.demoMode) {
-      const supabase = createServerSupabaseClient();
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo
-      });
-
-      reportOperationalEvent("forgot_password_supabase_response", "Supabase password reset request completed.", {
-        email: maskedEmail,
-        emailDomain,
-        redirectTo,
-        hasError: Boolean(error),
-        responseKeys: data ? Object.keys(data) : []
-      });
-
-      if (error) {
-        reportOperationalError("forgot_password_failed", error, {
-          email: maskedEmail,
-          emailDomain,
-          redirectTo
-        });
-        redirect(buildRelativePath("/forgot-password", { error: error.message, email }));
-      }
-    } else {
-      reportOperationalEvent("forgot_password_demo_mode", "Password reset requested while the app is running without live Supabase auth.", {
-        email: maskedEmail,
-        emailDomain
-      });
-    }
+    return await requestPasswordResetEmail({
+      authMode,
+      email,
+      emailDomain,
+      redirectTo,
+      supabase: authMode === "supabase" ? createServerSupabaseClient() : undefined,
+      logEvent: reportOperationalEvent,
+      logError: reportOperationalError
+    });
   } catch (error) {
+    if (isRedirectError(error)) {
+      throw error;
+    }
+
     reportOperationalError("forgot_password_request_failed", error, {
-      email: maskedEmail,
-      emailDomain
+      emailDomain,
+      demoMode: env.demoMode,
+      hasSupabaseEnv
     });
 
-    redirect(
-      buildRelativePath("/forgot-password", {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Password reset is temporarily unavailable. Please try again shortly.",
-        email
-      })
-    );
-  }
+    const safeMessage =
+      error instanceof Error && !error.message.includes("NEXT_REDIRECT") ? error.message : FORGOT_PASSWORD_UNAVAILABLE_MESSAGE;
 
-  redirect(
-    buildRelativePath("/forgot-password", {
-      success: "If the account exists and email delivery is configured, reset instructions are on the way.",
+    return {
+      status: "error",
+      message: safeMessage,
       email
-    })
-  );
+    };
+  }
 }
 
 export async function resendSignupConfirmationAction(formData: FormData) {
-  const email = String(formData.get("email") || "").trim();
+  const email = normalizeAuthEmail(formData.get("email"));
   const returnTo = String(formData.get("returnTo") || "/signup").trim();
   const safeReturnTo = returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/signup";
+  const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
 
   if (!email) {
     redirect(
@@ -430,7 +440,7 @@ export async function resendSignupConfirmationAction(formData: FormData) {
     );
   }
 
-  if (hasSupabaseEnv && !env.demoMode) {
+  if (authMode === "supabase") {
     const supabase = createServerSupabaseClient();
     const { error } = await supabase.auth.resend({
       type: "signup",
@@ -449,6 +459,14 @@ export async function resendSignupConfirmationAction(formData: FormData) {
         })
       );
     }
+  } else if (authMode === "misconfigured") {
+    redirect(
+      buildRelativePath(safeReturnTo, {
+        error: SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE,
+        email,
+        confirmation: "required"
+      })
+    );
   }
 
   redirect(
@@ -463,17 +481,20 @@ export async function resendSignupConfirmationAction(formData: FormData) {
 export async function updatePasswordAction(formData: FormData) {
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
+  const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
 
   if (!password || password !== confirmPassword) {
     redirect("/reset-password?error=Passwords%20must%20match.");
   }
 
-  if (hasSupabaseEnv && !env.demoMode) {
+  if (authMode === "supabase") {
     const supabase = createServerSupabaseClient();
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
     }
+  } else if (authMode === "misconfigured") {
+    redirect(buildRelativePath("/reset-password", { error: SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE }));
   }
 
   redirect("/login?success=Password%20updated.%20You%20can%20sign%20in%20now.");

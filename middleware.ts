@@ -51,14 +51,16 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const session = request.cookies.get("sync-exchange-session")?.value;
-  if (!session) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(loginUrl);
+  if (env.demoMode) {
+    const session = request.cookies.get("sync-exchange-session")?.value;
+    if (session) {
+      return NextResponse.next();
+    }
   }
 
-  return NextResponse.next();
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("redirectTo", pathname);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {

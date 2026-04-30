@@ -1,9 +1,19 @@
-const rawAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const rawPrimaryAppUrl = normalizeOptionalEnv(process.env.NEXT_PUBLIC_APP_URL);
+const rawFallbackSiteUrl = normalizeOptionalEnv(process.env.NEXT_PUBLIC_SITE_URL);
+const rawAppUrl = rawPrimaryAppUrl || rawFallbackSiteUrl;
 const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const rawSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const rawStripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-const hasSupabasePublicEnv = Boolean(rawSupabaseUrl && rawSupabaseAnonKey);
 const explicitDemoMode = process.env.SYNC_EXCHANGE_DEMO_MODE;
+
+function normalizeOptionalEnv(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+export function resolveDemoMode(value: string | undefined) {
+  return value === "true";
+}
 
 export type DeploymentTarget = "local" | "preview" | "production";
 
@@ -14,6 +24,7 @@ export type EnvironmentIssue = {
 };
 
 export const env = {
+  configuredAppUrl: rawAppUrl,
   appUrl: rawAppUrl || "http://127.0.0.1:3000",
   supabaseUrl: rawSupabaseUrl,
   supabaseAnonKey: rawSupabaseAnonKey,
@@ -23,7 +34,7 @@ export const env = {
   trackPreviewsBucket: process.env.NEXT_PUBLIC_SUPABASE_TRACK_PREVIEWS_BUCKET || "track-previews",
   agreementsBucket: process.env.NEXT_PUBLIC_SUPABASE_AGREEMENTS_BUCKET || "agreements",
   stripePublishableKey: rawStripePublishableKey,
-  demoMode: explicitDemoMode ? explicitDemoMode !== "false" : !hasSupabasePublicEnv
+  demoMode: resolveDemoMode(explicitDemoMode)
 };
 
 export const hasSupabaseEnv = Boolean(rawSupabaseUrl && rawSupabaseAnonKey);
@@ -49,7 +60,7 @@ export function getDeploymentTarget(): DeploymentTarget {
 
 export function getMissingCoreEnvKeys(): string[] {
   return [
-    ["NEXT_PUBLIC_APP_URL", rawAppUrl],
+    ["NEXT_PUBLIC_APP_URL or NEXT_PUBLIC_SITE_URL", rawAppUrl],
     ["NEXT_PUBLIC_SUPABASE_URL", rawSupabaseUrl],
     ["NEXT_PUBLIC_SUPABASE_ANON_KEY", rawSupabaseAnonKey]
   ]
@@ -65,7 +76,7 @@ export function getPublicEnvironmentDiagnostics() {
     issues.push({
       code: "missing_app_url",
       severity: "error",
-      message: "NEXT_PUBLIC_APP_URL is missing. Public auth redirects, metadata URLs, and Stripe return URLs depend on it."
+      message: "NEXT_PUBLIC_APP_URL is missing. NEXT_PUBLIC_SITE_URL may be used as a fallback, but public auth redirects, metadata URLs, and Stripe return URLs need a configured app origin."
     });
   } else {
     try {
@@ -76,8 +87,8 @@ export function getPublicEnvironmentDiagnostics() {
           severity: deploymentTarget === "production" ? "error" : "warning",
           message:
             deploymentTarget === "production"
-              ? "NEXT_PUBLIC_APP_URL points at a local-only address. Production auth emails and Stripe redirects must use the public app domain."
-              : "NEXT_PUBLIC_APP_URL points at a local-only address. This is fine locally, but production auth emails and Stripe redirects must use the public app domain."
+              ? "The public app URL points at a local-only address. Production auth emails and Stripe redirects must use the public app domain."
+              : "The public app URL points at a local-only address. This is fine locally, but production auth emails and Stripe redirects must use the public app domain."
         });
       }
 
@@ -85,14 +96,14 @@ export function getPublicEnvironmentDiagnostics() {
         issues.push({
           code: "insecure_app_url_protocol",
           severity: "error",
-          message: "NEXT_PUBLIC_APP_URL must use https:// in production."
+          message: "The public app URL must use https:// in production."
         });
       }
     } catch {
       issues.push({
         code: "invalid_app_url",
         severity: "error",
-        message: "NEXT_PUBLIC_APP_URL is not a valid URL."
+        message: "The public app URL is not a valid URL."
       });
     }
   }

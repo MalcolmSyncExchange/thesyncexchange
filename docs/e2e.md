@@ -6,7 +6,7 @@ The repo now includes a first browser E2E scaffold for the real marketplace path
 - admin approves it
 - buyer reaches hosted Stripe Checkout
 - the exact checkout order is completed through a signed local webhook event
-- agreement access is verified for buyer/admin and rejected for the wrong buyer
+- a generated license agreement becomes downloadable for buyer/admin and is rejected for the wrong buyer
 
 ## Files
 
@@ -110,4 +110,5 @@ E2E_REUSE_EXISTING_SERVER=true npm run e2e
   - checkout form/button
 - The browser flow still verifies that buyer checkout reaches hosted Stripe Checkout.
 - The final payment completion is triggered by a signed local webhook event for the exact order/session that the app created. This keeps the E2E deterministic without depending on Stripe's hosted card-entry UI remaining automatable in headless Chrome.
+- The webhook phase now expects `public.generated_licenses` to exist. If migration `0013_generated_licenses.sql` has not been applied yet, the spec should fail with a clear `generated_licenses is unavailable` message instead of silently falling back to legacy order-only agreement behavior.
 - If the spec skips immediately, inspect the skip message for missing env vars or fixture files.

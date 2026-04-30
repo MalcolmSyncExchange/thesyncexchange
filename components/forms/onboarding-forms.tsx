@@ -153,7 +153,7 @@ function ArtistBasicsStep({
   const hasAvatar = Boolean(values.avatarUrl);
 
   return (
-    <form action={action} className="space-y-8" encType="multipart/form-data">
+    <form action={action} className="space-y-8">
       <input type="hidden" name="step" value="basics" />
       <StepHeader
         eyebrow="Step 1"

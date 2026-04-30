@@ -50,6 +50,7 @@ The app has enough infrastructure to support:
 - order persistence
 - webhook processing
 - agreement generation and secure delivery
+- generated license persistence and retry
 - order activity logging
 - a real buyer purchase flow
 
@@ -81,6 +82,7 @@ The readiness route reports domain-level statuses for:
 - `authProfile`
 - `storage`
 - `orders`
+- `generatedLicenses`
 - `agreements`
 - `activityLog`
 - `webhook`
@@ -101,6 +103,7 @@ The marketplace should only be considered final-state ready when:
 
 ### Blocks or limits
 - secure agreement delivery when `agreement_path` metadata is unavailable
+- structured agreement persistence when `generated_licenses` is unavailable
 - full admin audit visibility when `order_activity_log` is unavailable
 - final avatar storage contract when `avatar_path` is unavailable
 - complete webhook/fulfillment diagnostics when `last_webhook_*` columns are missing
@@ -115,7 +118,8 @@ select
   to_regclass('public.license_types') as license_types_table,
   to_regclass('public.user_profiles') as user_profiles_table,
   to_regclass('public.orders') as orders_table,
-  to_regclass('public.order_activity_log') as order_activity_log_table;
+  to_regclass('public.order_activity_log') as order_activity_log_table,
+  to_regclass('public.generated_licenses') as generated_licenses_table;
 ```
 
 ```sql
@@ -132,6 +136,23 @@ where table_schema = 'public'
     'last_webhook_event_type',
     'last_webhook_processed_at',
     'last_webhook_error'
+  )
+order by column_name;
+```
+
+```sql
+select column_name
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'generated_licenses'
+  and column_name in (
+    'agreement_number',
+    'status',
+    'terms_snapshot_json',
+    'pdf_storage_path',
+    'generation_error',
+    'generated_at',
+    'downloaded_at'
   )
 order by column_name;
 ```

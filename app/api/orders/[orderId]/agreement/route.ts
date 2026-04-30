@@ -6,6 +6,7 @@ import { renderLicenseAgreementHtml } from "@/lib/license";
 import { formatDateTime } from "@/lib/utils";
 import { createAgreementSignedUrl, downloadAgreementArtifact } from "@/services/agreements/server";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
+import { loadGeneratedLicenseByOrderId, markGeneratedLicenseDownloaded } from "@/services/generated-licenses/server";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -65,6 +66,7 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
   const role = String(viewerProfile?.role || user.user_metadata?.role || "");
 
   const order = await loadAgreementOrderCompat(supabase, params.orderId);
+  const generatedLicense = await loadGeneratedLicenseByOrderId(supabase, params.orderId);
 
   if (!order) {
     return NextResponse.json({ error: "Order not found." }, { status: 404 });
@@ -80,7 +82,32 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
-  if (!order.agreement_url && order.status === "pending") {
+  const effectiveAgreementPath = generatedLicense?.pdf_storage_path || null;
+  const effectiveContentType = generatedLicense?.pdf_content_type || "application/pdf";
+  const effectiveGeneratedAt = generatedLicense?.generated_at || null;
+  const effectiveGenerationError = generatedLicense?.generation_error || order.agreement_generation_error;
+  const effectiveAgreementNumber = generatedLicense?.agreement_number || null;
+
+  if (!generatedLicense && (order.agreement_generated_at || order.agreement_path || order.agreement_url)) {
+    await logAgreementAccessEvent(supabase, {
+      orderId: order.id,
+      actorId: user.id,
+      eventType: "agreement_download_blocked",
+      message: "Agreement delivery was requested while generated_licenses was unavailable for this order.",
+      metadata: {
+        migration: "0013"
+      }
+    });
+    return NextResponse.json(
+      {
+        error:
+          "The generated license record for this paid order is still missing. Apply migration 0013, rerun agreement generation, and then retry the download."
+      },
+      { status: 409 }
+    );
+  }
+
+  if (!order.agreement_url && !effectiveAgreementPath && order.status === "pending") {
     await logAgreementAccessEvent(supabase, {
       orderId: order.id,
       actorId: user.id,
@@ -90,28 +117,34 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
     return NextResponse.json({ error: "Agreement artifact is not ready until payment has completed." }, { status: 409 });
   }
 
-  if (order.agreement_generation_error) {
+  if (effectiveGenerationError || generatedLicense?.status === "failed") {
     await logAgreementAccessEvent(supabase, {
       orderId: order.id,
       actorId: user.id,
       eventType: "agreement_download_blocked",
-      message: `Agreement download was requested while generation errors remained: ${order.agreement_generation_error}`
+      message: `Agreement download was requested while generation errors remained: ${effectiveGenerationError || "Generated license status is failed."}`,
+      metadata: {
+        agreementNumber: effectiveAgreementNumber
+      }
     });
     return NextResponse.json(
       {
-        error: `Agreement generation still needs attention: ${order.agreement_generation_error}`
+        error: `Agreement generation still needs attention: ${effectiveGenerationError || "The generated license record is marked as failed."}`
       },
       { status: 409 }
     );
   }
 
   try {
-    if (!order.agreement_generated_at) {
+    if (!effectiveGeneratedAt) {
       await logAgreementAccessEvent(supabase, {
         orderId: order.id,
         actorId: user.id,
         eventType: "agreement_download_blocked",
-        message: "Agreement download was requested before artifact generation completed."
+        message: "Agreement download was requested before artifact generation completed.",
+        metadata: {
+          agreementNumber: effectiveAgreementNumber
+        }
       });
       return NextResponse.json(
         {
@@ -121,31 +154,38 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
       );
     }
 
-    if (!order.agreement_path) {
+    if (!effectiveAgreementPath) {
       await logAgreementAccessEvent(supabase, {
         orderId: order.id,
         actorId: user.id,
         eventType: "agreement_download_blocked",
-        message: "Agreement generation completed, but secure delivery metadata is still unavailable."
+        message: "Agreement generation completed, but secure delivery metadata is still unavailable.",
+        metadata: {
+          agreementNumber: effectiveAgreementNumber
+        }
       });
       return NextResponse.json(
         {
           error:
-            "Agreement delivery is still running in compatibility mode because the required fulfillment metadata SQL is not live yet. Apply the manual Supabase order hardening SQL, then retry."
+            "Agreement delivery is still running in compatibility mode because the structured generated license record or private artifact path is missing. Apply migration 0013 and regenerate the agreement, then retry."
         },
         { status: 409 }
       );
     }
 
-    const agreementPath = order.agreement_path;
-    const contentType = order.agreement_content_type || "application/pdf";
+    const agreementPath = effectiveAgreementPath;
+    const contentType = effectiveContentType;
     const signedUrl = await createAgreementSignedUrl(agreementPath, 60).catch(() => null);
     if (signedUrl) {
+      await markGeneratedLicenseDownloaded(supabase, order.id).catch(() => undefined);
       await logAgreementAccessEvent(supabase, {
         orderId: order.id,
         actorId: user.id,
         eventType: "agreement_download_authorized",
-        message: "Agreement delivery succeeded through a short-lived signed URL."
+        message: "Agreement delivery succeeded through a short-lived signed URL.",
+        metadata: {
+          agreementNumber: effectiveAgreementNumber
+        }
       });
       const response = NextResponse.redirect(signedUrl);
       response.headers.set("cache-control", "private, no-store, max-age=0");
@@ -153,11 +193,15 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
     }
 
     const file = await downloadAgreementArtifact(agreementPath);
+    await markGeneratedLicenseDownloaded(supabase, order.id).catch(() => undefined);
     await logAgreementAccessEvent(supabase, {
       orderId: order.id,
       actorId: user.id,
       eventType: "agreement_download_authorized",
-      message: "Agreement artifact was streamed directly after signed URL creation was unavailable."
+      message: "Agreement artifact was streamed directly after signed URL creation was unavailable.",
+      metadata: {
+        agreementNumber: effectiveAgreementNumber
+      }
     });
     return new Response(file, {
       headers: agreementHeaders(order.id, contentType)
@@ -167,14 +211,17 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
       orderId: order.id,
       actorId: user.id,
       eventType: "agreement_download_failed",
-      message: error instanceof Error ? error.message : "Unable to load agreement artifact."
+      message: error instanceof Error ? error.message : "Unable to load agreement artifact.",
+      metadata: {
+        agreementNumber: effectiveAgreementNumber
+      }
     });
 
-    if (!order.agreement_path) {
+    if (!effectiveAgreementPath) {
       return NextResponse.json(
         {
           error:
-            "Agreement metadata is still running in compatibility mode and the private artifact could not be resolved safely. Apply the manual Supabase order hardening SQL, then retry."
+            "Agreement metadata is still running in compatibility mode and the private artifact could not be resolved safely. Apply migration 0013 and regenerate the agreement, then retry."
         },
         { status: 409 }
       );
@@ -182,7 +229,7 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
 
     return NextResponse.json(
       {
-        error: order.agreement_generation_error || (error instanceof Error ? error.message : "Unable to load agreement artifact.")
+        error: effectiveGenerationError || (error instanceof Error ? error.message : "Unable to load agreement artifact.")
       },
       { status: 500 }
     );
@@ -255,12 +302,14 @@ async function logAgreementAccessEvent(
     orderId,
     actorId,
     eventType,
-    message
+    message,
+    metadata
   }: {
     orderId: string;
     actorId?: string | null;
     eventType: string;
     message: string;
+    metadata?: Record<string, unknown>;
   }
 ) {
   await appendOrderActivityLog(supabase, {
@@ -268,6 +317,7 @@ async function logAgreementAccessEvent(
     actorId: actorId || null,
     source: "system",
     eventType,
-    message
+    message,
+    metadata
   }).catch(() => undefined);
 }

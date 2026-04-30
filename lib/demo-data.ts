@@ -40,7 +40,7 @@ export const licenseTypes: LicenseType[] = [
   { id: "lt-1", name: "Digital Campaign", slug: "digital-campaign", description: "Ideal for paid social, web spots, and short-form branded content.", exclusive: false, base_price: 1200, terms_summary: "12-month campaign use, digital only.", active: true },
   { id: "lt-2", name: "Broadcast", slug: "broadcast", description: "For TV, streaming spots, and regional or national campaign rollouts.", exclusive: false, base_price: 4800, terms_summary: "Broadcast and streaming usage, term defined at checkout.", active: true },
   { id: "lt-3", name: "Trailer / Promo", slug: "trailer-promo", description: "Built for cinematic promo placements and high-impact cutdowns.", exclusive: false, base_price: 6800, terms_summary: "Promo/trailer use, non-exclusive.", active: true },
-  { id: "lt-4", name: "Exclusive Buyout", slug: "exclusive-buyout", description: "Full exclusive negotiation scaffold for premium placements.", exclusive: true, base_price: 18000, terms_summary: "Exclusive placement placeholder terms. TODO: legal review.", active: true }
+  { id: "lt-4", name: "Exclusive Buyout", slug: "exclusive-buyout", description: "Full exclusive negotiation scaffold for premium placements.", exclusive: true, base_price: 18000, terms_summary: "Exclusive placement subject to negotiated scope, term, territory, and final legal approval.", active: true }
 ];
 
 const demoTrackBase = [

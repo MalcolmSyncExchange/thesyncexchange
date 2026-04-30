@@ -1,61 +1,68 @@
-import { env } from "@/lib/env";
-import { formatCurrency } from "@/lib/utils";
-import { licenseTypes, tracks } from "@/lib/demo-data";
+import { formatCurrency } from "../../utils.ts";
 
-export function generateAgreementPlaceholder(orderId: string, trackId: string, licenseTypeId: string) {
-  const track = tracks.find((item) => item.id === trackId);
-  const license = licenseTypes.find((item) => item.id === licenseTypeId);
-  const fee = license?.base_price || 0;
-
-  return {
-    orderId,
-    trackTitle: track?.title || "Selected Track",
-    artistName: track?.artist_name || "The Sync Exchange Artist",
-    licenseName: license?.name || "License",
-    agreementUrl: `${env.appUrl}/license-confirmation/${orderId}`,
-    summary: [
-      `License: ${license?.name || "Pending selection"}`,
-      `Fee: ${formatCurrency(fee)}`,
-      "Territory, term, and media language require legal review before production release."
-    ]
-  };
-}
-
-export interface AgreementArtifactInput {
+export type GeneratedLicenseTermsSnapshot = {
+  agreementNumber: string;
+  agreementStatus: "generated" | "failed";
   orderId: string;
-  createdAt: string;
-  trackTitle: string;
-  artistName: string;
-  licenseName: string;
-  amountPaid: number;
-  currency: string;
-  buyerName: string;
-  buyerEmail: string;
-  rightsHolders: Array<{
-    name: string;
-    roleType: string;
-    ownershipPercent: number;
-  }>;
-}
+  purchaseDate: string;
+  effectiveDate: string;
+  buyer: {
+    userId: string;
+    legalName: string;
+    companyName: string | null;
+    email: string;
+  };
+  licensor: {
+    platformName: string;
+    entityName: string;
+    displayName: string;
+  };
+  track: {
+    id: string;
+    title: string;
+    artistName: string;
+    rightsHolders: Array<{
+      name: string;
+      roleType: string;
+      ownershipPercent: number;
+    }>;
+  };
+  license: {
+    typeId: string | null;
+    typeSlug: string | null;
+    typeName: string;
+    termsSummary: string;
+    pricePaidCents: number;
+    currency: string;
+    territory: string;
+    termLength: string;
+    permittedMedia: string[];
+    exclusivity: string;
+    restrictions: string[];
+    creditRequirements: string | null;
+    grantText: string;
+    ownershipReservation: string;
+    transferRestriction: string;
+    terminationTerms: string;
+    governingLaw: string;
+    legalReviewRequired: boolean;
+  };
+  stripe: {
+    checkoutSessionId: string | null;
+    paymentIntentId: string | null;
+  };
+};
 
-export function getAgreementAccessUrl(orderId: string) {
-  return `${env.appUrl}/api/orders/${orderId}/agreement`;
-}
-
-export function buildAgreementStoragePath(orderId: string) {
-  return `orders/${orderId}/license-agreement.pdf`;
-}
-
-export function renderLicenseAgreementPdf(input: AgreementArtifactInput) {
-  const lines = buildAgreementDocumentLines(input);
+export function renderSyncLicenseAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) {
+  const lines = buildAgreementDocumentLines(snapshot);
   return buildSimplePdf(lines);
 }
 
-export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
+export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSnapshot) {
   const brandLogoUrl = "/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png";
   const watermarkUrl = "/brand/the-sync-exchange/watermark/Watermark.png";
-  const rightsMarkup = input.rightsHolders.length
-    ? input.rightsHolders
+  const rightsMarkup = snapshot.track.rightsHolders.length
+    ? snapshot.track.rightsHolders
         .map(
           (holder) => `
             <tr>
@@ -71,13 +78,26 @@ export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
         <td colspan="3">Rights holder details were not available when this agreement was generated.</td>
       </tr>
     `;
+  const permittedMediaMarkup = snapshot.license.permittedMedia.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  const restrictionsMarkup = snapshot.license.restrictions.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  const feePaid = formatCurrency(snapshot.license.pricePaidCents / 100, snapshot.license.currency);
+  const buyerDisplay = snapshot.buyer.companyName
+    ? `${snapshot.buyer.companyName} (${snapshot.buyer.legalName})`
+    : snapshot.buyer.legalName;
+  const legalReviewNotice = snapshot.license.legalReviewRequired
+    ? `
+      <div class="notice">
+        Attorney review required before this agreement template is treated as final production legal language. This artifact records the commercial terms of the purchase and the delivery entitlement for the buyer.
+      </div>
+    `
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>The Sync Exchange License Agreement</title>
+    <title>The Sync Exchange Sync License Agreement</title>
     <style>
       body {
         font-family: Inter, Arial, sans-serif;
@@ -98,6 +118,13 @@ export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
       }
       h1, h2, h3, p {
         margin: 0;
+      }
+      ul {
+        margin: 12px 0 0 18px;
+        padding: 0;
+      }
+      li {
+        margin-top: 6px;
       }
       .brand-mark {
         display: block;
@@ -177,8 +204,8 @@ export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
       }
       .notice {
         margin-top: 28px;
-        border: 1px solid #f59e0b33;
-        background: #f59e0b14;
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        background: rgba(245, 158, 11, 0.08);
         border-radius: 10px;
         padding: 16px;
         color: #92400e;
@@ -204,49 +231,91 @@ export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
         <p class="eyebrow">The Sync Exchange</p>
         <h1 class="headline">Sync License Agreement</h1>
         <p class="lede">
-          This agreement artifact was generated automatically after payment confirmation. It packages the commercial record for the order below while final long-form legal language remains under counsel review.
+          This license agreement was generated automatically after verified Stripe payment. It records the commercial rights granted for this purchase and the secure delivery entitlement for the buyer identified below.
         </p>
 
         <section class="grid">
           <div class="panel">
+            <p class="label">Agreement Number</p>
+            <p class="value">${escapeHtml(snapshot.agreementNumber)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Effective Date</p>
+            <p class="value">${escapeHtml(snapshot.effectiveDate)}</p>
+          </div>
+          <div class="panel">
             <p class="label">Order</p>
-            <p class="value">${escapeHtml(input.orderId)}</p>
-          </div>
-          <div class="panel">
-            <p class="label">Generated</p>
-            <p class="value">${escapeHtml(input.createdAt)}</p>
-          </div>
-          <div class="panel">
-            <p class="label">Track</p>
-            <p class="value">${escapeHtml(input.trackTitle)}</p>
-          </div>
-          <div class="panel">
-            <p class="label">Artist</p>
-            <p class="value">${escapeHtml(input.artistName)}</p>
-          </div>
-          <div class="panel">
-            <p class="label">License</p>
-            <p class="value">${escapeHtml(input.licenseName)}</p>
-          </div>
-          <div class="panel">
-            <p class="label">Fee</p>
-            <p class="value">${escapeHtml(formatCurrency(input.amountPaid, input.currency))}</p>
+            <p class="value">${escapeHtml(snapshot.orderId)}</p>
           </div>
           <div class="panel">
             <p class="label">Buyer</p>
-            <p class="value">${escapeHtml(input.buyerName)}</p>
+            <p class="value">${escapeHtml(buyerDisplay)}</p>
           </div>
           <div class="panel">
             <p class="label">Billing Contact</p>
-            <p class="value">${escapeHtml(input.buyerEmail)}</p>
+            <p class="value">${escapeHtml(snapshot.buyer.email)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Licensor</p>
+            <p class="value">${escapeHtml(snapshot.licensor.displayName)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Track</p>
+            <p class="value">${escapeHtml(snapshot.track.title)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Artist</p>
+            <p class="value">${escapeHtml(snapshot.track.artistName)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">License</p>
+            <p class="value">${escapeHtml(snapshot.license.typeName)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Fee Paid</p>
+            <p class="value">${escapeHtml(feePaid)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Territory</p>
+            <p class="value">${escapeHtml(snapshot.license.territory)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Term</p>
+            <p class="value">${escapeHtml(snapshot.license.termLength)}</p>
           </div>
         </section>
 
         <section class="section">
           <h2>Licensed Recording</h2>
           <p class="body-copy">
-            The Sync Exchange confirms receipt of payment for the selected license tier and records the licensed composition and master metadata shown in this artifact.
+            This agreement covers the recording identified as <strong>${escapeHtml(snapshot.track.title)}</strong> by <strong>${escapeHtml(snapshot.track.artistName)}</strong> under the purchased license tier <strong>${escapeHtml(snapshot.license.typeName)}</strong>.
           </p>
+        </section>
+
+        <section class="section">
+          <h2>License Grant</h2>
+          <p class="body-copy">${escapeHtml(snapshot.license.grantText)}</p>
+        </section>
+
+        <section class="section">
+          <h2>Permitted Media</h2>
+          <ul>${permittedMediaMarkup}</ul>
+        </section>
+
+        <section class="section">
+          <h2>Restrictions</h2>
+          <ul>${restrictionsMarkup}</ul>
+          <p class="body-copy">${escapeHtml(snapshot.license.transferRestriction)}</p>
+        </section>
+
+        <section class="section">
+          <h2>Ownership Reservation</h2>
+          <p class="body-copy">${escapeHtml(snapshot.license.ownershipReservation)}</p>
+        </section>
+
+        <section class="section">
+          <h2>Termination and Breach</h2>
+          <p class="body-copy">${escapeHtml(snapshot.license.terminationTerms)}</p>
         </section>
 
         <section class="section">
@@ -265,20 +334,91 @@ export function renderLicenseAgreementHtml(input: AgreementArtifactInput) {
           </table>
         </section>
 
+        ${
+          snapshot.license.creditRequirements
+            ? `
         <section class="section">
-          <h2>Commercial Notes</h2>
-          <p class="body-copy">
-            Exclusive restrictions, term, territory, media scope, indemnities, and credit obligations remain subject to The Sync Exchange legal review workflow.
-          </p>
+          <h2>Credit</h2>
+          <p class="body-copy">${escapeHtml(snapshot.license.creditRequirements)}</p>
+        </section>
+        `
+            : ""
+        }
+
+        <section class="section">
+          <h2>Governing Law</h2>
+          <p class="body-copy">${escapeHtml(snapshot.license.governingLaw)}</p>
         </section>
 
-        <div class="notice">
-          Legal review is required before this generated artifact is used as the final production contract or countersigned legal instrument.
-        </div>
+        ${legalReviewNotice}
       </div>
     </main>
   </body>
 </html>`;
+}
+
+function buildAgreementDocumentLines(snapshot: GeneratedLicenseTermsSnapshot) {
+  const rightsHolderLines = snapshot.track.rightsHolders.length
+    ? snapshot.track.rightsHolders.flatMap((holder) =>
+        wrapPdfLine(`${holder.name} - ${holder.roleType} - ${holder.ownershipPercent}%`, 88)
+      )
+    : ["Rights holder details were not available when this agreement was generated."];
+  const feePaid = formatCurrency(snapshot.license.pricePaidCents / 100, snapshot.license.currency);
+  const buyerDisplay = snapshot.buyer.companyName
+    ? `${snapshot.buyer.companyName} (${snapshot.buyer.legalName})`
+    : snapshot.buyer.legalName;
+
+  return [
+    "The Sync Exchange",
+    "Sync License Agreement",
+    "",
+    `Agreement Number: ${snapshot.agreementNumber}`,
+    `Order ID: ${snapshot.orderId}`,
+    `Effective Date: ${snapshot.effectiveDate}`,
+    `Purchase Date: ${snapshot.purchaseDate}`,
+    `Buyer: ${buyerDisplay}`,
+    `Billing Contact: ${snapshot.buyer.email}`,
+    `Licensor: ${snapshot.licensor.displayName}`,
+    `Track: ${snapshot.track.title}`,
+    `Artist: ${snapshot.track.artistName}`,
+    `License: ${snapshot.license.typeName}`,
+    `Fee Paid: ${feePaid}`,
+    `Territory: ${snapshot.license.territory}`,
+    `Term: ${snapshot.license.termLength}`,
+    `Exclusivity: ${snapshot.license.exclusivity}`,
+    "",
+    "License Grant",
+    ...wrapPdfLine(snapshot.license.grantText, 92),
+    "",
+    "Permitted Media",
+    ...snapshot.license.permittedMedia.flatMap((item) => wrapPdfLine(`- ${item}`, 92)),
+    "",
+    "Restrictions",
+    ...snapshot.license.restrictions.flatMap((item) => wrapPdfLine(`- ${item}`, 92)),
+    ...wrapPdfLine(snapshot.license.transferRestriction, 92),
+    "",
+    "Ownership Reservation",
+    ...wrapPdfLine(snapshot.license.ownershipReservation, 92),
+    "",
+    "Termination and Breach",
+    ...wrapPdfLine(snapshot.license.terminationTerms, 92),
+    "",
+    "Rights Holders",
+    ...rightsHolderLines,
+    "",
+    ...(snapshot.license.creditRequirements
+      ? ["Credit", ...wrapPdfLine(snapshot.license.creditRequirements, 92), ""]
+      : []),
+    "Governing Law",
+    ...wrapPdfLine(snapshot.license.governingLaw, 92),
+    "",
+    ...(snapshot.license.legalReviewRequired
+      ? wrapPdfLine(
+          "Attorney review required before this agreement template is treated as final production legal language. This artifact records the commercial terms of the purchase and the delivery entitlement for the buyer.",
+          92
+        )
+      : [])
+  ];
 }
 
 function escapeHtml(value: string) {
@@ -288,53 +428,6 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function buildAgreementDocumentLines(input: AgreementArtifactInput) {
-  const rightsHolderLines = input.rightsHolders.length
-    ? input.rightsHolders.flatMap((holder) =>
-        wrapPdfLine(`${holder.name} - ${holder.roleType} - ${holder.ownershipPercent}%`, 88)
-      )
-    : ["Rights holder details were not available when this agreement was generated."];
-
-  return [
-    "The Sync Exchange",
-    "Sync License Agreement",
-    "",
-    ...wrapPdfLine(
-      "This agreement artifact was generated automatically after verified payment. It records the commercial details of the purchased sync license while final legal language remains under counsel review.",
-      92
-    ),
-    "",
-    `Order ID: ${input.orderId}`,
-    `Generated: ${input.createdAt}`,
-    `Track: ${input.trackTitle}`,
-    `Artist: ${input.artistName}`,
-    `License: ${input.licenseName}`,
-    `Fee: ${formatCurrency(input.amountPaid, input.currency)}`,
-    `Buyer: ${input.buyerName}`,
-    `Billing Contact: ${input.buyerEmail}`,
-    "",
-    "Licensed Recording",
-    ...wrapPdfLine(
-      "The Sync Exchange confirms receipt of payment for the selected license tier and records the licensed composition and master metadata shown in this artifact.",
-      92
-    ),
-    "",
-    "Rights Holders",
-    ...rightsHolderLines,
-    "",
-    "Commercial Notes",
-    ...wrapPdfLine(
-      "Exclusive restrictions, term, territory, media scope, indemnities, and credit obligations remain subject to The Sync Exchange legal review workflow.",
-      92
-    ),
-    "",
-    ...wrapPdfLine(
-      "Legal review required before this generated artifact is used as the final production contract or countersigned legal instrument.",
-      92
-    )
-  ];
 }
 
 function wrapPdfLine(text: string, maxChars: number) {

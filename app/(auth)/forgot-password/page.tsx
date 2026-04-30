@@ -7,7 +7,7 @@ import { forgotPasswordAction } from "@/services/auth/actions";
 export default function ForgotPasswordPage({
   searchParams
 }: {
-  searchParams?: { error?: string; success?: string };
+  searchParams?: { error?: string; success?: string; email?: string };
 }) {
   return (
     <AuthPageShell
@@ -29,10 +29,18 @@ export default function ForgotPasswordPage({
           <AuthStatusMessage error={searchParams?.error} success={searchParams?.success} />
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" placeholder="name@company.com" required className="h-11" />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="name@company.com"
+              defaultValue={searchParams?.email || ""}
+              required
+              className="h-11"
+            />
           </div>
           <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
-            If the account exists, the reset email will arrive with a secure link back into the password update flow.
+            If the account exists and email delivery is configured correctly, the reset email will arrive with a secure link back into the password update flow.
           </div>
           <FormSubmitButton className="w-full" pendingLabel="Sending Instructions...">
             Send Reset Instructions

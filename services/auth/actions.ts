@@ -4,8 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { ZodError } from "zod";
 
-import { env, hasSupabaseEnv } from "@/lib/env";
-import { reportOperationalError } from "@/lib/monitoring";
+import { env, getDeploymentTarget, hasSupabaseEnv, isLocalhostHost } from "@/lib/env";
+import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import { isAbsoluteAssetReference } from "@/lib/storage";
 import { uploadManagedAsset } from "@/services/storage/assets";
 import { inferOnboardingCompletionState } from "@/services/auth/onboarding-completion";
@@ -78,8 +78,41 @@ function buildRelativePath(path: string, params: Record<string, string | null | 
   return query ? `${path}?${query}` : path;
 }
 
+function maskEmailAddress(email: string) {
+  const [localPart, domain = ""] = email.split("@");
+  if (!localPart) {
+    return email;
+  }
+
+  if (localPart.length <= 2) {
+    return `${localPart[0] || "*"}*@${domain}`;
+  }
+
+  return `${localPart[0]}***${localPart[localPart.length - 1]}@${domain}`;
+}
+
+function getEmailDomain(email: string) {
+  return email.includes("@") ? email.split("@")[1] : null;
+}
+
 function buildConfirmationRedirectUrl(nextPath: string) {
-  const callbackUrl = new URL("/auth/confirm", env.appUrl);
+  let appUrl: URL;
+
+  try {
+    appUrl = new URL(env.appUrl);
+  } catch {
+    throw new Error("NEXT_PUBLIC_APP_URL is invalid. Set it to the public app origin before sending authentication emails.");
+  }
+
+  if (getDeploymentTarget() === "production" && isLocalhostHost(appUrl.hostname)) {
+    throw new Error("NEXT_PUBLIC_APP_URL points to a local-only address. Update it to the public app domain before sending authentication emails.");
+  }
+
+  if (getDeploymentTarget() === "production" && appUrl.protocol !== "https:") {
+    throw new Error("NEXT_PUBLIC_APP_URL must use https:// before sending production authentication emails.");
+  }
+
+  const callbackUrl = new URL("/auth/confirm", appUrl);
   callbackUrl.searchParams.set("next", nextPath);
   return callbackUrl.toString();
 }
@@ -311,19 +344,77 @@ export async function logoutAction() {
 }
 
 export async function forgotPasswordAction(formData: FormData) {
-  const email = String(formData.get("email") || "");
+  const email = String(formData.get("email") || "").trim().toLowerCase();
 
-  if (hasSupabaseEnv && !env.demoMode) {
-    const supabase = createServerSupabaseClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: buildConfirmationRedirectUrl("/reset-password")
-    });
-    if (error) {
-      redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
-    }
+  if (!email) {
+    redirect("/forgot-password?error=Enter%20the%20email%20address%20for%20the%20account%20you%20want%20to%20recover.");
   }
 
-  redirect("/forgot-password?success=Reset%20instructions%20have%20been%20sent.");
+  const maskedEmail = maskEmailAddress(email);
+  const emailDomain = getEmailDomain(email);
+
+  try {
+    const redirectTo = buildConfirmationRedirectUrl("/reset-password");
+
+    reportOperationalEvent("forgot_password_requested", "Password reset email requested.", {
+      email: maskedEmail,
+      emailDomain,
+      redirectTo,
+      appUrlHost: new URL(env.appUrl).host,
+      supabaseEnabled: hasSupabaseEnv && !env.demoMode
+    });
+
+    if (hasSupabaseEnv && !env.demoMode) {
+      const supabase = createServerSupabaseClient();
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo
+      });
+
+      reportOperationalEvent("forgot_password_supabase_response", "Supabase password reset request completed.", {
+        email: maskedEmail,
+        emailDomain,
+        redirectTo,
+        hasError: Boolean(error),
+        responseKeys: data ? Object.keys(data) : []
+      });
+
+      if (error) {
+        reportOperationalError("forgot_password_failed", error, {
+          email: maskedEmail,
+          emailDomain,
+          redirectTo
+        });
+        redirect(buildRelativePath("/forgot-password", { error: error.message, email }));
+      }
+    } else {
+      reportOperationalEvent("forgot_password_demo_mode", "Password reset requested while the app is running without live Supabase auth.", {
+        email: maskedEmail,
+        emailDomain
+      });
+    }
+  } catch (error) {
+    reportOperationalError("forgot_password_request_failed", error, {
+      email: maskedEmail,
+      emailDomain
+    });
+
+    redirect(
+      buildRelativePath("/forgot-password", {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Password reset is temporarily unavailable. Please try again shortly.",
+        email
+      })
+    );
+  }
+
+  redirect(
+    buildRelativePath("/forgot-password", {
+      success: "If the account exists and email delivery is configured, reset instructions are on the way.",
+      email
+    })
+  );
 }
 
 export async function resendSignupConfirmationAction(formData: FormData) {

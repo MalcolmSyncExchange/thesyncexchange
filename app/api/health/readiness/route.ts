@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { env, getMissingCoreEnvKeys, getMissingOperationalEnvKeys, hasSupabaseEnv } from "@/lib/env";
+import { env, getMissingCoreEnvKeys, hasSupabaseEnv } from "@/lib/env";
+import { getMissingOperationalEnvKeys, getServerEnvironmentDiagnostics, serverEnv } from "@/lib/server-env";
 import { storageBuckets } from "@/lib/storage";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { isMissingColumnError, isMissingRelationError, isSchemaCacheTableError } from "@/services/supabase/schema-compat";
@@ -40,10 +41,11 @@ type TableDiagnostic = {
 export async function GET() {
   const missingCore = getMissingCoreEnvKeys();
   const missingOperational = getMissingOperationalEnvKeys();
+  const environment = getServerEnvironmentDiagnostics();
   const notes: string[] = [];
 
   const storage = {
-    serviceRoleReady: Boolean(env.supabaseServiceRoleKey),
+    serviceRoleReady: Boolean(serverEnv.supabaseServiceRoleKey),
     bucketsPresent: false,
     missingBuckets: [] as string[]
   };
@@ -65,7 +67,7 @@ export async function GET() {
       manualSqlCheckRequired: false
     }
   };
-  const tableDiagnostics: Record<"user_profiles" | "orders" | "order_activity_log", TableDiagnostic> = {
+  const tableDiagnostics: Record<"user_profiles" | "orders" | "order_activity_log" | "generated_licenses", TableDiagnostic> = {
     user_profiles: {
       status: "unknown",
       summary: "user_profiles visibility is unavailable until Supabase service-role access succeeds.",
@@ -80,6 +82,11 @@ export async function GET() {
       status: "unknown",
       summary: "order_activity_log visibility is unavailable until Supabase service-role access succeeds.",
       manualSqlCheckRequired: false
+    },
+    generated_licenses: {
+      status: "unknown",
+      summary: "generated_licenses visibility is unavailable until Supabase service-role access succeeds.",
+      manualSqlCheckRequired: false
     }
   };
 
@@ -88,7 +95,8 @@ export async function GET() {
     | "licenseTypeSeedSupport"
     | "fulfillmentMetadataSupport"
     | "agreementMetadataSupport"
-    | "orderActivitySupport",
+    | "orderActivitySupport"
+    | "generatedLicenseSupport",
     CapabilityReport
   > = {
     avatarPathSupport: {
@@ -110,6 +118,10 @@ export async function GET() {
     orderActivitySupport: {
       status: "blocked",
       summary: "Order activity auditing cannot be verified yet."
+    },
+    generatedLicenseSupport: {
+      status: "blocked",
+      summary: "Generated license persistence cannot be verified yet."
     }
   };
   let recommendedManualAction: RecommendedManualAction = "none";
@@ -117,6 +129,14 @@ export async function GET() {
 
   if (!hasSupabaseEnv) {
     notes.push("Supabase public environment variables are missing, so live auth/data/storage flows are unavailable.");
+  }
+
+  for (const issue of environment.errors) {
+    notes.push(issue.message);
+  }
+
+  for (const issue of environment.warnings) {
+    notes.push(issue.message);
   }
 
   const supabase = createAdminSupabaseClient();
@@ -180,6 +200,7 @@ export async function GET() {
       .select("agreement_path, agreement_generation_error, agreement_content_type, agreement_size_bytes, last_webhook_event_id")
       .limit(1);
     const orderActivity = await supabase.from("order_activity_log").select("id").limit(1);
+    const generatedLicensesTable = await supabase.from("generated_licenses").select("id, agreement_number, pdf_storage_path, status").limit(1);
 
     tableDiagnostics.user_profiles = diagnoseTableAccess({
       baselineVisible: postgrest.baselineTablesVisible,
@@ -198,6 +219,12 @@ export async function GET() {
       tableName: "order_activity_log",
       migrationHint: "0010",
       error: orderActivity.error
+    });
+    tableDiagnostics.generated_licenses = diagnoseTableAccess({
+      baselineVisible: postgrest.baselineTablesVisible,
+      tableName: "generated_licenses",
+      migrationHint: "0013",
+      error: generatedLicensesTable.error
     });
 
     capabilities.avatarPathSupport = evaluateAvatarCapability({
@@ -218,13 +245,22 @@ export async function GET() {
       orderMetadataError: orderMetadata.error
     });
 
-    capabilities.agreementMetadataSupport = evaluateAgreementCapability(capabilities.fulfillmentMetadataSupport);
-
     capabilities.orderActivitySupport = evaluateOrderActivityCapability({
       baselineVisible: postgrest.baselineTablesVisible,
       ordersTableError: ordersTable.error,
       activityError: orderActivity.error
     });
+
+    capabilities.generatedLicenseSupport = evaluateGeneratedLicenseCapability({
+      baselineVisible: postgrest.baselineTablesVisible,
+      ordersTableError: ordersTable.error,
+      generatedLicensesError: generatedLicensesTable.error
+    });
+
+    capabilities.agreementMetadataSupport = evaluateAgreementCapability(
+      capabilities.fulfillmentMetadataSupport,
+      capabilities.generatedLicenseSupport
+    );
 
     for (const capability of Object.values(capabilities)) {
       if (capability.status !== "available") {
@@ -238,9 +274,11 @@ export async function GET() {
       tableDiagnostics.user_profiles.status !== "visible" ||
       tableDiagnostics.orders.status !== "visible" ||
       tableDiagnostics.order_activity_log.status !== "visible" ||
+      tableDiagnostics.generated_licenses.status !== "visible" ||
       capabilities.avatarPathSupport.status !== "available" ||
       capabilities.fulfillmentMetadataSupport.status !== "available" ||
-      capabilities.orderActivitySupport.status !== "available";
+      capabilities.orderActivitySupport.status !== "available" ||
+      capabilities.generatedLicenseSupport.status !== "available";
 
     if (storage.missingBuckets.length) {
       recommendedManualAction = "run_storage_setup";
@@ -284,10 +322,12 @@ export async function GET() {
   const criticalOperationalMissing = missingOperational.filter((key) =>
     ["SUPABASE_SERVICE_ROLE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].includes(key)
   );
+  const environmentHasBlockingErrors = environment.errors.length > 0;
+  const environmentHasDeploymentWarnings = environment.deploymentTarget !== "local" && environment.warnings.length > 0;
   const status: ReadinessStatus =
-    missingCore.length > 0 || criticalOperationalMissing.length > 0 || blockedDomains.length > 0
+    missingCore.length > 0 || criticalOperationalMissing.length > 0 || blockedDomains.length > 0 || environmentHasBlockingErrors
       ? "blocked"
-      : degradedDomains.length > 0 || missingOperational.length > 0
+      : degradedDomains.length > 0 || missingOperational.length > 0 || environmentHasDeploymentWarnings
         ? "degraded"
         : "healthy";
 
@@ -295,6 +335,7 @@ export async function GET() {
     {
       status,
       ok: status === "healthy",
+      environment,
       manualSupabaseActionRequired: recommendedManualAction === "apply_finalization_bundle" || recommendedManualAction === "run_storage_setup",
       missingCore,
       missingOperational,
@@ -514,25 +555,76 @@ function evaluateFulfillmentCapability({
   };
 }
 
-function evaluateAgreementCapability(fulfillmentCapability: CapabilityReport): CapabilityReport {
-  if (fulfillmentCapability.status === "available") {
+function evaluateGeneratedLicenseCapability({
+  baselineVisible,
+  ordersTableError,
+  generatedLicensesError
+}: {
+  baselineVisible: boolean;
+  ordersTableError: { message?: string } | null;
+  generatedLicensesError: { message?: string } | null;
+}): CapabilityReport {
+  if (!ordersTableError && !generatedLicensesError) {
     return {
       status: "available",
-      summary: "Agreement artifact metadata is available."
+      summary: "generated_licenses is available for idempotent license persistence and buyer/admin agreement access."
     };
   }
 
-  if (fulfillmentCapability.status === "degraded") {
+  if (isMissingRelationError(generatedLicensesError, "generated_licenses")) {
     return {
-      status: "degraded",
+      status: "blocked",
       summary:
-        "Agreement artifact generation works, but without migration 0010 the order row cannot retain the full document metadata contract, so secure buyer delivery remains blocked."
+        "public.generated_licenses is not reachable through PostgREST. Apply migration 0013 so completed purchases can persist one secure generated license record per order."
+    };
+  }
+
+  if (isSchemaCacheTableError(generatedLicensesError, "generated_licenses")) {
+    return {
+      status: "blocked",
+      summary:
+        baselineVisible
+          ? "public.generated_licenses exists in the app contract but is stale in the current PostgREST schema cache. Automated license persistence is blocked until migration 0013 is applied or the API schema cache refreshes."
+          : "public.generated_licenses is not visible and baseline public tables are also unavailable. This points to wrong project credentials or PostgREST schema exposure problems."
+    };
+  }
+
+  if (ordersTableError) {
+    return {
+      status: "blocked",
+      summary: "Generated license persistence is blocked because the orders table is not available to the app."
     };
   }
 
   return {
     status: "blocked",
-    summary: "Agreement artifact metadata is blocked because the orders table is not fully reachable through PostgREST."
+    summary: `Unable to verify generated license persistence: ${String(generatedLicensesError?.message || "unknown error")}`
+  };
+}
+
+function evaluateAgreementCapability(
+  fulfillmentCapability: CapabilityReport,
+  generatedLicenseCapability: CapabilityReport
+): CapabilityReport {
+  if (fulfillmentCapability.status === "available" && generatedLicenseCapability.status === "available") {
+    return {
+      status: "available",
+      summary: "Agreement artifact metadata and generated license persistence are available."
+    };
+  }
+
+  if (fulfillmentCapability.status === "degraded" || generatedLicenseCapability.status === "degraded") {
+    return {
+      status: "degraded",
+      summary:
+        "Agreement artifact generation can run, but without the final orders/generated_licenses schema contract secure buyer delivery and structured admin visibility remain degraded."
+    };
+  }
+
+  return {
+    status: "blocked",
+    summary:
+      "Agreement artifact delivery is blocked because the orders table or generated_licenses table is not fully reachable through PostgREST."
   };
 }
 
@@ -600,13 +692,22 @@ function buildReadinessDomains({
     | "licenseTypeSeedSupport"
     | "fulfillmentMetadataSupport"
     | "agreementMetadataSupport"
-    | "orderActivitySupport",
+    | "orderActivitySupport"
+    | "generatedLicenseSupport",
     CapabilityReport
   >;
   missingCore: string[];
   missingOperational: string[];
 }): Record<
-  "authProfile" | "catalog" | "storage" | "orders" | "agreements" | "activityLog" | "webhook" | "purchaseFlow",
+  | "authProfile"
+  | "catalog"
+  | "storage"
+  | "orders"
+  | "generatedLicenses"
+  | "agreements"
+  | "activityLog"
+  | "webhook"
+  | "purchaseFlow",
   DomainReport
 > {
   const authProfile =
@@ -634,6 +735,7 @@ function buildReadinessDomains({
 
   const catalog = capabilities.licenseTypeSeedSupport;
   const orders = capabilities.fulfillmentMetadataSupport;
+  const generatedLicenses = capabilities.generatedLicenseSupport;
   const agreements = capabilities.agreementMetadataSupport;
   const activityLog = capabilities.orderActivitySupport;
 
@@ -642,22 +744,23 @@ function buildReadinessDomains({
         status: "blocked",
         summary: "Stripe secret/webhook credentials are missing, so the real paid order fulfillment loop cannot complete."
       }
-    : orders.status === "blocked"
+      : orders.status === "blocked" || generatedLicenses.status === "blocked"
       ? {
           status: "blocked",
-          summary: "Webhook processing is blocked because the orders/fulfillment schema contract is not available."
+          summary: "Webhook processing is blocked because the orders or generated_licenses schema contract is not available."
         }
-      : activityLog.status === "degraded"
+      : activityLog.status === "degraded" || generatedLicenses.status === "degraded"
         ? {
             status: "degraded",
-            summary: "Webhook fulfillment can run, but audit logging and dedupe stay in compatibility mode until order_activity_log is fully live."
+            summary:
+              "Webhook fulfillment can run, but audit logging or generated-license persistence still remains in compatibility mode until the final schema contract is fully live."
           }
         : {
             status: "available",
-            summary: "Stripe webhook credentials and order fulfillment metadata are present."
+            summary: "Stripe webhook credentials, order fulfillment metadata, and generated-license persistence are present."
           };
 
-  const domainValues = [authProfile, catalog, storageDomain, orders, agreements, activityLog, webhook];
+  const domainValues = [authProfile, catalog, storageDomain, orders, generatedLicenses, agreements, activityLog, webhook];
   const purchaseFlow: DomainReport = domainValues.some((domain) => domain.status === "blocked")
     ? {
         status: "blocked",
@@ -680,6 +783,7 @@ function buildReadinessDomains({
     catalog,
     storage: storageDomain,
     orders,
+    generatedLicenses,
     agreements,
     activityLog,
     webhook,

@@ -1,9 +1,25 @@
 import { NextResponse } from "next/server";
 
-import { env } from "@/lib/env";
+import { env, getDeploymentTarget } from "@/lib/env";
+import { assertStripeServerConfiguration } from "@/lib/server-env";
 import { getStripeServerClient } from "@/services/stripe/server";
 
 export async function POST() {
+  if (getDeploymentTarget() === "production") {
+    return NextResponse.json({ error: "This test-only checkout route is unavailable in production." }, { status: 404 });
+  }
+
+  try {
+    assertStripeServerConfiguration("Stripe test checkout");
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Stripe is not configured for this environment."
+      },
+      { status: 503 }
+    );
+  }
+
   const stripe = getStripeServerClient();
 
   if (!stripe) {

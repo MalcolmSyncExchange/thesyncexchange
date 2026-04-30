@@ -2,8 +2,9 @@ import { favorites as demoFavorites, licenseTypes as demoLicenseTypes, orders as
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { reportOperationalError } from "@/lib/monitoring";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
-import { hasAgreementBeenGenerated, hasExtendedOrderMetadata, hasSecureAgreementDelivery, isAgreementDeliveryBlocked } from "@/lib/orders";
+import { hasAgreementBeenGenerated, hasExtendedOrderMetadata } from "@/lib/orders";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
+import { listGeneratedLicensesByOrderIds } from "@/services/generated-licenses/server";
 import { withTrackAudioAccess } from "@/services/storage/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { createServerSupabaseClient } from "@/services/supabase/server";
@@ -153,30 +154,13 @@ export async function getBuyerOrders(buyerUserId: string) {
     throw new Error("Unable to load your orders right now.");
   }
 
-  return ((ordersResult.data || []) as any[]).map((row) => ({
-    ...row,
-    amount_paid: Number(row.amount_cents || 0) / 100,
-    order_status: row.status,
-    agreement_generated: hasAgreementBeenGenerated(row),
-    agreement_ready: hasSecureAgreementDelivery(row),
-    agreement_delivery_blocked: isAgreementDeliveryBlocked(row),
-    schema_degraded: !hasExtendedOrderMetadata(row),
-    degraded_messages: !hasExtendedOrderMetadata(row)
-      ? [
-          "Extended fulfillment metadata is unavailable until the manual Supabase order hardening SQL is applied.",
-          ...(row.agreement_generated_at && !row.agreement_path
-            ? ["Agreement generation completed, but secure document delivery stays blocked until agreement_path metadata is live."]
-            : [])
-        ]
-      : [],
-    track: row.tracks || null,
-    license_type: row.license_types
-      ? {
-          ...row.license_types,
-          base_price: Number(row.license_types.default_price_cents || 0) / 100
-        }
-      : null
-  }));
+  const orderRows = (ordersResult.data || []) as any[];
+  const generatedLicensesByOrderId = await listGeneratedLicensesByOrderIds(
+    supabase,
+    orderRows.map((row) => row.id)
+  );
+
+  return orderRows.map((row) => enrichLiveOrder(row, generatedLicensesByOrderId.get(row.id) || null));
 }
 
 export async function getBuyerDashboardData(buyerUserId: string) {
@@ -254,30 +238,8 @@ export async function getOrderById(orderId: string) {
     return null;
   }
 
-  return {
-    ...row,
-    amount_paid: Number(row.amount_cents || 0) / 100,
-    order_status: row.status,
-    agreement_generated: hasAgreementBeenGenerated(row),
-    agreement_ready: hasSecureAgreementDelivery(row),
-    agreement_delivery_blocked: isAgreementDeliveryBlocked(row),
-    schema_degraded: !hasExtendedOrderMetadata(row),
-    degraded_messages: !hasExtendedOrderMetadata(row)
-      ? [
-          "Extended fulfillment metadata is unavailable until the manual Supabase order hardening SQL is applied.",
-          ...(row.agreement_generated_at && !row.agreement_path
-            ? ["Agreement generation completed, but secure document delivery stays blocked until agreement_path metadata is live."]
-            : [])
-        ]
-      : [],
-    track: row.tracks || null,
-    license_type: row.license_types
-      ? {
-          ...row.license_types,
-          base_price: Number(row.license_types.default_price_cents || 0) / 100
-        }
-      : null
-  };
+  const generatedLicense = await listGeneratedLicensesByOrderIds(supabase, [row.id]).then((map) => map.get(row.id) || null);
+  return enrichLiveOrder(row, generatedLicense);
 }
 
 async function getFavoriteTrackIdSet(buyerUserId: string) {
@@ -378,5 +340,46 @@ function enrichOrder(order: Order, track: Pick<Track, "id" | "title" | "slug"> |
     ...order,
     track,
     license_type: license
+  };
+}
+
+function enrichLiveOrder(row: any, generatedLicense: any) {
+  const agreementGenerated = generatedLicense?.status === "generated" ? true : hasAgreementBeenGenerated(row);
+  const agreementReady = Boolean(
+    generatedLicense?.status === "generated" &&
+      generatedLicense?.pdf_storage_path &&
+      !generatedLicense?.generation_error &&
+      !row.agreement_generation_error
+  );
+  const agreementDeliveryBlocked = generatedLicense
+    ? generatedLicense.status === "generated" && (!generatedLicense.pdf_storage_path || Boolean(generatedLicense.generation_error || row.agreement_generation_error))
+    : agreementGenerated;
+  const degradedMessages = [
+    ...(!hasExtendedOrderMetadata(row) ? ["Extended fulfillment metadata is unavailable until the manual Supabase order hardening SQL is applied."] : []),
+    ...(row.agreement_generated_at && !row.agreement_path
+      ? ["Agreement generation completed, but secure document delivery stays blocked until agreement_path metadata is live."]
+      : []),
+    ...(agreementGenerated && !generatedLicense ? ["The structured generated license record is not available for this order yet. Re-run agreement generation after migration 0013 is applied."] : [])
+  ];
+
+  return {
+    ...row,
+    amount_paid: Number(row.amount_cents || 0) / 100,
+    order_status: row.status,
+    agreement_generated: agreementGenerated,
+    agreement_ready: agreementReady,
+    agreement_delivery_blocked: agreementDeliveryBlocked,
+    agreement_number: generatedLicense?.agreement_number || null,
+    generated_license_status: generatedLicense?.status || null,
+    generated_license_downloaded_at: generatedLicense?.downloaded_at || null,
+    schema_degraded: !hasExtendedOrderMetadata(row) || (agreementGenerated && !generatedLicense),
+    degraded_messages: degradedMessages,
+    track: row.tracks || null,
+    license_type: row.license_types
+      ? {
+          ...row.license_types,
+          base_price: Number(row.license_types.default_price_cents || 0) / 100
+        }
+      : null
   };
 }

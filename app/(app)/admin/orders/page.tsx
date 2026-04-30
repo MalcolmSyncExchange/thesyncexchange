@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { RetryAgreementGenerationForm } from "@/components/admin/retry-agreement-generation-form";
 import { OrderStatusForm } from "@/components/admin/order-status-form";
 import { OrderStatusProgress } from "@/components/orders/order-status-progress";
 import { OrderStatusBadge } from "@/components/shared/state-badges";
@@ -49,6 +50,7 @@ export default async function AdminOrdersPage() {
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       {order.stripe_checkout_session_id ? <span>Checkout {order.stripe_checkout_session_id.slice(0, 18)}...</span> : null}
                       {order.stripe_payment_intent_id ? <span>Payment {order.stripe_payment_intent_id.slice(0, 18)}...</span> : null}
+                      {order.agreement_number ? <span>Agreement {order.agreement_number}</span> : null}
                       {order.paid_at ? <span>Paid recorded</span> : null}
                       {order.agreement_generated ? (
                         <span>{order.agreement_delivery_blocked ? "Agreement generated, delivery blocked" : "Agreement ready for buyer delivery"}</span>
@@ -57,7 +59,7 @@ export default async function AdminOrdersPage() {
                     </div>
                     {order.agreement_ready && order.agreement_url ? (
                       <Link href={order.agreement_url} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
-                        Open Agreement Document
+                        Download License Agreement
                       </Link>
                     ) : null}
                   </div>
@@ -69,7 +71,10 @@ export default async function AdminOrdersPage() {
                     <p className="font-medium">Fulfillment attention needed</p>
                     {order.last_webhook_error ? <p className="mt-1">Webhook: {order.last_webhook_error}</p> : null}
                     {order.agreement_generation_error ? <p className="mt-1">Agreement: {order.agreement_generation_error}</p> : null}
-                    <p className="mt-2">After the underlying issue is fixed, set the order back to Fulfilled to retry agreement generation.</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <p>After the underlying issue is fixed, rerun agreement generation for this order.</p>
+                      <RetryAgreementGenerationForm orderId={order.id} />
+                    </div>
                   </div>
                 ) : null}
 

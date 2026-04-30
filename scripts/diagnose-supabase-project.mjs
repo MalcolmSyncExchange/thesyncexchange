@@ -24,7 +24,7 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 const requiredBuckets = ["avatars", "cover-art", "track-previews", "track-audio", "agreements"];
-const tableChecks = ["tracks", "license_types", "user_profiles", "orders", "order_activity_log"];
+const tableChecks = ["tracks", "license_types", "user_profiles", "orders", "order_activity_log", "generated_licenses"];
 const requiredLicenseTypeSlugs = ["digital-campaign", "broadcast", "exclusive-buyout"];
 
 const bucketResult = await supabase.storage.listBuckets();
@@ -55,7 +55,8 @@ const finalizationReady =
   foundationVisible &&
   tableDiagnostics.user_profiles.ok &&
   tableDiagnostics.orders.ok &&
-  tableDiagnostics.order_activity_log.ok;
+  tableDiagnostics.order_activity_log.ok &&
+  tableDiagnostics.generated_licenses.ok;
 const referenceDataReady = !licenseSeedResult.error && missingLicenseTypes.length === 0;
 const fullReady = finalizationReady && missingBuckets.length === 0 && referenceDataReady;
 

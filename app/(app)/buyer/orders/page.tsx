@@ -45,26 +45,29 @@ export default async function BuyerOrdersPage() {
                 />
 
                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                  <p className="text-muted-foreground">
-                    {order.agreement_generation_error
-                      ? "Payment cleared, but agreement generation needs attention from the Sync Exchange team."
-                      : order.agreement_delivery_blocked
-                        ? "Payment cleared and the document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied."
-                      : order.agreement_ready
-                      ? "Agreement generated and ready for download."
-                      : order.paid_at
-                        ? "Payment received. Agreement generation is in progress."
-                        : order.checkout_created_at
-                          ? "Checkout created. Payment confirmation will appear here once Stripe completes."
-                          : "Order is being prepared for checkout."}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">
+                      {order.agreement_generation_error
+                        ? "Payment cleared, but agreement generation needs attention from the Sync Exchange team."
+                        : order.agreement_delivery_blocked
+                          ? "Payment cleared and the document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied."
+                        : order.agreement_ready
+                        ? "Agreement generated and ready for download."
+                        : order.paid_at
+                          ? "Payment received. Agreement generation is in progress."
+                          : order.checkout_created_at
+                            ? "Checkout created. Payment confirmation will appear here once Stripe completes."
+                            : "Order is being prepared for checkout."}
+                    </p>
+                    {order.agreement_number ? <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Agreement {order.agreement_number}</p> : null}
+                  </div>
                   <div className="flex items-center gap-4">
                     <Link href={`/license-confirmation/${order.id}`} className="font-medium text-foreground underline-offset-4 hover:underline">
                       View Confirmation
                     </Link>
                     {order.agreement_ready && order.agreement_url ? (
                       <Link href={order.agreement_url} className="font-medium text-foreground underline-offset-4 hover:underline">
-                        Open Agreement Document
+                        Download License Agreement
                       </Link>
                     ) : null}
                   </div>

@@ -2,12 +2,12 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 
 import { ThemeProvider } from "@/components/layout/theme-provider";
-import { env } from "@/lib/env";
+import { getMetadataBaseUrl } from "@/lib/env";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(env.appUrl),
+  metadataBase: getMetadataBaseUrl(),
   title: "The Sync Exchange",
   description: "Premium sync licensing marketplace for artists, buyers, and music teams that need speed, trust, and clean rights management.",
   icons: {

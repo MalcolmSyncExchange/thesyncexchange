@@ -18,7 +18,7 @@ export default function PricingPage() {
         <SectionHeader
           eyebrow="Commercial model"
           title="Simple enough to understand, premium enough to scale."
-          description="These pricing surfaces are intentionally clear placeholders for the MVP and can be refined with finance and legal review."
+          description="The marketplace is structured around recurring artist access, transactional buyer licensing, and enterprise support for higher-volume sourcing."
         />
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
           {[

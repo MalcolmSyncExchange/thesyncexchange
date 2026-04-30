@@ -444,6 +444,66 @@ export interface Database {
         };
         Relationships: [];
       };
+      generated_licenses: {
+        Row: {
+          id: string;
+          order_id: string;
+          buyer_id: string;
+          track_id: string;
+          license_type_id: string | null;
+          agreement_number: string;
+          status: string;
+          terms_snapshot_json: Json;
+          pdf_storage_path: string | null;
+          pdf_content_type: string | null;
+          pdf_size_bytes: number | null;
+          html_snapshot: string | null;
+          generation_error: string | null;
+          generated_at: string;
+          downloaded_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          buyer_id: string;
+          track_id: string;
+          license_type_id?: string | null;
+          agreement_number: string;
+          status?: string;
+          terms_snapshot_json: Json;
+          pdf_storage_path?: string | null;
+          pdf_content_type?: string | null;
+          pdf_size_bytes?: number | null;
+          html_snapshot?: string | null;
+          generation_error?: string | null;
+          generated_at?: string;
+          downloaded_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          buyer_id?: string;
+          track_id?: string;
+          license_type_id?: string | null;
+          agreement_number?: string;
+          status?: string;
+          terms_snapshot_json?: Json;
+          pdf_storage_path?: string | null;
+          pdf_content_type?: string | null;
+          pdf_size_bytes?: number | null;
+          html_snapshot?: string | null;
+          generation_error?: string | null;
+          generated_at?: string;
+          downloaded_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       order_activity_log: {
         Row: {
           id: string;

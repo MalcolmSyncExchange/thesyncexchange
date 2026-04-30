@@ -35,10 +35,12 @@ If a mutation fails after assets are uploaded, the app:
   - webhook event metadata
 - webhook failure metadata is stored on the order when the schema supports it
 - agreement generation runs only when the order is paid and not already fulfilled/refunded
+- completed fulfillment now persists a structured `generated_licenses` row in addition to order-level agreement metadata
 
 ### Agreement delivery safety
 
 - no inferred agreement path fallback remains
+- agreement delivery prefers `generated_licenses.pdf_storage_path` and records `downloaded_at`
 - if the secure agreement path is missing, the delivery route returns `409`
 - unauthorized users receive:
   - `401` unauthenticated

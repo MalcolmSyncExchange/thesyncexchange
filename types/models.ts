@@ -150,9 +150,32 @@ export interface Order {
   last_webhook_processed_at?: string | null;
   last_webhook_error?: string | null;
   agreement_delivery_blocked?: boolean;
+  agreement_number?: string | null;
+  generated_license_status?: string | null;
+  generated_license_downloaded_at?: string | null;
   schema_degraded?: boolean;
   activity_degraded?: boolean;
   degraded_messages?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GeneratedLicense {
+  id: string;
+  order_id: string;
+  buyer_id: string;
+  track_id: string;
+  license_type_id?: string | null;
+  agreement_number: string;
+  status: string;
+  terms_snapshot_json: Record<string, unknown>;
+  pdf_storage_path?: string | null;
+  pdf_content_type?: string | null;
+  pdf_size_bytes?: number | null;
+  html_snapshot?: string | null;
+  generation_error?: string | null;
+  generated_at: string;
+  downloaded_at?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -8,6 +8,40 @@ They route users through the branded interstitial page at:
 
 That page prevents one-time auth links from being consumed by email prefetching before the user intentionally clicks the final action.
 
+## Dashboard setup before pasting templates
+
+Supabase Dashboard -> **Authentication -> URL Configuration**
+
+- **Site URL**
+  - `https://thesyncexchange.com`
+- **Additional Redirect URLs**
+  - `https://thesyncexchange.com/auth/confirm`
+  - `https://thesyncexchange.com/auth/email-action`
+  - `https://thesyncexchange.com/reset-password`
+  - `https://thesyncexchange.com/login`
+  - `http://127.0.0.1:3000/auth/confirm`
+  - `http://127.0.0.1:3000/auth/email-action`
+  - `http://127.0.0.1:3000/reset-password`
+  - `http://127.0.0.1:3000/login`
+
+Supabase Dashboard -> **Authentication -> Email -> SMTP Settings**
+
+- enable **Custom SMTP**
+- configure Resend:
+  - **Host:** `smtp.resend.com`
+  - **Port:** `465` or `587`
+  - **Username:** `resend`
+  - **Password:** your Resend API key
+  - **Sender Email:** `no-reply@thesyncexchange.com`
+  - **Sender Name:** `The Sync Exchange`
+
+Required external checks:
+
+- the Resend sending domain must be verified
+- SPF and DKIM must be green before launch
+- the sender email must live on the verified domain
+- test password reset and signup confirmation after these templates are saved
+
 ## Requirements
 
 Before using these templates:

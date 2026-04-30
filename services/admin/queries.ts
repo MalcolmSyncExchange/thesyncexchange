@@ -1,7 +1,8 @@
 import { adminFlags as demoFlags, demoUsers, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { hasAgreementBeenGenerated, hasSecureAgreementDelivery, isAgreementDeliveryBlocked } from "@/lib/orders";
+import { hasAgreementBeenGenerated } from "@/lib/orders";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
+import { listGeneratedLicensesByOrderIds } from "@/services/generated-licenses/server";
 import { withTrackAudioAccess } from "@/services/storage/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { isMissingColumnError, isMissingRelationError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -478,20 +479,41 @@ export async function getAdminOrders() {
     }
   }
 
+  const generatedLicensesByOrderId = await listGeneratedLicensesByOrderIds(
+    supabase,
+    orders.map((order: any) => order.id)
+  );
+
   return orders.map((order: any) => ({
     ...order,
     amount_paid: Number(order.amount_cents || 0) / 100,
     order_status: order.status,
-    agreement_generated: hasAgreementBeenGenerated(order),
-    agreement_ready: hasSecureAgreementDelivery(order),
-    agreement_delivery_blocked: isAgreementDeliveryBlocked(order),
-    schema_degraded: schemaDegraded,
+    agreement_generated:
+      generatedLicensesByOrderId.get(order.id)?.status === "generated" ? true : hasAgreementBeenGenerated(order),
+    agreement_ready: Boolean(
+      generatedLicensesByOrderId.get(order.id)?.status === "generated" &&
+        generatedLicensesByOrderId.get(order.id)?.pdf_storage_path &&
+        !generatedLicensesByOrderId.get(order.id)?.generation_error &&
+        !order.agreement_generation_error
+    ),
+    agreement_delivery_blocked: generatedLicensesByOrderId.get(order.id)
+      ? generatedLicensesByOrderId.get(order.id)?.status === "generated" &&
+        (!generatedLicensesByOrderId.get(order.id)?.pdf_storage_path ||
+          Boolean(generatedLicensesByOrderId.get(order.id)?.generation_error || order.agreement_generation_error))
+      : hasAgreementBeenGenerated(order),
+    agreement_number: generatedLicensesByOrderId.get(order.id)?.agreement_number || null,
+    generated_license_status: generatedLicensesByOrderId.get(order.id)?.status || null,
+    generated_license_downloaded_at: generatedLicensesByOrderId.get(order.id)?.downloaded_at || null,
+    schema_degraded: schemaDegraded || (hasAgreementBeenGenerated(order) && !generatedLicensesByOrderId.get(order.id)),
     activity_degraded: activityDegraded,
     degraded_messages: [
       ...(schemaDegraded ? ["Extended fulfillment metadata is unavailable until migration 0010 is applied."] : []),
       ...(activityDegraded ? ["Recent order activity is unavailable until order_activity_log is live."] : []),
       ...(order.agreement_generated_at && !order.agreement_path
         ? ["Agreement generation completed, but secure buyer delivery remains blocked until agreement_path metadata is available."]
+        : []),
+      ...(hasAgreementBeenGenerated(order) && !generatedLicensesByOrderId.get(order.id)
+        ? ["The structured generated license record is not available for this order yet. Re-run agreement generation after migration 0013 is applied."]
         : [])
     ],
     buyer_name: buyerNameById.get(order.buyer_user_id) || "Buyer",

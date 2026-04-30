@@ -118,7 +118,7 @@ test.describe.serial("marketplace happy path", () => {
             return "generation-error";
           }
 
-          if (await buyerReturnPage.getByRole("link", { name: /open agreement document/i }).count()) {
+          if (await buyerReturnPage.getByRole("link", { name: /download license agreement/i }).count()) {
             return "ready";
           }
 

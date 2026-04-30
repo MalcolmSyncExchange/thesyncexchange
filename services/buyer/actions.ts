@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
+import { assertStripeServerConfiguration } from "@/lib/server-env";
 import { generateAgreementPlaceholder } from "@/lib/license";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
@@ -47,8 +48,14 @@ export async function createOrderAction(formData: FormData) {
     redirect(agreement.agreementUrl + `?trackId=${encodeURIComponent(trackId)}&licenseTypeId=${encodeURIComponent(licenseTypeId)}`);
   }
 
-  if (!env.stripeSecretKey) {
-    redirect(`/buyer/checkout/${trackSlug}?error=Stripe%20is%20not%20configured%20for%20this%20environment.`);
+  try {
+    assertStripeServerConfiguration("Stripe checkout", { requireWebhook: true });
+  } catch (error) {
+    redirect(
+      `/buyer/checkout/${trackSlug}?error=${encodeURIComponent(
+        error instanceof Error ? error.message : "Stripe is not configured for this environment."
+      )}`
+    );
   }
 
   const supabase = createPrivilegedSupabaseClient();

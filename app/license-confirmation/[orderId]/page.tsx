@@ -8,7 +8,8 @@ import { OrderStatusBadge } from "@/components/shared/state-badges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { generateAgreementPlaceholder } from "@/lib/license";
-import { env, hasStripeEnv } from "@/lib/env";
+import { env } from "@/lib/env";
+import { hasStripeSecretEnv } from "@/lib/server-env";
 import { getOrderById } from "@/services/buyer/queries";
 import { syncOrderFromStripeSessionId } from "@/services/stripe/server";
 
@@ -27,7 +28,7 @@ export default async function LicenseConfirmationPage({
     order &&
     order.order_status === "pending" &&
     searchParams?.session_id &&
-    hasStripeEnv &&
+    hasStripeSecretEnv &&
     !env.demoMode
   ) {
     try {
@@ -49,6 +50,7 @@ export default async function LicenseConfirmationPage({
           summary: [
             `License: ${order.license_type?.name || "Pending selection"}`,
             `Status: ${order.order_status}`,
+            ...(order.agreement_number ? [`Agreement Number: ${order.agreement_number}`] : []),
             `Agreement URL: ${order.agreement_url || "Pending"}`
           ]
         }
@@ -84,10 +86,6 @@ export default async function LicenseConfirmationPage({
           {order?.order_status === "pending" ? (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
               Payment confirmation is still syncing. If this page stays pending after Stripe checkout, verify the Stripe webhook is forwarding to
-              {" "}
-              <span className="font-medium">/api/webhook</span>
-              {" "}
-              or
               {" "}
               <span className="font-medium">/api/webhooks/stripe</span>.
             </div>
@@ -147,7 +145,7 @@ export default async function LicenseConfirmationPage({
           </Button>
           {order?.agreement_ready && order?.agreement_url ? (
             <Button asChild variant="outline">
-              <Link href={order.agreement_url}>Open Agreement Document</Link>
+              <Link href={order.agreement_url}>Download License Agreement</Link>
             </Button>
           ) : null}
         </CardContent>

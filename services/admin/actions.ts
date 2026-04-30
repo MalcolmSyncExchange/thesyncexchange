@@ -6,6 +6,8 @@ import { cookies } from "next/headers";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { reportOperationalError } from "@/lib/monitoring";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
+import { selectUserProfileCompat } from "@/services/auth/user-profiles";
+import { loadGeneratedLicenseByOrderId } from "@/services/generated-licenses/server";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -24,7 +26,7 @@ export async function updateTrackStatusAction(formData: FormData) {
   const supabase = createPrivilegedSupabaseClient();
   const { data: trackContext } = await supabase.from("tracks").select("id, slug").eq("id", trackId).maybeSingle();
 
-  const actorId = await getAdminActorId();
+  const actorId = await requireAdminActorId();
   const updateResult = await supabase
     .from("tracks")
     .update({
@@ -66,6 +68,7 @@ export async function toggleTrackFeaturedAction(formData: FormData) {
   }
 
   const supabase = createPrivilegedSupabaseClient();
+  await requireAdminActorId();
 
   await supabase.from("tracks").update({ featured }).eq("id", trackId);
   await appendTrackAuditLog(supabase, trackId, "track_featured_toggled", { featured });
@@ -104,7 +107,7 @@ export async function createComplianceFlagAction(formData: FormData) {
   const flagType = String(formData.get("flagType") || "");
   const severity = String(formData.get("severity") || "medium");
   const notes = String(formData.get("notes") || "");
-  const actorId = await getAdminActorId();
+  const actorId = await requireAdminActorId();
 
   if (!trackId || !flagType || !notes || !actorId || !hasSupabaseEnv || env.demoMode) {
     return;
@@ -131,7 +134,7 @@ export async function createComplianceFlagAction(formData: FormData) {
 export async function addReviewNoteAction(formData: FormData) {
   const trackId = String(formData.get("trackId") || "");
   const note = String(formData.get("note") || "");
-  const actorId = await getAdminActorId();
+  const actorId = await requireAdminActorId();
 
   if (!trackId || !note || !actorId || !hasSupabaseEnv || env.demoMode) {
     return;
@@ -161,6 +164,7 @@ export async function updateOrderStatusAction(formData: FormData) {
   const supabase = createPrivilegedSupabaseClient();
   const now = new Date().toISOString();
   const order = await loadAdminOrderStatusSnapshot(supabase, orderId);
+  const actorId = await requireAdminActorId();
 
   if (!order) {
     return;
@@ -184,7 +188,7 @@ export async function updateOrderStatusAction(formData: FormData) {
 
   await appendOrderActivityLog(supabase, {
     orderId,
-    actorId: await getAdminActorId(),
+    actorId,
     source: "admin",
     eventType: "order_status_updated",
     message: `Admin manually updated the order status to ${status}.`,
@@ -203,6 +207,44 @@ export async function updateOrderStatusAction(formData: FormData) {
   }
 }
 
+export async function retryAgreementGenerationAction(formData: FormData) {
+  const orderId = String(formData.get("orderId") || "");
+
+  if (!orderId || !hasSupabaseEnv || env.demoMode) {
+    return;
+  }
+
+  const supabase = createPrivilegedSupabaseClient();
+  const actorId = await requireAdminActorId();
+  const order = await loadAdminOrderStatusSnapshot(supabase, orderId);
+  if (!order) {
+    throw new Error("Order not found.");
+  }
+
+  const existingGeneratedLicense = await loadGeneratedLicenseByOrderId(supabase, orderId);
+  await generateAgreementArtifactForOrder(orderId, { forceRegenerate: true });
+
+  await appendOrderActivityLog(supabase, {
+    orderId,
+    actorId,
+    source: "admin",
+    eventType: "agreement_generation_retried",
+    message: "Admin manually retried generated license agreement creation.",
+    metadata: {
+      existingAgreementNumber: existingGeneratedLicense?.agreement_number || null
+    }
+  }).catch(() => undefined);
+
+  if (order.track_id) {
+    await appendTrackAuditLog(supabase, order.track_id, "agreement_generation_retried", { orderId });
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/buyer/dashboard");
+  revalidatePath("/buyer/orders");
+  revalidatePath(`/license-confirmation/${orderId}`);
+}
+
 async function appendTrackAuditLog(
   supabase: AppSupabaseClient,
   trackId: string,
@@ -211,7 +253,7 @@ async function appendTrackAuditLog(
 ) {
   await supabase.from("track_audit_log").insert({
     track_id: trackId,
-    actor_id: await getAdminActorId(),
+    actor_id: await requireAdminActorId(),
     action,
     metadata: metadata as Json
   });
@@ -221,15 +263,30 @@ async function getAdminActorId() {
   if (!hasSupabaseEnv || env.demoMode) {
     const raw = cookies().get("sync-exchange-session")?.value;
     if (!raw) return null;
-    return JSON.parse(raw).id as string;
+    const user = JSON.parse(raw) as { id: string; role?: string | null };
+    return user.role === "admin" ? user.id : null;
   }
 
-  const { createServerSupabaseClient } = await import("@/services/supabase/server");
   const supabase = createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
-  return user?.id || null;
+  if (!user?.id) {
+    return null;
+  }
+
+  const profile = await selectUserProfileCompat(supabase, user.id);
+  const role = String(profile.data?.role || user.user_metadata?.role || "");
+  return role === "admin" ? user.id : null;
+}
+
+async function requireAdminActorId() {
+  const actorId = await getAdminActorId();
+  if (!actorId) {
+    throw new Error("Admin access is required for this action.");
+  }
+
+  return actorId;
 }
 
 async function loadAdminOrderStatusSnapshot(supabase: AppSupabaseClient, orderId: string) {

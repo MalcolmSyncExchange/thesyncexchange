@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 
 import { env } from "@/lib/env";
+import { assertStripeServerConfiguration, serverEnv } from "@/lib/server-env";
 import { appendOrderActivityLog, hasProcessedOrderDedupeKey } from "@/services/orders/activity";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
@@ -25,12 +26,12 @@ type StripeSyncOrderRow = Pick<
 >;
 
 export function getStripeServerClient() {
-  if (!env.stripeSecretKey) {
+  if (!serverEnv.stripeSecretKey) {
     return null;
   }
 
   if (!stripeClient) {
-    stripeClient = new Stripe(env.stripeSecretKey, {
+    stripeClient = new Stripe(serverEnv.stripeSecretKey, {
       apiVersion: "2024-06-20"
     });
   }
@@ -65,6 +66,7 @@ export async function createStripeCheckoutSession({
   trackId?: string;
   licenseTypeId?: string;
 }) {
+  assertStripeServerConfiguration("Stripe checkout", { requireWebhook: true });
   const stripe = getStripeServerClient();
   if (!stripe) {
     throw new Error("Stripe secret key is not configured.");
@@ -216,6 +218,7 @@ export async function syncOrderFromStripeSession({
 }
 
 export async function syncOrderFromStripeSessionId(orderId: string, sessionId: string) {
+  assertStripeServerConfiguration("Stripe order synchronization", { requireWebhook: true });
   const stripe = getStripeServerClient();
   if (!stripe) {
     return null;
@@ -227,6 +230,53 @@ export async function syncOrderFromStripeSessionId(orderId: string, sessionId: s
     throw new Error("Checkout session does not belong to the requested order.");
   }
   return syncOrderFromStripeSession({ orderId, session });
+}
+
+export async function markOrderCheckoutSessionPaymentFailed({
+  orderId,
+  session,
+  webhookEventId,
+  webhookEventType
+}: {
+  orderId: string;
+  session: Stripe.Checkout.Session;
+  webhookEventId?: string | null;
+  webhookEventType?: string | null;
+}) {
+  const supabase = createAdminSupabaseClient();
+  if (!supabase) {
+    return null;
+  }
+
+  if (webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId))) {
+    const { data: existingOrder } = await supabase.from("orders").select("id, status").eq("id", orderId).maybeSingle();
+    return existingOrder as Pick<Database["public"]["Tables"]["orders"]["Row"], "id" | "status"> | null;
+  }
+
+  const message = `Stripe reported that checkout session ${session.id} failed to complete payment.`;
+  const processedAt = new Date().toISOString();
+
+  await persistStripeWebhookFailure(supabase, orderId, {
+    last_webhook_event_id: webhookEventId || null,
+    last_webhook_event_type: webhookEventType || "checkout.session.async_payment_failed",
+    last_webhook_processed_at: processedAt,
+    last_webhook_error: message
+  });
+
+  await appendOrderActivityLog(supabase, {
+    orderId,
+    source: "stripe_webhook",
+    eventType: webhookEventType || "checkout.session.async_payment_failed",
+    message,
+    metadata: {
+      sessionId: session.id,
+      paymentStatus: session.payment_status
+    },
+    dedupeKey: webhookEventId || null
+  }).catch(() => undefined);
+
+  const { data } = await supabase.from("orders").select("id, status").eq("id", orderId).maybeSingle();
+  return data as Pick<Database["public"]["Tables"]["orders"]["Row"], "id" | "status"> | null;
 }
 
 export async function markOrderRefundedByPaymentIntent(

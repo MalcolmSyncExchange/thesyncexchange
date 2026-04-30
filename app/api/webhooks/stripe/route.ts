@@ -2,20 +2,35 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-import { env, hasStripeEnv } from "@/lib/env";
+import { assertStripeServerConfiguration, getServerEnvironmentDiagnostics, hasStripeWebhookEnv, serverEnv } from "@/lib/server-env";
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import {
   getStripeServerClient,
+  markOrderCheckoutSessionPaymentFailed,
   markOrderRefundedByPaymentIntent,
   syncOrderFromStripeSession
 } from "@/services/stripe/server";
 
 export async function POST(request: Request) {
-  if (!hasStripeEnv || !env.stripeWebhookSecret) {
+  if (!hasStripeWebhookEnv) {
     return NextResponse.json({
       received: false,
-      note: "Stripe webhook is inactive until STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are configured."
-    });
+      error: "Stripe webhook is inactive until STRIPE_SECRET_KEY, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY, and STRIPE_WEBHOOK_SECRET are configured."
+    }, { status: 503 });
+  }
+
+  try {
+    assertStripeServerConfiguration("Stripe webhook processing", { requireWebhook: true });
+  } catch (error) {
+    const diagnostics = getServerEnvironmentDiagnostics();
+    return NextResponse.json(
+      {
+        received: false,
+        error: error instanceof Error ? error.message : "Stripe webhook configuration is invalid.",
+        deploymentTarget: diagnostics.deploymentTarget
+      },
+      { status: 503 }
+    );
   }
 
   const stripe = getStripeServerClient();
@@ -32,7 +47,7 @@ export async function POST(request: Request) {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(payload, signature, env.stripeWebhookSecret);
+    event = stripe.webhooks.constructEvent(payload, signature, serverEnv.stripeWebhookSecret!);
   } catch (error) {
     console.warn("[stripe webhook] signature verification failed", error instanceof Error ? error.message : error);
     return NextResponse.json(
@@ -58,6 +73,27 @@ export async function POST(request: Request) {
 
         if (orderId) {
           await syncOrderFromStripeSession({
+            orderId,
+            session,
+            webhookEventId: event.id,
+            webhookEventType: event.type
+          });
+          revalidateBuyerOrderPaths(orderId);
+        }
+        break;
+      }
+      case "checkout.session.async_payment_failed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = session.client_reference_id || session.metadata?.orderId;
+
+        reportOperationalEvent("stripe_checkout_session_async_payment_failed", "Stripe reported an asynchronous payment failure.", {
+          sessionId: session.id,
+          orderId: orderId || null,
+          paymentStatus: session.payment_status
+        });
+
+        if (orderId) {
+          await markOrderCheckoutSessionPaymentFailed({
             orderId,
             session,
             webhookEventId: event.id,

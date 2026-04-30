@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { env, hasStripeEnv, hasSupabaseEnv } from "@/lib/env";
+import { env, hasSupabaseEnv } from "@/lib/env";
+import { assertStripeServerConfiguration } from "@/lib/server-env";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
@@ -79,8 +80,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This license option is no longer active for checkout." }, { status: 409 });
   }
 
-  if (!hasStripeEnv) {
-    return NextResponse.json({ error: "Stripe is not configured for this environment." }, { status: 503 });
+  try {
+    assertStripeServerConfiguration("Stripe checkout API", { requireWebhook: true });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Stripe is not configured for this environment."
+      },
+      { status: 503 }
+    );
   }
 
   const session = await createStripeCheckoutSession({

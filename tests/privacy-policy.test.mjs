@@ -15,8 +15,17 @@ test("/privacy route contains the production Privacy Policy heading and support 
   assert.match(source, /title:\s*"Privacy Policy \| The Sync Exchange"/);
   assert.match(source, /description:\s*"Learn how The Sync Exchange collects, uses, protects, and shares information across its music licensing marketplace\."/);
   assert.match(source, /<h1[^>]*>Privacy Policy<\/h1>/);
+  assert.match(source, /Last Updated: April 30, 2026/);
   assert.match(source, /Support@thesyncexchange\.com/);
   assert.match(source, /mailto:\$\{supportEmail\}/);
+});
+
+test("/privacy route does not contain the old placeholder copy", async () => {
+  const source = await readProjectFile("app/(marketing)/privacy/page.tsx");
+
+  assert.doesNotMatch(source, /launch copy is a navigable placeholder/i);
+  assert.doesNotMatch(source, /Back To Settings/);
+  assert.doesNotMatch(source, /The Sync Exchange uses account, catalog, checkout/);
 });
 
 test("global footer includes a Privacy Policy link to /privacy", async () => {

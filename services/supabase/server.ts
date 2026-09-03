@@ -14,10 +14,18 @@ export function createServerSupabaseClient(): AppSupabaseClient {
         return cookieStore.get(name)?.value;
       },
       set(name: string, value: string, options: Record<string, unknown>) {
-        cookieStore.set({ name, value, ...(options as object) });
+        try {
+          cookieStore.set({ name, value, ...(options as object) });
+        } catch {
+          // Server Components cannot mutate cookies; middleware/actions persist refreshed sessions.
+        }
       },
       remove(name: string, options: Record<string, unknown>) {
-        cookieStore.set({ name, value: "", ...(options as object) });
+        try {
+          cookieStore.set({ name, value: "", ...(options as object) });
+        } catch {
+          // Server Components cannot mutate cookies; middleware/actions persist refreshed sessions.
+        }
       }
     }
   }) as unknown as AppSupabaseClient;

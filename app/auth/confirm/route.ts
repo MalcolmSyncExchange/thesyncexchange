@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import {
+  AUTH_CODE_LINK_PKCE_MISSING_MESSAGE,
   RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE,
   RESET_PASSWORD_SESSION_MISSING_MESSAGE,
   buildCleanRecoverySuccessUrl,
@@ -148,14 +149,16 @@ export async function GET(request: Request) {
     });
 
     if (!exchangeCodeForSessionAttempted) {
-      reportOperationalEvent("auth_confirm_recovery_code_rejected", "Recovery code link rejected because no PKCE verifier was available.", {
+      reportOperationalEvent("auth_confirm_code_rejected", "Auth code link rejected because no PKCE verifier was available.", {
         type: type || null,
         nextPath,
         recoveryFlow,
         hasPkceVerifier,
         exchangeCodeForSessionAttempted: false
       });
-      return NextResponse.redirect(new URL(`/forgot-password?error=${encodeURIComponent(RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE)}`, requestUrl.origin));
+      const destination = recoveryFlow ? "/forgot-password" : "/login";
+      const safeMessage = recoveryFlow ? RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE : AUTH_CODE_LINK_PKCE_MISSING_MESSAGE;
+      return NextResponse.redirect(new URL(`${destination}?error=${encodeURIComponent(safeMessage)}`, requestUrl.origin));
     }
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { env } from "@/lib/env";
 
 type AuthEmailFlow = "signup" | "invite" | "magiclink" | "email_change" | "recovery" | "reauthentication";
+type TokenHashOtpType = "signup" | "invite" | "magiclink" | "email_change" | "recovery";
 
 const flowCopy: Record<
   AuthEmailFlow,
@@ -109,19 +110,61 @@ function resolveConfirmationUrl(rawConfirmationUrl?: string) {
   }
 }
 
+function parseTokenHashOtpType(rawType: string | undefined, flow: AuthEmailFlow): TokenHashOtpType | null {
+  if (rawType === "signup" || rawType === "invite" || rawType === "magiclink" || rawType === "email_change" || rawType === "recovery") {
+    return rawType;
+  }
+
+  if (flow === "signup" || flow === "invite" || flow === "magiclink" || flow === "email_change" || flow === "recovery") {
+    return flow;
+  }
+
+  return null;
+}
+
+function resolveSafeNextPath(rawNext: string | undefined, flow: AuthEmailFlow) {
+  if (rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")) {
+    return rawNext;
+  }
+
+  return flow === "recovery" ? "/reset-password" : "/onboarding";
+}
+
+function resolveTokenHashConfirmationUrl({
+  tokenHash,
+  type,
+  nextPath
+}: {
+  tokenHash?: string;
+  type: TokenHashOtpType | null;
+  nextPath: string;
+}) {
+  if (!tokenHash || !type) {
+    return null;
+  }
+
+  try {
+    const confirmationUrl = new URL("/auth/confirm", env.appUrl);
+    confirmationUrl.searchParams.set("token_hash", tokenHash);
+    confirmationUrl.searchParams.set("type", type);
+    confirmationUrl.searchParams.set("next", nextPath);
+    return confirmationUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
 function resolveDestinationLabel(confirmationUrl: string | null) {
   if (!confirmationUrl) {
     return "your next step in The Sync Exchange";
   }
 
   try {
-    const redirectTo = new URL(confirmationUrl).searchParams.get("redirect_to");
-    if (!redirectTo) {
-      return "your next step in The Sync Exchange";
-    }
-
-    const redirectUrl = new URL(redirectTo);
-    const nextPath = redirectUrl.searchParams.get("next") || redirectUrl.pathname;
+    const parsedConfirmationUrl = new URL(confirmationUrl);
+    const redirectTo = parsedConfirmationUrl.searchParams.get("redirect_to");
+    const nextPath = redirectTo
+      ? new URL(redirectTo).searchParams.get("next") || new URL(redirectTo).pathname
+      : parsedConfirmationUrl.searchParams.get("next") || parsedConfirmationUrl.pathname;
 
     if (nextPath.startsWith("/reset-password")) {
       return "the password reset flow";
@@ -157,11 +200,21 @@ export default function AuthEmailActionPage({
     confirmation_url?: string;
     email?: string;
     new_email?: string;
+    next?: string;
+    token_hash?: string;
+    type?: string;
   };
 }) {
   const flow = parseFlow(searchParams?.flow);
   const copy = flowCopy[flow];
-  const confirmationUrl = resolveConfirmationUrl(searchParams?.confirmation_url);
+  const tokenHashType = parseTokenHashOtpType(searchParams?.type, flow);
+  const nextPath = resolveSafeNextPath(searchParams?.next, flow);
+  const tokenHashConfirmationUrl = resolveTokenHashConfirmationUrl({
+    tokenHash: searchParams?.token_hash,
+    type: tokenHashType,
+    nextPath
+  });
+  const confirmationUrl = tokenHashConfirmationUrl || resolveConfirmationUrl(searchParams?.confirmation_url);
   const email = searchParams?.email || "";
   const newEmail = searchParams?.new_email || "";
   const destinationLabel = resolveDestinationLabel(confirmationUrl);

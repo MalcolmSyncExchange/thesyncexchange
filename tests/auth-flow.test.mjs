@@ -149,13 +149,23 @@ test("recovery code exchange is allowed only when the PKCE verifier exists", () 
   );
 });
 
-test("non-recovery auth code exchange remains enabled", () => {
+test("non-recovery auth code exchange requires a PKCE verifier", () => {
   assert.equal(
     shouldExchangeAuthCode({
       hasCode: true,
       hasTokenHash: false,
       isRecoveryFlow: false,
       hasPkceVerifier: false
+    }),
+    false
+  );
+
+  assert.equal(
+    shouldExchangeAuthCode({
+      hasCode: true,
+      hasTokenHash: false,
+      isRecoveryFlow: false,
+      hasPkceVerifier: true
     }),
     true
   );

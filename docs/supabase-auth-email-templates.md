@@ -61,8 +61,8 @@ These templates use Go template variables supported by Supabase Auth, including:
 - `{{ .NewEmail }}`
 - `{{ .SiteURL }}`
 
-They also use the Go template helper `urlquery` so the full confirmation URL can be safely embedded inside the interstitial-page link.
-For password recovery, use `{{ .TokenHash }}` instead of `{{ .ConfirmationURL }}` so the reset link works from any browser or device without depending on a PKCE verifier from the original request session.
+They also use the Go template helper `urlquery` for email addresses.
+For signup confirmation and password recovery, use `{{ .TokenHash }}` instead of `{{ .ConfirmationURL }}` so email links work from any browser or device without depending on a PKCE verifier from the original request session.
 
 ## Shared HTML shell
 
@@ -104,7 +104,7 @@ Confirm Your Email for The Sync Exchange
                 <table role="presentation" cellspacing="0" cellpadding="0" style="margin:28px 0 24px 0;">
                   <tr>
                     <td align="center" bgcolor="#16202a" style="border-radius:999px;">
-                      <a href="{{ .SiteURL }}/auth/email-action?flow=signup&confirmation_url={{ urlquery .ConfirmationURL }}&email={{ urlquery .Email }}" style="display:inline-block;padding:14px 24px;font-size:14px;font-weight:700;letter-spacing:0.02em;color:#f8fafc;text-decoration:none;">
+                      <a href="{{ .SiteURL }}/auth/email-action?flow=signup&token_hash={{ .TokenHash }}&type=signup&next=/onboarding&email={{ urlquery .Email }}" style="display:inline-block;padding:14px 24px;font-size:14px;font-weight:700;letter-spacing:0.02em;color:#f8fafc;text-decoration:none;">
                         Continue Securely
                       </a>
                     </td>

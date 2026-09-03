@@ -25,6 +25,8 @@ export const RESET_PASSWORD_SESSION_MISSING_MESSAGE =
   "Your password reset session is missing or expired. Request a new reset link and try again.";
 export const RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE =
   "This password reset link format cannot be completed securely. Request a new reset link and try again.";
+export const AUTH_CODE_LINK_PKCE_MISSING_MESSAGE =
+  "This verification link needs a browser session that is no longer available. Request a fresh verification email and use the latest link.";
 
 export function normalizeAuthEmail(value: unknown) {
   return String(value || "")
@@ -126,7 +128,6 @@ export function isRecoveryAuthFlow({
 export function shouldExchangeAuthCode({
   hasCode,
   hasTokenHash,
-  isRecoveryFlow,
   hasPkceVerifier
 }: {
   hasCode: boolean;
@@ -138,11 +139,7 @@ export function shouldExchangeAuthCode({
     return false;
   }
 
-  if (isRecoveryFlow) {
-    return hasPkceVerifier;
-  }
-
-  return true;
+  return hasPkceVerifier;
 }
 
 export function getAuthConfirmSuccessRedirectPath({

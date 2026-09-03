@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { BrandLogo } from "@/components/layout/brand-assets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -253,7 +251,7 @@ export default function AuthEmailActionPage({
             {confirmationUrl ? (
               <div className="space-y-3">
                 <Button asChild size="lg" className="w-full rounded-full">
-                  <Link href={confirmationUrl}>{copy.buttonLabel}</Link>
+                  <a href={confirmationUrl}>{copy.buttonLabel}</a>
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
                   You’ll continue into <span className="font-medium text-foreground">{destinationLabel}</span>.

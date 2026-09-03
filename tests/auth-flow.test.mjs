@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { resolveDemoMode } from "../lib/env.ts";
 import {
@@ -332,4 +333,12 @@ test("forgot password config errors are safe user-facing states", async () => {
     message: FORGOT_PASSWORD_UNAVAILABLE_MESSAGE,
     email: "buyertest@thesyncexchange.com"
   });
+});
+
+test("auth email-action does not prefetch one-time token hash confirmation links", () => {
+  const source = readFileSync(new URL("../app/auth/email-action/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /<a href=\{confirmationUrl\}>/);
+  assert.doesNotMatch(source, /next\/link/);
+  assert.doesNotMatch(source, /<Link href=\{confirmationUrl\}/);
 });

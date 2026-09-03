@@ -166,12 +166,25 @@ test("buyer settings auth guard requires a current Supabase user", () => {
     status: 401,
     error: "Unauthorized."
   });
-  assert.deepEqual(assertAuthenticatedBuyerSettingsUser({ id: "user_123", email: "buyer@example.com" }), {
+  assert.deepEqual(assertAuthenticatedBuyerSettingsUser({ id: "user_123", email: "buyer@example.com" }, "buyer"), {
     ok: true,
     user: {
       id: "user_123",
       email: "buyer@example.com"
     }
+  });
+});
+
+test("buyer settings auth guard rejects non-buyer roles", () => {
+  assert.deepEqual(assertAuthenticatedBuyerSettingsUser({ id: "artist_123", email: "artist@example.com" }, "artist"), {
+    ok: false,
+    status: 403,
+    error: "Buyer account access is required."
+  });
+  assert.deepEqual(assertAuthenticatedBuyerSettingsUser({ id: "admin_123", email: "admin@example.com" }, "admin"), {
+    ok: false,
+    status: 403,
+    error: "Buyer account access is required."
   });
 });
 

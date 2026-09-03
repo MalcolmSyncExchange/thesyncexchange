@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
-import { buildBuyerProfileUpdate, validateBuyerSettings } from "@/services/buyer/settings";
+import { assertAuthenticatedBuyerSettingsUser, buildBuyerProfileUpdate, validateBuyerSettings } from "@/services/buyer/settings";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
 export async function PATCH(request: Request) {
@@ -12,6 +12,13 @@ export async function PATCH(request: Request) {
 
   if (!user?.id) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const { data: userProfile } = await supabase.from("user_profiles").select("role").eq("id", user.id).maybeSingle();
+  const auth = assertAuthenticatedBuyerSettingsUser(user, userProfile?.role || null);
+
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   const body = (await request.json().catch(() => null)) as { companyName?: string; billingEmail?: string } | null;

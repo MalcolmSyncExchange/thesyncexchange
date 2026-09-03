@@ -11,7 +11,10 @@ export async function POST() {
   const {
     data: { user }
   } = await authSupabase.auth.getUser();
-  const auth = assertAuthenticatedBuyerSettingsUser(user);
+  const { data: userProfile } = user?.id
+    ? await authSupabase.from("user_profiles").select("role").eq("id", user.id).maybeSingle()
+    : { data: null };
+  const auth = assertAuthenticatedBuyerSettingsUser(user, userProfile?.role || null);
 
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

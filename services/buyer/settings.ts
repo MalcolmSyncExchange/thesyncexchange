@@ -28,6 +28,8 @@ export type BuyerTeamInviteInput = {
 export type BuyerSettingsAuthUser = {
   id?: string | null;
   email?: string | null;
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
 };
 
 export const MIN_ACCOUNT_PASSWORD_LENGTH = 8;
@@ -160,12 +162,24 @@ export function buildGlobalSignOutOptions() {
   };
 }
 
-export function assertAuthenticatedBuyerSettingsUser(user: BuyerSettingsAuthUser | null | undefined) {
+export function assertAuthenticatedBuyerSettingsUser(
+  user: BuyerSettingsAuthUser | null | undefined,
+  persistedRole?: string | null
+) {
   if (!user?.id) {
     return {
       ok: false as const,
       status: 401,
       error: "Unauthorized."
+    };
+  }
+
+  const role = String(persistedRole || user.app_metadata?.role || user.user_metadata?.role || "");
+  if (role !== "buyer") {
+    return {
+      ok: false as const,
+      status: 403,
+      error: "Buyer account access is required."
     };
   }
 

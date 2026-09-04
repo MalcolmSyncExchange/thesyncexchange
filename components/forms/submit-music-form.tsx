@@ -3,19 +3,27 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { BaseSyntheticEvent, InputHTMLAttributes, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import type { FieldError, FieldErrorsImpl, Merge } from "react-hook-form";
-import { useFieldArray, useForm } from "react-hook-form";
+import type { FieldError, FieldErrors, FieldErrorsImpl, Merge } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { env } from "@/lib/env";
 import type { StorageAssetRef } from "@/lib/storage";
 import {
   assetRules,
+  rightsHolderRoleValues,
   trackSubmissionClientSchema,
   type TrackSubmissionValues,
   validateAssetFile
@@ -54,6 +62,14 @@ const defaultValues: TrackSubmissionValues = {
 
 const submitTrackInitialState: SubmitTrackState = {
   success: false
+};
+
+const rightsHolderRoleLabels: Record<(typeof rightsHolderRoleValues)[number], string> = {
+  writer: "Writer",
+  producer: "Producer",
+  publisher: "Publisher",
+  owner: "Master Owner",
+  other: "Other"
 };
 
 export function SubmitMusicForm({
@@ -134,6 +150,14 @@ export function SubmitMusicForm({
       }
     }
   }, [reset, router, state.redirectTo, state.success, track]);
+
+  const onInvalidSubmit = (formErrors: FieldErrors<TrackSubmissionValues>) => {
+    const firstError = findFirstFormErrorMessage(formErrors);
+    setState({
+      success: false,
+      message: firstError || "Please correct the highlighted fields before publishing."
+    });
+  };
 
   const onValidSubmit = (values: TrackSubmissionValues, event?: BaseSyntheticEvent) => {
     const submitter =
@@ -259,7 +283,7 @@ export function SubmitMusicForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onValidSubmit)} className="space-y-6" data-testid="track-submit-form">
+    <form onSubmit={handleSubmit(onValidSubmit, onInvalidSubmit)} className="space-y-6" data-testid="track-submit-form">
       <input type="hidden" {...register("saveMode")} value={submitMode} readOnly />
 
       {state.message ? (
@@ -368,6 +392,15 @@ export function SubmitMusicForm({
             <ToggleField label="Instrumental" {...register("instrumental")} />
             <ToggleField label="Vocals" {...register("vocals")} />
             <ToggleField label="Explicit" {...register("explicit")} />
+            <div className="sm:col-span-3">
+              <FieldError
+                message={
+                  getErrorMessage(errors.instrumental) ||
+                  getErrorMessage(errors.vocals) ||
+                  getErrorMessage(errors.explicit)
+                }
+              />
+            </div>
           </div>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground md:col-span-2">
             Cover art, preview audio, and waveform assets resolve from dedicated discovery-safe buckets. Source audio is stored privately and surfaced only through signed access for artist and admin workflows.
@@ -412,7 +445,24 @@ export function SubmitMusicForm({
                 <Input type="email" {...register(`rightsHolders.${index}.email`)} />
               </Field>
               <Field label="Role" error={getErrorMessage(rightsHolderErrors[index]?.roleType)}>
-                <Input {...register(`rightsHolders.${index}.roleType`)} />
+                <Controller
+                  control={control}
+                  name={`rightsHolders.${index}.roleType`}
+                  render={({ field: roleField }) => (
+                    <Select value={roleField.value} onValueChange={roleField.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rightsHolderRoleValues.map((roleValue) => (
+                          <SelectItem key={roleValue} value={roleValue}>
+                            {rightsHolderRoleLabels[roleValue]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </Field>
               <Field label="Ownership %" error={getErrorMessage(rightsHolderErrors[index]?.ownershipPercent)}>
                 <Input type="number" {...register(`rightsHolders.${index}.ownershipPercent`, { valueAsNumber: true })} />
@@ -537,6 +587,31 @@ function getErrorMessage(
 
   if ("message" in error && typeof error.message === "string") {
     return error.message;
+  }
+
+  return undefined;
+}
+
+function findFirstFormErrorMessage(errors: FieldErrors<TrackSubmissionValues>): string | undefined {
+  for (const error of Object.values(errors)) {
+    const directMessage = getErrorMessage(error as FieldError | Merge<FieldError, FieldErrorsImpl<Record<string, never>>>);
+    if (directMessage) {
+      return directMessage;
+    }
+
+    if (Array.isArray(error)) {
+      for (const nestedError of error) {
+        const nestedMessage = findFirstFormErrorMessage(nestedError as FieldErrors<TrackSubmissionValues>);
+        if (nestedMessage) {
+          return nestedMessage;
+        }
+      }
+    } else if (error && typeof error === "object") {
+      const nestedMessage = findFirstFormErrorMessage(error as FieldErrors<TrackSubmissionValues>);
+      if (nestedMessage) {
+        return nestedMessage;
+      }
+    }
   }
 
   return undefined;

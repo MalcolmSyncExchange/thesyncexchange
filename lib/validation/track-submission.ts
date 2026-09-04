@@ -3,6 +3,7 @@ import { z } from "zod";
 const acceptedArtworkExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 const acceptedAudioExtensions = [".mp3", ".wav", ".aiff", ".flac"];
 const acceptedWaveformExtensions = [".json", ".png", ".jpg", ".jpeg", ".webp"];
+export const rightsHolderRoleValues = ["writer", "producer", "publisher", "owner", "other"] as const;
 
 function hasAllowedAssetExtension(value: string, allowedExtensions: string[]) {
   if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
@@ -39,7 +40,9 @@ export const assetRules = {
 export const rightsHolderSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email required"),
-  roleType: z.string().min(1, "Role type is required"),
+  roleType: z.enum(rightsHolderRoleValues, {
+    errorMap: () => ({ message: "Choose a valid rights holder role." })
+  }),
   ownershipPercent: z.coerce.number().min(0).max(100)
 });
 

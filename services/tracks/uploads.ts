@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  getPublicStorageUrl,
   type StorageAssetRef,
   type TrackAssetKind
 } from "@/lib/storage";
+import { createBrowserSupabaseClient } from "@/services/supabase/client";
 
 export interface UploadedAsset extends StorageAssetRef {
   publicUrl: string | null;
@@ -18,26 +20,52 @@ export async function uploadTrackAsset({
   kind: TrackAssetKind;
   scope: string;
 }): Promise<UploadedAsset> {
-  const formData = new FormData();
-  formData.set("file", file);
-  formData.set("kind", kind);
-  formData.set("scope", scope);
-
-  const response = await fetch("/api/storage/upload", {
+  const signedUploadResponse = await fetch("/api/storage/upload-url", {
     method: "POST",
-    body: formData
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      kind,
+      scope,
+      fileName: file.name,
+      fileSize: file.size,
+      contentType: file.type || null
+    })
   });
-  const payload = (await response.json().catch(() => null)) as UploadedAsset | { error?: string } | null;
+  const signedUpload = (await signedUploadResponse.json().catch(() => null)) as
+    | (UploadedAsset & { token?: string })
+    | { error?: string }
+    | null;
 
-  if (!response.ok) {
-    throw new Error(payload && "error" in payload && payload.error ? payload.error : "Unable to upload asset.");
+  if (!signedUploadResponse.ok) {
+    throw new Error(
+      signedUpload && "error" in signedUpload && signedUpload.error
+        ? signedUpload.error
+        : "Unable to prepare asset upload."
+    );
   }
 
-  if (!payload || !("bucket" in payload) || !("path" in payload)) {
-    throw new Error("Upload response was incomplete.");
+  if (!signedUpload || !("bucket" in signedUpload) || !("path" in signedUpload) || !signedUpload.token) {
+    throw new Error("Upload preparation response was incomplete.");
   }
 
-  return payload;
+  const supabase = createBrowserSupabaseClient();
+  const { error } = await supabase.storage
+    .from(signedUpload.bucket)
+    .uploadToSignedUrl(signedUpload.path, signedUpload.token, file, {
+      contentType: file.type || undefined
+    });
+
+  if (error) {
+    throw new Error(error.message || "Unable to upload asset.");
+  }
+
+  return {
+    bucket: signedUpload.bucket,
+    path: signedUpload.path,
+    publicUrl: signedUpload.publicUrl || getPublicStorageUrl(signedUpload.bucket, signedUpload.path)
+  };
 }
 
 export async function deleteTrackAssets(assets: StorageAssetRef[]) {

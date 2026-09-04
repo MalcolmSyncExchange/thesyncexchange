@@ -31,12 +31,34 @@ export function assertStorageUploadFile(kind: StorageAssetKind, file: File | nul
     throw new Error(`${rule.label} is required.`);
   }
 
-  const lowerName = file.name.toLowerCase();
+  assertStorageUploadMetadata({
+    kind,
+    fileName: file.name,
+    fileSize: file.size
+  });
+}
+
+export function assertStorageUploadMetadata({
+  kind,
+  fileName,
+  fileSize
+}: {
+  kind: StorageAssetKind;
+  fileName: string;
+  fileSize: number;
+}) {
+  const rule = storageUploadRules[kind];
+  const lowerName = fileName.toLowerCase();
+
+  if (!lowerName) {
+    throw new Error(`${rule.label} file name is required.`);
+  }
+
   if (!rule.allowedExtensions.some((extension) => lowerName.endsWith(extension))) {
     throw new Error(`${rule.label} must use one of: ${rule.allowedExtensions.join(", ")}.`);
   }
 
-  if (file.size > rule.maxSizeBytes) {
+  if (fileSize > rule.maxSizeBytes) {
     throw new Error(`${rule.label} must be under ${Math.round(rule.maxSizeBytes / (1024 * 1024))}MB.`);
   }
 }

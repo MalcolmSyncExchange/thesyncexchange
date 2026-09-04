@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   rightsHolderRoleValues,
@@ -58,4 +59,15 @@ test("rights holder roles match the production database constraint", () => {
 
   assert.equal(result.success, false);
   assert.equal(result.error.issues[0].message, "Choose a valid rights holder role.");
+});
+
+test("track asset uploads use signed Supabase URLs instead of proxying files through app functions", () => {
+  const uploadHelperSource = readFileSync(new URL("../services/tracks/uploads.ts", import.meta.url), "utf8");
+  const signedUploadRouteSource = readFileSync(new URL("../app/api/storage/upload-url/route.ts", import.meta.url), "utf8");
+
+  assert.ok(uploadHelperSource.includes("/api/storage/upload-url"));
+  assert.ok(uploadHelperSource.includes("uploadToSignedUrl"));
+  assert.ok(!uploadHelperSource.includes('/api/storage/upload"'));
+  assert.ok(signedUploadRouteSource.includes("createSignedUploadUrl"));
+  assert.ok(signedUploadRouteSource.includes("Only artist or admin accounts can upload track assets"));
 });

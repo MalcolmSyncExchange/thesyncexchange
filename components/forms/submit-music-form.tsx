@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { BaseSyntheticEvent, InputHTMLAttributes, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { FieldError, FieldErrors, FieldErrorsImpl, Merge } from "react-hook-form";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
@@ -559,15 +559,18 @@ function Field({
   );
 }
 
-function ToggleField(props: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+const ToggleField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { label: string }>(function ToggleField(
+  props,
+  ref
+) {
   const { label, ...inputProps } = props;
   return (
     <label className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3 text-sm">
       <span>{label}</span>
-      <input type="checkbox" className="h-4 w-4 rounded border-border" {...inputProps} />
+      <input ref={ref} type="checkbox" className="h-4 w-4 rounded border-border" {...inputProps} />
     </label>
   );
-}
+});
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;

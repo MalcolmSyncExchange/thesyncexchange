@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { BaseSyntheticEvent, InputHTMLAttributes, ReactNode, RefObject } from "react";
+import type { BaseSyntheticEvent, FormEvent, InputHTMLAttributes, ReactNode, RefObject } from "react";
 import { forwardRef, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { FieldError, FieldErrors, FieldErrorsImpl, Merge } from "react-hook-form";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
@@ -72,15 +72,68 @@ const rightsHolderRoleLabels: Record<(typeof rightsHolderRoleValues)[number], st
   other: "Other"
 };
 
+interface SubmitDiagnostics {
+  mounted: boolean;
+  buttonClicks: number;
+  nativeSubmits: number;
+  validSubmits: number;
+  invalidSubmits: number;
+  assetValidations: number;
+  coverArt: boolean;
+  audioFile: boolean;
+  previewFile: boolean;
+  waveformFile: boolean;
+  lastStep: string;
+  formErrors: string;
+  buttonState: {
+    insideForm: boolean;
+    disabled: boolean;
+    type: string;
+    value: string;
+    pointerEvents: string;
+    coveredBy: string;
+    nestedForms: number;
+  };
+}
+
+type SubmitDiagnosticsPatch = Partial<SubmitDiagnostics> | ((current: SubmitDiagnostics) => Partial<SubmitDiagnostics>);
+
+const initialSubmitDiagnostics: SubmitDiagnostics = {
+  mounted: false,
+  buttonClicks: 0,
+  nativeSubmits: 0,
+  validSubmits: 0,
+  invalidSubmits: 0,
+  assetValidations: 0,
+  coverArt: false,
+  audioFile: false,
+  previewFile: false,
+  waveformFile: false,
+  lastStep: "server-rendered",
+  formErrors: "{}",
+  buttonState: {
+    insideForm: false,
+    disabled: false,
+    type: "",
+    value: "",
+    pointerEvents: "",
+    coveredBy: "",
+    nestedForms: 0
+  }
+};
+
 export function SubmitMusicForm({
   mode = "create",
-  track
+  track,
+  submitDebugEnabled = false
 }: {
   mode?: "create" | "edit";
   track?: Track;
+  submitDebugEnabled?: boolean;
 }) {
   const router = useRouter();
   const [state, setState] = useState<SubmitTrackState>(submitTrackInitialState);
+  const [diagnostics, setDiagnostics] = useState<SubmitDiagnostics>(initialSubmitDiagnostics);
   const [submitMode, setSubmitMode] = useState<"draft" | "publish">("draft");
   const [assetErrors, setAssetErrors] = useState<Record<string, string>>({});
   const [assetNames, setAssetNames] = useState<{ coverArt?: string; audioFile?: string; previewFile?: string; waveformFile?: string }>({});
@@ -109,6 +162,32 @@ export function SubmitMusicForm({
   );
   const rightsHolderErrors = Array.isArray(errors.rightsHolders) ? errors.rightsHolders : [];
   const rightsHolderRootError = Array.isArray(errors.rightsHolders) ? undefined : getErrorMessage(errors.rightsHolders);
+
+  const updateDiagnostics = (lastStep: string, patch: SubmitDiagnosticsPatch = {}) => {
+    if (!submitDebugEnabled) {
+      return;
+    }
+
+    setDiagnostics((current) => {
+      const nextPatch = typeof patch === "function" ? patch(current) : patch;
+
+      return {
+        ...current,
+        ...nextPatch,
+        lastStep,
+        formErrors: nextPatch.formErrors ?? serializeFormErrors(errors),
+        buttonState: inspectPublishButtonState()
+      };
+    });
+  };
+
+  useEffect(() => {
+    updateDiagnostics("FORM MOUNTED", {
+      mounted: true
+    });
+    // This effect intentionally runs once to prove production hydration.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!state.errors) {
@@ -153,6 +232,10 @@ export function SubmitMusicForm({
 
   const onInvalidSubmit = (formErrors: FieldErrors<TrackSubmissionValues>) => {
     const firstError = findFirstFormErrorMessage(formErrors);
+    updateDiagnostics("onInvalidSubmit", (current) => ({
+      invalidSubmits: current.invalidSubmits + 1,
+      formErrors: serializeFormErrors(formErrors)
+    }));
     setState({
       success: false,
       message: firstError || "Please correct the highlighted fields before publishing."
@@ -160,6 +243,9 @@ export function SubmitMusicForm({
   };
 
   const onValidSubmit = (values: TrackSubmissionValues, event?: BaseSyntheticEvent) => {
+    updateDiagnostics("onValidSubmit", (current) => ({
+      validSubmits: current.validSubmits + 1
+    }));
     const submitter =
       event?.nativeEvent && "submitter" in event.nativeEvent
         ? (event.nativeEvent.submitter as HTMLButtonElement | null)
@@ -170,6 +256,12 @@ export function SubmitMusicForm({
     const audioFile = audioInputRef.current?.files?.[0];
     const previewFile = previewInputRef.current?.files?.[0];
     const waveformFile = waveformInputRef.current?.files?.[0];
+    const assetPresence = {
+      coverArt: Boolean(coverArtFile),
+      audioFile: Boolean(audioFile),
+      previewFile: Boolean(previewFile),
+      waveformFile: Boolean(waveformFile)
+    };
 
     const nextAssetErrors: Record<string, string> = {};
     const coverArtError = validateAssetFile(coverArtFile, assetRules.coverArt, mode === "create" && !track?.cover_art_path && !track?.cover_art_url);
@@ -185,6 +277,10 @@ export function SubmitMusicForm({
     if (audioFileError) nextAssetErrors.audioFile = audioFileError;
     if (previewFileError) nextAssetErrors.previewFile = previewFileError;
     if (waveformFileError) nextAssetErrors.waveformFile = waveformFileError;
+    updateDiagnostics("asset validation", (current) => ({
+      assetValidations: current.assetValidations + 1,
+      ...assetPresence
+    }));
 
     setAssetErrors(nextAssetErrors);
     if (Object.keys(nextAssetErrors).length > 0) {
@@ -293,8 +389,15 @@ export function SubmitMusicForm({
     });
   };
 
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    updateDiagnostics("form onSubmit", (current) => ({
+      nativeSubmits: current.nativeSubmits + 1
+    }));
+    void handleSubmit(onValidSubmit, onInvalidSubmit)(event);
+  };
+
   return (
-    <form onSubmit={handleSubmit(onValidSubmit, onInvalidSubmit)} className="space-y-6" data-testid="track-submit-form">
+    <form onSubmit={handleFormSubmit} className="space-y-6" data-testid="track-submit-form">
       <input type="hidden" {...register("saveMode")} value={submitMode} readOnly />
 
       {state.message ? (
@@ -512,10 +615,16 @@ export function SubmitMusicForm({
           value="publish"
           disabled={isPending}
           data-testid="track-publish-submit"
+          onClick={() => {
+            updateDiagnostics("button onClick", (current) => ({
+              buttonClicks: current.buttonClicks + 1
+            }));
+          }}
         >
           {isPending && submitMode === "publish" ? "Submitting..." : "Publish for Review"}
         </Button>
       </div>
+      {submitDebugEnabled ? <SubmitDiagnosticPanel diagnostics={diagnostics} /> : null}
     </form>
   );
 }
@@ -643,6 +752,109 @@ function focusFirstAssetError(
   const input = refs[firstAssetKey]?.current;
   input?.scrollIntoView({ block: "center", behavior: "smooth" });
   input?.focus();
+}
+
+function serializeFormErrors(errors: FieldErrors<TrackSubmissionValues>): string {
+  const flattened: Record<string, string> = {};
+
+  const visit = (value: unknown, path: string[]) => {
+    if (!value || typeof value !== "object") {
+      return;
+    }
+
+    const message = getErrorMessage(value as FieldError | Merge<FieldError, FieldErrorsImpl<Record<string, never>>>);
+    if (message) {
+      flattened[path.join(".") || "form"] = message;
+      return;
+    }
+
+    Object.entries(value as Record<string, unknown>).forEach(([key, nestedValue]) => {
+      if (key === "ref") {
+        return;
+      }
+
+      visit(nestedValue, [...path, key]);
+    });
+  };
+
+  visit(errors, []);
+  return JSON.stringify(flattened);
+}
+
+function inspectPublishButtonState(): SubmitDiagnostics["buttonState"] {
+  if (typeof document === "undefined") {
+    return initialSubmitDiagnostics.buttonState;
+  }
+
+  const button = document.querySelector<HTMLButtonElement>('[data-testid="track-publish-submit"]');
+  const form = document.querySelector<HTMLFormElement>('[data-testid="track-submit-form"]');
+
+  if (!button) {
+    return {
+      ...initialSubmitDiagnostics.buttonState,
+      coveredBy: "button-not-found",
+      nestedForms: form?.querySelectorAll("form").length ?? 0
+    };
+  }
+
+  const style = window.getComputedStyle(button);
+  const rect = button.getBoundingClientRect();
+  const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) as HTMLElement | null;
+  const targetLabel = target
+    ? `${target.tagName.toLowerCase()}${target.dataset.testid ? `[data-testid="${target.dataset.testid}"]` : ""}`
+    : "none";
+
+  return {
+    insideForm: Boolean(form && form.contains(button)),
+    disabled: button.disabled,
+    type: button.type,
+    value: button.value,
+    pointerEvents: style.pointerEvents,
+    coveredBy: targetLabel,
+    nestedForms: form?.querySelectorAll("form").length ?? 0
+  };
+}
+
+function SubmitDiagnosticPanel({ diagnostics }: { diagnostics: SubmitDiagnostics }) {
+  const rows = [
+    ["marker", "SYNC_SUBMIT_DIAGNOSTIC_V1"],
+    ["mounted", diagnostics.mounted ? "true" : "false"],
+    ["buttonClicks", String(diagnostics.buttonClicks)],
+    ["nativeSubmits", String(diagnostics.nativeSubmits)],
+    ["validSubmits", String(diagnostics.validSubmits)],
+    ["invalidSubmits", String(diagnostics.invalidSubmits)],
+    ["assetValidations", String(diagnostics.assetValidations)],
+    ["coverArt", String(diagnostics.coverArt)],
+    ["audioFile", String(diagnostics.audioFile)],
+    ["previewFile", String(diagnostics.previewFile)],
+    ["waveformFile", String(diagnostics.waveformFile)],
+    ["lastStep", diagnostics.lastStep],
+    ["insideForm", String(diagnostics.buttonState.insideForm)],
+    ["buttonDisabled", String(diagnostics.buttonState.disabled)],
+    ["buttonType", diagnostics.buttonState.type],
+    ["buttonValue", diagnostics.buttonState.value],
+    ["pointerEvents", diagnostics.buttonState.pointerEvents],
+    ["coveredBy", diagnostics.buttonState.coveredBy],
+    ["nestedForms", String(diagnostics.buttonState.nestedForms)],
+    ["formState.errors", diagnostics.formErrors]
+  ];
+
+  return (
+    <aside
+      data-testid="submit-debug-panel"
+      className="fixed inset-x-3 bottom-3 z-50 max-h-[45vh] overflow-auto rounded-lg border border-amber-500/40 bg-background/95 p-3 text-xs shadow-xl backdrop-blur"
+    >
+      <div className="mb-2 font-semibold text-amber-700 dark:text-amber-300">Temporary Artist Submit Diagnostics</div>
+      <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-1">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="break-all font-mono text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </aside>
+  );
 }
 
 function Banner({ success, message }: { success: boolean; message: string }) {

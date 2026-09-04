@@ -148,7 +148,7 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
       message: parsed.saveMode === "publish" ? "Track submitted for review." : "Draft saved successfully.",
       trackId: track.id,
       trackStatus: status,
-      redirectTo: `/artist/tracks/${slug}`
+      redirectTo: "/artist/catalog"
     };
   } catch (error) {
     await cleanupUploadedAssets(uploadedAssets).catch(() => undefined);

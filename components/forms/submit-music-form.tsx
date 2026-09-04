@@ -79,6 +79,13 @@ interface SubmitDiagnostics {
   validSubmits: number;
   invalidSubmits: number;
   assetValidations: number;
+  assetValidationDetails: string;
+  nextAssetErrors: string;
+  nextAssetErrorKeys: string;
+  firstAssetError: string;
+  assetErrorBranchEntered: boolean;
+  afterAssetErrorBranch: boolean;
+  uploadStarted: boolean;
   coverArt: boolean;
   audioFile: boolean;
   previewFile: boolean;
@@ -105,6 +112,13 @@ const initialSubmitDiagnostics: SubmitDiagnostics = {
   validSubmits: 0,
   invalidSubmits: 0,
   assetValidations: 0,
+  assetValidationDetails: "{}",
+  nextAssetErrors: "{}",
+  nextAssetErrorKeys: "[]",
+  firstAssetError: "",
+  assetErrorBranchEntered: false,
+  afterAssetErrorBranch: false,
+  uploadStarted: false,
   coverArt: false,
   audioFile: false,
   previewFile: false,
@@ -262,6 +276,15 @@ export function SubmitMusicForm({
       previewFile: Boolean(previewFile),
       waveformFile: Boolean(waveformFile)
     };
+    updateDiagnostics("asset validation start", {
+      ...assetPresence,
+      assetValidationDetails: serializeAssetValidationDetails({
+        coverArt: { file: coverArtFile, rule: assetRules.coverArt, required: mode === "create" && !track?.cover_art_path && !track?.cover_art_url },
+        audioFile: { file: audioFile, rule: assetRules.audioFile, required: mode === "create" && !track?.audio_file_path && !track?.audio_file_url },
+        previewFile: { file: previewFile, rule: assetRules.previewFile, required: nextSubmitMode === "publish" && !track?.preview_file_path },
+        waveformFile: { file: waveformFile, rule: assetRules.waveformFile, required: false }
+      })
+    });
 
     const nextAssetErrors: Record<string, string> = {};
     const coverArtError = validateAssetFile(coverArtFile, assetRules.coverArt, mode === "create" && !track?.cover_art_path && !track?.cover_art_url);
@@ -277,14 +300,35 @@ export function SubmitMusicForm({
     if (audioFileError) nextAssetErrors.audioFile = audioFileError;
     if (previewFileError) nextAssetErrors.previewFile = previewFileError;
     if (waveformFileError) nextAssetErrors.waveformFile = waveformFileError;
-    updateDiagnostics("asset validation", (current) => ({
+    const nextAssetErrorKeys = Object.keys(nextAssetErrors);
+    const firstAssetError = Object.values(nextAssetErrors).find(Boolean) || "";
+    updateDiagnostics("asset validation complete", (current) => ({
       assetValidations: current.assetValidations + 1,
-      ...assetPresence
+      ...assetPresence,
+      assetValidationDetails: serializeAssetValidationDetails({
+        coverArt: { file: coverArtFile, rule: assetRules.coverArt, required: mode === "create" && !track?.cover_art_path && !track?.cover_art_url, validationError: coverArtError },
+        audioFile: { file: audioFile, rule: assetRules.audioFile, required: mode === "create" && !track?.audio_file_path && !track?.audio_file_url, validationError: audioFileError },
+        previewFile: { file: previewFile, rule: assetRules.previewFile, required: nextSubmitMode === "publish" && !track?.preview_file_path, validationError: previewFileError },
+        waveformFile: { file: waveformFile, rule: assetRules.waveformFile, required: false, validationError: waveformFileError }
+      }),
+      nextAssetErrors: JSON.stringify(nextAssetErrors),
+      nextAssetErrorKeys: JSON.stringify(nextAssetErrorKeys),
+      firstAssetError,
+      assetErrorBranchEntered: false,
+      afterAssetErrorBranch: false,
+      uploadStarted: false
     }));
 
     setAssetErrors(nextAssetErrors);
-    if (Object.keys(nextAssetErrors).length > 0) {
-      const firstAssetError = Object.values(nextAssetErrors).find(Boolean);
+    if (nextAssetErrorKeys.length > 0) {
+      updateDiagnostics("asset validation blocked", {
+        nextAssetErrors: JSON.stringify(nextAssetErrors),
+        nextAssetErrorKeys: JSON.stringify(nextAssetErrorKeys),
+        firstAssetError,
+        assetErrorBranchEntered: true,
+        afterAssetErrorBranch: false,
+        uploadStarted: false
+      });
       setState({
         success: false,
         message: firstAssetError || "Please attach the required files before publishing."
@@ -297,6 +341,14 @@ export function SubmitMusicForm({
       });
       return;
     }
+    updateDiagnostics("starting uploads", {
+      nextAssetErrors: JSON.stringify(nextAssetErrors),
+      nextAssetErrorKeys: JSON.stringify(nextAssetErrorKeys),
+      firstAssetError: "",
+      assetErrorBranchEntered: false,
+      afterAssetErrorBranch: true,
+      uploadStarted: true
+    });
 
     const formData = new FormData();
     formData.set("title", values.title);
@@ -323,14 +375,18 @@ export function SubmitMusicForm({
       const uploadedAssets: StorageAssetRef[] = [];
 
       try {
+        updateDiagnostics("checking upload environment");
         if (!env.supabaseUrl || !env.supabaseAnonKey || env.demoMode) {
           throw new Error("Supabase Storage uploads require demo mode to be off and Supabase credentials to be configured.");
         }
+        updateDiagnostics("upload environment ready");
 
         const assetScope = track?.id || `draft-${crypto.randomUUID()}`;
 
         if (coverArtFile) {
+          updateDiagnostics("requesting cover signed URL");
           const coverArtUpload = await uploadTrackAsset({ file: coverArtFile, kind: "cover-art", scope: assetScope });
+          updateDiagnostics("cover upload complete");
           uploadedAssets.push({ bucket: coverArtUpload.bucket, path: coverArtUpload.path });
           formData.set("coverArtPath", coverArtUpload.path);
         } else if (track?.cover_art_path || track?.cover_art_url) {
@@ -338,7 +394,9 @@ export function SubmitMusicForm({
         }
 
         if (audioFile) {
+          updateDiagnostics("requesting audio signed URL");
           const audioUpload = await uploadTrackAsset({ file: audioFile, kind: "audio", scope: assetScope });
+          updateDiagnostics("audio upload complete");
           uploadedAssets.push({ bucket: audioUpload.bucket, path: audioUpload.path });
           formData.set("audioFilePath", audioUpload.path);
         } else if (track?.audio_file_path || track?.audio_file_url) {
@@ -346,7 +404,9 @@ export function SubmitMusicForm({
         }
 
         if (previewFile) {
+          updateDiagnostics("requesting preview signed URL");
           const previewUpload = await uploadTrackAsset({ file: previewFile, kind: "preview", scope: assetScope });
+          updateDiagnostics("preview upload complete");
           uploadedAssets.push({ bucket: previewUpload.bucket, path: previewUpload.path });
           formData.set("previewFilePath", previewUpload.path);
         } else if (track?.preview_file_path) {
@@ -356,7 +416,9 @@ export function SubmitMusicForm({
         }
 
         if (waveformFile) {
+          updateDiagnostics("requesting waveform signed URL");
           const waveformUpload = await uploadTrackAsset({ file: waveformFile, kind: "waveform", scope: assetScope });
+          updateDiagnostics("waveform upload complete");
           uploadedAssets.push({ bucket: waveformUpload.bucket, path: waveformUpload.path });
           formData.set("waveformPath", waveformUpload.path);
         } else if (track?.waveform_path || track?.waveform_preview_url) {
@@ -375,12 +437,16 @@ export function SubmitMusicForm({
           mode === "edit" && track
             ? await updateTrackAction(submitTrackInitialState, formData)
             : await submitTrackAction(submitTrackInitialState, formData);
+        updateDiagnostics("track action complete");
         if (!result.success) {
           await deleteTrackAssets(uploadedAssets);
         }
         setState(result);
       } catch (error) {
         await deleteTrackAssets(uploadedAssets);
+        updateDiagnostics("upload error", {
+          firstAssetError: error instanceof Error ? error.message : "Asset upload failed."
+        });
         setState({
           success: false,
           message: error instanceof Error ? error.message : "Asset upload failed."
@@ -781,6 +847,35 @@ function serializeFormErrors(errors: FieldErrors<TrackSubmissionValues>): string
   return JSON.stringify(flattened);
 }
 
+function serializeAssetValidationDetails(
+  assets: Record<
+    string,
+    {
+      file: File | null | undefined;
+      rule: (typeof assetRules)[keyof typeof assetRules];
+      required: boolean;
+      validationError?: string;
+    }
+  >
+): string {
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(assets).map(([key, asset]) => [
+        key,
+        {
+          fileName: asset.file?.name || "",
+          fileSize: asset.file?.size ?? 0,
+          fileType: asset.file?.type || "",
+          required: asset.required,
+          maxSizeBytes: asset.rule.maxSizeBytes,
+          allowedExtensions: asset.rule.allowedExtensions,
+          validationError: asset.validationError || ""
+        }
+      ])
+    )
+  );
+}
+
 function inspectPublishButtonState(): SubmitDiagnostics["buttonState"] {
   if (typeof document === "undefined") {
     return initialSubmitDiagnostics.buttonState;
@@ -824,6 +919,13 @@ function SubmitDiagnosticPanel({ diagnostics }: { diagnostics: SubmitDiagnostics
     ["validSubmits", String(diagnostics.validSubmits)],
     ["invalidSubmits", String(diagnostics.invalidSubmits)],
     ["assetValidations", String(diagnostics.assetValidations)],
+    ["assetValidationDetails", diagnostics.assetValidationDetails],
+    ["nextAssetErrors", diagnostics.nextAssetErrors],
+    ["nextAssetErrorKeys", diagnostics.nextAssetErrorKeys],
+    ["firstAssetError", diagnostics.firstAssetError],
+    ["assetErrorBranchEntered", String(diagnostics.assetErrorBranchEntered)],
+    ["afterAssetErrorBranch", String(diagnostics.afterAssetErrorBranch)],
+    ["uploadStarted", String(diagnostics.uploadStarted)],
     ["coverArt", String(diagnostics.coverArt)],
     ["audioFile", String(diagnostics.audioFile)],
     ["previewFile", String(diagnostics.previewFile)],

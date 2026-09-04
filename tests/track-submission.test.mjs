@@ -79,3 +79,13 @@ test("missing publish assets surface a submit-level message and focus the first 
   assert.ok(formSource.includes("Please attach the required files before publishing."));
   assert.ok(formSource.includes("scrollIntoView"));
 });
+
+test("new track submissions return an artist detail redirect", () => {
+  const actionSource = readFileSync(new URL("../services/tracks/actions.ts", import.meta.url), "utf8");
+
+  assert.ok(actionSource.includes("success: true"));
+  assert.ok(actionSource.includes('message: parsed.saveMode === "publish" ? "Track submitted for review." : "Draft saved successfully."'));
+  assert.ok(actionSource.includes("trackId: track.id"));
+  assert.ok(actionSource.includes("trackStatus: status"));
+  assert.ok(actionSource.includes("redirectTo: `/artist/tracks/${slug}`"));
+});

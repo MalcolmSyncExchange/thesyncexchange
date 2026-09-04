@@ -21,6 +21,8 @@ export interface SubmitTrackState {
   message?: string;
   errors?: Record<string, string>;
   redirectTo?: string;
+  trackId?: string;
+  trackStatus?: string;
 }
 
 const requiredTrackLicenseSlugs = ["digital-campaign", "broadcast", "exclusive-buyout"] as const;
@@ -143,7 +145,10 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
 
     return {
       success: true,
-      message: parsed.saveMode === "publish" ? "Track submitted for review." : "Draft saved successfully."
+      message: parsed.saveMode === "publish" ? "Track submitted for review." : "Draft saved successfully.",
+      trackId: track.id,
+      trackStatus: status,
+      redirectTo: `/artist/tracks/${slug}`
     };
   } catch (error) {
     await cleanupUploadedAssets(uploadedAssets).catch(() => undefined);
@@ -353,6 +358,8 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
     return {
       success: true,
       message: parsed.saveMode === "publish" ? "Track changes submitted for review." : "Track updates saved successfully.",
+      trackId,
+      trackStatus: status,
       redirectTo: `/artist/tracks/${nextSlug}`
     };
   } catch (error) {

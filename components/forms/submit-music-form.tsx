@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { BaseSyntheticEvent, InputHTMLAttributes, ReactNode } from "react";
+import type { BaseSyntheticEvent, InputHTMLAttributes, ReactNode, RefObject } from "react";
 import { forwardRef, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { FieldError, FieldErrors, FieldErrorsImpl, Merge } from "react-hook-form";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
@@ -188,6 +188,17 @@ export function SubmitMusicForm({
 
     setAssetErrors(nextAssetErrors);
     if (Object.keys(nextAssetErrors).length > 0) {
+      const firstAssetError = Object.values(nextAssetErrors).find(Boolean);
+      setState({
+        success: false,
+        message: firstAssetError || "Please attach the required files before publishing."
+      });
+      focusFirstAssetError(nextAssetErrors, {
+        coverArt: coverArtInputRef,
+        audioFile: audioInputRef,
+        previewFile: previewInputRef,
+        waveformFile: waveformInputRef
+      });
       return;
     }
 
@@ -618,6 +629,20 @@ function findFirstFormErrorMessage(errors: FieldErrors<TrackSubmissionValues>): 
   }
 
   return undefined;
+}
+
+function focusFirstAssetError(
+  assetErrors: Record<string, string>,
+  refs: Record<string, RefObject<HTMLInputElement>>
+) {
+  const firstAssetKey = Object.keys(assetErrors).find((key) => assetErrors[key]);
+  if (!firstAssetKey) {
+    return;
+  }
+
+  const input = refs[firstAssetKey]?.current;
+  input?.scrollIntoView({ block: "center", behavior: "smooth" });
+  input?.focus();
 }
 
 function Banner({ success, message }: { success: boolean; message: string }) {

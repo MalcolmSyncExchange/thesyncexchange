@@ -71,3 +71,11 @@ test("track asset uploads use signed Supabase URLs instead of proxying files thr
   assert.ok(signedUploadRouteSource.includes("createSignedUploadUrl"));
   assert.ok(signedUploadRouteSource.includes("Only artist or admin accounts can upload track assets"));
 });
+
+test("missing publish assets surface a submit-level message and focus the first upload error", () => {
+  const formSource = readFileSync(new URL("../components/forms/submit-music-form.tsx", import.meta.url), "utf8");
+
+  assert.ok(formSource.includes("focusFirstAssetError"));
+  assert.ok(formSource.includes("Please attach the required files before publishing."));
+  assert.ok(formSource.includes("scrollIntoView"));
+});

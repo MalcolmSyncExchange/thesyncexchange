@@ -87,5 +87,5 @@ test("new track submissions return an artist detail redirect", () => {
   assert.ok(actionSource.includes('message: parsed.saveMode === "publish" ? "Track submitted for review." : "Draft saved successfully."'));
   assert.ok(actionSource.includes("trackId: track.id"));
   assert.ok(actionSource.includes("trackStatus: status"));
-  assert.ok(actionSource.includes('redirectTo: "/artist/catalog"'));
+  assert.ok(actionSource.includes("redirectTo: `/artist/catalog?submitted=${track.id}`"));
 });

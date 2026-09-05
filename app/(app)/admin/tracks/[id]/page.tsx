@@ -1,5 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
+import { AlertTriangle, CheckCircle2, Music4 } from "lucide-react";
 
 import { ComplianceFlagActions } from "@/components/admin/compliance-flag-actions";
 import { ComplianceFlagForm } from "@/components/admin/compliance-flag-form";
@@ -17,22 +19,50 @@ export default async function AdminTrackDetailPage({ params }: { params: { id: s
   if (!data) notFound();
 
   const { track, flags, reviewNotes, auditLog } = data;
+  const totalOwnership = track.rights_holders.reduce((sum, holder) => sum + Number(holder.ownership_percent || 0), 0);
+  const hasCompleteOwnership = Math.abs(totalOwnership - 100) < 0.01;
+  const activeLicenseOptions = track.license_options.filter((option) => option.active !== false);
+  const reviewWarnings = [
+    track.rights_holders.length === 0 ? "No rights holders have been added to this submission." : null,
+    track.rights_holders.length > 0 && !hasCompleteOwnership
+      ? `Rights holder ownership totals ${formatOwnershipPercent(totalOwnership)}%. It should equal 100%.`
+      : null,
+    activeLicenseOptions.length === 0 ? "No active license options are configured for buyer checkout." : null
+  ].filter((warning): warning is string => Boolean(warning));
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link href="/admin/tracks" className="text-sm text-muted-foreground hover:text-foreground">
-            Back to Track Management
-          </Link>
-          <h1 className="mt-3 text-3xl font-semibold">{track.title}</h1>
-          <p className="mt-2 text-muted-foreground">
-            {track.artist_name} • {track.genre} • {track.subgenre}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary">{track.status}</Badge>
-          <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} />
+      <div className="grid gap-6 lg:grid-cols-[220px,1fr]">
+        <CoverArtwork coverArtUrl={track.cover_art_url} title={track.title} />
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Link href="/admin/tracks" className="text-sm text-muted-foreground hover:text-foreground">
+              Back to Track Management
+            </Link>
+            <h1 className="mt-3 text-3xl font-semibold">{track.title}</h1>
+            <p className="mt-2 text-muted-foreground">
+              {track.artist_name} • {track.genre} • {track.subgenre}
+            </p>
+            {reviewWarnings.length ? (
+              <div className="mt-4 space-y-2">
+                {reviewWarnings.map((warning) => (
+                  <div key={warning} className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{warning}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Rights ownership and active license options are ready for review.</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary">{track.status}</Badge>
+            <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} />
+          </div>
         </div>
       </div>
 
@@ -62,6 +92,84 @@ export default async function AdminTrackDetailPage({ params }: { params: { id: s
                 <p className="text-sm text-muted-foreground">Description</p>
                 <p className="mt-1">{track.description}</p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Rights Holders</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/30 p-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Ownership</p>
+                  <p className="mt-1 text-2xl font-semibold">{formatOwnershipPercent(totalOwnership)}%</p>
+                </div>
+                <Badge
+                  variant={hasCompleteOwnership ? "default" : "outline"}
+                  className={hasCompleteOwnership ? undefined : "border-destructive/30 text-destructive"}
+                >
+                  {hasCompleteOwnership ? "Balanced" : "Review Required"}
+                </Badge>
+              </div>
+              {track.rights_holders.length ? (
+                <div className="grid gap-3">
+                  {track.rights_holders.map((holder) => (
+                    <div key={holder.id} className="rounded-md border border-border p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{holder.name}</p>
+                          <p className="text-sm text-muted-foreground">{holder.email}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            {formatEnumLabel(holder.role_type)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-semibold">{formatOwnershipPercent(holder.ownership_percent)}%</p>
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            {formatEnumLabel(holder.approval_status)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  No rights holders were submitted with this track.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>License Options</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {track.license_options.length ? (
+                track.license_options.map((option) => (
+                  <div key={option.id} className="rounded-md border border-border p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium">{option.name}</p>
+                          <Badge variant={option.active !== false ? "default" : "secondary"}>
+                            {option.active !== false ? "Active" : "Inactive"}
+                          </Badge>
+                          <Badge variant="outline">{option.exclusive ? "Exclusive" : "Non-Exclusive"}</Badge>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">{option.terms_summary || option.description}</p>
+                      </div>
+                      <p className="text-lg font-semibold">{formatCurrency(option.price_override ?? option.base_price ?? 0)}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  No license options were configured for this track.
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -139,4 +247,23 @@ export default async function AdminTrackDetailPage({ params }: { params: { id: s
       </div>
     </div>
   );
+}
+
+function CoverArtwork({ coverArtUrl, title }: { coverArtUrl?: string | null; title: string }) {
+  return (
+    <div className="relative aspect-square overflow-hidden rounded-md border border-border bg-muted">
+      {coverArtUrl ? (
+        <Image src={coverArtUrl} alt={`${title} cover artwork`} fill sizes="(min-width: 1024px) 220px, 100vw" className="object-cover" priority />
+      ) : (
+        <div className="flex h-full items-center justify-center">
+          <Music4 className="h-12 w-12 text-muted-foreground" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatOwnershipPercent(value: number) {
+  if (!Number.isFinite(value)) return "0";
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "");
 }

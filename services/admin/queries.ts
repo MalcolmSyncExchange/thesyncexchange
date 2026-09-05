@@ -692,6 +692,7 @@ function mapTrack(row: any, artistName: string): Track {
       const license = option.license_types as LicenseType;
       return {
         ...license,
+        active: option.active !== false && license.active !== false,
         base_price: Number((option.license_types as any).default_price_cents || 0) / 100,
         price_override: option.price_cents == null ? null : Number(option.price_cents) / 100
       };

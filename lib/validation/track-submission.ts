@@ -5,6 +5,23 @@ const acceptedAudioExtensions = [".mp3", ".wav", ".aiff", ".flac"];
 const acceptedWaveformExtensions = [".json", ".png", ".jpg", ".jpeg", ".webp"];
 export const rightsHolderRoleValues = ["writer", "producer", "publisher", "owner", "other"] as const;
 
+export const trackSubmissionFieldRules = {
+  title: { minLength: 2 },
+  description: { minLength: 20 },
+  genre: { minLength: 1 },
+  subgenre: { minLength: 1 },
+  moods: { minLength: 1 },
+  bpm: { min: 40, max: 220 },
+  key: { minLength: 1 },
+  duration: { min: 30, max: 900 },
+  releaseYear: { min: 1950, max: 2030 },
+  priceDigital: { min: 100 },
+  priceBroadcast: { min: 100 },
+  priceExclusive: { min: 1000 },
+  rightsHolders: { minCount: 1, requiredTotal: 100 },
+  rightsHolderName: { minLength: 1 }
+} as const;
+
 function hasAllowedAssetExtension(value: string, allowedExtensions: string[]) {
   if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
     return true;
@@ -21,7 +38,7 @@ export const assetRules = {
     allowedExtensions: acceptedArtworkExtensions
   },
   audioFile: {
-    label: "Audio file",
+    label: "Full audio",
     maxSizeBytes: 50 * 1024 * 1024,
     allowedExtensions: acceptedAudioExtensions
   },
@@ -38,7 +55,7 @@ export const assetRules = {
 } as const;
 
 export const rightsHolderSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(trackSubmissionFieldRules.rightsHolderName.minLength, "Name is required"),
   email: z.string().email("Valid email required"),
   roleType: z.enum(rightsHolderRoleValues, {
     errorMap: () => ({ message: "Choose a valid rights holder role." })
@@ -52,24 +69,30 @@ const storageAssetSchema = z.object({
 });
 
 const trackSubmissionObjectSchema = z.object({
-  title: z.string().min(2, "Track title is required"),
-  description: z.string().min(20, "Add a stronger description"),
-  genre: z.string().min(1, "Genre is required"),
-  subgenre: z.string().min(1, "Subgenre is required"),
-  moods: z.string().min(1, "Add at least one mood"),
-  bpm: z.coerce.number().min(40, "BPM must be at least 40").max(220, "BPM must be below 220"),
-  key: z.string().min(1, "Key is required"),
-  duration: z.coerce.number().min(30, "Duration must be at least 30 seconds").max(900, "Duration must be under 15 minutes"),
+  title: z.string().min(trackSubmissionFieldRules.title.minLength, "Track title is required"),
+  description: z.string().min(trackSubmissionFieldRules.description.minLength, "Add a stronger description"),
+  genre: z.string().min(trackSubmissionFieldRules.genre.minLength, "Genre is required"),
+  subgenre: z.string().min(trackSubmissionFieldRules.subgenre.minLength, "Subgenre is required"),
+  moods: z.string().min(trackSubmissionFieldRules.moods.minLength, "Add at least one mood"),
+  bpm: z.coerce
+    .number()
+    .min(trackSubmissionFieldRules.bpm.min, "BPM must be at least 40")
+    .max(trackSubmissionFieldRules.bpm.max, "BPM must be below 220"),
+  key: z.string().min(trackSubmissionFieldRules.key.minLength, "Key is required"),
+  duration: z.coerce
+    .number()
+    .min(trackSubmissionFieldRules.duration.min, "Duration must be at least 30 seconds")
+    .max(trackSubmissionFieldRules.duration.max, "Duration must be under 15 minutes"),
   instrumental: z.boolean(),
   vocals: z.boolean(),
   explicit: z.boolean(),
   lyrics: z.string().optional(),
-  releaseYear: z.coerce.number().min(1950).max(2030),
-  priceDigital: z.coerce.number().min(100),
-  priceBroadcast: z.coerce.number().min(100),
-  priceExclusive: z.coerce.number().min(1000),
+  releaseYear: z.coerce.number().min(trackSubmissionFieldRules.releaseYear.min).max(trackSubmissionFieldRules.releaseYear.max),
+  priceDigital: z.coerce.number().min(trackSubmissionFieldRules.priceDigital.min),
+  priceBroadcast: z.coerce.number().min(trackSubmissionFieldRules.priceBroadcast.min),
+  priceExclusive: z.coerce.number().min(trackSubmissionFieldRules.priceExclusive.min),
   saveMode: z.enum(["draft", "publish"]),
-  rightsHolders: z.array(rightsHolderSchema).min(1, "Add at least one rights holder")
+  rightsHolders: z.array(rightsHolderSchema).min(trackSubmissionFieldRules.rightsHolders.minCount, "Add at least one rights holder")
 });
 
 type TrackSubmissionBaseInput = z.infer<typeof trackSubmissionObjectSchema>;
@@ -80,7 +103,7 @@ function applyTrackSubmissionRules<T extends z.ZodTypeAny>(schema: T) {
       previewFilePath?: string;
     };
     const total = normalizedValue.rightsHolders.reduce((sum, holder) => sum + holder.ownershipPercent, 0);
-    if (Math.abs(total - 100) > 0.001) {
+    if (Math.abs(total - trackSubmissionFieldRules.rightsHolders.requiredTotal) > 0.001) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["rightsHolders"],
@@ -179,12 +202,24 @@ export function validateAssetFile(file: File | null | undefined, rule: (typeof a
 
   const lowerName = file.name.toLowerCase();
   if (!rule.allowedExtensions.some((ext) => lowerName.endsWith(ext))) {
-    return `${rule.label} must use one of: ${rule.allowedExtensions.join(", ")}.`;
+    return `${rule.label} must use one of: ${formatAllowedAssetExtensions(rule.allowedExtensions)}.`;
   }
 
   if (file.size > rule.maxSizeBytes) {
-    return `${rule.label} must be under ${Math.round(rule.maxSizeBytes / (1024 * 1024))}MB.`;
+    return `${rule.label} must be under ${Math.round(rule.maxSizeBytes / (1024 * 1024))} MB.`;
   }
 
   return undefined;
+}
+
+function formatAllowedAssetExtensions(extensions: string[]) {
+  const labels = extensions.map((extension) => {
+    const label = extension.replace(".", "").toLowerCase();
+    return label === "webp" ? "WebP" : label.toUpperCase();
+  });
+  if (labels.length <= 1) {
+    return labels[0] || "";
+  }
+
+  return `${labels.slice(0, -1).join(", ")}, or ${labels[labels.length - 1]}`;
 }

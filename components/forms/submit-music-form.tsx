@@ -24,6 +24,7 @@ import type { StorageAssetRef } from "@/lib/storage";
 import {
   assetRules,
   rightsHolderRoleValues,
+  trackSubmissionFieldRules,
   trackSubmissionClientSchema,
   type TrackSubmissionValues,
   validateAssetFile
@@ -176,6 +177,9 @@ export function SubmitMusicForm({
   );
   const rightsHolderErrors = Array.isArray(errors.rightsHolders) ? errors.rightsHolders : [];
   const rightsHolderRootError = Array.isArray(errors.rightsHolders) ? undefined : getErrorMessage(errors.rightsHolders);
+  const coverArtRequired = mode === "create" && !track?.cover_art_path && !track?.cover_art_url;
+  const audioFileRequired = mode === "create" && !track?.audio_file_path && !track?.audio_file_url;
+  const previewFileRequired = mode === "create" || !track?.preview_file_path;
 
   const updateDiagnostics = (lastStep: string, patch: SubmitDiagnosticsPatch = {}) => {
     if (!submitDebugEnabled) {
@@ -476,37 +480,39 @@ export function SubmitMusicForm({
         </CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="title">Track title</Label>
+            <Label htmlFor="title">{requiredLabel("Track Title")}</Label>
             <Input id="title" {...register("title")} data-testid="track-title-input" />
+            <HelperText text={minimumCharactersText(trackSubmissionFieldRules.title.minLength)} />
             <FieldError message={getErrorMessage(errors.title)} />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">{requiredLabel("Description")}</Label>
             <Textarea id="description" {...register("description")} />
+            <HelperText text={minimumCharactersText(trackSubmissionFieldRules.description.minLength)} />
             <FieldError message={getErrorMessage(errors.description)} />
           </div>
-          <Field label="Genre" error={getErrorMessage(errors.genre)}>
+          <Field label={requiredLabel("Genre")} helperText={minimumCharactersText(trackSubmissionFieldRules.genre.minLength)} error={getErrorMessage(errors.genre)}>
             <Input {...register("genre")} />
           </Field>
-          <Field label="Subgenre" error={getErrorMessage(errors.subgenre)}>
+          <Field label={requiredLabel("Subgenre")} helperText={minimumCharactersText(trackSubmissionFieldRules.subgenre.minLength)} error={getErrorMessage(errors.subgenre)}>
             <Input {...register("subgenre")} data-testid="track-subgenre-input" />
           </Field>
-          <Field label="Mood(s)" error={getErrorMessage(errors.moods)}>
+          <Field label={requiredLabel("Mood(s)")} helperText={minimumCharactersText(trackSubmissionFieldRules.moods.minLength)} error={getErrorMessage(errors.moods)}>
             <Input {...register("moods")} placeholder="Driving, bright, confident" data-testid="track-moods-input" />
           </Field>
-          <Field label="BPM" error={getErrorMessage(errors.bpm)}>
+          <Field label={requiredLabel("BPM")} helperText={numericRangeText(trackSubmissionFieldRules.bpm.min, trackSubmissionFieldRules.bpm.max, "BPM")} error={getErrorMessage(errors.bpm)}>
             <Input type="number" {...register("bpm", { valueAsNumber: true })} />
           </Field>
-          <Field label="Key" error={getErrorMessage(errors.key)}>
+          <Field label={requiredLabel("Key")} helperText={minimumCharactersText(trackSubmissionFieldRules.key.minLength)} error={getErrorMessage(errors.key)}>
             <Input {...register("key")} />
           </Field>
-          <Field label="Duration (seconds)" error={getErrorMessage(errors.duration)}>
+          <Field label={requiredLabel("Duration (Seconds)")} helperText={numericRangeText(trackSubmissionFieldRules.duration.min, trackSubmissionFieldRules.duration.max, "seconds")} error={getErrorMessage(errors.duration)}>
             <Input type="number" {...register("duration", { valueAsNumber: true })} />
           </Field>
-          <Field label="Release year" error={getErrorMessage(errors.releaseYear)}>
+          <Field label={requiredLabel("Release Year")} helperText={numericRangeText(trackSubmissionFieldRules.releaseYear.min, trackSubmissionFieldRules.releaseYear.max)} error={getErrorMessage(errors.releaseYear)}>
             <Input type="number" {...register("releaseYear", { valueAsNumber: true })} />
           </Field>
-          <Field label="Cover art upload" error={assetErrors.coverArt}>
+          <Field label={coverArtRequired ? requiredLabel("Cover Art") : optionalLabel("Cover Art")} error={assetErrors.coverArt}>
             <Input
               id="coverArtFile"
               data-testid="track-cover-art-input"
@@ -518,10 +524,10 @@ export function SubmitMusicForm({
                 setAssetErrors((current) => ({ ...current, coverArt: "" }));
               }}
             />
-            <HelperText text={assetNames.coverArt || "JPG, PNG, or WEBP up to 10MB."} />
+            <HelperText text={assetNames.coverArt || assetRuleText(assetRules.coverArt)} />
             {track?.cover_art_path || track?.cover_art_url ? <HelperText text="Current cover art is already stored." /> : null}
           </Field>
-          <Field label="Audio upload" error={assetErrors.audioFile}>
+          <Field label={audioFileRequired ? requiredLabel("Full Audio") : optionalLabel("Full Audio")} error={assetErrors.audioFile}>
             <Input
               id="audioFile"
               data-testid="track-audio-input"
@@ -533,10 +539,10 @@ export function SubmitMusicForm({
                 setAssetErrors((current) => ({ ...current, audioFile: "" }));
               }}
             />
-            <HelperText text={assetNames.audioFile || "MP3, WAV, AIFF, or FLAC up to 50MB."} />
+            <HelperText text={assetNames.audioFile || assetRuleText(assetRules.audioFile)} />
             {track?.audio_file_path || track?.audio_file_url ? <HelperText text="Current source audio is already stored." /> : null}
           </Field>
-          <Field label="Preview audio upload" error={assetErrors.previewFile}>
+          <Field label={previewFileRequired ? requiredLabel("Preview Audio") : optionalLabel("Preview Audio")} error={assetErrors.previewFile}>
             <Input
               id="previewFile"
               data-testid="track-preview-input"
@@ -548,10 +554,10 @@ export function SubmitMusicForm({
                 setAssetErrors((current) => ({ ...current, previewFile: "" }));
               }}
             />
-            <HelperText text={assetNames.previewFile || "Short buyer-facing preview in MP3, WAV, AIFF, or FLAC up to 25MB."} />
+            <HelperText text={assetNames.previewFile || assetRuleText(assetRules.previewFile)} />
             {track?.preview_file_path ? <HelperText text="Current preview audio is already stored." /> : null}
           </Field>
-          <Field label="Waveform preview upload" error={assetErrors.waveformFile}>
+          <Field label={optionalLabel("Waveform Preview")} error={assetErrors.waveformFile}>
             <Input
               id="waveformFile"
               ref={waveformInputRef}
@@ -562,17 +568,18 @@ export function SubmitMusicForm({
                 setAssetErrors((current) => ({ ...current, waveformFile: "" }));
               }}
             />
-            <HelperText text={assetNames.waveformFile || "Optional JSON or image preview up to 10MB."} />
+            <HelperText text={assetNames.waveformFile || assetRuleText(assetRules.waveformFile)} />
             {track?.waveform_path || track?.waveform_preview_url ? <HelperText text="Current waveform asset is already stored." /> : null}
           </Field>
-          <Field label="Lyrics">
+          <Field label={optionalLabel("Lyrics")}>
             <Textarea {...register("lyrics")} className="min-h-[100px]" />
           </Field>
           <div className="grid gap-3 sm:grid-cols-3 md:col-span-2">
-            <ToggleField label="Instrumental" {...register("instrumental")} />
-            <ToggleField label="Vocals" {...register("vocals")} />
-            <ToggleField label="Explicit" {...register("explicit")} />
+            <ToggleField label={requiredLabel("Instrumental")} {...register("instrumental")} />
+            <ToggleField label={requiredLabel("Vocals")} {...register("vocals")} />
+            <ToggleField label={requiredLabel("Explicit")} {...register("explicit")} />
             <div className="sm:col-span-3">
+              <HelperText text="Choose the metadata that describes the recording. Instrumental and vocals cannot both be selected." />
               <FieldError
                 message={
                   getErrorMessage(errors.instrumental) ||
@@ -593,13 +600,13 @@ export function SubmitMusicForm({
           <CardTitle>Licensing and pricing</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-3">
-          <Field label="Digital campaign price" error={getErrorMessage(errors.priceDigital)}>
+          <Field label={requiredLabel("Digital Campaign Price")} helperText={minimumValueText(trackSubmissionFieldRules.priceDigital.min)} error={getErrorMessage(errors.priceDigital)}>
             <Input type="number" {...register("priceDigital", { valueAsNumber: true })} />
           </Field>
-          <Field label="Broadcast price" error={getErrorMessage(errors.priceBroadcast)}>
+          <Field label={requiredLabel("Broadcast Price")} helperText={minimumValueText(trackSubmissionFieldRules.priceBroadcast.min)} error={getErrorMessage(errors.priceBroadcast)}>
             <Input type="number" {...register("priceBroadcast", { valueAsNumber: true })} />
           </Field>
-          <Field label="Exclusive price" error={getErrorMessage(errors.priceExclusive)}>
+          <Field label={requiredLabel("Exclusive Price")} helperText={minimumValueText(trackSubmissionFieldRules.priceExclusive.min)} error={getErrorMessage(errors.priceExclusive)}>
             <Input type="number" {...register("priceExclusive", { valueAsNumber: true })} />
           </Field>
         </CardContent>
@@ -618,13 +625,13 @@ export function SubmitMusicForm({
           </div>
           {fields.map((field, index) => (
             <div key={field.id} className="grid gap-4 rounded-lg border border-border p-4 md:grid-cols-4">
-              <Field label="Name" error={getErrorMessage(rightsHolderErrors[index]?.name)}>
+              <Field label={requiredLabel("Name")} helperText={minimumCharactersText(trackSubmissionFieldRules.rightsHolderName.minLength)} error={getErrorMessage(rightsHolderErrors[index]?.name)}>
                 <Input {...register(`rightsHolders.${index}.name`)} />
               </Field>
-              <Field label="Email" error={getErrorMessage(rightsHolderErrors[index]?.email)}>
+              <Field label={requiredLabel("Email")} error={getErrorMessage(rightsHolderErrors[index]?.email)}>
                 <Input type="email" {...register(`rightsHolders.${index}.email`)} />
               </Field>
-              <Field label="Role" error={getErrorMessage(rightsHolderErrors[index]?.roleType)}>
+              <Field label={requiredLabel("Role")} helperText={`Allowed roles: ${rightsHolderRoleValues.map((roleValue) => rightsHolderRoleLabels[roleValue]).join(", ")}.`} error={getErrorMessage(rightsHolderErrors[index]?.roleType)}>
                 <Controller
                   control={control}
                   name={`rightsHolders.${index}.roleType`}
@@ -644,7 +651,7 @@ export function SubmitMusicForm({
                   )}
                 />
               </Field>
-              <Field label="Ownership %" error={getErrorMessage(rightsHolderErrors[index]?.ownershipPercent)}>
+              <Field label={requiredLabel("Ownership %")} helperText="Each holder must be between 0 and 100%. Total ownership must equal 100%." error={getErrorMessage(rightsHolderErrors[index]?.ownershipPercent)}>
                 <Input type="number" {...register(`rightsHolders.${index}.ownershipPercent`, { valueAsNumber: true })} />
               </Field>
               {fields.length > 1 ? (
@@ -730,16 +737,19 @@ function buildInitialValues(track: Track): TrackSubmissionValues {
 function Field({
   label,
   error,
+  helperText,
   children
 }: {
   label: string;
   error?: string;
+  helperText?: string;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
       {children}
+      {helperText ? <HelperText text={helperText} /> : null}
       <FieldError message={error} />
     </div>
   );
@@ -975,4 +985,55 @@ function Banner({ success, message }: { success: boolean; message: string }) {
 
 function HelperText({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground">{text}</p>;
+}
+
+function requiredLabel(label: string) {
+  return `${label} *`;
+}
+
+function optionalLabel(label: string) {
+  return `${label} (Optional)`;
+}
+
+function minimumCharactersText(minLength: number) {
+  return `Minimum ${minLength} ${minLength === 1 ? "character" : "characters"}`;
+}
+
+function minimumValueText(minValue: number) {
+  return `Minimum ${formatWholeDollarAmount(minValue)}`;
+}
+
+function numericRangeText(min: number, max: number, unit?: string) {
+  const suffix = unit ? ` ${unit}` : "";
+  return `${min}–${max}${suffix}`;
+}
+
+function assetRuleText(rule: (typeof assetRules)[keyof typeof assetRules]) {
+  return `${formatAllowedExtensions(rule.allowedExtensions)} • ${Math.round(rule.maxSizeBytes / (1024 * 1024))} MB max`;
+}
+
+function formatAllowedExtensions(extensions: readonly string[]) {
+  const labels = extensions.map(formatExtensionLabel);
+  if (labels.length <= 1) {
+    return labels[0] || "";
+  }
+
+  return `${labels.slice(0, -1).join(", ")}, or ${labels[labels.length - 1]}`;
+}
+
+function formatExtensionLabel(extension: string) {
+  const label = extension.replace(".", "").toLowerCase();
+  if (label === "webp") {
+    return "WebP";
+  }
+
+  return label.toUpperCase();
+}
+
+function formatWholeDollarAmount(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  }).format(value);
 }

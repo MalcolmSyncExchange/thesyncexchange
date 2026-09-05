@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 import {
   rightsHolderRoleValues,
+  trackSubmissionFieldRules,
   trackSubmissionClientSchema,
   trackSubmissionServerSchema
 } from "../lib/validation/track-submission.ts";
@@ -80,6 +81,15 @@ test("missing publish assets surface a submit-level message and focus the first 
   assert.ok(formSource.includes("scrollIntoView"));
 });
 
+test("track submission field rules expose the UI guidance constraints", () => {
+  assert.equal(trackSubmissionFieldRules.title.minLength, 2);
+  assert.equal(trackSubmissionFieldRules.description.minLength, 20);
+  assert.deepEqual(trackSubmissionFieldRules.bpm, { min: 40, max: 220 });
+  assert.deepEqual(trackSubmissionFieldRules.duration, { min: 30, max: 900 });
+  assert.deepEqual(trackSubmissionFieldRules.releaseYear, { min: 1950, max: 2030 });
+  assert.deepEqual(trackSubmissionFieldRules.rightsHolders, { minCount: 1, requiredTotal: 100 });
+});
+
 test("new track submissions return an artist detail redirect", () => {
   const actionSource = readFileSync(new URL("../services/tracks/actions.ts", import.meta.url), "utf8");
 
@@ -88,4 +98,18 @@ test("new track submissions return an artist detail redirect", () => {
   assert.ok(actionSource.includes("trackId: track.id"));
   assert.ok(actionSource.includes("trackStatus: status"));
   assert.ok(actionSource.includes("redirectTo: `/artist/catalog?submitted=${track.id}`"));
+});
+
+test("submit music form labels expose required and optional field guidance", () => {
+  const formSource = readFileSync(new URL("../components/forms/submit-music-form.tsx", import.meta.url), "utf8");
+
+  assert.ok(formSource.includes('requiredLabel("Track Title")'));
+  assert.ok(formSource.includes('requiredLabel("Description")'));
+  assert.ok(formSource.includes('requiredLabel("Full Audio")'));
+  assert.ok(formSource.includes('requiredLabel("Preview Audio")'));
+  assert.ok(formSource.includes('optionalLabel("Waveform Preview")'));
+  assert.ok(formSource.includes('optionalLabel("Lyrics")'));
+  assert.ok(formSource.includes("minimumCharactersText(trackSubmissionFieldRules.description.minLength)"));
+  assert.ok(formSource.includes("formatAllowedExtensions"));
+  assert.ok(formSource.includes("formatWholeDollarAmount"));
 });

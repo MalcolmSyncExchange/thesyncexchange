@@ -11,6 +11,53 @@ interface ArtistWorkspaceData {
   tracks: Track[];
 }
 
+export interface ArtistCatalogDiagnosticResult {
+  authenticatedUserId: string;
+  clientMode: "demo" | "authenticated-ssr";
+  tracksOnly: DiagnosticReadResult;
+  rightsHoldersOnly: DiagnosticReadResult;
+  trackLicenseOptionsOnly: DiagnosticReadResult;
+  licenseTypesOnly: DiagnosticReadResult;
+  fullNestedCatalogQuery: DiagnosticReadResult;
+}
+
+interface DiagnosticReadResult {
+  ok: boolean;
+  errorCode: string | null;
+  errorMessage: string | null;
+  errorDetails: string | null;
+  errorHint: string | null;
+  rawTrackCount?: number;
+  rowCount?: number;
+  trackIds?: string[];
+  slugs?: string[];
+  statuses?: string[];
+  artistUserIds?: string[];
+  rightsHolderCountByTrackId?: Record<string, number>;
+  licenseOptionCountByTrackId?: Record<string, number>;
+  licenseTypeIds?: string[];
+}
+
+const artistCatalogTrackSelect = `
+  *,
+  rights_holders (*),
+  track_license_options (
+    id,
+    price_cents,
+    active,
+    license_types (
+      id,
+      name,
+      slug,
+      description,
+      exclusive,
+      default_price_cents,
+      terms_summary,
+      active
+    )
+  )
+`;
+
 export async function getArtistWorkspaceData(userId: string): Promise<ArtistWorkspaceData> {
   if (!hasSupabaseEnv || env.demoMode) {
     const profile = getDemoArtistProfile(userId) || artistProfiles.find((item) => item.user_id === userId) || null;
@@ -21,33 +68,19 @@ export async function getArtistWorkspaceData(userId: string): Promise<ArtistWork
   }
 
   const supabase = createServerSupabaseClient();
-  const { data: profileRow } = await supabase.from("artist_profiles").select("*").eq("user_id", userId).maybeSingle();
+  const { data: profileRow, error: profileError } = await supabase.from("artist_profiles").select("*").eq("user_id", userId).maybeSingle();
+  if (profileError) {
+    logArtistCatalogReadError("artist_profile_read_failed", userId, profileError);
+  }
 
-  const { data: trackRows } = await supabase
+  const { data: trackRows, error: trackError } = await supabase
     .from("tracks")
-    .select(
-      `
-        *,
-        rights_holders (*),
-        track_license_options (
-          id,
-          price_cents,
-          active,
-          license_types (
-            id,
-            name,
-            slug,
-            description,
-            exclusive,
-            default_price_cents,
-            terms_summary,
-            active
-          )
-        )
-      `
-    )
+    .select(artistCatalogTrackSelect)
     .eq("artist_user_id", userId)
     .order("created_at", { ascending: false });
+  if (trackError) {
+    logArtistCatalogReadError("artist_tracks_read_failed", userId, trackError);
+  }
 
   const profile = profileRow ? mapArtistProfile(profileRow) : null;
   const artistName = profile?.artist_name || "Artist";
@@ -66,6 +99,59 @@ export async function getArtistTrackBySlug(userId: string, slug: string) {
   }
 
   return withTrackAudioAccess(track, "full");
+}
+
+export async function getArtistCatalogDiagnostics(userId: string): Promise<ArtistCatalogDiagnosticResult> {
+  if (!hasSupabaseEnv || env.demoMode) {
+    const demoRows = demoTracks.filter((track) => track.artist_user_id === userId);
+    const demoResult = makeDiagnosticSuccess(demoRows);
+    return {
+      authenticatedUserId: userId,
+      clientMode: "demo",
+      tracksOnly: demoResult,
+      rightsHoldersOnly: makeDiagnosticSuccess([]),
+      trackLicenseOptionsOnly: makeDiagnosticSuccess([]),
+      licenseTypesOnly: makeDiagnosticSuccess([]),
+      fullNestedCatalogQuery: demoResult
+    };
+  }
+
+  const supabase = createServerSupabaseClient();
+
+  const tracksOnlyResult = await supabase
+    .from("tracks")
+    .select("id, slug, status, artist_user_id")
+    .eq("artist_user_id", userId)
+    .order("created_at", { ascending: false });
+  const trackIds = (tracksOnlyResult.data || []).map((track) => track.id).filter(Boolean);
+
+  const rightsHoldersResult = trackIds.length
+    ? await supabase.from("rights_holders").select("id, track_id").in("track_id", trackIds)
+    : { data: [], error: null };
+  const trackLicenseOptionsResult = trackIds.length
+    ? await supabase.from("track_license_options").select("id, track_id, license_type_id").in("track_id", trackIds)
+    : { data: [], error: null };
+  const licenseTypeIds = Array.from(
+    new Set((trackLicenseOptionsResult.data || []).map((option) => option.license_type_id).filter(Boolean))
+  );
+  const licenseTypesResult = licenseTypeIds.length
+    ? await supabase.from("license_types").select("id, slug, active").in("id", licenseTypeIds)
+    : { data: [], error: null };
+  const fullNestedResult = await supabase
+    .from("tracks")
+    .select(artistCatalogTrackSelect)
+    .eq("artist_user_id", userId)
+    .order("created_at", { ascending: false });
+
+  return {
+    authenticatedUserId: userId,
+    clientMode: "authenticated-ssr",
+    tracksOnly: makeDiagnosticResult(tracksOnlyResult, "tracks"),
+    rightsHoldersOnly: makeDiagnosticResult(rightsHoldersResult, "rights_holders"),
+    trackLicenseOptionsOnly: makeDiagnosticResult(trackLicenseOptionsResult, "track_license_options"),
+    licenseTypesOnly: makeDiagnosticResult(licenseTypesResult, "license_types"),
+    fullNestedCatalogQuery: makeDiagnosticResult(fullNestedResult, "tracks")
+  };
 }
 
 function mapArtistProfile(row: any): ArtistProfile {
@@ -146,4 +232,62 @@ function mapTrack(row: any, artistName: string): Track {
     rights_holders: rightsHolders,
     license_options: licenseOptions
   };
+}
+
+function makeDiagnosticResult(result: { data: any[] | null; error: any }, tableName: string): DiagnosticReadResult {
+  if (result.error) {
+    return {
+      ok: false,
+      errorCode: result.error.code || null,
+      errorMessage: result.error.message || null,
+      errorDetails: result.error.details || null,
+      errorHint: result.error.hint || null,
+      rowCount: 0,
+      rawTrackCount: tableName === "tracks" ? 0 : undefined,
+      trackIds: [],
+      slugs: [],
+      statuses: [],
+      artistUserIds: []
+    };
+  }
+
+  return makeDiagnosticSuccess(result.data || [], tableName);
+}
+
+function makeDiagnosticSuccess(rows: any[], tableName = ""): DiagnosticReadResult {
+  return {
+    ok: true,
+    errorCode: null,
+    errorMessage: null,
+    errorDetails: null,
+    errorHint: null,
+    rowCount: rows.length,
+    rawTrackCount: tableName === "tracks" ? rows.length : undefined,
+    trackIds: Array.from(new Set(rows.map((row) => row.id || row.track_id).filter(Boolean))),
+    slugs: Array.from(new Set(rows.map((row) => row.slug).filter(Boolean))),
+    statuses: Array.from(new Set(rows.map((row) => row.status).filter(Boolean))),
+    artistUserIds: Array.from(new Set(rows.map((row) => row.artist_user_id).filter(Boolean))),
+    rightsHolderCountByTrackId: countRowsByTrackId(rows, "rights_holders"),
+    licenseOptionCountByTrackId: countRowsByTrackId(rows, "track_license_options"),
+    licenseTypeIds: Array.from(new Set(rows.map((row) => row.license_type_id || row.license_types?.id).filter(Boolean)))
+  };
+}
+
+function countRowsByTrackId(rows: any[], relationName: "rights_holders" | "track_license_options") {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    if (!row.id || !Array.isArray(row[relationName])) continue;
+    counts[row.id] = row[relationName].length;
+  }
+  return counts;
+}
+
+function logArtistCatalogReadError(label: string, userId: string, error: any) {
+  console.error(`[artist catalog] ${label}`, {
+    userId,
+    code: error?.code || null,
+    message: error?.message || null,
+    details: error?.details || null,
+    hint: error?.hint || null
+  });
 }

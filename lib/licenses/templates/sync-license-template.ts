@@ -752,9 +752,7 @@ function buildPdfFromPages(
 
     objects[pageObjectNumber] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] ` +
-      `/Group << /Type /Group /S /Transparency /CS /DeviceRGB /I true /K false >> ` +
-      `/Resources << /ColorSpace << /DeviceRGB /DeviceRGB >> /Font << /F1 ${fontObjectNumber} 0 R /F2 ${boldFontObjectNumber} 0 R >> >> ` +
-      `/Contents ${contentObjectNumber} 0 R >>`;
+      `/Resources << /Font << /F1 ${fontObjectNumber} 0 R /F2 ${boldFontObjectNumber} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`;
     objects[contentObjectNumber] = `<< /Length ${Buffer.byteLength(contentStream, "utf8")} >>\nstream\n${contentStream}\nendstream`;
   });
 
@@ -784,10 +782,7 @@ function buildPdfFromPages(
 function buildPageBackgroundCommand(pageWidth: number, pageHeight: number) {
   return [
     "q",
-    "/DeviceRGB cs",
-    "/DeviceRGB CS",
     formatColor(pdfColors.paper, "fill"),
-    formatColor(pdfColors.paper, "stroke"),
     `0 0 ${formatNumber(pageWidth)} ${formatNumber(pageHeight)} re`,
     "f",
     "Q"

@@ -207,14 +207,12 @@ test("agreement PDF explicitly paints every page white before document content",
   const contentStreams = [...pdfText.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((match) => match[1]);
   const whiteBackgroundPrefix = [
     "q",
-    "/DeviceRGB cs",
-    "/DeviceRGB CS",
     "1 1 1 rg",
-    "1 1 1 RG",
     "0 0 612 792 re",
     "f",
     "Q"
   ].join("\n");
+  const firstFillCommand = contentStreams[0]?.match(/([0-9.]+ [0-9.]+ [0-9.]+ rg)\n0 0 612 792 re\nf/)?.[1];
 
   assert.ok(pageCountMatch);
   assert.equal(contentStreams.length, Number(pageCountMatch[1]));
@@ -222,6 +220,9 @@ test("agreement PDF explicitly paints every page white before document content",
   contentStreams.forEach((stream) => {
     assert.ok(stream.startsWith(whiteBackgroundPrefix));
   });
-  assert.match(pdfText, /\/ColorSpace << \/DeviceRGB \/DeviceRGB >>/);
-  assert.match(pdfText, /\/Group << \/Type \/Group \/S \/Transparency \/CS \/DeviceRGB \/I true \/K false >>/);
+  assert.equal(firstFillCommand, "1 1 1 rg");
+  assert.match(contentStreams[0], /BT\n0 0 0 rg\n\/F2 21 Tf/);
+  assert.match(contentStreams[0], /q\n0.97 0.98 0.99 rg\n[0-9.]+ [0-9.]+ [0-9.]+ 50 re f/);
+  assert.doesNotMatch(pdfText, /\/Group/);
+  assert.doesNotMatch(pdfText, /\/Transparency/);
 });

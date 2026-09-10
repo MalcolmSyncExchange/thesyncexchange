@@ -1,5 +1,7 @@
 import type { GeneratedLicenseTermsSnapshot } from "./templates/sync-license-template";
 
+export const SYNC_LICENSE_TEMPLATE_VERSION = "TSE-SYNC-v1";
+
 type LicenseTermsPresetInput = {
   typeSlug: string | null;
   typeName: string;
@@ -175,6 +177,7 @@ export function buildGeneratedLicenseTermsSnapshot({
   const effectiveDate = context.paidAt || context.createdAt;
 
   return {
+    templateVersion: SYNC_LICENSE_TEMPLATE_VERSION,
     agreementNumber,
     agreementStatus: "generated",
     orderId: context.orderId,

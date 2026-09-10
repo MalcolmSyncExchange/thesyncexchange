@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 
 import {
   buildAgreementNumber,
+  SYNC_LICENSE_TEMPLATE_VERSION,
   buildGeneratedLicenseTermsSnapshot,
   resolveLicenseTermsPreset
 } from "../lib/licenses/generated-license-snapshot.ts";
 import {
+  formatAgreementDate,
   renderSyncLicenseAgreementHtml,
   renderSyncLicenseAgreementPdf
 } from "../lib/licenses/templates/sync-license-template.ts";
@@ -80,6 +82,7 @@ test("terms snapshot freezes the buyer, track, license, and Stripe purchase deta
     context: baseContext
   });
 
+  assert.equal(snapshot.templateVersion, SYNC_LICENSE_TEMPLATE_VERSION);
   assert.equal(snapshot.agreementNumber, agreementNumber);
   assert.equal(snapshot.orderId, baseContext.orderId);
   assert.equal(snapshot.purchaseDate, baseContext.paidAt);
@@ -93,10 +96,19 @@ test("terms snapshot freezes the buyer, track, license, and Stripe purchase deta
   assert.equal(snapshot.stripe.checkoutSessionId, "cs_test_sync_exchange");
 });
 
+test("agreement dates format in UTC without raw ISO timestamps", () => {
+  assert.equal(formatAgreementDate("2026-09-05T06:12:01+00:00"), "September 5, 2026");
+  assert.equal(formatAgreementDate("not-a-date"), "not-a-date");
+});
+
 test("agreement HTML includes the snapshotted agreement number and buyer display", () => {
   const snapshot = buildGeneratedLicenseTermsSnapshot({
     agreementNumber: "TSE-SYNC-20260429-ABCDEF1234",
-    context: baseContext
+    context: {
+      ...baseContext,
+      createdAt: "2026-09-05T06:12:01+00:00",
+      paidAt: "2026-09-05T06:12:01+00:00"
+    }
   });
   const html = renderSyncLicenseAgreementHtml(snapshot);
 
@@ -116,4 +128,60 @@ test("agreement PDF renderer returns a valid PDF payload", () => {
 
   assert.ok(pdf.byteLength > 500);
   assert.equal(prefix, "%PDF-1.4");
+});
+
+test("agreement PDF includes production document sections and formatted summary values", () => {
+  const snapshot = buildGeneratedLicenseTermsSnapshot({
+    agreementNumber: "TSE-SYNC-20260429-ABCDEF1234",
+    context: {
+      ...baseContext,
+      createdAt: "2026-09-05T06:12:01+00:00",
+      paidAt: "2026-09-05T06:12:01+00:00"
+    }
+  });
+  const pdfText = renderSyncLicenseAgreementPdf(snapshot).toString("utf8");
+
+  assert.match(pdfText, /THE SYNC EXCHANGE/);
+  assert.match(pdfText, /SYNC LICENSE AGREEMENT/);
+  assert.match(pdfText, /License Summary/);
+  assert.match(pdfText, /Rights & Ownership/);
+  assert.match(pdfText, /License Grant/);
+  assert.match(pdfText, /Permitted Media/);
+  assert.match(pdfText, /Restrictions/);
+  assert.match(pdfText, /Ownership and Reservation of Rights/);
+  assert.match(pdfText, /Transfer \/ Assignment/);
+  assert.match(pdfText, /Termination/);
+  assert.match(pdfText, /Governing Law/);
+  assert.match(pdfText, /Additional Terms/);
+  assert.match(pdfText, /Acceptance/);
+  assert.match(pdfText, /TSE-SYNC-v1/);
+  assert.match(pdfText, /September 5, 2026/);
+  assert.match(pdfText, /\$1,500/);
+  assert.match(pdfText, /Nova Signal/);
+  assert.match(pdfText, /Composer/);
+  assert.match(pdfText, /Total Ownership: 100%/);
+  assert.doesNotMatch(pdfText, /2026-09-05T06:12:01/);
+});
+
+test("agreement PDF paginates long agreements and adds page numbering", () => {
+  const snapshot = buildGeneratedLicenseTermsSnapshot({
+    agreementNumber: "TSE-SYNC-20260429-LONGDOC123",
+    context: {
+      ...baseContext,
+      licenseTermsSummary: "Long-form campaign license.",
+      rightsHolders: Array.from({ length: 12 }, (_, index) => ({
+        name: `Rights Holder ${index + 1} With Extended Legal Name`,
+        roleType: index % 2 === 0 ? "Composer" : "Master Owner",
+        ownershipPercent: Number((100 / 12).toFixed(2))
+      }))
+    }
+  });
+  snapshot.license.permittedMedia = Array.from({ length: 20 }, (_, index) => `Permitted media item ${index + 1} for extended campaign testing.`);
+  snapshot.license.restrictions = Array.from({ length: 20 }, (_, index) => `Restriction item ${index + 1} for extended agreement pagination testing.`);
+
+  const pdfText = renderSyncLicenseAgreementPdf(snapshot).toString("utf8");
+
+  assert.match(pdfText, /\/Type \/Pages \/Count [2-9]/);
+  assert.match(pdfText, /Page 1 of/);
+  assert.match(pdfText, /TSE-SYNC-20260429-LONGDOC123/);
 });

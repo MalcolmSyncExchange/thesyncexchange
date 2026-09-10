@@ -1,6 +1,9 @@
 import { formatCurrency } from "../../utils.ts";
 
+const FALLBACK_TEMPLATE_VERSION = "TSE-SYNC-v1";
+
 export type GeneratedLicenseTermsSnapshot = {
+  templateVersion?: string;
   agreementNumber: string;
   agreementStatus: "generated" | "failed";
   orderId: string;
@@ -54,8 +57,21 @@ export type GeneratedLicenseTermsSnapshot = {
 };
 
 export function renderSyncLicenseAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) {
-  const lines = buildAgreementDocumentLines(snapshot);
-  return buildSimplePdf(lines);
+  return buildProfessionalAgreementPdf(snapshot);
+}
+
+export function formatAgreementDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(date);
 }
 
 export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSnapshot) {
@@ -81,6 +97,9 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
   const permittedMediaMarkup = snapshot.license.permittedMedia.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   const restrictionsMarkup = snapshot.license.restrictions.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   const feePaid = formatCurrency(snapshot.license.pricePaidCents / 100, snapshot.license.currency);
+  const effectiveDate = formatAgreementDate(snapshot.effectiveDate);
+  const purchaseDate = formatAgreementDate(snapshot.purchaseDate);
+  const templateVersion = getTemplateVersion(snapshot);
   const buyerDisplay = snapshot.buyer.companyName
     ? `${snapshot.buyer.companyName} (${snapshot.buyer.legalName})`
     : snapshot.buyer.legalName;
@@ -241,7 +260,15 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
           </div>
           <div class="panel">
             <p class="label">Effective Date</p>
-            <p class="value">${escapeHtml(snapshot.effectiveDate)}</p>
+            <p class="value">${escapeHtml(effectiveDate)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Purchase Date</p>
+            <p class="value">${escapeHtml(purchaseDate)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Template Version</p>
+            <p class="value">${escapeHtml(templateVersion)}</p>
           </div>
           <div class="panel">
             <p class="label">Order</p>
@@ -305,11 +332,15 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
         <section class="section">
           <h2>Restrictions</h2>
           <ul>${restrictionsMarkup}</ul>
+        </section>
+
+        <section class="section">
+          <h2>Transfer / Assignment</h2>
           <p class="body-copy">${escapeHtml(snapshot.license.transferRestriction)}</p>
         </section>
 
         <section class="section">
-          <h2>Ownership Reservation</h2>
+          <h2>Ownership and Reservation of Rights</h2>
           <p class="body-copy">${escapeHtml(snapshot.license.ownershipReservation)}</p>
         </section>
 
@@ -350,6 +381,11 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
           <p class="body-copy">${escapeHtml(snapshot.license.governingLaw)}</p>
         </section>
 
+        <section class="section">
+          <h2>Acceptance</h2>
+          <p class="body-copy">Execution and signature language requires final legal review before this automated agreement template is treated as a countersigned legal instrument.</p>
+        </section>
+
         ${legalReviewNotice}
       </div>
     </main>
@@ -357,142 +393,370 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
 </html>`;
 }
 
-function buildAgreementDocumentLines(snapshot: GeneratedLicenseTermsSnapshot) {
-  const rightsHolderLines = snapshot.track.rightsHolders.length
-    ? snapshot.track.rightsHolders.flatMap((holder) =>
-        wrapPdfLine(`${holder.name} - ${holder.roleType} - ${holder.ownershipPercent}%`, 88)
-      )
-    : ["Rights holder details were not available when this agreement was generated."];
+type PdfFont = "regular" | "bold";
+
+type PdfTextStyle = {
+  font?: PdfFont;
+  size?: number;
+  color?: PdfColor;
+};
+
+type PdfColor = [number, number, number];
+
+type PdfPage = {
+  commands: string[];
+};
+
+type SummaryItem = {
+  label: string;
+  value: string;
+};
+
+const pdfColors = {
+  ink: [0.07, 0.09, 0.12] as PdfColor,
+  muted: [0.36, 0.4, 0.46] as PdfColor,
+  rule: [0.78, 0.82, 0.88] as PdfColor,
+  panel: [0.97, 0.98, 0.99] as PdfColor,
+  gold: [0.63, 0.47, 0.2] as PdfColor
+};
+
+function buildProfessionalAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) {
   const feePaid = formatCurrency(snapshot.license.pricePaidCents / 100, snapshot.license.currency);
-  const buyerDisplay = snapshot.buyer.companyName
-    ? `${snapshot.buyer.companyName} (${snapshot.buyer.legalName})`
-    : snapshot.buyer.legalName;
-
-  return [
-    "The Sync Exchange",
-    "Sync License Agreement",
-    "",
-    `Agreement Number: ${snapshot.agreementNumber}`,
-    `Order ID: ${snapshot.orderId}`,
-    `Effective Date: ${snapshot.effectiveDate}`,
-    `Purchase Date: ${snapshot.purchaseDate}`,
-    `Buyer: ${buyerDisplay}`,
-    `Billing Contact: ${snapshot.buyer.email}`,
-    `Licensor: ${snapshot.licensor.displayName}`,
-    `Track: ${snapshot.track.title}`,
-    `Artist: ${snapshot.track.artistName}`,
-    `License: ${snapshot.license.typeName}`,
-    `Fee Paid: ${feePaid}`,
-    `Territory: ${snapshot.license.territory}`,
-    `Term: ${snapshot.license.termLength}`,
-    `Exclusivity: ${snapshot.license.exclusivity}`,
-    "",
-    "License Grant",
-    ...wrapPdfLine(snapshot.license.grantText, 92),
-    "",
-    "Permitted Media",
-    ...snapshot.license.permittedMedia.flatMap((item) => wrapPdfLine(`- ${item}`, 92)),
-    "",
-    "Restrictions",
-    ...snapshot.license.restrictions.flatMap((item) => wrapPdfLine(`- ${item}`, 92)),
-    ...wrapPdfLine(snapshot.license.transferRestriction, 92),
-    "",
-    "Ownership Reservation",
-    ...wrapPdfLine(snapshot.license.ownershipReservation, 92),
-    "",
-    "Termination and Breach",
-    ...wrapPdfLine(snapshot.license.terminationTerms, 92),
-    "",
-    "Rights Holders",
-    ...rightsHolderLines,
-    "",
-    ...(snapshot.license.creditRequirements
-      ? ["Credit", ...wrapPdfLine(snapshot.license.creditRequirements, 92), ""]
-      : []),
-    "Governing Law",
-    ...wrapPdfLine(snapshot.license.governingLaw, 92),
-    "",
-    ...(snapshot.license.legalReviewRequired
-      ? wrapPdfLine(
-          "Attorney review required before this agreement template is treated as final production legal language. This artifact records the commercial terms of the purchase and the delivery entitlement for the buyer.",
-          92
-        )
-      : [])
-  ];
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function wrapPdfLine(text: string, maxChars: number) {
-  const normalized = sanitizePdfText(text).trim();
-  if (!normalized) {
-    return [""];
-  }
-
-  const words = normalized.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length <= maxChars) {
-      current = candidate;
-      continue;
-    }
-
-    if (current) {
-      lines.push(current);
-      current = word;
-      continue;
-    }
-
-    lines.push(word.slice(0, maxChars));
-    current = word.slice(maxChars);
-  }
-
-  if (current) {
-    lines.push(current);
-  }
-
-  return lines;
-}
-
-function buildSimplePdf(lines: string[]) {
+  const effectiveDate = formatAgreementDate(snapshot.effectiveDate);
+  const purchaseDate = formatAgreementDate(snapshot.purchaseDate);
+  const buyerDisplay = snapshot.buyer.legalName;
+  const templateVersion = getTemplateVersion(snapshot);
+  const rightsTotal = snapshot.track.rightsHolders.reduce((total, holder) => total + Number(holder.ownershipPercent || 0), 0);
+  const pages: PdfPage[] = [{ commands: [] }];
   const pageWidth = 612;
   const pageHeight = 792;
-  const marginLeft = 56;
-  const marginTop = 736;
-  const lineHeight = 16;
-  const maxLinesPerPage = 42;
+  const marginX = 54;
+  const topMargin = 54;
+  const bottomMargin = 72;
+  const contentWidth = pageWidth - marginX * 2;
+  let cursorY = pageHeight - topMargin;
 
-  const pages = chunkLines(lines, maxLinesPerPage);
+  const currentPage = () => pages[pages.length - 1];
+  const addCommand = (command: string) => currentPage().commands.push(command);
+  const addPage = () => {
+    pages.push({ commands: [] });
+    cursorY = pageHeight - topMargin;
+  };
+
+  const ensureSpace = (height: number) => {
+    if (cursorY - height < bottomMargin) {
+      addPage();
+    }
+  };
+
+  const moveDown = (amount: number) => {
+    cursorY -= amount;
+  };
+
+  const drawLine = (x1: number, y1: number, x2: number, y2: number, color: PdfColor = pdfColors.rule, width = 0.7) => {
+    addCommand(`${formatColor(color, "stroke")}\n${formatNumber(width)} w\n${formatNumber(x1)} ${formatNumber(y1)} m\n${formatNumber(x2)} ${formatNumber(y2)} l\nS`);
+  };
+
+  const drawRect = (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    options: { fill?: PdfColor; stroke?: PdfColor; strokeWidth?: number } = {}
+  ) => {
+    const commands: string[] = ["q"];
+    if (options.fill) {
+      commands.push(formatColor(options.fill, "fill"));
+      commands.push(`${formatNumber(x)} ${formatNumber(y)} ${formatNumber(width)} ${formatNumber(height)} re f`);
+    }
+    if (options.stroke) {
+      commands.push(formatColor(options.stroke, "stroke"));
+      commands.push(`${formatNumber(options.strokeWidth ?? 0.6)} w`);
+      commands.push(`${formatNumber(x)} ${formatNumber(y)} ${formatNumber(width)} ${formatNumber(height)} re S`);
+    }
+    commands.push("Q");
+    addCommand(commands.join("\n"));
+  };
+
+  const drawText = (text: string, x: number, y: number, style: PdfTextStyle = {}) => {
+    const font = style.font === "bold" ? "F2" : "F1";
+    const size = style.size ?? 10;
+    const color = style.color ?? pdfColors.ink;
+    addCommand(
+      [
+        "BT",
+        formatColor(color, "fill"),
+        `/${font} ${formatNumber(size)} Tf`,
+        `${formatNumber(x)} ${formatNumber(y)} Td`,
+        `(${escapePdfText(text)}) Tj`,
+        "ET"
+      ].join("\n")
+    );
+  };
+
+  const drawWrappedText = (
+    text: string,
+    x: number,
+    width: number,
+    style: PdfTextStyle & { leading?: number; bullet?: boolean } = {}
+  ) => {
+    const size = style.size ?? 10;
+    const leading = style.leading ?? size + 4;
+    const lines = wrapPdfText(text, width, size);
+    lines.forEach((line) => {
+      ensureSpace(leading);
+      drawText(line, x, cursorY, style);
+      moveDown(leading);
+    });
+    return lines.length;
+  };
+
+  const addSectionHeading = (title: string) => {
+    ensureSpace(110);
+    moveDown(20);
+    drawText(title, marginX, cursorY, { font: "bold", size: 13, color: pdfColors.ink });
+    drawLine(marginX, cursorY - 7, marginX + contentWidth, cursorY - 7, pdfColors.rule, 0.6);
+    moveDown(24);
+  };
+
+  const addParagraph = (text: string) => {
+    ensureSpace(58);
+    drawWrappedText(text, marginX, contentWidth, { size: 10.2, leading: 14.8, color: pdfColors.ink });
+    moveDown(8);
+  };
+
+  const addBulletList = (items: string[]) => {
+    items.forEach((item) => {
+      const bulletX = marginX + 6;
+      const textX = marginX + 18;
+      const wrapped = wrapPdfText(item, contentWidth - 18, 10);
+      ensureSpace(wrapped.length * 14 + 6);
+      drawText("-", bulletX, cursorY, { font: "bold", size: 10, color: pdfColors.gold });
+      wrapped.forEach((line, index) => {
+        drawText(line, textX, cursorY - index * 14, { size: 10, color: pdfColors.ink });
+      });
+      moveDown(wrapped.length * 14 + 5);
+    });
+    moveDown(4);
+  };
+
+  const addSummaryGrid = (items: SummaryItem[]) => {
+    const columnGap = 12;
+    const rowGap = 8;
+    const columnWidth = (contentWidth - columnGap) / 2;
+    const rowHeight = 50;
+    const rows = Math.ceil(items.length / 2);
+    ensureSpace(rows * (rowHeight + rowGap) + 8);
+
+    items.forEach((item, index) => {
+      const column = index % 2;
+      const row = Math.floor(index / 2);
+      const x = marginX + column * (columnWidth + columnGap);
+      const topY = cursorY - row * (rowHeight + rowGap);
+      const boxY = topY - rowHeight + 8;
+      drawRect(x, boxY, columnWidth, rowHeight, { fill: pdfColors.panel, stroke: pdfColors.rule });
+      drawText(item.label.toUpperCase(), x + 12, topY - 10, { font: "bold", size: 7.6, color: pdfColors.muted });
+      const valueLines = wrapPdfText(item.value, columnWidth - 34, 9.1).slice(0, 2);
+      valueLines.forEach((line, lineIndex) => {
+        drawText(line, x + 12, topY - 25 - lineIndex * 11, { font: "bold", size: 9.1, color: pdfColors.ink });
+      });
+    });
+
+    moveDown(rows * (rowHeight + rowGap) + 8);
+  };
+
+  const addRightsTable = () => {
+    const nameWidth = 232;
+    const roleWidth = 172;
+    const headerHeight = 24;
+    const rowHeight = 28;
+    const rows = snapshot.track.rightsHolders.length
+      ? snapshot.track.rightsHolders
+      : [{ name: "Rights holder details were not available when this agreement was generated.", roleType: "", ownershipPercent: 0 }];
+    ensureSpace(headerHeight + rows.length * rowHeight + 44);
+
+    drawRect(marginX, cursorY - headerHeight + 6, contentWidth, headerHeight, { fill: pdfColors.panel, stroke: pdfColors.rule });
+    drawText("NAME", marginX + 10, cursorY - 10, { font: "bold", size: 8, color: pdfColors.muted });
+    drawText("ROLE", marginX + nameWidth + 10, cursorY - 10, { font: "bold", size: 8, color: pdfColors.muted });
+    drawText("OWNERSHIP", marginX + nameWidth + roleWidth + 10, cursorY - 10, { font: "bold", size: 8, color: pdfColors.muted });
+    moveDown(headerHeight);
+
+    rows.forEach((holder) => {
+      const nameLines = wrapPdfText(holder.name, nameWidth - 20, 9.5);
+      const roleLines = wrapPdfText(holder.roleType, roleWidth - 20, 9.5);
+      const lineCount = Math.max(nameLines.length, roleLines.length, 1);
+      const dynamicRowHeight = Math.max(rowHeight, lineCount * 12 + 16);
+      ensureSpace(dynamicRowHeight + 44);
+      drawLine(marginX, cursorY + 6, marginX + contentWidth, cursorY + 6, pdfColors.rule, 0.4);
+      nameLines.forEach((line, index) => {
+        drawText(line, marginX + 10, cursorY - 10 - index * 12, { size: 9.5, color: pdfColors.ink });
+      });
+      roleLines.forEach((line, index) => {
+        drawText(line, marginX + nameWidth + 10, cursorY - 10 - index * 12, { size: 9.5, color: pdfColors.ink });
+      });
+      drawText(`${holder.ownershipPercent}%`, marginX + nameWidth + roleWidth + 10, cursorY - 10, { font: "bold", size: 9.5, color: pdfColors.ink });
+      moveDown(dynamicRowHeight);
+    });
+
+    drawLine(marginX, cursorY + 6, marginX + contentWidth, cursorY + 6, pdfColors.rule, 0.4);
+    moveDown(12);
+    drawText(`Total Ownership: ${formatOwnershipPercent(rightsTotal)}`, marginX, cursorY, {
+      font: "bold",
+      size: 10.5,
+      color: pdfColors.ink
+    });
+    moveDown(22);
+  };
+
+  drawText("THE SYNC EXCHANGE", marginX, cursorY, { font: "bold", size: 10.5, color: pdfColors.gold });
+  drawText(templateVersion, pageWidth - marginX - estimateTextWidth(templateVersion, 8.5), cursorY, {
+    font: "bold",
+    size: 8.5,
+    color: pdfColors.muted
+  });
+  moveDown(28);
+  drawText("SYNC LICENSE AGREEMENT", marginX, cursorY, { font: "bold", size: 21, color: pdfColors.ink });
+  moveDown(22);
+  drawText(`Agreement Number: ${snapshot.agreementNumber}`, marginX, cursorY, { font: "bold", size: 10.5, color: pdfColors.ink });
+  drawText(`Effective Date: ${effectiveDate}`, marginX, cursorY - 16, { size: 9.5, color: pdfColors.muted });
+  drawText(`Purchase Date: ${purchaseDate}`, marginX + 210, cursorY - 16, { size: 9.5, color: pdfColors.muted });
+  moveDown(36);
+  drawLine(marginX, cursorY, marginX + contentWidth, cursorY, pdfColors.gold, 1);
+  moveDown(22);
+  addParagraph(
+    "This license agreement was generated automatically after verified Stripe payment. It records the commercial rights granted for this purchase and the secure delivery entitlement for the buyer identified below."
+  );
+
+  addSectionHeading("License Summary");
+  addSummaryGrid([
+    { label: "Agreement Number", value: snapshot.agreementNumber },
+    { label: "Order ID", value: snapshot.orderId },
+    { label: "Buyer", value: buyerDisplay },
+    { label: "Buyer Company", value: snapshot.buyer.companyName || "Not provided" },
+    { label: "Billing Contact", value: snapshot.buyer.email },
+    { label: "Licensor", value: snapshot.licensor.displayName },
+    { label: "Artist", value: snapshot.track.artistName },
+    { label: "Track", value: snapshot.track.title },
+    { label: "License Type", value: snapshot.license.typeName },
+    { label: "License Fee", value: feePaid },
+    { label: "Territory", value: snapshot.license.territory },
+    { label: "Term", value: snapshot.license.termLength },
+    { label: "Exclusivity", value: snapshot.license.exclusivity },
+    { label: "Template Version", value: templateVersion }
+  ]);
+
+  addSectionHeading("Licensed Recording");
+  addParagraph(
+    `This agreement covers the recording identified as ${snapshot.track.title} by ${snapshot.track.artistName} under the purchased license tier ${snapshot.license.typeName}.`
+  );
+
+  ensureSpace(180);
+  addSectionHeading("Rights & Ownership");
+  addRightsTable();
+
+  addSectionHeading("License Grant");
+  addParagraph(snapshot.license.grantText);
+
+  addSectionHeading("Permitted Media");
+  addBulletList(snapshot.license.permittedMedia);
+
+  addSectionHeading("Restrictions");
+  addBulletList(snapshot.license.restrictions);
+
+  addSectionHeading("Ownership and Reservation of Rights");
+  addParagraph(snapshot.license.ownershipReservation);
+
+  addSectionHeading("Transfer / Assignment");
+  addParagraph(snapshot.license.transferRestriction);
+
+  addSectionHeading("Termination");
+  addParagraph(snapshot.license.terminationTerms);
+
+  addSectionHeading("Governing Law");
+  addParagraph(snapshot.license.governingLaw);
+
+  addSectionHeading("Additional Terms");
+  if (snapshot.license.creditRequirements) {
+    addParagraph(snapshot.license.creditRequirements);
+  }
+  if (snapshot.license.legalReviewRequired) {
+    addParagraph(
+      "Attorney review required before this agreement template is treated as final production legal language. This artifact records the commercial terms of the purchase and the delivery entitlement for the buyer."
+    );
+  }
+
+  addSectionHeading("Acceptance");
+  addParagraph(
+    "Execution and signature language requires final legal review before this automated agreement template is treated as a countersigned legal instrument."
+  );
+
+  return buildPdfFromPages(pages, {
+    pageWidth,
+    pageHeight,
+    marginX,
+    footer: {
+      left: "The Sync Exchange",
+      center: snapshot.agreementNumber
+    }
+  });
+}
+
+function getTemplateVersion(snapshot: GeneratedLicenseTermsSnapshot) {
+  return snapshot.templateVersion || FALLBACK_TEMPLATE_VERSION;
+}
+
+function formatOwnershipPercent(value: number) {
+  return Number.isInteger(value) ? `${value}%` : `${value.toFixed(2)}%`;
+}
+
+function buildPdfFromPages(
+  pages: PdfPage[],
+  {
+    pageWidth,
+    pageHeight,
+    marginX,
+    footer
+  }: {
+    pageWidth: number;
+    pageHeight: number;
+    marginX: number;
+    footer: {
+      left: string;
+      center: string;
+    };
+  }
+) {
+  const pageCount = pages.length;
   const objects: Array<string | null> = [null];
-  const fontObjectNumber = 3 + pages.length * 2;
+  const fontObjectNumber = 3 + pageCount * 2;
+  const boldFontObjectNumber = fontObjectNumber + 1;
 
   objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
-  objects[2] = `<< /Type /Pages /Count ${pages.length} /Kids [${pages
+  objects[2] = `<< /Type /Pages /Count ${pageCount} /Kids [${pages
     .map((_, index) => `${3 + index * 2} 0 R`)
     .join(" ")}] >>`;
 
-  pages.forEach((pageLines, index) => {
+  pages.forEach((page, index) => {
     const pageObjectNumber = 3 + index * 2;
     const contentObjectNumber = pageObjectNumber + 1;
-    const contentStream = buildPdfContentStream(pageLines, marginLeft, marginTop, lineHeight);
+    const footerCommands = buildFooterCommands({
+      pageIndex: index,
+      pageCount,
+      pageWidth,
+      pageHeight,
+      marginX,
+      footer
+    });
+    const contentStream = [buildPageBackgroundCommand(pageWidth, pageHeight), ...page.commands, ...footerCommands].join("\n");
 
     objects[pageObjectNumber] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] ` +
-      `/Resources << /Font << /F1 ${fontObjectNumber} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`;
+      `/Resources << /Font << /F1 ${fontObjectNumber} 0 R /F2 ${boldFontObjectNumber} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`;
     objects[contentObjectNumber] = `<< /Length ${Buffer.byteLength(contentStream, "utf8")} >>\nstream\n${contentStream}\nendstream`;
   });
 
   objects[fontObjectNumber] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  objects[boldFontObjectNumber] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
 
   let pdf = "%PDF-1.4\n";
   const offsets: number[] = [0];
@@ -514,23 +778,151 @@ function buildSimplePdf(lines: string[]) {
   return Buffer.from(pdf, "utf8");
 }
 
-function buildPdfContentStream(lines: string[], marginLeft: number, marginTop: number, lineHeight: number) {
-  const escapedLines = lines.map((line) => `(${escapePdfText(line)}) Tj`);
-  return `BT\n/F1 11 Tf\n${marginLeft} ${marginTop} Td\n${lineHeight} TL\n${escapedLines.join("\nT*\n")}\nET`;
+function buildPageBackgroundCommand(pageWidth: number, pageHeight: number) {
+  return `q\n1 1 1 rg\n0 0 ${formatNumber(pageWidth)} ${formatNumber(pageHeight)} re f\nQ`;
 }
 
-function chunkLines(lines: string[], maxLines: number) {
-  const chunks: string[][] = [];
+function buildFooterCommands({
+  pageIndex,
+  pageCount,
+  pageWidth,
+  marginX,
+  footer
+}: {
+  pageIndex: number;
+  pageCount: number;
+  pageWidth: number;
+  pageHeight: number;
+  marginX: number;
+  footer: {
+    left: string;
+    center: string;
+  };
+}) {
+  const y = 36;
+  const pageText = `Page ${pageIndex + 1} of ${pageCount}`;
+  const centerX = pageWidth / 2 - estimateTextWidth(footer.center, 8) / 2;
+  const pageTextX = pageWidth - marginX - estimateTextWidth(pageText, 8);
 
-  for (let index = 0; index < lines.length; index += maxLines) {
-    chunks.push(lines.slice(index, index + maxLines));
+  return [
+    `${formatColor(pdfColors.rule, "stroke")}\n0.5 w\n${formatNumber(marginX)} ${formatNumber(y + 15)} m\n${formatNumber(pageWidth - marginX)} ${formatNumber(y + 15)} l\nS`,
+    buildTextCommand(footer.left, marginX, y, { font: "bold", size: 8, color: pdfColors.muted }),
+    buildTextCommand(footer.center, centerX, y, { size: 8, color: pdfColors.muted }),
+    buildTextCommand(pageText, pageTextX, y, { size: 8, color: pdfColors.muted })
+  ];
+}
+
+function buildTextCommand(text: string, x: number, y: number, style: PdfTextStyle = {}) {
+  const font = style.font === "bold" ? "F2" : "F1";
+  const size = style.size ?? 10;
+  const color = style.color ?? pdfColors.ink;
+
+  return [
+    "BT",
+    formatColor(color, "fill"),
+    `/${font} ${formatNumber(size)} Tf`,
+    `${formatNumber(x)} ${formatNumber(y)} Td`,
+    `(${escapePdfText(text)}) Tj`,
+    "ET"
+  ].join("\n");
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function wrapPdfText(text: string, maxWidth: number, fontSize: number) {
+  const normalized = sanitizePdfText(text).trim();
+  if (!normalized) {
+    return [""];
   }
 
-  return chunks.length ? chunks : [[""]];
+  const words = normalized.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (estimateTextWidth(candidate, fontSize) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      lines.push(current);
+      current = word;
+      continue;
+    }
+
+    const splitWord = splitLongWord(word, maxWidth, fontSize);
+    lines.push(...splitWord.slice(0, -1));
+    current = splitWord.at(-1) || "";
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  return lines;
+}
+
+function splitLongWord(word: string, maxWidth: number, fontSize: number) {
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const char of word) {
+    const candidate = `${current}${char}`;
+    if (estimateTextWidth(candidate, fontSize) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      chunks.push(current);
+      current = char;
+    }
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks.length ? chunks : [word];
+}
+
+function estimateTextWidth(text: string, fontSize: number) {
+  return sanitizePdfText(text)
+    .split("")
+    .reduce((width, char) => {
+      if (char === " ") return width + fontSize * 0.26;
+      if ("il.,'".includes(char)) return width + fontSize * 0.28;
+      if ("mwMW".includes(char)) return width + fontSize * 0.86;
+      if (/[A-Z0-9]/.test(char)) return width + fontSize * 0.64;
+      return width + fontSize * 0.54;
+    }, 0);
+}
+
+function formatColor(color: PdfColor, mode: "fill" | "stroke") {
+  const operator = mode === "fill" ? "rg" : "RG";
+  return `${formatNumber(color[0])} ${formatNumber(color[1])} ${formatNumber(color[2])} ${operator}`;
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function sanitizePdfText(value: string) {
-  return value.replace(/[^\x20-\x7E]/g, " ");
+  return value
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, "\"")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/[^\x20-\x7E]/g, " ");
 }
 
 function escapePdfText(value: string) {

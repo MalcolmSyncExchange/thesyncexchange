@@ -185,3 +185,43 @@ test("agreement PDF paginates long agreements and adds page numbering", () => {
   assert.match(pdfText, /Page 1 of/);
   assert.match(pdfText, /TSE-SYNC-20260429-LONGDOC123/);
 });
+
+test("agreement PDF explicitly paints every page white before document content", () => {
+  const snapshot = buildGeneratedLicenseTermsSnapshot({
+    agreementNumber: "TSE-SYNC-20260429-WHITEPAGE",
+    context: {
+      ...baseContext,
+      licenseTermsSummary: "Long-form campaign license.",
+      rightsHolders: Array.from({ length: 10 }, (_, index) => ({
+        name: `Rights Holder ${index + 1}`,
+        roleType: index % 2 === 0 ? "Composer" : "Master Owner",
+        ownershipPercent: 10
+      }))
+    }
+  });
+  snapshot.license.permittedMedia = Array.from({ length: 18 }, (_, index) => `Permitted media item ${index + 1}.`);
+  snapshot.license.restrictions = Array.from({ length: 18 }, (_, index) => `Restriction item ${index + 1}.`);
+
+  const pdfText = renderSyncLicenseAgreementPdf(snapshot).toString("utf8");
+  const pageCountMatch = pdfText.match(/\/Type \/Pages \/Count (\d+)/);
+  const contentStreams = [...pdfText.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((match) => match[1]);
+  const whiteBackgroundPrefix = [
+    "q",
+    "/DeviceRGB cs",
+    "/DeviceRGB CS",
+    "1 1 1 rg",
+    "1 1 1 RG",
+    "0 0 612 792 re",
+    "f",
+    "Q"
+  ].join("\n");
+
+  assert.ok(pageCountMatch);
+  assert.equal(contentStreams.length, Number(pageCountMatch[1]));
+  assert.ok(contentStreams.length > 1);
+  contentStreams.forEach((stream) => {
+    assert.ok(stream.startsWith(whiteBackgroundPrefix));
+  });
+  assert.match(pdfText, /\/ColorSpace << \/DeviceRGB \/DeviceRGB >>/);
+  assert.match(pdfText, /\/Group << \/Type \/Group \/S \/Transparency \/CS \/DeviceRGB \/I true \/K false >>/);
+});

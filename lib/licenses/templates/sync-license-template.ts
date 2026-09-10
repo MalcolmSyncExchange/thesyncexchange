@@ -413,10 +413,11 @@ type SummaryItem = {
 };
 
 const pdfColors = {
-  ink: [0.07, 0.09, 0.12] as PdfColor,
+  ink: [0, 0, 0] as PdfColor,
   muted: [0.36, 0.4, 0.46] as PdfColor,
   rule: [0.78, 0.82, 0.88] as PdfColor,
   panel: [0.97, 0.98, 0.99] as PdfColor,
+  paper: [1, 1, 1] as PdfColor,
   gold: [0.63, 0.47, 0.2] as PdfColor
 };
 
@@ -751,7 +752,9 @@ function buildPdfFromPages(
 
     objects[pageObjectNumber] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] ` +
-      `/Resources << /Font << /F1 ${fontObjectNumber} 0 R /F2 ${boldFontObjectNumber} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`;
+      `/Group << /Type /Group /S /Transparency /CS /DeviceRGB /I true /K false >> ` +
+      `/Resources << /ColorSpace << /DeviceRGB /DeviceRGB >> /Font << /F1 ${fontObjectNumber} 0 R /F2 ${boldFontObjectNumber} 0 R >> >> ` +
+      `/Contents ${contentObjectNumber} 0 R >>`;
     objects[contentObjectNumber] = `<< /Length ${Buffer.byteLength(contentStream, "utf8")} >>\nstream\n${contentStream}\nendstream`;
   });
 
@@ -779,7 +782,16 @@ function buildPdfFromPages(
 }
 
 function buildPageBackgroundCommand(pageWidth: number, pageHeight: number) {
-  return `q\n1 1 1 rg\n0 0 ${formatNumber(pageWidth)} ${formatNumber(pageHeight)} re f\nQ`;
+  return [
+    "q",
+    "/DeviceRGB cs",
+    "/DeviceRGB CS",
+    formatColor(pdfColors.paper, "fill"),
+    formatColor(pdfColors.paper, "stroke"),
+    `0 0 ${formatNumber(pageWidth)} ${formatNumber(pageHeight)} re`,
+    "f",
+    "Q"
+  ].join("\n");
 }
 
 function buildFooterCommands({

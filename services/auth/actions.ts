@@ -57,6 +57,9 @@ import { buildBuyerProfileUpsert } from "@/services/auth/buyer-onboarding";
 import type { Database } from "@/types/database";
 import type { SessionUser, UserRole } from "@/types/models";
 
+const TRUSTED_PROFILE_ROLE_ASSIGNMENT_ERROR =
+  "Trusted profile role assignment is unavailable. Contact support before continuing.";
+
 function parseRole(rawRole: unknown): UserRole | null {
   if (rawRole === "artist" || rawRole === "buyer" || rawRole === "admin") {
     return rawRole;
@@ -142,7 +145,7 @@ function getMutationClient() {
 function getTrustedRoleMutationClient() {
   const client = createAdminSupabaseClient();
   if (!client) {
-    throw new Error("Trusted profile role assignment is unavailable. Contact support before continuing.");
+    throw new Error(TRUSTED_PROFILE_ROLE_ASSIGNMENT_ERROR);
   }
 
   return client as SupabaseClient<Database>;
@@ -224,6 +227,10 @@ export async function signupAction(formData: FormData) {
   }
 
   if (authMode === "supabase") {
+    if (role && !createAdminSupabaseClient()) {
+      redirect(`${signupPath}?error=${encodeURIComponent(TRUSTED_PROFILE_ROLE_ASSIGNMENT_ERROR)}`);
+    }
+
     const supabase = createServerSupabaseClient();
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -231,7 +238,6 @@ export async function signupAction(formData: FormData) {
       options: {
         emailRedirectTo: buildConfirmationRedirectUrl("/onboarding"),
         data: {
-          ...(role ? { role } : {}),
           full_name: fullName
         }
       }
@@ -778,7 +784,11 @@ async function ensureAppUser(user: {
   onboardingCompletedAt?: string | null;
   onboardingData?: Record<string, unknown>;
 }) {
-  const client = getUserProfileMutationClient(user.role);
+  const lookupClient = getMutationClient();
+  const { data: existingProfile } = await selectUserProfileCompat(lookupClient, user.id);
+  const persistedRole = parseRole(existingProfile?.role);
+  const roleToPersist = persistedRole || user.role;
+  const client = getUserProfileMutationClient(roleToPersist);
   const avatarFields =
     user.avatarPath !== undefined || user.avatarUrl !== undefined
       ? getStoredAvatarFields({
@@ -792,7 +802,7 @@ async function ensureAppUser(user: {
     {
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: roleToPersist,
       full_name: user.fullName,
       ...avatarFields,
       onboarding_started_at: user.onboardingStartedAt || null,

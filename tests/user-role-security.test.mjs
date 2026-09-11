@@ -6,6 +6,10 @@ const migrationSql = readFileSync(
   new URL("../supabase/migrations/0019_lock_down_user_profile_roles.sql", import.meta.url),
   "utf8"
 );
+const authTriggerMigrationSql = readFileSync(
+  new URL("../supabase/migrations/0020_remove_auth_profile_role_triggers.sql", import.meta.url),
+  "utf8"
+);
 const authActionsSource = readFileSync(new URL("../services/auth/actions.ts", import.meta.url), "utf8");
 const sessionSource = readFileSync(new URL("../services/auth/session.ts", import.meta.url), "utf8");
 const adminActionsSource = readFileSync(new URL("../services/admin/actions.ts", import.meta.url), "utf8");
@@ -18,6 +22,8 @@ const uploadRouteSource = readFileSync(new URL("../app/api/storage/upload/route.
 const deleteRouteSource = readFileSync(new URL("../app/api/storage/delete/route.ts", import.meta.url), "utf8");
 const agreementRouteSource = readFileSync(new URL("../app/api/orders/[orderId]/agreement/route.ts", import.meta.url), "utf8");
 const signupRoleFunction = authActionsSource.match(/function parseSignupRole[\s\S]*?\n}/)?.[0] || "";
+const signupActionFunction = authActionsSource.match(/export async function signupAction[\s\S]*?\nexport async function selectOnboardingRoleAction/)?.[0] || "";
+const ensureAppUserFunction = authActionsSource.match(/async function ensureAppUser[\s\S]*?\nasync function hasCompletedOnboarding/)?.[0] || "";
 
 const hardenedAuthorizationSources = [
   sessionSource,
@@ -89,4 +95,35 @@ test("database persisted role remains the authorization source for admin artist 
   assert.match(agreementRouteSource, /const role = String\(viewerProfile\?\.role \|\| ""\)/);
   assert.match(buyerActionsSource, /const role = persistedProfile\?\.role;/);
   assert.match(buyerQueriesSource, /const viewerRole = viewerProfile\?\.role;/);
+});
+
+test("auth profile triggers are removed without weakening the role guard", () => {
+  assert.match(authTriggerMigrationSql, /drop trigger if exists on_auth_user_created on auth\.users;/);
+  assert.match(authTriggerMigrationSql, /drop trigger if exists on_auth_user_updated on auth\.users;/);
+  assert.match(authTriggerMigrationSql, /Deprecated: profile creation is handled by trusted application service-role code/);
+  assert.match(authTriggerMigrationSql, /Deprecated: profile email reconciliation is handled by trusted application service-role code/);
+  assert.doesNotMatch(authTriggerMigrationSql, /guard_user_profile_write/);
+  assert.doesNotMatch(authTriggerMigrationSql, /auth\.uid\(\) is null\s+or/i);
+  assert.doesNotMatch(authTriggerMigrationSql, /set_config|current_setting/);
+});
+
+test("signup does not send application role through Supabase auth metadata", () => {
+  assert.match(signupActionFunction, /data:\s*\{\s*full_name: fullName\s*\}/);
+  assert.doesNotMatch(signupActionFunction, /\.\.\.\(role \? \{ role \} : \{\}\)/);
+  assert.doesNotMatch(signupActionFunction, /data:\s*\{[\s\S]*role[\s\S]*full_name/);
+});
+
+test("signup fails safely instead of assigning roles without the service-role client", () => {
+  assert.match(authActionsSource, /const TRUSTED_PROFILE_ROLE_ASSIGNMENT_ERROR =/);
+  assert.match(signupActionFunction, /if \(role && !createAdminSupabaseClient\(\)\) \{/);
+  assert.match(signupActionFunction, /TRUSTED_PROFILE_ROLE_ASSIGNMENT_ERROR/);
+  assert.match(authActionsSource, /function getTrustedRoleMutationClient\(\)/);
+});
+
+test("profile reconciliation preserves existing roles and can recover missing role-null profiles", () => {
+  assert.match(ensureAppUserFunction, /const \{ data: existingProfile \} = await selectUserProfileCompat\(lookupClient, user\.id\);/);
+  assert.match(ensureAppUserFunction, /const persistedRole = parseRole\(existingProfile\?\.role\);/);
+  assert.match(ensureAppUserFunction, /const roleToPersist = persistedRole \|\| user\.role;/);
+  assert.match(ensureAppUserFunction, /const client = getUserProfileMutationClient\(roleToPersist\);/);
+  assert.match(ensureAppUserFunction, /role: roleToPersist,/);
 });

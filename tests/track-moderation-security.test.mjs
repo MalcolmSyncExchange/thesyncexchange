@@ -11,6 +11,10 @@ const adminActionsSource = readFileSync(new URL("../services/admin/actions.ts", 
 const adminReviewActionsSource = readFileSync(new URL("../components/admin/track-review-actions.tsx", import.meta.url), "utf8");
 const buyerQueriesSource = readFileSync(new URL("../services/buyer/queries.ts", import.meta.url), "utf8");
 
+const updatePolicyWithCheck = migrationSql.match(
+  /drop policy if exists "Artists and admins can update owned tracks"[\s\S]*?with check \(([\s\S]*?)\n\);/
+)?.[1] || "";
+
 test("track moderation migration keeps artists from creating approved tracks", () => {
   assert.match(migrationSql, /for insert\s+to authenticated\s+with check/s);
   assert.match(migrationSql, /status in \('draft', 'pending_review'\)/);
@@ -20,7 +24,10 @@ test("track moderation migration keeps artists from creating approved tracks", (
 
 test("track moderation migration blocks artist updates to approved status", () => {
   assert.match(migrationSql, /for update\s+to authenticated/s);
-  assert.match(migrationSql, /status in \('draft', 'pending_review', 'archived'\)/);
+  assert.match(migrationSql, /new\.status not in \('draft', 'pending_review', 'archived'\)/);
+  assert.match(migrationSql, /if old\.status = 'approved' then/);
+  assert.match(migrationSql, /if new\.status <> 'archived' then/);
+  assert.match(migrationSql, /Approved tracks may only be archived by artists/);
   assert.match(migrationSql, /Artists may only save drafts, submit for review, or archive their own tracks/);
 });
 
@@ -31,6 +38,14 @@ test("track moderation migration blocks featured and approval field manipulation
   assert.match(migrationSql, /new\.approved_at is distinct from old\.approved_at/);
   assert.match(migrationSql, /new\.approved_by is distinct from old\.approved_by/);
   assert.match(migrationSql, /new\.featured is distinct from old\.featured/);
+});
+
+test("track moderation update policy allows ownership checks without erasing historical moderation metadata", () => {
+  assert.match(updatePolicyWithCheck, /public\.is_admin\(\)/);
+  assert.match(updatePolicyWithCheck, /auth\.uid\(\) = artist_user_id/);
+  assert.doesNotMatch(updatePolicyWithCheck, /featured = false/);
+  assert.doesNotMatch(updatePolicyWithCheck, /approved_at is null/);
+  assert.doesNotMatch(updatePolicyWithCheck, /approved_by is null/);
 });
 
 test("track moderation migration blocks artist ownership transfer", () => {
@@ -85,4 +100,5 @@ test("buyer catalog remains restricted to legitimately approved tracks", () => {
   assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "pending_review"\)/);
   assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "draft"\)/);
   assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "rejected"\)/);
+  assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "archived"\)/);
 });

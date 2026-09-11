@@ -60,16 +60,24 @@ begin
     raise exception 'Track ownership cannot be changed by artists.';
   end if;
 
-  if new.status not in ('draft', 'pending_review', 'archived') then
-    raise exception 'Artists may only save drafts, submit for review, or archive their own tracks.';
-  end if;
-
   if new.approved_at is distinct from old.approved_at or new.approved_by is distinct from old.approved_by then
     raise exception 'Approval fields are managed by admin workflows only.';
   end if;
 
   if new.featured is distinct from old.featured then
     raise exception 'Featured state is managed by admins.';
+  end if;
+
+  if old.status = 'approved' then
+    if new.status <> 'archived' then
+      raise exception 'Approved tracks may only be archived by artists.';
+    end if;
+
+    return new;
+  end if;
+
+  if new.status not in ('draft', 'pending_review', 'archived') then
+    raise exception 'Artists may only save drafts, submit for review, or archive their own tracks.';
   end if;
 
   return new;
@@ -105,13 +113,7 @@ using (
 )
 with check (
   public.is_admin()
-  or (
-    auth.uid() = artist_user_id
-    and status in ('draft', 'pending_review', 'archived')
-    and featured = false
-    and approved_at is null
-    and approved_by is null
-  )
+  or auth.uid() = artist_user_id
 );
 
 comment on function public.guard_track_write() is

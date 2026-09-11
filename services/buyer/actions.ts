@@ -40,7 +40,7 @@ export async function createOrderAction(formData: FormData) {
     redirect(`/buyer/checkout/${trackSlug}?error=Selected%20license%20option%20is%20not%20available.`);
   }
 
-  const amountPaid = selectedLicense.price_override || selectedLicense.base_price;
+  const amountPaid = selectedLicense.price_override ?? selectedLicense.base_price;
 
   if (!hasSupabaseEnv || env.demoMode) {
     const orderId = `ord_demo_${Date.now()}`;
@@ -61,7 +61,7 @@ export async function createOrderAction(formData: FormData) {
   const supabase = createPrivilegedSupabaseClient();
   const { data: existingPendingOrder } = await supabase
     .from("orders")
-    .select("id, stripe_checkout_session_id")
+    .select("id, stripe_checkout_session_id, amount_cents, currency")
     .eq("buyer_user_id", user.id)
     .eq("track_id", trackId)
     .eq("license_type_id", licenseTypeId)
@@ -106,6 +106,36 @@ export async function createOrderAction(formData: FormData) {
           trackId,
           licenseTypeId,
           amountCents
+        }
+      }).catch(() => undefined);
+    } else if (
+      Number((existingPendingOrder as any).amount_cents) !== amountCents ||
+      String((existingPendingOrder as any).currency || "").toUpperCase() !== "USD"
+    ) {
+      const { error: reconcileError } = await supabase
+        .from("orders")
+        .update({
+          amount_cents: amountCents,
+          currency: "USD"
+        })
+        .eq("id", orderId)
+        .eq("status", "pending");
+
+      if (reconcileError) {
+        throw new Error(reconcileError.message);
+      }
+
+      await appendOrderActivityLog(supabase, {
+        orderId,
+        actorId: user.id,
+        source: "system",
+        eventType: "checkout_price_reconciled",
+        message: "Pending order price was reconciled to the trusted license price before checkout.",
+        metadata: {
+          storedAmountCents: Number((existingPendingOrder as any).amount_cents || 0),
+          storedCurrency: String((existingPendingOrder as any).currency || ""),
+          trustedAmountCents: amountCents,
+          trustedCurrency: "USD"
         }
       }).catch(() => undefined);
     }

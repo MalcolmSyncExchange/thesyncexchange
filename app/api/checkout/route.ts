@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { assertStripeServerConfiguration } from "@/lib/server-env";
 import { appendOrderActivityLog } from "@/services/orders/activity";
+import { getStoredOrderPricingMismatch, loadTrustedCheckoutDetails } from "@/services/orders/checkout-pricing";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -31,53 +32,24 @@ export async function POST(request: Request) {
 
   const supabase = createPrivilegedSupabaseClient();
 
-  const { data: order } = await supabase
-    .from("orders")
-    .select(
-      `
-        id,
-        buyer_user_id,
-        track_id,
-        license_type_id,
-        amount_cents,
-        currency,
-        status,
-        tracks (
-          title,
-          slug
-        ),
-        license_types (
-          name
-        )
-      `
-    )
-    .eq("id", orderId)
-    .maybeSingle();
+  let trustedCheckout;
+  try {
+    trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Unable to validate this checkout."
+      },
+      { status: 409 }
+    );
+  }
 
-  if (!order || (order as any).buyer_user_id !== user.id) {
+  if (!trustedCheckout || trustedCheckout.order.buyer_user_id !== user.id) {
     return NextResponse.json({ error: "Order not found." }, { status: 404 });
   }
 
-  if ((order as any).status !== "pending") {
+  if (trustedCheckout.order.status !== "pending") {
     return NextResponse.json({ error: "Only pending orders can create a new checkout session." }, { status: 409 });
-  }
-
-  const [{ data: track }, { data: licenseOption }] = await Promise.all([
-    supabase.from("tracks").select("status").eq("id", String((order as any).track_id || "")).maybeSingle(),
-    supabase
-      .from("track_license_options")
-      .select("active")
-      .eq("track_id", String((order as any).track_id || ""))
-      .eq("license_type_id", String((order as any).license_type_id || ""))
-      .maybeSingle()
-  ]);
-
-  if (track?.status !== "approved") {
-    return NextResponse.json({ error: "This track is no longer approved for checkout." }, { status: 409 });
-  }
-
-  if (licenseOption?.active === false || !licenseOption) {
-    return NextResponse.json({ error: "This license option is no longer active for checkout." }, { status: 409 });
   }
 
   try {
@@ -91,17 +63,42 @@ export async function POST(request: Request) {
     );
   }
 
+  const pricingMismatch = getStoredOrderPricingMismatch(trustedCheckout);
+  if (pricingMismatch.amountMismatch || pricingMismatch.currencyMismatch) {
+    const correction = await supabase
+      .from("orders")
+      .update({
+        amount_cents: trustedCheckout.amountCents,
+        currency: trustedCheckout.currency
+      })
+      .eq("id", orderId)
+      .eq("status", "pending");
+
+    if (correction.error) {
+      return NextResponse.json({ error: correction.error.message }, { status: 500 });
+    }
+
+    await appendOrderActivityLog(supabase, {
+      orderId,
+      actorId: user.id,
+      source: "system",
+      eventType: "checkout_price_reconciled",
+      message: "Pending order price was reconciled to the trusted license price before checkout.",
+      metadata: pricingMismatch
+    }).catch(() => undefined);
+  }
+
   const session = await createStripeCheckoutSession({
     orderId,
-    trackTitle: (order as any).tracks?.title || "The Sync Exchange License",
-    trackSlug: (order as any).tracks?.slug || "catalog",
-    licenseName: (order as any).license_types?.name || "License",
-    amountCents: Number((order as any).amount_cents || 0),
-    currency: String((order as any).currency || "USD"),
+    trackTitle: trustedCheckout.trackTitle,
+    trackSlug: trustedCheckout.trackSlug,
+    licenseName: trustedCheckout.licenseName,
+    amountCents: trustedCheckout.amountCents,
+    currency: trustedCheckout.currency,
     buyerEmail: user.email || undefined,
     buyerUserId: user.id,
-    trackId: String((order as any).track_id || ""),
-    licenseTypeId: String((order as any).license_type_id || "")
+    trackId: trustedCheckout.order.track_id,
+    licenseTypeId: trustedCheckout.order.license_type_id
   });
 
   const checkoutCreatedAt = new Date().toISOString();

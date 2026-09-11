@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { env } from "@/lib/env";
 import { assertStripeServerConfiguration, serverEnv } from "@/lib/server-env";
 import { appendOrderActivityLog, hasProcessedOrderDedupeKey } from "@/services/orders/activity";
+import { assertStripeSessionMatchesTrustedCheckout, loadTrustedCheckoutDetails } from "@/services/orders/checkout-pricing";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -129,17 +130,27 @@ export async function syncOrderFromStripeSession({
   }
 
   const processedAt = new Date().toISOString();
-  const sessionOrderId = session.client_reference_id || session.metadata?.orderId || null;
-
-  if (sessionOrderId && sessionOrderId !== orderId) {
-    throw new Error("Checkout session does not belong to the requested order.");
-  }
-
   try {
+    const trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
+    if (!trustedCheckout) {
+      throw new Error("Order not found for Stripe fulfillment.");
+    }
+
     const existingOrder = await loadOrderForStripeSync(supabase, orderId);
     if (!existingOrder) {
       throw new Error("Order not found for Stripe fulfillment.");
     }
+
+    assertStripeSessionMatchesTrustedCheckout(
+      {
+        ...trustedCheckout,
+        order: {
+          ...trustedCheckout.order,
+          stripe_checkout_session_id: existingOrder.stripe_checkout_session_id
+        }
+      },
+      session
+    );
 
     const paymentIntentId =
       typeof session.payment_intent === "string"

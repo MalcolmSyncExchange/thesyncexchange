@@ -65,6 +65,14 @@ function parseRole(rawRole: unknown): UserRole | null {
   return null;
 }
 
+function parseSignupRole(rawRole: unknown): "artist" | "buyer" | null {
+  if (rawRole === "artist" || rawRole === "buyer") {
+    return rawRole;
+  }
+
+  return null;
+}
+
 function resolveSignupPath(role: UserRole | null) {
   if (role === "buyer") return "/signup/buyer";
   if (role === "admin") return "/signup";
@@ -131,6 +139,19 @@ function getMutationClient() {
   return (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;
 }
 
+function getTrustedRoleMutationClient() {
+  const client = createAdminSupabaseClient();
+  if (!client) {
+    throw new Error("Trusted profile role assignment is unavailable. Contact support before continuing.");
+  }
+
+  return client as SupabaseClient<Database>;
+}
+
+function getUserProfileMutationClient(role: UserRole | null) {
+  return role ? getTrustedRoleMutationClient() : getMutationClient();
+}
+
 export async function loginAction(formData: FormData) {
   const email = normalizeAuthEmail(formData.get("email"));
   const password = String(formData.get("password") || "");
@@ -163,7 +184,7 @@ export async function loginAction(formData: FormData) {
       redirect("/login?error=We%20couldn%E2%80%99t%20finish%20signing%20you%20in.%20Please%20try%20again.");
     }
 
-    const role = await resolvePersistedRole(authUser.id, parseRole(authUser.user_metadata?.role));
+    const role = await resolvePersistedRole(authUser.id);
     await ensureAppUser({
       id: authUser.id,
       email,
@@ -193,7 +214,7 @@ export async function signupAction(formData: FormData) {
   const email = normalizeAuthEmail(formData.get("email"));
   const password = String(formData.get("password") || "");
   const fullName = String(formData.get("fullName") || "").trim();
-  const role = parseRole(formData.get("role"));
+  const role = parseSignupRole(formData.get("role"));
   const now = new Date().toISOString();
   const signupPath = resolveSignupReturnPath(formData, role);
   const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
@@ -234,9 +255,9 @@ export async function signupAction(formData: FormData) {
         email,
         role,
         fullName,
-        onboardingStartedAt: role === "admin" ? now : role ? now : null,
-        onboardingCompletedAt: role === "admin" ? now : null,
-        onboardingStep: role === "admin" ? "complete" : role ? "basics" : null,
+        onboardingStartedAt: role ? now : null,
+        onboardingCompletedAt: null,
+        onboardingStep: role ? "basics" : null,
         onboardingData: {}
       });
     }
@@ -251,7 +272,7 @@ export async function signupAction(formData: FormData) {
       );
     }
 
-    redirect(role === "admin" ? "/dashboard/admin" : "/onboarding");
+    redirect("/onboarding");
   }
 
   if (authMode === "misconfigured") {
@@ -269,16 +290,16 @@ export async function signupAction(formData: FormData) {
     fullName,
     avatarPath: null,
     avatarUrl: null,
-    onboardingStep: role === "admin" ? null : role ? "basics" : null,
-    onboardingStartedAt: role === "admin" ? now : role ? now : null,
-    onboardingCompletedAt: role === "admin" ? now : null,
+    onboardingStep: role ? "basics" : null,
+    onboardingStartedAt: role ? now : null,
+    onboardingCompletedAt: null,
     onboardingData: {}
   } satisfies Parameters<typeof upsertDemoDirectoryUser>[0];
 
   upsertDemoDirectoryUser(demoUser);
   const sessionUser = toSessionUser(demoUser);
   setDemoSession(sessionUser);
-  redirect(role === "admin" ? "/dashboard/admin" : "/onboarding");
+  redirect("/onboarding");
 }
 
 export async function selectOnboardingRoleAction(formData: FormData) {
@@ -299,7 +320,7 @@ export async function selectOnboardingRoleAction(formData: FormData) {
   const now = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
-    const client = getMutationClient();
+    const client = getTrustedRoleMutationClient();
     const { error } = await upsertUserProfileCompat(
       client,
       {
@@ -757,7 +778,7 @@ async function ensureAppUser(user: {
   onboardingCompletedAt?: string | null;
   onboardingData?: Record<string, unknown>;
 }) {
-  const client = getMutationClient();
+  const client = getUserProfileMutationClient(user.role);
   const avatarFields =
     user.avatarPath !== undefined || user.avatarUrl !== undefined
       ? getStoredAvatarFields({
@@ -836,7 +857,7 @@ async function persistArtistOnboarding({
   const now = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
-    const client = getMutationClient();
+    const client = getUserProfileMutationClient(user.role);
     const { error: userError } = await upsertUserProfileCompat(
       client,
       {
@@ -942,7 +963,7 @@ async function persistBuyerOnboarding({
   const now = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
-    const client = getMutationClient();
+    const client = getUserProfileMutationClient(user.role);
     const { error: userError } = await upsertUserProfileCompat(
       client,
       {
@@ -1090,7 +1111,7 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
   const completedAt = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
-    const client = getMutationClient();
+    const client = getUserProfileMutationClient(user.role);
     const { error } = await upsertUserProfileCompat(
       client,
       {
@@ -1222,7 +1243,7 @@ function toNullableString(value: unknown) {
   return normalized || null;
 }
 
-async function resolvePersistedRole(userId: string, fallbackRole: UserRole | null) {
+async function resolvePersistedRole(userId: string) {
   const client = getMutationClient();
   const [{ data: userRow }, { data: artistProfile }, { data: buyerProfile }] = await Promise.all([
     selectUserProfileCompat(client, userId),
@@ -1237,10 +1258,6 @@ async function resolvePersistedRole(userId: string, fallbackRole: UserRole | nul
   const storedRole = parseRole(userRow?.role);
   if (storedRole) {
     return storedRole;
-  }
-
-  if (fallbackRole) {
-    return fallbackRole;
   }
 
   if (artistProfile && !buyerProfile) {

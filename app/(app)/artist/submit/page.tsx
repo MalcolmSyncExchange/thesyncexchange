@@ -1,12 +1,13 @@
 import { SubmitMusicForm } from "@/components/forms/submit-music-form";
 
-export default function SubmitMusicPage({
-  searchParams
-}: {
-  searchParams?: {
-    submitDebug?: string;
-  };
-}) {
+export default async function SubmitMusicPage(
+  props: {
+    searchParams?: Promise<{
+      submitDebug?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const submitDebugEnabled = searchParams?.submitDebug === "1" || searchParams?.submitDebug === "true";
 
   return (

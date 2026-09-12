@@ -3,11 +3,12 @@ import { SignupRoleForm } from "@/components/forms/signup-role-form";
 import { resendSignupConfirmationAction } from "@/services/auth/actions";
 import { getSessionUser, resolvePostAuthRedirect } from "@/services/auth/session";
 
-export default async function BuyerSignupPage({
-  searchParams
-}: {
-  searchParams?: { error?: string; success?: string; email?: string; confirmation?: string };
-}) {
+export default async function BuyerSignupPage(
+  props: {
+    searchParams?: Promise<{ error?: string; success?: string; email?: string; confirmation?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   const continueHref = user ? resolvePostAuthRedirect(user) : "/";
   const confirmationEmail = searchParams?.confirmation === "required" ? searchParams.email : undefined;

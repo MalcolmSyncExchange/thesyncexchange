@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { getArtistTrackBySlug } from "@/services/artist/queries";
 import { requireSession } from "@/services/auth/session";
 
-export default async function ArtistTrackEditPage({ params }: { params: { slug: string } }) {
+export default async function ArtistTrackEditPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const user = await requireSession("artist");
   const track = await getArtistTrackBySlug(user.id, params.slug);
   if (!track) notFound();

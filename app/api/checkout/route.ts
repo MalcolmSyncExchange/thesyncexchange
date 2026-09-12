@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Live checkout requires Supabase and demo mode disabled." }, { status: 400 });
   }
 
-  const authSupabase = createServerSupabaseClient();
+  const authSupabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await authSupabase.auth.getUser();
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   let trustedCheckout;
   try {

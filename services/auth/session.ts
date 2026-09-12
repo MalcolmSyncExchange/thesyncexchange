@@ -17,7 +17,7 @@ const SESSION_COOKIE = "sync-exchange-session";
 const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (hasSupabaseEnv && !env.demoMode) {
     try {
-      const supabase = createServerSupabaseClient();
+      const supabase = await createServerSupabaseClient();
       const {
         data: { user }
       } = await supabase.auth.getUser();
@@ -43,7 +43,7 @@ const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
     return null;
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE)?.value;
 
   if (!raw) {
@@ -52,9 +52,9 @@ const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
 
   try {
     const parsed = JSON.parse(raw) as SessionUser;
-    const directoryUser = getDemoDirectoryUserById(parsed.id) || getDemoDirectoryUserByEmail(parsed.email);
+    const directoryUser = (await getDemoDirectoryUserById(parsed.id)) || (await getDemoDirectoryUserByEmail(parsed.email));
     if (directoryUser) {
-      return toSessionUser(directoryUser);
+      return await toSessionUser(directoryUser);
     }
     return parsed;
   } catch {
@@ -185,7 +185,7 @@ function resolveUserRole(rawRole: unknown): UserRole | null {
 }
 
 async function getPersistedUserState(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   userId: string,
   fallbackFullName: string,
   email: string

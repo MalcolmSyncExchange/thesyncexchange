@@ -6,7 +6,7 @@ import { getStripeServerClient } from "@/services/stripe/server";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
 export async function GET() {
-  const authSupabase = createServerSupabaseClient();
+  const authSupabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await authSupabase.auth.getUser();

@@ -10,7 +10,7 @@ import {
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
 export async function PATCH(request: Request) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();

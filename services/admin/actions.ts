@@ -23,7 +23,7 @@ export async function updateTrackStatusAction(formData: FormData) {
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const { data: trackContext } = await supabase.from("tracks").select("id, slug").eq("id", trackId).maybeSingle();
 
   const actorId = await requireAdminActorId();
@@ -67,7 +67,7 @@ export async function toggleTrackFeaturedAction(formData: FormData) {
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   await requireAdminActorId();
 
   await supabase.from("tracks").update({ featured }).eq("id", trackId);
@@ -91,7 +91,7 @@ export async function updateComplianceFlagStatusAction(formData: FormData) {
   }
 
   const actorId = await requireAdminActorId();
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const updateResult = await supabase
     .from("admin_flags")
@@ -130,7 +130,7 @@ export async function createComplianceFlagAction(formData: FormData) {
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   await supabase.from("admin_flags").insert({
     track_id: trackId,
@@ -157,7 +157,7 @@ export async function addReviewNoteAction(formData: FormData) {
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   await supabase.from("review_notes").insert({
     track_id: trackId,
@@ -178,7 +178,7 @@ export async function updateOrderStatusAction(formData: FormData) {
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const now = new Date().toISOString();
   const order = await loadAdminOrderStatusSnapshot(supabase, orderId);
   const actorId = await requireAdminActorId();
@@ -231,7 +231,7 @@ export async function retryAgreementGenerationAction(formData: FormData) {
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const actorId = await requireAdminActorId();
   const order = await loadAdminOrderStatusSnapshot(supabase, orderId);
   if (!order) {
@@ -271,7 +271,7 @@ async function appendTrackAuditLog(
 ) {
   await supabase.from("track_audit_log").insert({
     track_id: trackId,
-    actor_id: actorId ?? await requireAdminActorId(),
+    actor_id: actorId ?? (await requireAdminActorId()),
     action,
     metadata: metadata as Json
   });
@@ -279,13 +279,13 @@ async function appendTrackAuditLog(
 
 async function getAdminActorId() {
   if (!hasSupabaseEnv || env.demoMode) {
-    const raw = cookies().get("sync-exchange-session")?.value;
+    const raw = (await cookies()).get("sync-exchange-session")?.value;
     if (!raw) return null;
     const user = JSON.parse(raw) as { id: string; role?: string | null };
     return user.role === "admin" ? user.id : null;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();

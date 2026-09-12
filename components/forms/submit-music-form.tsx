@@ -818,7 +818,7 @@ function findFirstFormErrorMessage(errors: FieldErrors<TrackSubmissionValues>): 
 
 function focusFirstAssetError(
   assetErrors: Record<string, string>,
-  refs: Record<string, RefObject<HTMLInputElement>>
+  refs: Record<string, RefObject<HTMLInputElement | null>>
 ) {
   const firstAssetKey = Object.keys(assetErrors).find((key) => assetErrors[key]);
   if (!firstAssetKey) {

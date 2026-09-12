@@ -2,8 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { isRedirectError } from "next/dist/client/components/redirect";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { ZodError } from "zod";
 
 import { env, getDeploymentTarget, hasSupabaseEnv } from "@/lib/env";
@@ -109,8 +108,8 @@ function getEmailDomain(email: string) {
   return email.includes("@") ? email.split("@")[1] : null;
 }
 
-function getRequestOrigin() {
-  const headerStore = headers();
+async function getRequestOrigin() {
+  const headerStore = await headers();
   const origin = headerStore.get("origin");
   if (origin) {
     return origin;
@@ -138,8 +137,8 @@ function isEmailConfirmationError(message: string) {
   return normalized.includes("email not confirmed") || normalized.includes("email address not authorized");
 }
 
-function getMutationClient() {
-  return (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;
+async function getMutationClient() {
+  return (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;
 }
 
 function getTrustedRoleMutationClient() {
@@ -151,8 +150,8 @@ function getTrustedRoleMutationClient() {
   return client as SupabaseClient<Database>;
 }
 
-function getUserProfileMutationClient(role: UserRole | null) {
-  return role ? getTrustedRoleMutationClient() : getMutationClient();
+async function getUserProfileMutationClient(role: UserRole | null) {
+  return role ? getTrustedRoleMutationClient() : await getMutationClient();
 }
 
 export async function loginAction(formData: FormData) {
@@ -166,7 +165,7 @@ export async function loginAction(formData: FormData) {
   }
 
   if (authMode === "supabase") {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       if (isEmailConfirmationError(error.message)) {
@@ -203,13 +202,13 @@ export async function loginAction(formData: FormData) {
     redirect(buildRelativePath("/login", { error: getMissingLoginAccountMessage(authMode) }));
   }
 
-  const directoryUser = getDemoDirectoryUserByEmail(email);
+  const directoryUser = await getDemoDirectoryUserByEmail(email);
   if (!directoryUser) {
     redirect(buildRelativePath("/login", { error: DEMO_ACCOUNT_NOT_FOUND_MESSAGE }));
   }
 
-  const sessionUser = toSessionUser(directoryUser);
-  setDemoSession(sessionUser);
+  const sessionUser = await toSessionUser(directoryUser);
+  await setDemoSession(sessionUser);
   redirect(resolvePostLoginRedirect(sessionUser, redirectTo));
 }
 
@@ -231,7 +230,7 @@ export async function signupAction(formData: FormData) {
       redirect(`${signupPath}?error=${encodeURIComponent(TRUSTED_PROFILE_ROLE_ASSIGNMENT_ERROR)}`);
     }
 
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -285,7 +284,7 @@ export async function signupAction(formData: FormData) {
     redirect(buildRelativePath(signupPath, { error: SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE }));
   }
 
-  if (getDemoDirectoryUserByEmail(email)) {
+  if (await getDemoDirectoryUserByEmail(email)) {
     redirect(`${signupPath}?error=${encodeURIComponent("An account with that email already exists. Try logging in.")}`);
   }
 
@@ -302,9 +301,9 @@ export async function signupAction(formData: FormData) {
     onboardingData: {}
   } satisfies Parameters<typeof upsertDemoDirectoryUser>[0];
 
-  upsertDemoDirectoryUser(demoUser);
-  const sessionUser = toSessionUser(demoUser);
-  setDemoSession(sessionUser);
+  await upsertDemoDirectoryUser(demoUser);
+  const sessionUser = await toSessionUser(demoUser);
+  await setDemoSession(sessionUser);
   redirect("/onboarding");
 }
 
@@ -349,7 +348,7 @@ export async function selectOnboardingRoleAction(formData: FormData) {
       redirect(`/onboarding?error=${encodeURIComponent(error.message)}`);
     }
   } else {
-    upsertDemoDirectoryUser({
+    await upsertDemoDirectoryUser({
       id: user.id,
       email: user.email,
       role,
@@ -362,7 +361,7 @@ export async function selectOnboardingRoleAction(formData: FormData) {
       onboardingData: user.onboardingData || {}
     });
 
-    setDemoSession({
+    await setDemoSession({
       ...user,
       role,
       onboardingStep: "basics",
@@ -377,11 +376,11 @@ export async function selectOnboardingRoleAction(formData: FormData) {
 
 export async function logoutAction() {
   if (hasSupabaseEnv && !env.demoMode) {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     await supabase.auth.signOut();
   }
 
-  clearDemoSession();
+  await clearDemoSession();
   redirect("/");
 }
 
@@ -410,7 +409,7 @@ export async function forgotPasswordAction(
   try {
     const redirectTo = buildPasswordResetRedirectUrl({
       configuredAppUrl: env.configuredAppUrl,
-      requestOrigin: getRequestOrigin(),
+      requestOrigin: await getRequestOrigin(),
       deploymentTarget: getDeploymentTarget()
     });
 
@@ -429,14 +428,12 @@ export async function forgotPasswordAction(
       email,
       emailDomain,
       redirectTo,
-      supabase: authMode === "supabase" ? createServerSupabaseClient() : undefined,
+      supabase: authMode === "supabase" ? await createServerSupabaseClient() : undefined,
       logEvent: reportOperationalEvent,
       logError: reportOperationalError
     });
   } catch (error) {
-    if (isRedirectError(error)) {
-      throw error;
-    }
+    unstable_rethrow(error);
 
     reportOperationalError("forgot_password_request_failed", error, {
       emailDomain,
@@ -470,7 +467,7 @@ export async function resendSignupConfirmationAction(formData: FormData) {
   }
 
   if (authMode === "supabase") {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const { error } = await supabase.auth.resend({
       type: "signup",
       email,
@@ -517,7 +514,7 @@ export async function updatePasswordAction(formData: FormData) {
   }
 
   if (authMode === "supabase") {
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const {
       data: { session },
       error: sessionError
@@ -784,11 +781,11 @@ async function ensureAppUser(user: {
   onboardingCompletedAt?: string | null;
   onboardingData?: Record<string, unknown>;
 }) {
-  const lookupClient = getMutationClient();
+  const lookupClient = await getMutationClient();
   const { data: existingProfile } = await selectUserProfileCompat(lookupClient, user.id);
   const persistedRole = parseRole(existingProfile?.role);
   const roleToPersist = persistedRole || user.role;
-  const client = getUserProfileMutationClient(roleToPersist);
+  const client = await getUserProfileMutationClient(roleToPersist);
   const avatarFields =
     user.avatarPath !== undefined || user.avatarUrl !== undefined
       ? getStoredAvatarFields({
@@ -822,7 +819,7 @@ async function hasCompletedOnboarding(userId: string, role: UserRole | null) {
     return true;
   }
 
-  const client = getMutationClient();
+  const client = await getMutationClient();
   const { data: userRow } = (await selectUserProfileCompat(client, userId)) as {
     data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "onboarding_completed_at" | "onboarding_step"> | null;
   };
@@ -867,7 +864,7 @@ async function persistArtistOnboarding({
   const now = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
-    const client = getUserProfileMutationClient(user.role);
+    const client = await getUserProfileMutationClient(user.role);
     const { error: userError } = await upsertUserProfileCompat(
       client,
       {
@@ -917,7 +914,7 @@ async function persistArtistOnboarding({
     return;
   }
 
-  upsertDemoDirectoryUser({
+  await upsertDemoDirectoryUser({
     id: user.id,
     email: user.email,
     role: user.role,
@@ -931,18 +928,18 @@ async function persistArtistOnboarding({
   });
 
   if (profileUpdates) {
-    upsertDemoArtistProfile(
+    await upsertDemoArtistProfile(
       user.id,
       buildArtistProfileUpsert({
         userId: user.id,
         onboardingPayload: payload,
         profileUpdates,
-        existingProfile: getDemoArtistProfileSnapshot(user.id)
+        existingProfile: await getDemoArtistProfileSnapshot(user.id)
       }) as Parameters<typeof upsertDemoArtistProfile>[1]
     );
   }
 
-  setDemoSession({
+  await setDemoSession({
     ...user,
     fullName: String(payload.fullName || user.fullName),
     avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
@@ -973,7 +970,7 @@ async function persistBuyerOnboarding({
   const now = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
-    const client = getUserProfileMutationClient(user.role);
+    const client = await getUserProfileMutationClient(user.role);
     const { error: userError } = await upsertUserProfileCompat(
       client,
       {
@@ -1029,7 +1026,7 @@ async function persistBuyerOnboarding({
     return;
   }
 
-  upsertDemoDirectoryUser({
+  await upsertDemoDirectoryUser({
     id: user.id,
     email: user.email,
     role: user.role,
@@ -1047,17 +1044,17 @@ async function persistBuyerOnboarding({
       userId: user.id,
       onboardingPayload: payload,
       profileUpdates,
-      existingProfile: getDemoBuyerProfileSnapshot(user.id)
+      existingProfile: await getDemoBuyerProfileSnapshot(user.id)
     });
 
     if (buyerProfileWrite.upsert) {
-      upsertDemoBuyerProfile(user.id, buyerProfileWrite.upsert as Parameters<typeof upsertDemoBuyerProfile>[1]);
+      await upsertDemoBuyerProfile(user.id, buyerProfileWrite.upsert as Parameters<typeof upsertDemoBuyerProfile>[1]);
     } else if (requireBuyerProfileRecord) {
       throw new Error(`Buyer onboarding is missing required profile fields: ${buyerProfileWrite.missingRequiredFields.join(", ")}`);
     }
   }
 
-  setDemoSession({
+  await setDemoSession({
     ...user,
     fullName: String(payload.fullName || user.fullName),
     avatarPath: user.avatarPath || null,
@@ -1085,8 +1082,8 @@ function getOnboardingStepErrorMessage(error: unknown) {
   return "Something went wrong. Please try again.";
 }
 
-function getDemoBuyerProfileSnapshot(userId: string) {
-  const profile = getDemoBuyerProfile(userId);
+async function getDemoBuyerProfileSnapshot(userId: string) {
+  const profile = await getDemoBuyerProfile(userId);
   return profile
     ? {
         company_name: profile.company_name,
@@ -1098,8 +1095,8 @@ function getDemoBuyerProfileSnapshot(userId: string) {
     : null;
 }
 
-function getDemoArtistProfileSnapshot(userId: string) {
-  const profile = getDemoArtistProfile(userId);
+async function getDemoArtistProfileSnapshot(userId: string) {
+  const profile = await getDemoArtistProfile(userId);
   return profile
     ? {
         artist_name: profile.artist_name,
@@ -1121,7 +1118,7 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
   const completedAt = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
-    const client = getUserProfileMutationClient(user.role);
+    const client = await getUserProfileMutationClient(user.role);
     const { error } = await upsertUserProfileCompat(
       client,
       {
@@ -1147,7 +1144,7 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
     return;
   }
 
-  upsertDemoDirectoryUser({
+  await upsertDemoDirectoryUser({
     id: user.id,
     email: user.email,
     role: user.role,
@@ -1160,7 +1157,7 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
     onboardingData: user.onboardingData || {}
   });
 
-  setDemoSession({
+  await setDemoSession({
     ...user,
     onboardingStep: nextStep,
     onboardingCompletedAt: completedAt,
@@ -1254,7 +1251,7 @@ function toNullableString(value: unknown) {
 }
 
 async function resolvePersistedRole(userId: string) {
-  const client = getMutationClient();
+  const client = await getMutationClient();
   const [{ data: userRow }, { data: artistProfile }, { data: buyerProfile }] = await Promise.all([
     selectUserProfileCompat(client, userId),
     client.from("artist_profiles").select("id").eq("user_id", userId).maybeSingle(),

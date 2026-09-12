@@ -47,7 +47,7 @@ export async function GET(_request: Request, props: { params: Promise<{ orderId:
     });
   }
 
-  const authSupabase = createServerSupabaseClient();
+  const authSupabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await authSupabase.auth.getUser();

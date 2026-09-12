@@ -5,7 +5,7 @@ import { buildPasswordUpdatePayload, validatePasswordChange } from "@/services/b
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
 export async function POST(request: Request) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();

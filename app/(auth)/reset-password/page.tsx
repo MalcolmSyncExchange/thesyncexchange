@@ -19,7 +19,7 @@ export default async function ResetPasswordPage(
   const tokenHash = searchParams?.token_hash || null;
   const type = searchParams?.type || null;
   const hasAuthParams = Boolean(code || tokenHash);
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { session },
     error: sessionError

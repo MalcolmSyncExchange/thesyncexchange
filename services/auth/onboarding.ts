@@ -121,7 +121,7 @@ async function getArtistProfile(userId: string) {
     return getDemoArtistProfile(userId);
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data } = await supabase.from("artist_profiles").select("*").eq("user_id", userId).maybeSingle();
   return data;
 }
@@ -131,7 +131,7 @@ async function getBuyerProfile(userId: string) {
     return getDemoBuyerProfile(userId);
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data } = await supabase.from("buyer_profiles").select("*").eq("user_id", userId).maybeSingle();
   return data;
 }

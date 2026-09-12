@@ -5,7 +5,7 @@ import { buildGlobalSignOutOptions } from "@/services/buyer/settings";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
 export async function POST() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();

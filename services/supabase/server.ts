@@ -1,12 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies, type UnsafeUnwrappedCookies } from "next/headers";
+import { cookies } from "next/headers";
 
 import { env } from "@/lib/env";
 import type { Database } from "@/types/database";
 import type { AppSupabaseClient } from "@/services/supabase/types";
 
-export function createServerSupabaseClient(): AppSupabaseClient {
-  const cookieStore = (cookies() as unknown as UnsafeUnwrappedCookies);
+export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {
+  const cookieStore = await cookies();
 
   return createServerClient<Database>(env.supabaseUrl || "https://demo.supabase.co", env.supabaseAnonKey || "demo-anon-key", {
     cookies: {

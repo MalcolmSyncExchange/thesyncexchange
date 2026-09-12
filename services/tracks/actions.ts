@@ -34,7 +34,7 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
     const parsed = parseTrackSubmissionFormData(formData);
     uploadedAssets = parsed.uploadedAssets;
     const user = await requireArtistUser();
-    const supabase = (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;
+    const supabase = (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;
 
     const slug = await ensureUniqueTrackSlug(supabase, slugify(parsed.title));
     const status = parsed.saveMode === "publish" ? "pending_review" : "draft";
@@ -177,7 +177,7 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
     const trackId = String(formData.get("trackId") || "");
     const existingSlug = String(formData.get("existingSlug") || "");
     const user = await requireArtistUser();
-    const supabase = (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;
+    const supabase = (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;
 
     if (!trackId || !existingSlug) {
       await cleanupUploadedAssets(uploadedAssets);
@@ -398,7 +398,7 @@ async function requireArtistUser() {
     };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
@@ -420,7 +420,7 @@ async function requireArtistUser() {
 }
 
 async function resolveArtistRole(userId: string) {
-  const client = (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;
+  const client = (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;
   const { data } = await selectUserProfileCompat(client, userId);
   return data?.role as UserRole | null | undefined;
 }

@@ -201,6 +201,12 @@ Without asking first, it is acceptable to:
 - Run local tests, typecheck, lint, build, and verification scripts.
 - Make focused local code edits that directly implement the user's requested fix.
 - Add focused tests and documentation for the requested change.
+- Stage only files or hunks directly related to the requested task.
+- Commit task-related changes with a clear commit message.
+- Push non-protected feature branches.
+- Open or update pull requests.
+- Push follow-up fixes to the same feature branch after review or CI failures.
+- Never include unrelated local changes such as `.DS_Store`, `output/`, `tmp/`, generated PDFs, screenshots, or other unrelated artifacts.
 - Generate local-only artifacts for inspection when the task requests them, as long as they are not staged or uploaded.
 
 Always keep the user informed when a task is long-running or security-sensitive.
@@ -211,15 +217,27 @@ Always keep the user informed when a task is long-running or security-sensitive.
 
 Ask for explicit approval before:
 
-- Pushing to any remote branch.
-- Committing, unless the user has asked for that commit.
-- Staging files or hunks, unless the user has asked for staging.
-- Applying Supabase SQL or changing production data.
-- Changing Stripe dashboard settings, webhook endpoints, or live/test credentials.
-- Running destructive commands such as `rm`, `git reset`, `git checkout --`, database deletes, or storage deletes.
+- Merging into `main` or any production branch.
+- Pushing directly to `main` or another protected branch.
 - Force-pushing, rewriting history, or amending commits already pushed to a shared branch.
+- Applying production Supabase migrations or SQL.
+- Modifying or deleting production data.
+- Changing RLS/auth/security policy in production.
+- Changing production secrets or environment variables.
+- Changing Stripe live-mode settings, credentials, webhook configuration, products/prices, or executing live payment/refund actions.
+- Running destructive database, storage, Git, or infrastructure operations.
+- Performing production storage deletion or mutation.
 - Regenerating existing fulfilled agreements.
-- Touching production storage objects or performing live checkout/payment actions.
+- Taking any action that could directly affect real users, real payments, production data, or production availability.
+
+Always preserve these Git safety rules:
+
+- Never use `git add .`.
+- Stage only task-related files.
+- Leave unrelated working-tree changes untouched.
+- Never reset, stash, discard, overwrite, or commit unrelated local work.
+- Never push directly to `main`.
+- Use feature branches and PRs.
 
 ---
 

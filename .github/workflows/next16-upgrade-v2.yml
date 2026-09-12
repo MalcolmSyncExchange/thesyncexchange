@@ -51,11 +51,14 @@ jobs:
             text = re.sub(r'\(\s*headers\(\)\s+as unknown as UnsafeUnwrappedHeaders\s*\)', 'await headers()', text)
             return text
 
+          def normalize_async(text):
+            return text.replace('async async function', 'async function')
+
           def server_fix(text):
             text = strip_unsafe_types(text)
             text = text.replace('export function createServerSupabaseClient(): AppSupabaseClient {', 'export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {')
             text = text.replace('const cookieStore = cookies();', 'const cookieStore = await cookies();')
-            return text
+            return normalize_async(text)
           write('services/supabase/server.ts', server_fix)
 
           def demo_fix(text):
@@ -84,7 +87,7 @@ jobs:
             text = re.sub(r'(?<!await )\bsaveDemoDirectory\(', 'await saveDemoDirectory(', text)
             text = text.replace('async function await saveDemoDirectory', 'async function saveDemoDirectory')
             text = text.replace('const role = user.role || detectStoredRole(user.id);', 'const role = user.role || await detectStoredRole(user.id);')
-            return text
+            return normalize_async(text)
           write('services/auth/demo-store.ts', demo_fix)
 
           def auth_fix(text):
@@ -105,7 +108,7 @@ jobs:
             text = text.replace('async function await getDemoBuyerProfileSnapshot', 'async function getDemoBuyerProfileSnapshot')
             text = text.replace('async function await getDemoArtistProfileSnapshot', 'async function getDemoArtistProfileSnapshot')
             text = re.sub(r'(?<!await )\bcreateServerSupabaseClient\(\)', 'await createServerSupabaseClient()', text)
-            return text
+            return normalize_async(text)
           write('services/auth/actions.ts', auth_fix)
 
           def session_fix(text):
@@ -113,25 +116,25 @@ jobs:
             text = text.replace('const directoryUser = getDemoDirectoryUserById(parsed.id) || getDemoDirectoryUserByEmail(parsed.email);', 'const directoryUser = (await getDemoDirectoryUserById(parsed.id)) || (await getDemoDirectoryUserByEmail(parsed.email));')
             text = text.replace('return toSessionUser(directoryUser);', 'return await toSessionUser(directoryUser);')
             text = text.replace('supabase: ReturnType<typeof createServerSupabaseClient>,', 'supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,')
-            return text
+            return normalize_async(text)
           write('services/auth/session.ts', session_fix)
 
           def privileged_fix(text):
             text = text.replace('export function createPrivilegedSupabaseClient(): AppSupabaseClient {', 'export async function createPrivilegedSupabaseClient(): Promise<AppSupabaseClient> {')
             text = text.replace('return createAdminSupabaseClient() ?? createServerSupabaseClient();', 'return createAdminSupabaseClient() ?? await createServerSupabaseClient();')
-            return text
+            return normalize_async(text)
           write('services/supabase/privileged.ts', privileged_fix)
 
           def artist_fix(text):
             text = text.replace('const profile = getDemoArtistProfile(userId) ||', 'const profile = (await getDemoArtistProfile(userId)) ||')
             text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
-            return text
+            return normalize_async(text)
           write('services/artist/queries.ts', artist_fix)
 
           def buyer_settings_fix(text):
             text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
             text = text.replace('supabase: ReturnType<typeof createServerSupabaseClient>', 'supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>')
-            return text
+            return normalize_async(text)
           write('app/(app)/buyer/settings/page.tsx', buyer_settings_fix)
 
           for path in Path('.').rglob('*.ts*'):
@@ -146,6 +149,7 @@ jobs:
                 updated = re.sub(r'(?<!await )\bcreatePrivilegedSupabaseClient\(\)', 'await createPrivilegedSupabaseClient()', updated)
               updated = updated.replace('ReturnType<typeof createServerSupabaseClient>', 'Awaited<ReturnType<typeof createServerSupabaseClient>>')
               updated = updated.replace('ReturnType<typeof createPrivilegedSupabaseClient>', 'Awaited<ReturnType<typeof createPrivilegedSupabaseClient>>')
+            updated = normalize_async(updated)
             if updated != content:
               path.write_text(updated)
           PY

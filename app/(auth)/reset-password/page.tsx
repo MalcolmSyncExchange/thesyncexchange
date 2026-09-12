@@ -9,11 +9,12 @@ import { updatePasswordAction } from "@/services/auth/actions";
 import { buildRecoveryConfirmPath, getResetPasswordRecoveryRoutingDecision } from "@/services/auth/auth-flow";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
-export default async function ResetPasswordPage({
-  searchParams
-}: {
-  searchParams?: { code?: string; token_hash?: string; type?: string; error?: string };
-}) {
+export default async function ResetPasswordPage(
+  props: {
+    searchParams?: Promise<{ code?: string; token_hash?: string; type?: string; error?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const code = searchParams?.code || null;
   const tokenHash = searchParams?.token_hash || null;
   const type = searchParams?.type || null;

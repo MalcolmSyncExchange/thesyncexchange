@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, type UnsafeUnwrappedCookies } from "next/headers";
 
 import { artistProfiles, buyerProfiles, demoUsers } from "@/lib/demo-data";
 import type { ArtistProfile, BuyerProfile, SessionUser, UserRole } from "@/types/models";
@@ -122,7 +122,7 @@ export function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfi
 }
 
 export function setDemoSession(user: SessionUser) {
-  cookies().set(SESSION_COOKIE, JSON.stringify(user), {
+  (cookies() as unknown as UnsafeUnwrappedCookies).set(SESSION_COOKIE, JSON.stringify(user), {
     httpOnly: true,
     sameSite: "lax",
     path: "/"
@@ -130,7 +130,7 @@ export function setDemoSession(user: SessionUser) {
 }
 
 export function clearDemoSession() {
-  cookies().delete(SESSION_COOKIE);
+  (cookies() as unknown as UnsafeUnwrappedCookies).delete(SESSION_COOKIE);
 }
 
 export function toSessionUser(user: DemoDirectoryUser): SessionUser {
@@ -152,7 +152,7 @@ export function toSessionUser(user: DemoDirectoryUser): SessionUser {
 }
 
 function getDemoDirectory(): DemoDirectory {
-  const raw = cookies().get(DIRECTORY_COOKIE)?.value;
+  const raw = (cookies() as unknown as UnsafeUnwrappedCookies).get(DIRECTORY_COOKIE)?.value;
   if (!raw) {
     return buildDefaultDirectory();
   }
@@ -180,7 +180,7 @@ function detectStoredRole(userId: string): UserRole | null {
 }
 
 function saveDemoDirectory(directory: DemoDirectory) {
-  cookies().set(DIRECTORY_COOKIE, JSON.stringify(directory), {
+  (cookies() as unknown as UnsafeUnwrappedCookies).set(DIRECTORY_COOKIE, JSON.stringify(directory), {
     httpOnly: true,
     sameSite: "lax",
     path: "/"

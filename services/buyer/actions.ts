@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { isRedirectError } from "next/dist/client/components/redirect";
+import { redirect, unstable_rethrow } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { assertStripeServerConfiguration } from "@/lib/server-env";
@@ -207,9 +206,7 @@ export async function createOrderAction(formData: FormData) {
 
     redirect(session.url);
   } catch (checkoutError) {
-    if (isRedirectError(checkoutError)) {
-      throw checkoutError;
-    }
+    unstable_rethrow(checkoutError);
 
     if (!checkoutSessionId && createdNewOrder) {
       await supabase.from("orders").delete().eq("id", orderId);
@@ -263,7 +260,7 @@ export async function toggleFavoriteAction(formData: FormData) {
 
 async function requireBuyerUser(): Promise<SessionUser> {
   if (!hasSupabaseEnv || env.demoMode) {
-    const raw = cookies().get("sync-exchange-session")?.value;
+    const raw = (await cookies()).get("sync-exchange-session")?.value;
     if (!raw) {
       redirect("/login");
     }

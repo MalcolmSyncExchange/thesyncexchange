@@ -14,11 +14,12 @@ import { Label } from "@/components/ui/label";
 import { loginAction, resendSignupConfirmationAction } from "@/services/auth/actions";
 import { getSessionUser, resolvePostLoginRedirect } from "@/services/auth/session";
 
-export default async function LoginPage({
-  searchParams
-}: {
-  searchParams?: { error?: string; success?: string; redirectTo?: string; email?: string; confirmation?: string };
-}) {
+export default async function LoginPage(
+  props: {
+    searchParams?: Promise<{ error?: string; success?: string; redirectTo?: string; email?: string; confirmation?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   const continueHref = user ? resolvePostLoginRedirect(user, searchParams?.redirectTo) : "/";
   const confirmationEmail = searchParams?.confirmation === "required" ? searchParams.email : undefined;

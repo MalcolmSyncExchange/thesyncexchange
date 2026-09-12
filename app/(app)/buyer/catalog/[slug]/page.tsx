@@ -11,7 +11,8 @@ import { formatCurrency, formatDuration } from "@/lib/utils";
 import { requireSession } from "@/services/auth/session";
 import { getBuyerCatalogTracks, getBuyerTrackBySlug } from "@/services/buyer/queries";
 
-export default async function BuyerTrackDetailPage({ params }: { params: { slug: string } }) {
+export default async function BuyerTrackDetailPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const user = await requireSession("buyer");
   const track = await getBuyerTrackBySlug(params.slug, user.id);
   if (!track) notFound();

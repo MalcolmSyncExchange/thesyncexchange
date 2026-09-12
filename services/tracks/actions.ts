@@ -382,7 +382,7 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
 
 async function requireArtistUser() {
   if (!hasSupabaseEnv || env.demoMode) {
-    const raw = cookies().get("sync-exchange-session")?.value;
+    const raw = (await cookies()).get("sync-exchange-session")?.value;
     if (!raw) {
       throw new Error("You must be signed in to submit music.");
     }

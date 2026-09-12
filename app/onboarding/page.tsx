@@ -4,11 +4,12 @@ import { OnboardingRoleSelection } from "@/components/forms/onboarding-forms";
 import { selectOnboardingRoleAction } from "@/services/auth/actions";
 import { getSessionUser, resolveOnboardingPath, resolveRoleRedirect } from "@/services/auth/session";
 
-export default async function OnboardingEntryPage({
-  searchParams
-}: {
-  searchParams?: { error?: string };
-}) {
+export default async function OnboardingEntryPage(
+  props: {
+    searchParams?: Promise<{ error?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
 
   if (!user) {

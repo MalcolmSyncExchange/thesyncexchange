@@ -1,9 +1,8 @@
 "use server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { isRedirectError } from "next/dist/client/components/redirect";
+import { headers, type UnsafeUnwrappedHeaders } from "next/headers";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { ZodError } from "zod";
 
 import { env, getDeploymentTarget, hasSupabaseEnv } from "@/lib/env";
@@ -110,7 +109,7 @@ function getEmailDomain(email: string) {
 }
 
 function getRequestOrigin() {
-  const headerStore = headers();
+  const headerStore = (headers() as unknown as UnsafeUnwrappedHeaders);
   const origin = headerStore.get("origin");
   if (origin) {
     return origin;
@@ -434,9 +433,7 @@ export async function forgotPasswordAction(
       logError: reportOperationalError
     });
   } catch (error) {
-    if (isRedirectError(error)) {
-      throw error;
-    }
+    unstable_rethrow(error);
 
     reportOperationalError("forgot_password_request_failed", error, {
       emailDomain,

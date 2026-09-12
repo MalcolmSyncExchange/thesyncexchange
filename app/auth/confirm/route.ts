@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login?error=Supabase%20authentication%20is%20not%20configured.", requestUrl.origin));
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const hasPkceVerifier = cookieStore.getAll().some((cookie) => cookie.name.includes("code-verifier"));
   const response = NextResponse.redirect(successRedirect);
   const supabase = createServerClient(env.supabaseUrl!, env.supabaseAnonKey!, {

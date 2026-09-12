@@ -7,13 +7,14 @@ import { createOrderAction } from "@/services/buyer/actions";
 import { getBuyerTrackBySlug } from "@/services/buyer/queries";
 import { requireSession } from "@/services/auth/session";
 
-export default async function CheckoutPage({
-  params,
-  searchParams
-}: {
-  params: { trackSlug: string };
-  searchParams?: { error?: string };
-}) {
+export default async function CheckoutPage(
+  props: {
+    params: Promise<{ trackSlug: string }>;
+    searchParams?: Promise<{ error?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireSession("buyer");
   const track = await getBuyerTrackBySlug(params.trackSlug, user.id);
   if (!track) notFound();

@@ -43,7 +43,7 @@ const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
     return null;
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE)?.value;
 
   if (!raw) {

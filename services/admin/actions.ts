@@ -271,7 +271,7 @@ async function appendTrackAuditLog(
 ) {
   await supabase.from("track_audit_log").insert({
     track_id: trackId,
-    actor_id: actorId ?? await requireAdminActorId(),
+    actor_id: actorId ?? (await requireAdminActorId()),
     action,
     metadata: metadata as Json
   });
@@ -279,7 +279,7 @@ async function appendTrackAuditLog(
 
 async function getAdminActorId() {
   if (!hasSupabaseEnv || env.demoMode) {
-    const raw = cookies().get("sync-exchange-session")?.value;
+    const raw = (await cookies()).get("sync-exchange-session")?.value;
     if (!raw) return null;
     const user = JSON.parse(raw) as { id: string; role?: string | null };
     return user.role === "admin" ? user.id : null;

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { reportOperationalError } from "@/lib/monitoring";
 import { getOrderById } from "@/services/buyer/queries";
 
-export async function GET(_request: Request, { params }: { params: { orderId: string } }) {
+export async function GET(_request: Request, props: { params: Promise<{ orderId: string }> }) {
+  const params = await props.params;
   try {
     const order = await getOrderById(params.orderId);
 

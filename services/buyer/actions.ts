@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { isRedirectError } from "next/dist/client/components/redirect";
+import { redirect, unstable_rethrow } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { assertStripeServerConfiguration } from "@/lib/server-env";
@@ -58,7 +57,7 @@ export async function createOrderAction(formData: FormData) {
     );
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const { data: existingPendingOrder } = await supabase
     .from("orders")
     .select("id, stripe_checkout_session_id, amount_cents, currency")
@@ -207,9 +206,7 @@ export async function createOrderAction(formData: FormData) {
 
     redirect(session.url);
   } catch (checkoutError) {
-    if (isRedirectError(checkoutError)) {
-      throw checkoutError;
-    }
+    unstable_rethrow(checkoutError);
 
     if (!checkoutSessionId && createdNewOrder) {
       await supabase.from("orders").delete().eq("id", orderId);
@@ -241,7 +238,7 @@ export async function toggleFavoriteAction(formData: FormData) {
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   if (nextValue === "true") {
     await supabase.from("favorites").upsert(
@@ -263,7 +260,7 @@ export async function toggleFavoriteAction(formData: FormData) {
 
 async function requireBuyerUser(): Promise<SessionUser> {
   if (!hasSupabaseEnv || env.demoMode) {
-    const raw = cookies().get("sync-exchange-session")?.value;
+    const raw = (await cookies()).get("sync-exchange-session")?.value;
     if (!raw) {
       redirect("/login");
     }
@@ -276,7 +273,7 @@ async function requireBuyerUser(): Promise<SessionUser> {
     return user;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();

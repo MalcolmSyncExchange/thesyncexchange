@@ -2,11 +2,12 @@ import { AuthPageShell, AuthPanel } from "@/components/forms/auth-form";
 import { ForgotPasswordForm } from "@/components/forms/forgot-password-form";
 import { forgotPasswordAction } from "@/services/auth/actions";
 
-export default function ForgotPasswordPage({
-  searchParams
-}: {
-  searchParams?: { error?: string; success?: string; email?: string };
-}) {
+export default async function ForgotPasswordPage(
+  props: {
+    searchParams?: Promise<{ error?: string; success?: string; email?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   return (
     <AuthPageShell
       eyebrow="Password recovery"

@@ -13,7 +13,8 @@ import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabas
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { Database } from "@/types/database";
 
-export async function GET(_request: Request, { params }: { params: { orderId: string } }) {
+export async function GET(_request: Request, props: { params: Promise<{ orderId: string }> }) {
+  const params = await props.params;
   if (!hasSupabaseEnv || env.demoMode) {
     const order = orders.find((item) => item.id === params.orderId);
     if (!order) {
@@ -46,7 +47,7 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
     });
   }
 
-  const authSupabase = createServerSupabaseClient();
+  const authSupabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await authSupabase.auth.getUser();

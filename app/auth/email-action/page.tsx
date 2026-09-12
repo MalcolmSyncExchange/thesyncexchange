@@ -190,19 +190,20 @@ function resolveDestinationLabel(confirmationUrl: string | null) {
   return "your next step in The Sync Exchange";
 }
 
-export default function AuthEmailActionPage({
-  searchParams
-}: {
-  searchParams?: {
-    flow?: string;
-    confirmation_url?: string;
-    email?: string;
-    new_email?: string;
-    next?: string;
-    token_hash?: string;
-    type?: string;
-  };
-}) {
+export default async function AuthEmailActionPage(
+  props: {
+    searchParams?: Promise<{
+      flow?: string;
+      confirmation_url?: string;
+      email?: string;
+      new_email?: string;
+      next?: string;
+      token_hash?: string;
+      type?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const flow = parseFlow(searchParams?.flow);
   const copy = flowCopy[flow];
   const tokenHashType = parseTokenHashOtpType(searchParams?.type, flow);

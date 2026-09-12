@@ -14,7 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatDateTime, formatDuration, formatEnumLabel } from "@/lib/utils";
 import { getAdminTrackById } from "@/services/admin/queries";
 
-export default async function AdminTrackDetailPage({ params }: { params: { id: string } }) {
+export default async function AdminTrackDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const data = await getAdminTrackById(params.id);
   if (!data) notFound();
 

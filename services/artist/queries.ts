@@ -13,14 +13,14 @@ interface ArtistWorkspaceData {
 
 export async function getArtistWorkspaceData(userId: string): Promise<ArtistWorkspaceData> {
   if (!hasSupabaseEnv || env.demoMode) {
-    const profile = getDemoArtistProfile(userId) || artistProfiles.find((item) => item.user_id === userId) || null;
+    const profile = (await getDemoArtistProfile(userId)) || artistProfiles.find((item) => item.user_id === userId) || null;
     return {
       profile,
       tracks: demoTracks.filter((track) => track.artist_user_id === userId)
     };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data: profileRow } = await supabase.from("artist_profiles").select("*").eq("user_id", userId).maybeSingle();
 
   const { data: trackRows } = await supabase

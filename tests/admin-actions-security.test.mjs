@@ -15,7 +15,7 @@ function indexOfOrFail(source, pattern, label) {
 test("compliance flag status update authorizes admin before privileged mutation", () => {
   const validationIndex = indexOfOrFail(complianceActionSource, /status !== "open" && status !== "resolved"/, "status validation");
   const adminCheckIndex = indexOfOrFail(complianceActionSource, "const actorId = await requireAdminActorId();", "admin authorization");
-  const privilegedClientIndex = indexOfOrFail(complianceActionSource, "const supabase = createPrivilegedSupabaseClient();", "privileged client creation");
+  const privilegedClientIndex = indexOfOrFail(complianceActionSource, /const supabase = (?:await )?createPrivilegedSupabaseClient\(\);/, "privileged client creation");
   const mutationIndex = indexOfOrFail(complianceActionSource, /\.from\("admin_flags"\)\s*\.update/s, "admin_flags mutation");
 
   assert.ok(validationIndex < adminCheckIndex, "status validation should happen before admin authorization");

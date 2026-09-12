@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Storage uploads require live Supabase mode." }, { status: 503 });
   }
 
-  const authSupabase = createServerSupabaseClient();
+  const authSupabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await authSupabase.auth.getUser();

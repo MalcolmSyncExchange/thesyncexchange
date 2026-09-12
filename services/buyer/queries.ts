@@ -21,7 +21,7 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Track
     }));
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const trackResult = await supabase
     .from("tracks")
     .select(
@@ -121,7 +121,7 @@ export async function getBuyerOrders(buyerUserId: string) {
       .map((order) => enrichOrder(order, demoTracks.find((track) => track.id === order.track_id) || null, demoLicenseTypes.find((license) => license.id === order.license_type_id) || null));
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const ordersResult = await supabase
     .from("orders")
     .select(
@@ -184,7 +184,7 @@ export async function getOrderById(orderId: string) {
     return enrichOrder(order, demoTracks.find((track) => track.id === order.track_id) || null, demoLicenseTypes.find((license) => license.id === order.license_type_id) || null);
   }
 
-  const authSupabase = createServerSupabaseClient();
+  const authSupabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await authSupabase.auth.getUser();
@@ -193,7 +193,7 @@ export async function getOrderById(orderId: string) {
     return null;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const [{ data: viewerProfile }, { data, error }] = await Promise.all([
     selectUserProfileCompat(supabase, user.id),
     supabase
@@ -247,7 +247,7 @@ async function getFavoriteTrackIdSet(buyerUserId: string) {
     return new Set(demoFavorites.filter((favorite) => favorite.buyer_user_id === buyerUserId).map((favorite) => favorite.track_id));
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const favoritesResult = await supabase.from("favorites").select("track_id").eq("buyer_user_id", buyerUserId);
 
   if (favoritesResult.error) {

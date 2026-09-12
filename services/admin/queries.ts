@@ -69,7 +69,7 @@ export async function getAdminDashboardData() {
     };
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const [usersResult, tracksResult, rightsResult, flagsResult, reviewNotesResult, profilesResult, ordersResult] = await Promise.all([
     supabase.from("user_profiles").select("id"),
@@ -140,7 +140,7 @@ export async function getAdminReviewQueue() {
     return buildDemoReviewQueue();
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const [tracksResult, rightsResult, flagsResult, reviewNotesResult, profilesResult] = await Promise.all([
     supabase
@@ -174,7 +174,7 @@ export async function getAdminTracks() {
     }));
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const [{ data: tracks }, { data: profiles }] = await Promise.all([
     supabase.from("tracks").select("id, title, artist_user_id, genre, status, featured").order("created_at", { ascending: false }),
@@ -202,7 +202,7 @@ export async function getAdminTrackById(trackId: string) {
     };
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const [{ data: trackRow }, { data: profiles }, { data: flags }, { data: reviewNotes }, { data: auditLog }] = await Promise.all([
     supabase
@@ -279,7 +279,7 @@ export async function getAdminAnalytics() {
     };
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const [tracksResult, ordersResult] = await Promise.all([supabase.from("tracks").select("status"), supabase.from("orders").select("amount_cents")]);
 
@@ -306,7 +306,7 @@ export async function getAdminComplianceFlags() {
     }));
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const { data } = await supabase
     .from("admin_flags")
@@ -348,7 +348,7 @@ export async function getAdminOrders() {
     }));
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const primaryOrders = await supabase
     .from("orders")
     .select(
@@ -528,7 +528,7 @@ export async function getAdminUsers() {
     return demoUsers;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const { data } = await supabase.from("user_profiles").select("id, full_name, email, role, created_at").order("created_at", { ascending: false });
   return data || [];
@@ -739,7 +739,7 @@ async function getUserNameMap(userIds: string[]) {
     return new Map<string, string>();
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   const { data } = await supabase.from("user_profiles").select("id, full_name, email").in("id", userIds);
   return new Map((data || []).map((user: any) => [user.id, user.full_name || user.email]));

@@ -9,13 +9,14 @@ import { syncOrderFromStripeSessionId } from "@/services/stripe/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function LicenseConfirmationPage({
-  params,
-  searchParams
-}: {
-  params: { orderId: string };
-  searchParams?: { trackId?: string; licenseTypeId?: string; session_id?: string };
-}) {
+export default async function LicenseConfirmationPage(
+  props: {
+    params: Promise<{ orderId: string }>;
+    searchParams?: Promise<{ trackId?: string; licenseTypeId?: string; session_id?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   let order = await getOrderById(params.orderId);
 
   if (

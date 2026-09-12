@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BuyerSettingsPage() {
   const sessionUser = await requireSession("buyer");
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
@@ -36,7 +36,7 @@ export default async function BuyerSettingsPage() {
   );
 }
 
-async function loadNotificationPreferences(supabase: ReturnType<typeof createServerSupabaseClient>, userId: string) {
+async function loadNotificationPreferences(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>, userId: string) {
   const { data, error } = await supabase
     .from("buyer_notification_preferences")
     .select("purchase_receipts, license_agreement_ready, platform_updates, security_alerts")
@@ -50,7 +50,7 @@ async function loadNotificationPreferences(supabase: ReturnType<typeof createSer
   return mapNotificationPreferencesRow(data);
 }
 
-async function loadTeamInvites(supabase: ReturnType<typeof createServerSupabaseClient>, userId: string) {
+async function loadTeamInvites(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>, userId: string) {
   const { data, error } = await supabase
     .from("buyer_team_invites")
     .select("id, email, role, status, created_at")

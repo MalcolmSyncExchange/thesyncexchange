@@ -24,7 +24,7 @@ jobs:
 
       - name: Install patched Next.js 15 stack
         run: |
-          npm install --save-exact next@15.5.24 react@19 react-dom@19
+          npm install --save-exact next@15.5.24 react@19 react-dom@19 next-themes@0.4.6
           npm install --save-dev --save-exact eslint-config-next@15.5.24 @types/react@19 @types/react-dom@19 postcss@latest
 
       - name: Typecheck

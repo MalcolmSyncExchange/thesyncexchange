@@ -124,7 +124,7 @@ If a command is unavailable in a future branch, inspect `package.json` and use t
 - Do not push directly to `main`.
 - Do not force-push unless the user explicitly asks and the risk is understood.
 - Do not use `git add .`.
-- Stage only the files or hunks the user explicitly approves.
+- Stage only files or hunks directly related to the requested task.
 - Keep unrelated local changes unstaged and untouched.
 - Do not reset, stash, discard, or overwrite unrelated work without explicit approval.
 - Prefer small commits with clear messages.

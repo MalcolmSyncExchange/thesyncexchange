@@ -27,7 +27,7 @@ jobs:
       - name: Upgrade framework dependencies
         run: |
           npm install --save-exact next@16.3.5 react@latest react-dom@latest
-          npm install --save-dev --save-exact eslint@latest eslint-config-next@16.3.5 @types/react@latest @types/react-dom@latest postcss@latest
+          npm install --save-dev --save-exact eslint@9 eslint-config-next@16.3.5 @types/react@latest @types/react-dom@latest postcss@latest
       - name: Migrate remaining async request APIs
         run: npx --yes @next/codemod@16.3.5 next-async-request-api . --force
       - name: Migrate Next lint to ESLint CLI

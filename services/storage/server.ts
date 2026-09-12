@@ -17,7 +17,7 @@ export async function createSignedStorageUrl(asset: StorageAssetRef | null, expi
     return asset.path;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const { data, error } = await supabase.storage.from(asset.bucket).createSignedUrl(asset.path, expiresInSeconds);
 
   if (error) {
@@ -32,7 +32,7 @@ export async function deleteStorageAssetsWithServerAccess(assets: StorageAssetRe
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const grouped = groupStorageAssetsByBucket(assets);
 
   await Promise.all(

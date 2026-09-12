@@ -1,0 +1,187 @@
+name: Next 16 Security Upgrade v2
+
+on:
+  push:
+    branches:
+      - chore/next16-security-upgrade
+
+concurrency:
+  group: next16-security-upgrade
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Upgrade framework dependencies
+        run: |
+          npm install --save-exact next@16.3.5 react@latest react-dom@latest
+          npm install --save-dev --save-exact eslint@9 eslint-config-next@16.3.5 @types/react@latest @types/react-dom@latest postcss@latest
+      - name: Migrate remaining async request APIs
+        run: npx --yes @next/codemod@16.3.5 next-async-request-api . --force
+      - name: Migrate Next lint to ESLint CLI
+        run: npx --yes @next/codemod@16.3.5 next-lint-to-eslint-cli . --force
+      - name: Apply Next 16 async helper compatibility
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          def write(path, transform):
+            p = Path(path)
+            p.write_text(transform(p.read_text()))
+
+          def strip_unsafe_types(text):
+            text = text.replace(', type UnsafeUnwrappedCookies', '')
+            text = text.replace(', type UnsafeUnwrappedHeaders', '')
+            text = re.sub(r'\(\s*await cookies\(\)\s+as unknown as UnsafeUnwrappedCookies\s*\)', 'await cookies()', text)
+            text = re.sub(r'\(\s*cookies\(\)\s+as unknown as UnsafeUnwrappedCookies\s*\)', 'await cookies()', text)
+            text = re.sub(r'\(\s*await headers\(\)\s+as unknown as UnsafeUnwrappedHeaders\s*\)', 'await headers()', text)
+            text = re.sub(r'\(\s*headers\(\)\s+as unknown as UnsafeUnwrappedHeaders\s*\)', 'await headers()', text)
+            return text
+
+          def normalize_async(text):
+            return text.replace('async async function', 'async function')
+
+          def server_fix(text):
+            text = strip_unsafe_types(text)
+            text = text.replace('export function createServerSupabaseClient(): AppSupabaseClient {', 'export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {')
+            text = text.replace('const cookieStore = cookies();', 'const cookieStore = await cookies();')
+            return normalize_async(text)
+          write('services/supabase/server.ts', server_fix)
+
+          def demo_fix(text):
+            text = strip_unsafe_types(text)
+            replacements = {
+              'export function getDemoDirectoryUserByEmail(email: string) {': 'export async function getDemoDirectoryUserByEmail(email: string) {',
+              'export function getDemoDirectoryUserById(userId: string) {': 'export async function getDemoDirectoryUserById(userId: string) {',
+              'export function upsertDemoDirectoryUser(user: DemoDirectoryUser) {': 'export async function upsertDemoDirectoryUser(user: DemoDirectoryUser) {',
+              'export function getDemoArtistProfile(userId: string) {': 'export async function getDemoArtistProfile(userId: string) {',
+              'export function getDemoBuyerProfile(userId: string) {': 'export async function getDemoBuyerProfile(userId: string) {',
+              'export function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistProfile>) {': 'export async function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistProfile>) {',
+              'export function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfile>) {': 'export async function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfile>) {',
+              'export function setDemoSession(user: SessionUser) {': 'export async function setDemoSession(user: SessionUser) {',
+              'export function clearDemoSession() {': 'export async function clearDemoSession() {',
+              'export function toSessionUser(user: DemoDirectoryUser): SessionUser {': 'export async function toSessionUser(user: DemoDirectoryUser): Promise<SessionUser> {',
+              'function getDemoDirectory(): DemoDirectory {': 'async function getDemoDirectory(): Promise<DemoDirectory> {',
+              'function detectStoredRole(userId: string): UserRole | null {': 'async function detectStoredRole(userId: string): Promise<UserRole | null> {',
+              'function saveDemoDirectory(directory: DemoDirectory) {': 'async function saveDemoDirectory(directory: DemoDirectory) {'
+            }
+            for old, new in replacements.items():
+              text = text.replace(old, new)
+            text = text.replace('return getDemoDirectory().users.find', 'return (await getDemoDirectory()).users.find')
+            text = text.replace('const directory = getDemoDirectory();', 'const directory = await getDemoDirectory();')
+            text = text.replace('return getDemoDirectory().artistProfiles[userId] || null;', 'return (await getDemoDirectory()).artistProfiles[userId] || null;')
+            text = text.replace('return getDemoDirectory().buyerProfiles[userId] || null;', 'return (await getDemoDirectory()).buyerProfiles[userId] || null;')
+            text = re.sub(r'(?<!await )\bsaveDemoDirectory\(', 'await saveDemoDirectory(', text)
+            text = text.replace('async function await saveDemoDirectory', 'async function saveDemoDirectory')
+            text = text.replace('const role = user.role || detectStoredRole(user.id);', 'const role = user.role || await detectStoredRole(user.id);')
+            return normalize_async(text)
+          write('services/auth/demo-store.ts', demo_fix)
+
+          def auth_fix(text):
+            text = strip_unsafe_types(text)
+            text = text.replace('function getRequestOrigin() {', 'async function getRequestOrigin() {')
+            text = text.replace('const headerStore = headers();', 'const headerStore = await headers();')
+            text = text.replace('requestOrigin: getRequestOrigin(),', 'requestOrigin: await getRequestOrigin(),')
+            text = text.replace('function getMutationClient() {', 'async function getMutationClient() {')
+            text = text.replace('return (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;', 'return (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;')
+            text = text.replace('function getUserProfileMutationClient(role: UserRole | null) {', 'async function getUserProfileMutationClient(role: UserRole | null) {')
+            text = text.replace('return role ? getTrustedRoleMutationClient() : getMutationClient();', 'return role ? getTrustedRoleMutationClient() : await getMutationClient();')
+            text = text.replace('function getDemoBuyerProfileSnapshot(userId: string) {', 'async function getDemoBuyerProfileSnapshot(userId: string) {')
+            text = text.replace('function getDemoArtistProfileSnapshot(userId: string) {', 'async function getDemoArtistProfileSnapshot(userId: string) {')
+            for name in ['getDemoDirectoryUserByEmail','getDemoDirectoryUserById','getDemoArtistProfile','getDemoBuyerProfile','upsertDemoDirectoryUser','upsertDemoArtistProfile','upsertDemoBuyerProfile','setDemoSession','clearDemoSession','toSessionUser','getMutationClient','getUserProfileMutationClient','getDemoBuyerProfileSnapshot','getDemoArtistProfileSnapshot']:
+              text = re.sub(rf'(?<!function )(?<!await )\b{name}\(', f'await {name}(', text)
+            text = text.replace('async function await getMutationClient', 'async function getMutationClient')
+            text = text.replace('async function await getUserProfileMutationClient', 'async function getUserProfileMutationClient')
+            text = text.replace('async function await getDemoBuyerProfileSnapshot', 'async function getDemoBuyerProfileSnapshot')
+            text = text.replace('async function await getDemoArtistProfileSnapshot', 'async function getDemoArtistProfileSnapshot')
+            text = re.sub(r'(?<!await )\bcreateServerSupabaseClient\(\)', 'await createServerSupabaseClient()', text)
+            return normalize_async(text)
+          write('services/auth/actions.ts', auth_fix)
+
+          def session_fix(text):
+            text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
+            text = text.replace('const directoryUser = getDemoDirectoryUserById(parsed.id) || getDemoDirectoryUserByEmail(parsed.email);', 'const directoryUser = (await getDemoDirectoryUserById(parsed.id)) || (await getDemoDirectoryUserByEmail(parsed.email));')
+            text = text.replace('return toSessionUser(directoryUser);', 'return await toSessionUser(directoryUser);')
+            text = text.replace('supabase: ReturnType<typeof createServerSupabaseClient>,', 'supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,')
+            return normalize_async(text)
+          write('services/auth/session.ts', session_fix)
+
+          def privileged_fix(text):
+            text = text.replace('export function createPrivilegedSupabaseClient(): AppSupabaseClient {', 'export async function createPrivilegedSupabaseClient(): Promise<AppSupabaseClient> {')
+            text = text.replace('return createAdminSupabaseClient() ?? createServerSupabaseClient();', 'return createAdminSupabaseClient() ?? await createServerSupabaseClient();')
+            return normalize_async(text)
+          write('services/supabase/privileged.ts', privileged_fix)
+
+          def artist_fix(text):
+            text = text.replace('const profile = getDemoArtistProfile(userId) ||', 'const profile = (await getDemoArtistProfile(userId)) ||')
+            text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
+            return normalize_async(text)
+          write('services/artist/queries.ts', artist_fix)
+
+          def buyer_settings_fix(text):
+            text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
+            text = text.replace('supabase: ReturnType<typeof createServerSupabaseClient>', 'supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>')
+            return normalize_async(text)
+          write('app/(app)/buyer/settings/page.tsx', buyer_settings_fix)
+
+          for path in Path('.').rglob('*.ts*'):
+            if any(part in {'node_modules', '.next'} for part in path.parts):
+              continue
+            content = path.read_text()
+            updated = strip_unsafe_types(content)
+            if path.as_posix() not in {'services/supabase/server.ts','services/auth/actions.ts','services/auth/session.ts','services/supabase/privileged.ts','services/artist/queries.ts','app/(app)/buyer/settings/page.tsx','services/auth/demo-store.ts'}:
+              if 'createServerSupabaseClient()' in updated:
+                updated = re.sub(r'(?<!await )\bcreateServerSupabaseClient\(\)', 'await createServerSupabaseClient()', updated)
+              if 'createPrivilegedSupabaseClient()' in updated:
+                updated = re.sub(r'(?<!await )\bcreatePrivilegedSupabaseClient\(\)', 'await createPrivilegedSupabaseClient()', updated)
+              updated = updated.replace('ReturnType<typeof createServerSupabaseClient>', 'Awaited<ReturnType<typeof createServerSupabaseClient>>')
+              updated = updated.replace('ReturnType<typeof createPrivilegedSupabaseClient>', 'Awaited<ReturnType<typeof createPrivilegedSupabaseClient>>')
+            updated = normalize_async(updated)
+            if updated != content:
+              path.write_text(updated)
+          PY
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Build
+        run: npm run build
+        env:
+          CONTEXT: deploy-preview
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+          STRIPE_SECRET_KEY: sk_test_ci_placeholder
+          STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
+      - name: Audit dependencies
+        run: npm audit --json > next16-audit.json || true
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: next16-audit-v2
+          path: next16-audit.json
+          retention-days: 1
+      - name: Commit validated migration
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --name-only -z | xargs -0 git add --
+          git commit -m "chore: upgrade to secure Next.js 16 baseline"
+          git push

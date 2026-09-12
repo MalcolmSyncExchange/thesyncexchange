@@ -57,7 +57,7 @@ export async function createOrderAction(formData: FormData) {
     );
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
   const { data: existingPendingOrder } = await supabase
     .from("orders")
     .select("id, stripe_checkout_session_id, amount_cents, currency")
@@ -238,7 +238,7 @@ export async function toggleFavoriteAction(formData: FormData) {
     return;
   }
 
-  const supabase = createPrivilegedSupabaseClient();
+  const supabase = await createPrivilegedSupabaseClient();
 
   if (nextValue === "true") {
     await supabase.from("favorites").upsert(
@@ -273,7 +273,7 @@ async function requireBuyerUser(): Promise<SessionUser> {
     return user;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();

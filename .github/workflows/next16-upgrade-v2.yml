@@ -38,72 +38,105 @@ jobs:
           from pathlib import Path
           import re
 
-          server = Path('services/supabase/server.ts')
-          text = server.read_text()
-          text = text.replace('import { cookies, type UnsafeUnwrappedCookies } from "next/headers";', 'import { cookies } from "next/headers";')
-          text = text.replace('export function createServerSupabaseClient(): AppSupabaseClient {', 'export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {')
-          text = text.replace('const cookieStore = (cookies() as unknown as UnsafeUnwrappedCookies);', 'const cookieStore = await cookies();')
-          server.write_text(text)
+          def write(path, transform):
+            p = Path(path)
+            p.write_text(transform(p.read_text()))
 
-          demo = Path('services/auth/demo-store.ts')
-          text = demo.read_text()
-          text = text.replace('import { cookies, type UnsafeUnwrappedCookies } from "next/headers";', 'import { cookies } from "next/headers";')
-          replacements = {
-            'export function getDemoDirectoryUserByEmail(email: string) {': 'export async function getDemoDirectoryUserByEmail(email: string) {',
-            'export function getDemoDirectoryUserById(userId: string) {': 'export async function getDemoDirectoryUserById(userId: string) {',
-            'export function upsertDemoDirectoryUser(user: DemoDirectoryUser) {': 'export async function upsertDemoDirectoryUser(user: DemoDirectoryUser) {',
-            'export function getDemoArtistProfile(userId: string) {': 'export async function getDemoArtistProfile(userId: string) {',
-            'export function getDemoBuyerProfile(userId: string) {': 'export async function getDemoBuyerProfile(userId: string) {',
-            'export function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistProfile>) {': 'export async function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistProfile>) {',
-            'export function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfile>) {': 'export async function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfile>) {',
-            'export function setDemoSession(user: SessionUser) {': 'export async function setDemoSession(user: SessionUser) {',
-            'export function clearDemoSession() {': 'export async function clearDemoSession() {',
-            'export function toSessionUser(user: DemoDirectoryUser): SessionUser {': 'export async function toSessionUser(user: DemoDirectoryUser): Promise<SessionUser> {',
-            'function getDemoDirectory(): DemoDirectory {': 'async function getDemoDirectory(): Promise<DemoDirectory> {',
-            'function detectStoredRole(userId: string): UserRole | null {': 'async function detectStoredRole(userId: string): Promise<UserRole | null> {',
-            'function saveDemoDirectory(directory: DemoDirectory) {': 'async function saveDemoDirectory(directory: DemoDirectory) {'
-          }
-          for old, new in replacements.items():
-            text = text.replace(old, new)
-          text = text.replace('return getDemoDirectory().users.find', 'return (await getDemoDirectory()).users.find')
-          text = text.replace('const directory = getDemoDirectory();', 'const directory = await getDemoDirectory();')
-          text = text.replace('return getDemoDirectory().artistProfiles[userId] || null;', 'return (await getDemoDirectory()).artistProfiles[userId] || null;')
-          text = text.replace('return getDemoDirectory().buyerProfiles[userId] || null;', 'return (await getDemoDirectory()).buyerProfiles[userId] || null;')
-          text = text.replace('saveDemoDirectory({', 'await saveDemoDirectory({')
-          text = text.replace('(cookies() as unknown as UnsafeUnwrappedCookies).set(', '(await cookies()).set(')
-          text = text.replace('(cookies() as unknown as UnsafeUnwrappedCookies).delete(', '(await cookies()).delete(')
-          text = text.replace('(cookies() as unknown as UnsafeUnwrappedCookies).get(', '(await cookies()).get(')
-          text = text.replace('const role = user.role || detectStoredRole(user.id);', 'const role = user.role || await detectStoredRole(user.id);')
-          demo.write_text(text)
+          def server_fix(text):
+            text = text.replace('import { cookies, type UnsafeUnwrappedCookies } from "next/headers";', 'import { cookies } from "next/headers";')
+            text = text.replace('export function createServerSupabaseClient(): AppSupabaseClient {', 'export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {')
+            text = re.sub(r'const cookieStore = .*UnsafeUnwrappedCookies.*;', 'const cookieStore = await cookies();', text)
+            return text
+          write('services/supabase/server.ts', server_fix)
 
-          auth = Path('services/auth/actions.ts')
-          text = auth.read_text()
-          text = text.replace('import { headers, type UnsafeUnwrappedHeaders } from "next/headers";', 'import { headers } from "next/headers";')
-          text = text.replace('function getRequestOrigin() {', 'async function getRequestOrigin() {')
-          text = text.replace('const headerStore = (headers() as unknown as UnsafeUnwrappedHeaders);', 'const headerStore = await headers();')
-          text = text.replace('requestOrigin: getRequestOrigin(),', 'requestOrigin: await getRequestOrigin(),')
-          for name in ['getDemoDirectoryUserByEmail', 'getDemoDirectoryUserById', 'getDemoArtistProfile', 'getDemoBuyerProfile', 'upsertDemoDirectoryUser', 'upsertDemoArtistProfile', 'upsertDemoBuyerProfile', 'setDemoSession', 'clearDemoSession', 'toSessionUser']:
-            text = re.sub(rf'(?<!function )(?<!await )\b{name}\(', f'await {name}(', text)
-          text = re.sub(r'(?<!function )(?<!await )\bcreateServerSupabaseClient\(\)', 'await createServerSupabaseClient()', text)
-          auth.write_text(text)
+          def demo_fix(text):
+            text = text.replace('import { cookies, type UnsafeUnwrappedCookies } from "next/headers";', 'import { cookies } from "next/headers";')
+            replacements = {
+              'export function getDemoDirectoryUserByEmail(email: string) {': 'export async function getDemoDirectoryUserByEmail(email: string) {',
+              'export function getDemoDirectoryUserById(userId: string) {': 'export async function getDemoDirectoryUserById(userId: string) {',
+              'export function upsertDemoDirectoryUser(user: DemoDirectoryUser) {': 'export async function upsertDemoDirectoryUser(user: DemoDirectoryUser) {',
+              'export function getDemoArtistProfile(userId: string) {': 'export async function getDemoArtistProfile(userId: string) {',
+              'export function getDemoBuyerProfile(userId: string) {': 'export async function getDemoBuyerProfile(userId: string) {',
+              'export function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistProfile>) {': 'export async function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistProfile>) {',
+              'export function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfile>) {': 'export async function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfile>) {',
+              'export function setDemoSession(user: SessionUser) {': 'export async function setDemoSession(user: SessionUser) {',
+              'export function clearDemoSession() {': 'export async function clearDemoSession() {',
+              'export function toSessionUser(user: DemoDirectoryUser): SessionUser {': 'export async function toSessionUser(user: DemoDirectoryUser): Promise<SessionUser> {',
+              'function getDemoDirectory(): DemoDirectory {': 'async function getDemoDirectory(): Promise<DemoDirectory> {',
+              'function detectStoredRole(userId: string): UserRole | null {': 'async function detectStoredRole(userId: string): Promise<UserRole | null> {',
+              'function saveDemoDirectory(directory: DemoDirectory) {': 'async function saveDemoDirectory(directory: DemoDirectory) {'
+            }
+            for old, new in replacements.items(): text = text.replace(old, new)
+            text = re.sub(r'\([^\n;]*cookies\(\)[^\n;]*UnsafeUnwrappedCookies[^\n;]*\)', '(await cookies())', text)
+            text = text.replace('return getDemoDirectory().users.find', 'return (await getDemoDirectory()).users.find')
+            text = text.replace('const directory = getDemoDirectory();', 'const directory = await getDemoDirectory();')
+            text = text.replace('return getDemoDirectory().artistProfiles[userId] || null;', 'return (await getDemoDirectory()).artistProfiles[userId] || null;')
+            text = text.replace('return getDemoDirectory().buyerProfiles[userId] || null;', 'return (await getDemoDirectory()).buyerProfiles[userId] || null;')
+            text = re.sub(r'(?<!await )\bsaveDemoDirectory\(', 'await saveDemoDirectory(', text)
+            text = text.replace('async function await saveDemoDirectory', 'async function saveDemoDirectory')
+            text = text.replace('const role = user.role || detectStoredRole(user.id);', 'const role = user.role || await detectStoredRole(user.id);')
+            return text
+          write('services/auth/demo-store.ts', demo_fix)
 
-          session = Path('services/auth/session.ts')
-          text = session.read_text()
-          text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
-          text = text.replace('const directoryUser = getDemoDirectoryUserById(parsed.id) || getDemoDirectoryUserByEmail(parsed.email);', 'const directoryUser = (await getDemoDirectoryUserById(parsed.id)) || (await getDemoDirectoryUserByEmail(parsed.email));')
-          text = text.replace('return toSessionUser(directoryUser);', 'return await toSessionUser(directoryUser);')
-          text = text.replace('supabase: ReturnType<typeof createServerSupabaseClient>,', 'supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,')
-          session.write_text(text)
+          def auth_fix(text):
+            text = text.replace('import { headers, type UnsafeUnwrappedHeaders } from "next/headers";', 'import { headers } from "next/headers";')
+            text = text.replace('function getRequestOrigin() {', 'async function getRequestOrigin() {')
+            text = re.sub(r'const headerStore = .*UnsafeUnwrappedHeaders.*;', 'const headerStore = await headers();', text)
+            text = text.replace('requestOrigin: getRequestOrigin(),', 'requestOrigin: await getRequestOrigin(),')
+            text = text.replace('function getMutationClient() {', 'async function getMutationClient() {')
+            text = text.replace('return (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;', 'return (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;')
+            text = text.replace('function getUserProfileMutationClient(role: UserRole | null) {', 'async function getUserProfileMutationClient(role: UserRole | null) {')
+            text = text.replace('return role ? getTrustedRoleMutationClient() : getMutationClient();', 'return role ? getTrustedRoleMutationClient() : await getMutationClient();')
+            text = text.replace('function getDemoBuyerProfileSnapshot(userId: string) {', 'async function getDemoBuyerProfileSnapshot(userId: string) {')
+            text = text.replace('function getDemoArtistProfileSnapshot(userId: string) {', 'async function getDemoArtistProfileSnapshot(userId: string) {')
+            for name in ['getDemoDirectoryUserByEmail','getDemoDirectoryUserById','getDemoArtistProfile','getDemoBuyerProfile','upsertDemoDirectoryUser','upsertDemoArtistProfile','upsertDemoBuyerProfile','setDemoSession','clearDemoSession','toSessionUser','getMutationClient','getUserProfileMutationClient','getDemoBuyerProfileSnapshot','getDemoArtistProfileSnapshot']:
+              text = re.sub(rf'(?<!function )(?<!await )\b{name}\(', f'await {name}(', text)
+            text = text.replace('async function await getMutationClient', 'async function getMutationClient')
+            text = text.replace('async function await getUserProfileMutationClient', 'async function getUserProfileMutationClient')
+            text = text.replace('async function await getDemoBuyerProfileSnapshot', 'async function getDemoBuyerProfileSnapshot')
+            text = text.replace('async function await getDemoArtistProfileSnapshot', 'async function getDemoArtistProfileSnapshot')
+            text = re.sub(r'(?<!await )\bcreateServerSupabaseClient\(\)', 'await createServerSupabaseClient()', text)
+            return text
+          write('services/auth/actions.ts', auth_fix)
+
+          def session_fix(text):
+            text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
+            text = text.replace('const directoryUser = getDemoDirectoryUserById(parsed.id) || getDemoDirectoryUserByEmail(parsed.email);', 'const directoryUser = (await getDemoDirectoryUserById(parsed.id)) || (await getDemoDirectoryUserByEmail(parsed.email));')
+            text = text.replace('return toSessionUser(directoryUser);', 'return await toSessionUser(directoryUser);')
+            text = text.replace('supabase: ReturnType<typeof createServerSupabaseClient>,', 'supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,')
+            return text
+          write('services/auth/session.ts', session_fix)
+
+          def privileged_fix(text):
+            text = text.replace('export function createPrivilegedSupabaseClient(): AppSupabaseClient {', 'export async function createPrivilegedSupabaseClient(): Promise<AppSupabaseClient> {')
+            text = text.replace('return createAdminSupabaseClient() ?? createServerSupabaseClient();', 'return createAdminSupabaseClient() ?? await createServerSupabaseClient();')
+            return text
+          write('services/supabase/privileged.ts', privileged_fix)
+
+          def artist_fix(text):
+            text = text.replace('const profile = getDemoArtistProfile(userId) ||', 'const profile = (await getDemoArtistProfile(userId)) ||')
+            text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
+            return text
+          write('services/artist/queries.ts', artist_fix)
+
+          def buyer_settings_fix(text):
+            text = text.replace('const supabase = createServerSupabaseClient();', 'const supabase = await createServerSupabaseClient();')
+            text = text.replace('supabase: ReturnType<typeof createServerSupabaseClient>', 'supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>')
+            return text
+          write('app/(app)/buyer/settings/page.tsx', buyer_settings_fix)
 
           for path in Path('.').rglob('*.ts*'):
-            if any(part in {'node_modules', '.next'} for part in path.parts):
-              continue
-            if path.as_posix() in {'services/supabase/server.ts', 'services/auth/actions.ts', 'services/auth/session.ts'}:
-              continue
+            if any(part in {'node_modules', '.next'} for part in path.parts): continue
+            if path.as_posix() in {'services/supabase/server.ts','services/auth/actions.ts','services/auth/session.ts','services/supabase/privileged.ts','services/artist/queries.ts','app/(app)/buyer/settings/page.tsx'}: continue
             content = path.read_text()
-            updated = re.sub(r'(?<!function )(?<!await )\bcreateServerSupabaseClient\(\)', 'await createServerSupabaseClient()', content)
-            if updated != content:
-              path.write_text(updated)
+            updated = content
+            if 'createServerSupabaseClient()' in updated:
+              updated = re.sub(r'(?<!await )\bcreateServerSupabaseClient\(\)', 'await createServerSupabaseClient()', updated)
+            if 'createPrivilegedSupabaseClient()' in updated:
+              updated = re.sub(r'(?<!await )\bcreatePrivilegedSupabaseClient\(\)', 'await createPrivilegedSupabaseClient()', updated)
+            updated = updated.replace('ReturnType<typeof createServerSupabaseClient>', 'Awaited<ReturnType<typeof createServerSupabaseClient>>')
+            updated = updated.replace('ReturnType<typeof createPrivilegedSupabaseClient>', 'Awaited<ReturnType<typeof createPrivilegedSupabaseClient>>')
+            if updated != content: path.write_text(updated)
           PY
       - name: Typecheck
         run: npm run typecheck

@@ -1,17 +1,17 @@
-name: Dependency Security
+name: Next.js 15 Security Migration
 
 on:
   push:
     branches:
-      - chore/dependency-security
+      - chore/next15-security-upgrade
 
 permissions:
   contents: write
 
 jobs:
-  remediate:
+  migrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,11 +22,10 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Apply non-breaking audit fixes to lockfile
-        run: npm audit fix --package-lock-only || true
-
-      - name: Install remediated dependencies
-        run: npm ci
+      - name: Install patched Next.js 15 stack
+        run: |
+          npm install --save-exact next@15.5.24 react@19 react-dom@19
+          npm install --save-dev --save-exact eslint-config-next@15.5.24 @types/react@19 @types/react-dom@19 postcss@latest
 
       - name: Typecheck
         run: npm run typecheck
@@ -48,7 +47,7 @@ jobs:
           STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
 
-      - name: Capture remaining npm audit findings
+      - name: Capture npm audit findings
         run: npm audit --json > dependency-audit.json || true
 
       - name: Upload audit report
@@ -58,14 +57,14 @@ jobs:
           path: dependency-audit.json
           retention-days: 1
 
-      - name: Commit safe lockfile updates
+      - name: Commit migration if validation passes
         run: |
-          if git diff --quiet -- package-lock.json; then
-            echo "No safe lockfile updates to commit."
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No dependency changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "chore: remediate safe dependency vulnerabilities"
+          git add package.json package-lock.json
+          git commit -m "chore: upgrade to patched Next.js 15 stack"
           git push

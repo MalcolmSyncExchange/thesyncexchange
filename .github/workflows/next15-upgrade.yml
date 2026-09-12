@@ -29,7 +29,7 @@ jobs:
           npm install --save-dev --save-exact eslint-config-next@15.5.24 @types/react@19 @types/react-dom@19 postcss@latest
 
       - name: Migrate async request APIs
-        run: npx --yes @next/codemod@15.5.24 next-async-request-api .
+        run: npx --yes @next/codemod@15.5.24 next-async-request-api . --force
 
       - name: Typecheck
         run: npm run typecheck

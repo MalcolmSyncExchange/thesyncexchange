@@ -86,12 +86,29 @@ export async function updateComplianceFlagStatusAction(formData: FormData) {
     return;
   }
 
+  if (status !== "open" && status !== "resolved") {
+    throw new Error("Invalid compliance flag status.");
+  }
+
+  const actorId = await requireAdminActorId();
   const supabase = createPrivilegedSupabaseClient();
 
-  await supabase.from("admin_flags").update({ status: status as Database["public"]["Enums"]["flag_status"] }).eq("id", flagId);
+  const updateResult = await supabase
+    .from("admin_flags")
+    .update({ status: status as Database["public"]["Enums"]["flag_status"] })
+    .eq("id", flagId);
+  if (updateResult.error) {
+    reportOperationalError("admin_compliance_flag_status_update_failed", updateResult.error, {
+      flagId,
+      status,
+      actorId
+    });
+    throw new Error(updateResult.error.message);
+  }
+
   const { data: flag } = await supabase.from("admin_flags").select("track_id").eq("id", flagId).maybeSingle();
   if (flag?.track_id) {
-    await appendTrackAuditLog(supabase, flag.track_id, "compliance_flag_status_updated", { flagId, status });
+    await appendTrackAuditLog(supabase, flag.track_id, "compliance_flag_status_updated", { flagId, status }, actorId);
     revalidatePath(`/admin/tracks/${flag.track_id}`);
   }
 
@@ -249,11 +266,12 @@ async function appendTrackAuditLog(
   supabase: AppSupabaseClient,
   trackId: string,
   action: string,
-  metadata: Record<string, unknown>
+  metadata: Record<string, unknown>,
+  actorId?: string
 ) {
   await supabase.from("track_audit_log").insert({
     track_id: trackId,
-    actor_id: await requireAdminActorId(),
+    actor_id: actorId ?? await requireAdminActorId(),
     action,
     metadata: metadata as Json
   });

@@ -290,9 +290,9 @@ async function requireBuyerUser(): Promise<SessionUser> {
     Database["public"]["Tables"]["user_profiles"]["Row"],
     "role" | "full_name"
   > | null;
-  const role = persistedProfile?.role || user.user_metadata?.role;
+  const role = persistedProfile?.role;
   if (role !== "buyer") {
-    redirect(resolveRoleRedirect(role === "artist" || role === "buyer" || role === "admin" ? role : null));
+    redirect(resolveRoleRedirect(role === "artist" || role === "admin" ? role : null));
   }
 
   return {

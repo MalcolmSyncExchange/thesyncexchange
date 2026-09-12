@@ -29,7 +29,6 @@ const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
       const persisted = await getPersistedUserState(
         supabase,
         user.id,
-        resolveUserRole(user.user_metadata?.role),
         String(user.user_metadata?.full_name || user.email.split("@")[0]),
         user.email
       );
@@ -188,7 +187,6 @@ function resolveUserRole(rawRole: unknown): UserRole | null {
 async function getPersistedUserState(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   userId: string,
-  fallbackRole: UserRole | null,
   fallbackFullName: string,
   email: string
 ) {
@@ -203,7 +201,7 @@ async function getPersistedUserState(
   ];
 
   const userRow = userResult.data;
-  const role = resolveUserRole(userRow?.role) || fallbackRole || detectPersistedRole(artistProfileResult.data, buyerProfileResult.data);
+  const role = resolveUserRole(userRow?.role) || detectPersistedRole(artistProfileResult.data, buyerProfileResult.data);
   const fullName = String(userRow?.full_name || fallbackFullName);
   const onboardingStep = role === "admin" ? null : String(userRow?.onboarding_step || "");
   const onboardingComplete = await resolveOnboardingCompletionState(

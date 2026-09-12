@@ -407,9 +407,8 @@ async function requireArtistUser() {
     throw new Error("You must be signed in to submit music.");
   }
 
-  const roleFromMetadata = user.user_metadata?.role as UserRole | undefined;
   const roleFromDatabase = await resolveArtistRole(user.id);
-  const role = roleFromDatabase || roleFromMetadata;
+  const role = roleFromDatabase;
   if (role !== "artist") {
     throw new Error("Only artist accounts can submit tracks.");
   }

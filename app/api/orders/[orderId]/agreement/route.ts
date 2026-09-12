@@ -63,7 +63,7 @@ export async function GET(_request: Request, { params }: { params: { orderId: st
   const { data: viewerProfile } = (await selectUserProfileCompat(supabase, user.id)) as {
     data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "role"> | null;
   };
-  const role = String(viewerProfile?.role || user.user_metadata?.role || "");
+  const role = String(viewerProfile?.role || "");
 
   const order = await loadAgreementOrderCompat(supabase, params.orderId);
   const generatedLicense = await loadGeneratedLicenseByOrderId(supabase, params.orderId);

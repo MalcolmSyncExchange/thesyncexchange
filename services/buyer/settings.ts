@@ -174,7 +174,7 @@ export function assertAuthenticatedBuyerSettingsUser(
     };
   }
 
-  const role = String(persistedRole || user.app_metadata?.role || user.user_metadata?.role || "");
+  const role = String(persistedRole || "");
   if (role !== "buyer") {
     return {
       ok: false as const,

@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   }
 
   const { data: profile } = await selectUserProfileCompat(supabase, user.id);
-  const role = profile?.role || user.user_metadata?.role;
+  const role = profile?.role;
   if (role !== "artist" && role !== "admin") {
     return NextResponse.json({ error: "Only artist or admin accounts can upload track assets." }, { status: 403 });
   }

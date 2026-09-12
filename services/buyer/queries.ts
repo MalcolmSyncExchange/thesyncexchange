@@ -230,7 +230,7 @@ export async function getOrderById(orderId: string) {
     throw new Error("Unable to load this order right now.");
   }
 
-  const viewerRole = viewerProfile?.role || user.user_metadata?.role;
+  const viewerRole = viewerProfile?.role;
   const row = data as any;
   if (!row) return null;
 

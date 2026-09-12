@@ -276,7 +276,7 @@ async function getAdminActorId() {
   }
 
   const profile = await selectUserProfileCompat(supabase, user.id);
-  const role = String(profile.data?.role || user.user_metadata?.role || "");
+  const role = String(profile.data?.role || "");
   return role === "admin" ? user.id : null;
 }
 

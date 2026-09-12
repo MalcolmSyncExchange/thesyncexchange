@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   }
 
   const { data: profile } = await selectUserProfileCompat(supabase, user.id);
-  const isAdmin = profile?.role === "admin" || user.user_metadata?.role === "admin";
+  const isAdmin = profile?.role === "admin";
 
   const unauthorizedAsset = normalizedAssets.find((asset) => !isAdmin && !userOwnsStoragePath(user.id, asset.path));
   if (unauthorizedAsset) {

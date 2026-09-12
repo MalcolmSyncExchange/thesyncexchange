@@ -10,21 +10,16 @@ export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {
 
   return createServerClient<Database>(env.supabaseUrl || "https://demo.supabase.co", env.supabaseAnonKey || "demo-anon-key", {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
+      getAll() {
+        return cookieStore.getAll();
       },
-      set(name: string, value: string, options: Record<string, unknown>) {
+      setAll(cookiesToSet) {
         try {
-          cookieStore.set({ name, value, ...(options as object) });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
         } catch {
-          // Server Components cannot mutate cookies; middleware/actions persist refreshed sessions.
-        }
-      },
-      remove(name: string, options: Record<string, unknown>) {
-        try {
-          cookieStore.set({ name, value: "", ...(options as object) });
-        } catch {
-          // Server Components cannot mutate cookies; middleware/actions persist refreshed sessions.
+          // Server Components cannot mutate cookies; Server Actions and Route Handlers can.
         }
       }
     }

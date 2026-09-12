@@ -1,7 +1,13 @@
 name: Next 15 Security Upgrade
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - chore/next15-security-upgrade
+
+concurrency:
+  group: next15-security-upgrade
+  cancel-in-progress: true
 
 permissions:
   contents: write

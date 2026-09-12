@@ -124,6 +124,7 @@ test("profile reconciliation preserves existing roles and can recover missing ro
   assert.match(ensureAppUserFunction, /const \{ data: existingProfile \} = await selectUserProfileCompat\(lookupClient, user\.id\);/);
   assert.match(ensureAppUserFunction, /const persistedRole = parseRole\(existingProfile\?\.role\);/);
   assert.match(ensureAppUserFunction, /const roleToPersist = persistedRole \|\| user\.role;/);
+  // Next 16 makes the server-backed mutation client asynchronous; authorization semantics stay unchanged.
   assert.match(ensureAppUserFunction, /const client = (?:await )?getUserProfileMutationClient\(roleToPersist\);/);
   assert.match(ensureAppUserFunction, /role: roleToPersist,/);
 });

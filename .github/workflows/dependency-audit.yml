@@ -1,17 +1,15 @@
-name: Next.js 15 Security Migration
+name: Dependency Audit (manual)
 
 on:
-  push:
-    branches:
-      - chore/next15-security-upgrade
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  migrate:
+  audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,33 +20,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install patched Next.js 15 stack
-        run: |
-          npm install --save-exact next@15.5.24 react@19 react-dom@19 next-themes@0.4.6
-          npm install --save-dev --save-exact eslint-config-next@15.5.24 @types/react@19 @types/react-dom@19 postcss@latest
-
-      - name: Migrate async request APIs
-        run: npx --yes @next/codemod@15.5.24 next-async-request-api .
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm run test:unit
-
-      - name: Build
-        run: npm run build
-        env:
-          CONTEXT: deploy-preview
-          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
-          STRIPE_SECRET_KEY: sk_test_ci_placeholder
-          STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
-          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
+      - name: Install dependencies
+        run: npm ci
 
       - name: Capture npm audit findings
         run: npm audit --json > dependency-audit.json || true
@@ -59,15 +32,3 @@ jobs:
           name: dependency-audit
           path: dependency-audit.json
           retention-days: 1
-
-      - name: Commit migration if validation passes
-        run: |
-          if git diff --quiet; then
-            echo "No migration changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git diff --name-only -z | xargs -0 git add --
-          git commit -m "chore: upgrade to patched Next.js 15 stack"
-          git push

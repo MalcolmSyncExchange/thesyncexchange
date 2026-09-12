@@ -91,7 +91,7 @@ test("database persisted role remains the authorization source for admin artist 
   assert.match(tracksActionsSource, /const roleFromDatabase = await resolveArtistRole\(user\.id\)/);
   assert.match(uploadUrlRouteSource, /const role = profile\?\.role;/);
   assert.match(uploadRouteSource, /const role = profile\?\.role;/);
-  assert.match(deleteRouteSource, /const isAdmin = profile\?\.role === "admin";/);
+  assert.match(deleteRouteSource, /profile\?\.role !== "artist"/);
   assert.match(agreementRouteSource, /const role = String\(viewerProfile\?\.role \|\| ""\)/);
   assert.match(buyerActionsSource, /const role = persistedProfile\?\.role;/);
   assert.match(buyerQueriesSource, /const viewerRole = viewerProfile\?\.role;/);

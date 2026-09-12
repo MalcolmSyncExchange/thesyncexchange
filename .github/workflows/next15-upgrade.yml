@@ -33,6 +33,44 @@ jobs:
       - name: Migrate async request APIs
         run: npx --yes @next/codemod@15.5.25 next-async-request-api . --force
 
+      - name: Apply Next 15 compatibility fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          submit_form = Path("components/forms/submit-music-form.tsx")
+          text = submit_form.read_text()
+          text = text.replace(
+              "refs: Record<string, RefObject<HTMLInputElement>>",
+              "refs: Record<string, RefObject<HTMLInputElement | null>>",
+          )
+          submit_form.write_text(text)
+
+          auth_actions = Path("services/auth/actions.ts")
+          text = auth_actions.read_text()
+          text = text.replace(
+              'import { redirect } from "next/navigation";\nimport { isRedirectError } from "next/dist/client/components/redirect";',
+              'import { redirect, unstable_rethrow } from "next/navigation";',
+          )
+          text = text.replace(
+              "    if (isRedirectError(error)) {\n      throw error;\n    }\n\n",
+              "    unstable_rethrow(error);\n\n",
+          )
+          auth_actions.write_text(text)
+
+          buyer_actions = Path("services/buyer/actions.ts")
+          text = buyer_actions.read_text()
+          text = text.replace(
+              'import { redirect } from "next/navigation";\nimport { isRedirectError } from "next/dist/client/components/redirect";',
+              'import { redirect, unstable_rethrow } from "next/navigation";',
+          )
+          text = text.replace(
+              "    if (isRedirectError(checkoutError)) {\n      throw checkoutError;\n    }\n\n",
+              "    unstable_rethrow(checkoutError);\n\n",
+          )
+          buyer_actions.write_text(text)
+          PY
+
       - name: Typecheck
         run: npm run typecheck
 

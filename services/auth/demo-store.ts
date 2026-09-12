@@ -1,4 +1,4 @@
-import { cookies, type UnsafeUnwrappedCookies } from "next/headers";
+import { cookies } from "next/headers";
 
 import { artistProfiles, buyerProfiles, demoUsers } from "@/lib/demo-data";
 import type { ArtistProfile, BuyerProfile, SessionUser, UserRole } from "@/types/models";
@@ -25,35 +25,35 @@ interface DemoDirectory {
   buyerProfiles: Record<string, BuyerProfile>;
 }
 
-export function getDemoDirectoryUserByEmail(email: string) {
+export async function getDemoDirectoryUserByEmail(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
-  return getDemoDirectory().users.find((user) => user.email.toLowerCase() === normalizedEmail) || null;
+  return (await getDemoDirectory()).users.find((user) => user.email.toLowerCase() === normalizedEmail) || null;
 }
 
-export function getDemoDirectoryUserById(userId: string) {
-  return getDemoDirectory().users.find((user) => user.id === userId) || null;
+export async function getDemoDirectoryUserById(userId: string) {
+  return (await getDemoDirectory()).users.find((user) => user.id === userId) || null;
 }
 
-export function upsertDemoDirectoryUser(user: DemoDirectoryUser) {
-  const directory = getDemoDirectory();
+export async function upsertDemoDirectoryUser(user: DemoDirectoryUser) {
+  const directory = await getDemoDirectory();
   const users = directory.users.filter((entry) => entry.id !== user.id && entry.email.toLowerCase() !== user.email.toLowerCase());
   users.push(user);
-  saveDemoDirectory({
+  await saveDemoDirectory({
     ...directory,
     users
   });
 }
 
-export function getDemoArtistProfile(userId: string) {
-  return getDemoDirectory().artistProfiles[userId] || null;
+export async function getDemoArtistProfile(userId: string) {
+  return (await getDemoDirectory()).artistProfiles[userId] || null;
 }
 
-export function getDemoBuyerProfile(userId: string) {
-  return getDemoDirectory().buyerProfiles[userId] || null;
+export async function getDemoBuyerProfile(userId: string) {
+  return (await getDemoDirectory()).buyerProfiles[userId] || null;
 }
 
-export function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistProfile>) {
-  const directory = getDemoDirectory();
+export async function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistProfile>) {
+  const directory = await getDemoDirectory();
   const existing = directory.artistProfiles[userId];
   const base: ArtistProfile =
     existing || {
@@ -71,7 +71,7 @@ export function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistPro
       updated_at: new Date().toISOString()
     };
 
-  saveDemoDirectory({
+  await saveDemoDirectory({
     ...directory,
     artistProfiles: {
       ...directory.artistProfiles,
@@ -88,8 +88,8 @@ export function upsertDemoArtistProfile(userId: string, patch: Partial<ArtistPro
   });
 }
 
-export function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfile>) {
-  const directory = getDemoDirectory();
+export async function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfile>) {
+  const directory = await getDemoDirectory();
   const existing = directory.buyerProfiles[userId];
   const base: BuyerProfile =
     existing || {
@@ -104,7 +104,7 @@ export function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfi
       updated_at: new Date().toISOString()
     };
 
-  saveDemoDirectory({
+  await saveDemoDirectory({
     ...directory,
     buyerProfiles: {
       ...directory.buyerProfiles,
@@ -121,20 +121,22 @@ export function upsertDemoBuyerProfile(userId: string, patch: Partial<BuyerProfi
   });
 }
 
-export function setDemoSession(user: SessionUser) {
-  (cookies() as unknown as UnsafeUnwrappedCookies).set(SESSION_COOKIE, JSON.stringify(user), {
+export async function setDemoSession(user: SessionUser) {
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE, JSON.stringify(user), {
     httpOnly: true,
     sameSite: "lax",
     path: "/"
   });
 }
 
-export function clearDemoSession() {
-  (cookies() as unknown as UnsafeUnwrappedCookies).delete(SESSION_COOKIE);
+export async function clearDemoSession() {
+  const cookieStore = await cookies();
+  cookieStore.delete(SESSION_COOKIE);
 }
 
-export function toSessionUser(user: DemoDirectoryUser): SessionUser {
-  const role = user.role || detectStoredRole(user.id);
+export async function toSessionUser(user: DemoDirectoryUser): Promise<SessionUser> {
+  const role = user.role || (await detectStoredRole(user.id));
 
   return {
     id: user.id,
@@ -151,8 +153,9 @@ export function toSessionUser(user: DemoDirectoryUser): SessionUser {
   };
 }
 
-function getDemoDirectory(): DemoDirectory {
-  const raw = (cookies() as unknown as UnsafeUnwrappedCookies).get(DIRECTORY_COOKIE)?.value;
+async function getDemoDirectory(): Promise<DemoDirectory> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(DIRECTORY_COOKIE)?.value;
   if (!raw) {
     return buildDefaultDirectory();
   }
@@ -169,8 +172,8 @@ function getDemoDirectory(): DemoDirectory {
   }
 }
 
-function detectStoredRole(userId: string): UserRole | null {
-  const directory = getDemoDirectory();
+async function detectStoredRole(userId: string): Promise<UserRole | null> {
+  const directory = await getDemoDirectory();
   const hasArtistProfile = Boolean(directory.artistProfiles[userId]);
   const hasBuyerProfile = Boolean(directory.buyerProfiles[userId]);
 
@@ -179,8 +182,9 @@ function detectStoredRole(userId: string): UserRole | null {
   return null;
 }
 
-function saveDemoDirectory(directory: DemoDirectory) {
-  (cookies() as unknown as UnsafeUnwrappedCookies).set(DIRECTORY_COOKIE, JSON.stringify(directory), {
+async function saveDemoDirectory(directory: DemoDirectory) {
+  const cookieStore = await cookies();
+  cookieStore.set(DIRECTORY_COOKIE, JSON.stringify(directory), {
     httpOnly: true,
     sameSite: "lax",
     path: "/"

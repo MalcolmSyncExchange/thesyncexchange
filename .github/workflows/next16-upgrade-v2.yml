@@ -45,7 +45,7 @@ jobs:
           def server_fix(text):
             text = text.replace('import { cookies, type UnsafeUnwrappedCookies } from "next/headers";', 'import { cookies } from "next/headers";')
             text = text.replace('export function createServerSupabaseClient(): AppSupabaseClient {', 'export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {')
-            text = re.sub(r'const cookieStore = .*UnsafeUnwrappedCookies.*;', 'const cookieStore = await cookies();', text)
+            text = text.replace('const cookieStore = (cookies() as unknown as UnsafeUnwrappedCookies);', 'const cookieStore = await cookies();')
             return text
           write('services/supabase/server.ts', server_fix)
 
@@ -66,8 +66,9 @@ jobs:
               'function detectStoredRole(userId: string): UserRole | null {': 'async function detectStoredRole(userId: string): Promise<UserRole | null> {',
               'function saveDemoDirectory(directory: DemoDirectory) {': 'async function saveDemoDirectory(directory: DemoDirectory) {'
             }
-            for old, new in replacements.items(): text = text.replace(old, new)
-            text = re.sub(r'\([^\n;]*cookies\(\)[^\n;]*UnsafeUnwrappedCookies[^\n;]*\)', '(await cookies())', text)
+            for old, new in replacements.items():
+              text = text.replace(old, new)
+            text = text.replace('(cookies() as unknown as UnsafeUnwrappedCookies)', '(await cookies())')
             text = text.replace('return getDemoDirectory().users.find', 'return (await getDemoDirectory()).users.find')
             text = text.replace('const directory = getDemoDirectory();', 'const directory = await getDemoDirectory();')
             text = text.replace('return getDemoDirectory().artistProfiles[userId] || null;', 'return (await getDemoDirectory()).artistProfiles[userId] || null;')
@@ -81,7 +82,7 @@ jobs:
           def auth_fix(text):
             text = text.replace('import { headers, type UnsafeUnwrappedHeaders } from "next/headers";', 'import { headers } from "next/headers";')
             text = text.replace('function getRequestOrigin() {', 'async function getRequestOrigin() {')
-            text = re.sub(r'const headerStore = .*UnsafeUnwrappedHeaders.*;', 'const headerStore = await headers();', text)
+            text = text.replace('const headerStore = (headers() as unknown as UnsafeUnwrappedHeaders);', 'const headerStore = await headers();')
             text = text.replace('requestOrigin: getRequestOrigin(),', 'requestOrigin: await getRequestOrigin(),')
             text = text.replace('function getMutationClient() {', 'async function getMutationClient() {')
             text = text.replace('return (createAdminSupabaseClient() ?? createServerSupabaseClient()) as SupabaseClient<Database>;', 'return (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;')
@@ -126,8 +127,10 @@ jobs:
           write('app/(app)/buyer/settings/page.tsx', buyer_settings_fix)
 
           for path in Path('.').rglob('*.ts*'):
-            if any(part in {'node_modules', '.next'} for part in path.parts): continue
-            if path.as_posix() in {'services/supabase/server.ts','services/auth/actions.ts','services/auth/session.ts','services/supabase/privileged.ts','services/artist/queries.ts','app/(app)/buyer/settings/page.tsx'}: continue
+            if any(part in {'node_modules', '.next'} for part in path.parts):
+              continue
+            if path.as_posix() in {'services/supabase/server.ts','services/auth/actions.ts','services/auth/session.ts','services/supabase/privileged.ts','services/artist/queries.ts','app/(app)/buyer/settings/page.tsx'}:
+              continue
             content = path.read_text()
             updated = content
             if 'createServerSupabaseClient()' in updated:
@@ -136,7 +139,8 @@ jobs:
               updated = re.sub(r'(?<!await )\bcreatePrivilegedSupabaseClient\(\)', 'await createPrivilegedSupabaseClient()', updated)
             updated = updated.replace('ReturnType<typeof createServerSupabaseClient>', 'Awaited<ReturnType<typeof createServerSupabaseClient>>')
             updated = updated.replace('ReturnType<typeof createPrivilegedSupabaseClient>', 'Awaited<ReturnType<typeof createPrivilegedSupabaseClient>>')
-            if updated != content: path.write_text(updated)
+            if updated != content:
+              path.write_text(updated)
           PY
       - name: Typecheck
         run: npm run typecheck

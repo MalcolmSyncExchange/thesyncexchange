@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveDeploymentTarget } from "../lib/deployment-target.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 loadEnvFile(path.join(rootDir, ".env.local"));
@@ -24,7 +25,7 @@ const missingCore = requiredCore.filter((key) => !process.env[key]);
 const missingOperational = requiredOperational.filter((key) => !process.env[key]);
 const deprecatedAuthKeys = ["GOTRUE_JWT_DEFAULT_GROUP_NAME", "GOTRUE_JWT_ADMIN_GROUP_NAME"];
 const presentDeprecatedAuthKeys = deprecatedAuthKeys.filter((key) => process.env[key]);
-const deploymentTarget = getDeploymentTarget();
+const deploymentTarget = resolveDeploymentTarget(process.env);
 const stripeSecretKeyMode = getStripeKeyMode(process.env.STRIPE_SECRET_KEY, "sk");
 const stripePublishableKeyMode = getStripeKeyMode(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY, "pk");
 
@@ -115,18 +116,6 @@ for (const warning of appUrlWarnings) {
 }
 
 process.exit(missingCore.length || missingOperational.length || presentDeprecatedAuthKeys.length || blockingIssues.length ? 1 : 0);
-
-function getDeploymentTarget() {
-  if (process.env.VERCEL_ENV === "production" || process.env.CONTEXT === "production") {
-    return "production";
-  }
-
-  if (process.env.VERCEL_ENV === "preview" || process.env.CONTEXT === "deploy-preview" || process.env.CONTEXT === "branch-deploy") {
-    return "preview";
-  }
-
-  return "local";
-}
 
 function getStripeKeyMode(key, expectedPrefix) {
   if (!key) {

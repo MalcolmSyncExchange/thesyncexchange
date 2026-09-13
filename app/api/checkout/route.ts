@@ -8,6 +8,8 @@ import { createStripeCheckoutSession } from "@/services/stripe/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import { createServerSupabaseClient } from "@/services/supabase/server";
+import { selectUserProfileCompat } from "@/services/auth/user-profiles";
+import { consumeRateLimit, rateLimitErrorResponse } from "@/services/security/rate-limit";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -28,6 +30,14 @@ export async function POST(request: Request) {
 
   if (!user?.id) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  const profile = await selectUserProfileCompat(authSupabase, user.id);
+  if (profile.error) {
+    return NextResponse.json({ error: "Unable to verify account access right now." }, { status: 503 });
+  }
+  if (profile.data?.role !== "buyer") {
+    return NextResponse.json({ error: "Buyer access is required." }, { status: 403 });
   }
 
   const supabase = createPrivilegedSupabaseClient();
@@ -62,6 +72,10 @@ export async function POST(request: Request) {
       { status: 503 }
     );
   }
+
+  const admission = await consumeRateLimit("checkout", user.id);
+  const limitedResponse = rateLimitErrorResponse(admission);
+  if (limitedResponse) return limitedResponse;
 
   const pricingMismatch = getStoredOrderPricingMismatch(trustedCheckout);
   if (pricingMismatch.amountMismatch || pricingMismatch.currencyMismatch) {

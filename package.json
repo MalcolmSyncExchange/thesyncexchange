@@ -28,7 +28,7 @@
     "e2e:one": "npx playwright test e2e/marketplace-happy-path.spec.mjs",
     "chrome:local": "bash scripts/open-local-chrome.sh",
     "setup:storage": "node scripts/setup-supabase-storage.mjs",
-    "test:security-db": "node --test tests/reviewed-rights-db.test.mjs"
+    "test:security-db": "node --test tests/reviewed-rights-db.test.mjs tests/referenced-media-db.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

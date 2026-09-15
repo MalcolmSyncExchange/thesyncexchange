@@ -70,3 +70,9 @@
     text-wrap: balance;
   }
 }
+
+/* Brand cursor: retain system cursors for touch, reduced motion and high contrast. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  body { cursor: url("/cursors/sync-pointer.svg") 3 3, auto; }
+  a[href], button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary, select:not(:disabled), input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled), input[type="range"]:not(:disabled) { cursor: url("/cursors/sync-hand.svg") 13 3, pointer; }
+}

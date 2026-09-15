@@ -1,0 +1,47 @@
+.shell { display: flex; min-height: 100dvh; background: hsl(var(--background)); color: hsl(var(--foreground)); }
+:global(.dark) .shell { --background: 205 27% 9%; --card: 205 27% 9%; --muted: 209 26% 16%; --muted-foreground: 215 18% 70%; --border: 210 20% 20%; --accent: 190 56% 57%; --primary: 190 56% 57%; }
+.sidebar { width: 272px; flex-shrink: 0; position: sticky; top: 0; height: 100dvh; border-right: 1px solid hsl(var(--border)); padding: 0 18px; display: flex; flex-direction: column; }
+.logo { display: block; flex-shrink: 0; }
+.logo img { width: 272px; max-width: none; margin: -8px -18px -6px; }
+.navigation { display: grid; gap: 13px; }
+.navigation a { display: flex; align-items: center; gap: 22px; min-height: 58px; padding: 17px 18px; border-radius: 7px; font-size: 16px; color: hsl(var(--muted-foreground)); transition: background-color .15s, color .15s; }
+.navigation a svg { flex-shrink: 0; }
+.navigation a:hover, .accountLinks a:hover, .accountLinks button:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.navigation a[aria-current="page"] { background: hsl(var(--accent) / .13); box-shadow: inset 3px 0 hsl(var(--accent)); color: hsl(var(--foreground)); }
+.navigation a[aria-current="page"] svg { color: hsl(var(--accent)); }
+.accountLinks { display: grid; gap: 4px; margin-top: auto; padding: 32px 0 24px; }
+.accountLinks a, .accountLinks button { display: flex; align-items: center; gap: 16px; min-height: 44px; padding: 10px 18px; width: 100%; border-radius: 7px; color: hsl(var(--muted-foreground)); font-size: 14px; }
+.accountLinks a[aria-current="page"] { color: hsl(var(--foreground)); background: hsl(var(--muted)); }
+.workspace { flex: 1; min-width: 0; }
+.topbar { height: 84px; display: flex; justify-content: flex-end; align-items: center; gap: 24px; padding: 0 40px 0 48px; }
+.workspaceLabel { font-size: 14px; color: hsl(var(--muted-foreground)); }
+.identity { display: flex; align-items: center; gap: 18px; border-left: 1px solid hsl(var(--border)); padding-left: 26px; font-size: 14px; min-width: 0; }
+.avatar { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; background: hsl(var(--muted)); border: 1px solid hsl(var(--muted-foreground) / .45); border-radius: 50%; }
+.name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.themeToggle { background: transparent; border: 0; box-shadow: none; }
+.main { padding: 15px 40px 40px 48px; max-width: 1250px; margin-inline: auto; outline: none; }
+.menuButton { display: none; }
+.iconButton { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 7px; }
+.overlay { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / .55); }
+.mobileMenu { position: fixed; inset: 0 auto 0 0; z-index: 61; width: min(320px, 90vw); display: flex; flex-direction: column; overflow-y: auto; padding: 18px; background: hsl(var(--background)); color: hsl(var(--foreground)); border-right: 1px solid hsl(var(--border)); }
+.mobileMenuHeading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; font-size: 15px; font-weight: 600; }
+.skipLink { position: fixed; top: 8px; left: 8px; z-index: 70; padding: 12px; background: hsl(var(--background)); border: 2px solid hsl(var(--accent)); transform: translateY(-150%); }
+.skipLink:focus { transform: translateY(0); }
+.shell a:focus-visible, .shell button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; }
+@media (max-width: 1150px) {
+  .sidebar { width: 210px; padding-inline: 12px; }
+  .logo img { width: 210px; margin: -8px -12px 8px; }
+  .navigation a { gap: 12px; padding: 15px 10px; font-size: 14px; }
+  .topbar { padding-inline: 24px; }
+  .main { padding: 12px 24px 32px; }
+}
+@media (max-width: 850px) {
+  .sidebar { display: none; }
+  .topbar { height: 64px; padding-inline: 16px; gap: 14px; border-bottom: 1px solid hsl(var(--border)); }
+  .menuButton { display: grid; place-items: center; width: 44px; height: 44px; margin-right: auto; }
+  .workspaceLabel { display: none; }
+  .identity { gap: 10px; border: 0; padding: 0; }
+  .avatar { width: 36px; height: 36px; }
+  .name { max-width: 130px; }
+  .main { padding: 28px 18px; }
+}

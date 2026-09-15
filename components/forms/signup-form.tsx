@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SignupRoleLinks } from "@/components/forms/signup-role-links";
 
 import { AuthFooterLink, AuthPanel, AuthStatusMessage } from "@/components/forms/auth-form";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
@@ -26,20 +26,22 @@ export function SignupForm({
       <form action={signupAction} className="space-y-5">
         <input type="hidden" name="returnTo" value={returnTo} />
         <AuthStatusMessage error={error} success={success} />
+        <SignupRoleLinks />
 
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>
-          <Input id="fullName" name="fullName" placeholder="Your full name" required className="h-11" />
+          <Input id="fullName" name="fullName" autoComplete="name" placeholder="Your full name" required className="h-11" />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" name="email" type="email" placeholder="name@company.com" required className="h-11" />
+          <Input id="email" name="email" type="email" autoComplete="email" placeholder="name@company.com" required className="h-11" />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
-          <Input id="password" name="password" type="password" placeholder="Create a secure password" required className="h-11" />
+          <Input id="password" name="password" type="password" autoComplete="new-password" aria-describedby="password-help" placeholder="Create a secure password" required className="h-11" />
+          <p id="password-help" className="text-sm text-muted-foreground">Use a unique password. Your password manager can create one.</p>
         </div>
 
         <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">{helper}</div>
@@ -50,14 +52,7 @@ export function SignupForm({
 
         <div className="space-y-3 text-sm text-muted-foreground">
           <AuthFooterLink href="/login" label="Already have an account?" actionLabel="Log In" />
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <Link href="/signup/artist" className="font-medium text-foreground underline-offset-4 hover:underline">
-              Start as Artist Instead
-            </Link>
-            <Link href="/signup/buyer" className="font-medium text-foreground underline-offset-4 hover:underline">
-              Start as Buyer Instead
-            </Link>
-          </div>
+
         </div>
       </form>
     </AuthPanel>

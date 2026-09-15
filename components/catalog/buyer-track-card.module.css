@@ -1,0 +1,4 @@
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 22px 0; border: 0; border-radius: 0; border-bottom: 1px solid hsl(var(--border)); background: transparent; }
+.row:last-child { border-bottom: 0; }
+.row h3 { font-size: 17px; }
+@media(max-width:600px) { .row { gap: 12px; padding: 20px 0; } .row > div:last-child { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; } .row > div:last-child > div:last-child { margin: 0; } }

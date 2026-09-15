@@ -40,7 +40,7 @@ export function ArtistOnboardingFlow({
     <OnboardingShell
       roleLabel="Artist onboarding"
       title="Set up your artist profile"
-      description="Move from account creation into a rights-ready artist workspace with structured profile details, licensing context, and a clean path to your first upload."
+      description="Prepare your profile and licensing details, then upload your first track."
       steps={artistOnboardingSteps}
       currentStepIndex={artistOnboardingSteps.findIndex((item) => item.id === step)}
     >
@@ -580,12 +580,7 @@ function BuyerInterestsStep({
             className="min-h-[132px]"
           />
         </Field>
-        <InlineState
-          title="Business review required"
-          description="Final interest taxonomy, weighting, and recommendation behavior should still be refined with product and commercial review."
-          tone="info"
-          icon={<ShieldCheck className="h-4 w-4" />}
-        />
+        <p className="text-sm text-muted-foreground">Your interests are saved with your profile. You can refine your search in the catalog.</p>
       </SurfaceSection>
       <FormActions backHref="/onboarding/buyer?step=profile" submitLabel="Review Completion" pendingLabel="Saving Interests..." />
     </form>
@@ -616,15 +611,15 @@ function BuyerCompletionStep({
       ]}
     >
       <div className="flex flex-wrap gap-3">
-        <form action={action} data-testid="buyer-onboarding-finish-dashboard-form">
-          <input type="hidden" name="destination" value="dashboard" />
-          <FormSubmitButton pendingLabel="Opening Dashboard...">Go to Buyer Dashboard</FormSubmitButton>
-        </form>
         <form action={action} data-testid="buyer-onboarding-finish-catalog-form">
           <input type="hidden" name="destination" value="catalog" />
-          <FormSubmitButton variant="outline" pendingLabel="Opening Catalog...">
-            Browse Catalog Now
+          <FormSubmitButton pendingLabel="Opening Catalog...">
+            Explore Music
           </FormSubmitButton>
+        </form>
+        <form action={action} data-testid="buyer-onboarding-finish-dashboard-form">
+          <input type="hidden" name="destination" value="dashboard" />
+          <FormSubmitButton variant="outline" pendingLabel="Opening Dashboard...">Go to Buyer Dashboard</FormSubmitButton>
         </form>
       </div>
     </CompletionSection>
@@ -785,7 +780,7 @@ function CheckboxGrid({
         {options.map((option) => (
           <label key={option} className="group cursor-pointer">
             <input type="checkbox" name={name} value={option} defaultChecked={selectedSet.has(option)} className="peer sr-only" />
-            <span className="flex min-h-[60px] items-center rounded-md border border-border bg-background px-4 py-3 text-sm text-foreground transition-colors peer-checked:border-accent peer-checked:bg-accent/10 peer-checked:text-foreground group-hover:bg-muted/40">
+            <span className="flex min-h-[60px] items-center rounded-md border border-border bg-background px-4 py-3 text-sm text-foreground transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring peer-checked:border-accent peer-checked:bg-accent/10 peer-checked:text-foreground group-hover:bg-muted/40">
               {option}
             </span>
           </label>
@@ -813,7 +808,7 @@ function RadioOption({
   return (
     <label className="group cursor-pointer">
       <input type="radio" name={name} value={value} defaultChecked={defaultChecked} className="peer sr-only" />
-      <span className="flex items-start gap-4 rounded-md border border-border bg-background p-5 transition-colors peer-checked:border-accent peer-checked:bg-accent/10 group-hover:bg-muted/40">
+      <span className="flex items-start gap-4 rounded-md border border-border bg-background p-5 transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ring peer-checked:border-accent peer-checked:bg-accent/10 group-hover:bg-muted/40">
         <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground">
           {icon}
         </span>
@@ -960,7 +955,7 @@ function InlineState({
 
 function FormError({ error }: { error: string }) {
   return (
-    <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-5 py-4">
+    <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 px-5 py-4">
       <p className="text-sm font-medium text-destructive">We couldn&apos;t save this step</p>
       <p className="mt-1 text-sm leading-6 text-destructive">{error}</p>
     </div>

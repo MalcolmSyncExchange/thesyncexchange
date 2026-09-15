@@ -15,13 +15,14 @@ export default async function BuyerSignupPage(
 
   return (
     <AuthPageShell
+      compact
       eyebrow="Buyer account"
-      title="Create your buyer account"
-      description="Set up the account that will carry your company information, discovery preferences, and licensing workflow into the marketplace."
+      title="Find your next sound."
+      description="Create a buyer account to discover music, build a shortlist and license tracks for your projects."
       highlights={[
-        { label: "Company setup", value: "Capture company identity, buyer type, and billing context in onboarding." },
-        { label: "Discovery setup", value: "Save the genres, moods, and intended-use signals that shape search." },
-        { label: "Next step", value: "After signup, you’ll move directly into the buyer onboarding flow." }
+        { label: "Your projects", value: "Tell us a little about your company and the work you create." },
+        { label: "Your taste", value: "Save your favorite genres and moods to help you start exploring." },
+        { label: "Your shortlist", value: "Keep the tracks you love close, and return when you’re ready to license." }
       ]}
     >
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -30,8 +31,8 @@ export default async function BuyerSignupPage(
         <SignupRoleForm
           role="buyer"
           title="Sign up as a buyer"
-          description="Create the account you’ll use for catalog search, favorites, licensing, and company-level settings."
-          helper="This account continues into buyer onboarding so you can set company details, music interests, and search context before browsing the catalog."
+          description="One account for discovery, saved tracks and licenses."
+          helper="Next, confirm your email if prompted and set up your buyer profile."
           returnTo="/signup/buyer"
           alternateHref="/signup/artist"
           alternateLabel="Looking to upload music instead?"

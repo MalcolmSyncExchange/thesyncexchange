@@ -15,13 +15,14 @@ export default async function SignUpPage(
 
   return (
     <AuthPageShell
+      compact
       eyebrow="Account creation"
-      title="Create your Sync Exchange account"
-      description="Start with a clean account setup, then continue into onboarding to choose your workflow, complete profile details, and enter the right workspace."
+      title="Your next chapter starts here."
+      description="Find music for your next project. Or bring your own music to the catalog."
       highlights={[
-        { label: "Simple start", value: "Create the account first, then move directly into onboarding." },
-        { label: "Role-aware onboarding", value: "Artists and buyers continue into distinct setup flows after account creation." },
-        { label: "Supabase auth", value: "Email and password authentication is handled through your Supabase project." }
+        { label: "Create your account", value: "Start with your name, email and a password." },
+        { label: "Make it your workspace", value: "Set up the details that matter for your music or your projects." },
+        { label: "Pick up where you left off", value: "Your saved tracks and submissions stay together in your account." }
       ]}
     >
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -29,8 +30,8 @@ export default async function SignUpPage(
         <AuthConfirmationNotice email={confirmationEmail} returnTo="/signup" action={resendSignupConfirmationAction} />
         <SignupForm
           title="Get started"
-          description="Create your account with email and password. You’ll choose or confirm your role in onboarding immediately after signup."
-          helper="If you already know you’re joining as an artist or buyer, you can use the dedicated routes below. Otherwise, create the account here and choose inside onboarding."
+          description="Choose your path, or decide during setup."
+          helper="After signup, confirm your email if prompted, then complete your profile."
           returnTo="/signup"
           error={searchParams?.error}
           success={searchParams?.success}

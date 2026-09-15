@@ -8,6 +8,7 @@ test('PostgreSQL: restrictive storage policies prevent overwrite, rename, delete
     assert.equal((await db.query(`select version from storage.objects where name='${mediaPath}'`)).rows[0].version,'replacement-version');
     const migration=source('supabase/migrations/20260915065205_protect_referenced_media.sql');
     await db.exec(migration);await db.exec(migration);
+    await db.exec(source('supabase/migrations/20260915082111_allow_artist_avatar_cleanup.sql'));
     // Reapplying the documented legacy owner policy bundle must not weaken the fix.
     await db.exec(source('supabase/storage-policies.sql'));
     const fresh=`${artist}/uploads/audio/new.wav`;

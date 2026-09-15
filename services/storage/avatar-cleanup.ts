@@ -16,7 +16,7 @@ export async function deleteOwnAvatar(path: string) {
 
   const parts = path.split("/");
   const name = /^\d{13}-(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{13})\.(?:jpg|jpeg|png|webp)$/;
-  if (parts.length !== 3 || parts[0] !== user.id || parts[1] !== "profile" || !name.test(parts[2])) {
+  if (/[\u0000-\u0020\u007f]/.test(path) || parts.length !== 3 || parts[0] !== user.id || parts[1] !== "profile" || !name.test(parts[2])) {
     throw new Error("Avatar cleanup requires an object belonging to the current artist.");
   }
 

@@ -31,7 +31,7 @@ test('avatar replacement and rollback delete only the verified artist canonical 
   assert.equal(h.calls[1].paths[0], path);
 });
 test('cross-owner, traversal, encoded delimiters and other namespaces never reach removal', async () => {
-  for (const bad of [path.replace(owner, other), `${owner}/profile/../${other}/${filename}`, `${owner}/profile/%2e%2e%2f${filename}`, `${owner}/profile/${filename}%00`, path.replace('/profile/', '\\profile\\'), `/${path}`, `https://evil.invalid/${path}`, `${owner}/audio/${filename}`]) {
+  for (const bad of [`${path}\n`, `${path}\r`, `${path} `, path.replace(owner, other), `${owner}/profile/../${other}/${filename}`, `${owner}/profile/%2e%2e%2f${filename}`, `${owner}/profile/${filename}%00`, path.replace('/profile/', '\\profile\\'), `/${path}`, `https://evil.invalid/${path}`, `${owner}/audio/${filename}`]) {
     const h = harness(); await assert.rejects(h.run(bad)); assert.equal(h.calls.length, 1, bad);
   }
 });

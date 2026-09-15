@@ -1,61 +1,74 @@
-# Security remediation baseline review — 2026-09-15
+# PR #18 security remediation revision — 2026-09-15
 
-Original scan: `41a38dfa-7ce4-47c3-8031-6f083dcbc6db`, revision `698139208f5c89357e3e1fff1869402c2ed4db8e`.
-Worktree: `/private/tmp/sync-exchange-security-fixes`; branch: `codex/security-scan-remediation`.
+## Baseline and review scope
 
-## Refreshed production-branch baseline
+Fresh fetch and remote-reference inspection verified `origin/main` at **3580a0ac650545015b30e9cf1bc0f44e2ba642d4**. Main was merged locally into the published remediation branch to preserve shared history. PR #19 already deployed the authentication-redirect remediation: its original commit remains in ancestry, but there is no net auth-redirect patch against main.
 
-Before preparing commits, `git fetch origin main` and an independent `git ls-remote origin refs/heads/main` both verified **`1f4b844e4450f223c4070c23b35e978a5aaaf598`**. `FETCH_HEAD`, `origin/main`, and the worktree's starting HEAD matched. No upstream commits needed rebasing; this baseline has the same source tree as the scanned revision. This verifies the production branch, not which revision is currently deployed to Netlify.
+| Original finding | Current disposition |
+| --- | --- |
+| Cross-user avatar deletion | PR retains authenticated canonical artist/path cleanup and adds the missing narrowly scoped database authorization. |
+| Direct reviewed-rights mutation | PR retains both-parent locking and approved/ever-approved rights guard with trusted edit/resubmit support. |
+| Referenced media overwrite/deletion | PR retains restrictive RLS and all-role trigger protection for recreation, deletion, locator and version changes, including legacy URL references. |
+| Authentication open redirect | Already remediated on main through PR #19; no duplicate net change. |
+| Conditional demo invoice access | PR retains live verified buyer authorization and demo-mode early exit before privileged invoice lookup. |
 
-All five findings remain on that baseline. None was fully or partially closed by newer upstream commits. Existing track cleanup containment and rate limiting were already present and do not close these findings. Each prepared patch was compared with current source; the media patch required additional work described below. The earlier five exported patch files are superseded by this branch's reviewed changes.
+Additional admin-bootstrap hardening binds existing-account promotion to an explicitly verified Auth UUID and confirmed email. The generic SQL seed does not promote an email-matched account. Historical production ownership/promotion provenance remains outstanding; confirmed email alone does not establish intended ownership.
 
-| Original finding | Status on origin/main | Local remediation |
-| --- | --- | --- |
-| Cross-user avatar deletion (Medium) | Present: self-editable old avatar path reaches privileged cleanup. | Live artist authentication, canonical role, strict generated owner/profile path, and authenticated Storage deletion; normal replacement and rollback use the same guard. |
-| Reviewed rights changed directly (Medium) | Present: owner rights-holder writes remain unrestricted after approval. | Database trigger checks both parents, locks them in deterministic order, blocks direct artist writes on approved/ever-approved tracks, and preserves trusted edit/resubmit. |
-| Approved media replacement/deletion (Medium) | Present: direct Storage writes and privileged redemption of earlier signed upsert tokens bypass application cleanup. | Restrictive RLS plus an all-role trigger block referenced object recreation, deletion, locator changes and version changes. Legacy absolute Storage URL aliases are resolved as well as raw paths. |
-| Authentication open redirect (Low) | Present: a slash/backslash destination passes the old string-only check. | Shared resolver rejects unsafe encodings/control characters/backslashes, validates normalized origin and returns an internal destination across confirmation and login/signup helpers. |
-| Conditional demo invoice access (Low) | Present when demo mode and Stripe credentials coexist: unverified demo email can reach privileged invoice lookup. | Parameterless loader exits in demo/missing configuration, verifies live identity and canonical buyer role, then uses verified email for Stripe. |
+## Storage authorization revision
 
-### Media rework and compatibility
+The audited production database has RLS enabled on `storage.objects` and **zero Storage policies**. Restrictive policies alone do not authorize cleanup. A new additive migration grants authenticated artists exactly SELECT and DELETE on their own canonical generated avatar names in bucket `avatars`:
 
-The fresh read-only reviewer found an absolute-Storage-URL bypass in the prepared reference check. A PostgreSQL regression reproduced modification of an approved preview before the correction. The migration now recognizes public, signed, authenticated, legacy object and image-render URLs, percent-encoded names/slashes, Unicode names and dot segments. Malformed URL bytes do not break unrelated Storage operations. Raw paths are not percent-decoded, preserving literal object names. The regression now passes.
+`<auth.uid()>/profile/<13-digit timestamp>-<UUID or 13-digit timestamp>.jpg|jpeg|png|webp`
 
-Admins and service-role callers must replace referenced media using a **new object path**, then update the track through the review workflow. Existing application upload flows already generate unique paths. Same-version maintenance metadata and reads remain possible for trusted Storage operations. Authenticated artist updates to referenced rows are blocked by RLS.
+Both policies check canonical `public.current_app_role() = 'artist'`, exact first-segment ownership and the entire generated name. Control characters, legacy names and alternate buckets are excluded. SELECT is required for Storage deletion discovery. No authenticated INSERT/UPDATE, admin exception, track-wide owner policy or other bucket permission is added. Role revocation removes this access immediately. Application cleanup rejects demo mode before Storage access; strict path validation now also rejects trailing whitespace/control characters.
 
-Reference matching ignores host and bucket conservatively to support configured aliases. It may block same-named objects in other buckets. Keep `security_private` out of exposed API schemas. This protects currently referenced Supabase objects; it does not freeze historical media after an authorized track reference change, nor can it freeze bytes on arbitrary external hosting.
+The new migration requires the enabled referenced-media trigger first. Existing restrictive policies and the trigger continue preventing mutations of any track-referenced path, even if the path is an otherwise permitted avatar. Service-role bypass of RLS does not bypass that trigger. Media replacement uses a fresh object name followed by the authorized review workflow. Current references are protected; old unreferenced objects and arbitrary external-host bytes are not frozen.
 
-Legacy noncanonical avatar paths are intentionally not deleted. Rights edits on ever-approved tracks require the existing trusted application/service-role workflow; a deployment without its service-role configuration cannot perform those edits through an authenticated fallback. Invoice customer selection still uses the verified buyer email; changing to persisted Stripe customer IDs is outside this fix.
+### Storage caller compatibility
 
-## Conditional admin bootstrap: code resolved, historical state escalated
+| Caller | Intended authorization |
+| --- | --- |
+| Avatar upload | Validated server action, service-role upload with fresh name and `upsert:false`. |
+| Avatar replacement/failed-save cleanup | Authenticated artist client plus the two new narrow policies; actual deletion verified in database tests. |
+| Cover art, preview, full audio and waveform upload | Role/ownership-checked server upload or signed upload issuance, fresh paths; no new direct authenticated Storage grants. |
+| Track temporary cleanup | Authorized server path, ownership/namespace/reference checks before service delete. |
+| Public avatar/art/preview serving | Public bucket byte serving; SQL SELECT grant is not needed for public delivery. |
+| Full audio and agreement download | Authorized server-mediated signing; buyer/order and track checks remain. |
+| Agreement generation/upsert/failed-save cleanup | Trusted service-role workflow; noncolliding names remain usable. A track reference collision is intentionally blocked. |
+| Authenticated fallback helpers | Do not broaden RLS to compensate for absent trusted service configuration. Required server capability must be verified in hosted rehearsal. |
 
-Both admin scripts could promote an existing email-matched account while retaining its password. The SQL demo seed could also grant admin by email alone. These are confirmed source-level unsafe promotion paths, although repository evidence cannot establish a past production compromise.
+Production audit found no missing media objects or path collisions. The reviewed-rights historical timestamp question is qualified in [the event review](security-rights-event-review.md); it does not justify removing the guard.
 
-A separate sixth change now requires `ADMIN_BOOTSTRAP_USER_ID` or `QA_ADMIN_USER_ID` for existing accounts, matching the operator-verified Auth UUID and configured email, with a confirmed email. Missing/mismatched/unconfirmed identities fail before mutations. New-account creation still uses the operator's password. The generic SQL seed no longer grants admin. Tests execute the actual scripts with mocked clients and prove the rejected cases perform zero writes; a PostgreSQL test executes the seed profile block.
+## Migration history
 
-**Outstanding owner/security review:** audit existing production admin Auth UUIDs, canonical `user_profiles` roles, account creation/confirmation history, and prior bootstrap runs. Confirm legitimate ownership independently before supplying a UUID. A confirmed email alone does not prove the password/session was never attacker-controlled. If an account was incorrectly promoted, plan role removal and credential/session revocation for explicit approval. No account, password, session, role or production data was changed here. This historical question is escalated, not silently marked resolved.
-
-## Validation
-
-- `npm ci --ignore-scripts --no-audit --no-fund`: passed with isolated worktree dependencies; no shared dependency symlink remains.
-- `npm run test:unit`: **204 passed** (including checkout, license, auth, role, admin, storage, avatar, invoice and bootstrap regressions).
-- `npm run test:security-db`: **5 passed**. Embedded PostgreSQL reproduces baseline rights/media mutations, applies migrations twice, checks RLS and BYPASSRLS controls, legacy URL aliases, malformed URL handling and admin seed behavior. Reapplying older permissive Storage policies does not remove the restrictive protection.
-- `npm run typecheck`: passed.
-- `npm run lint`: passed with one pre-existing React Hook Form compiler warning in `components/forms/submit-music-form.tsx`.
-- `npm run build`: failed twice, including an approved unsandboxed attempt, because Turbopack's CSS worker cannot create a process/bind a local port (`Operation not permitted`, OS error 1).
-- `npx next build --webpack`: passed; existing middleware/Edge-runtime warnings remain. The standard CI build command is unchanged and still needs to run successfully in CI.
-- `git diff --check`: passed.
-- `npm run verify:supabase`: blocked by missing `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` in this isolated worktree. No production credentials were copied.
-
-A fresh investigator revalidated all five source-to-sink boundaries against refreshed main. A fresh reviewer assessed the candidate patch; its concrete URL alias issue was independently reproduced and corrected. Embedded PostgreSQL is not a hosted Storage integration test: provider trigger permissions, actual signed-token redemption and concurrent/network behavior still require staging verification. No hosted E2E suite was run.
-
-## Migrations awaiting application
-
-Neither migration has been applied to a hosted database:
+The two published SQL files remain byte-for-byte unchanged:
 
 1. `supabase/migrations/20260915065140_protect_reviewed_rights.sql`
 2. `supabase/migrations/20260915065205_protect_referenced_media.sql`
 
-Review them against the full existing chain through `0021_rate_limit_foundation.sql`. In a future authorized staging run, apply in order, verify the rights-holder and Storage triggers plus all three restrictive policies, and test with two synthetic artists, a buyer and an admin. Verify approved/archived rights denial, normal trusted edit/resubmit, direct and signed-token media mutation denial (including absolute URLs), new-path replacement, reads, cross-owner avatars, valid signup/recovery, and demo isolation using Stripe test credentials.
+New additive migration:
 
-Production application, merging and deployment require a later explicit approval. No push, merge, Netlify deployment, hosted SQL execution, or production changes are part of this task. Production remediation remains pending review, CI/staging verification, application of the migrations and deployment of the application fixes. Dropping the guards reopens the database findings; evaluate security impact before rollback.
+3. `supabase/migrations/20260915082111_allow_artist_avatar_cleanup.sql`
+
+Apply in that order only during a separately authorized rehearsal/release. Each file is transactional; the avatar policy migration is idempotent and fails atomically without the media trigger. No hosted migration was applied. Production's incomplete migration ledger is not proof of a complete schema history; preserving published files avoids rewriting potentially applied history.
+
+## Validation
+
+- `npm run test:unit`: 204 passed.
+- `npm run test:security-db`: 9 passed (original five plus four zero-policy avatar/lifecycle cases).
+- Independent read-only reviewer: no surviving bypass/regression; independently ran seven avatar/media PostgreSQL tests successfully.
+- `npm run lint`: passed with the existing `react-hooks/incompatible-library` warning in `components/forms/submit-music-form.tsx`.
+- `npm run build`: environment-blocked; Turbopack CSS worker process/port creation fails with OS error 1.
+- `npx next build --webpack`: passed (existing middleware/Edge-runtime warnings).
+- `npm run typecheck`: passed.
+- `git diff --check`: passed.
+
+Tests demonstrate real owner-avatar deletion, cross-owner/role/legacy/forged path denial, no authenticated upload/update/upsert grant, role-revocation behavior, trusted nonreferenced asset/agreement workflows, missing referenced-path recreation denial and referenced-avatar collision protection. Both the audited zero-policy fixture and legacy permissive-policy fixture are exercised. Embedded PostgreSQL cannot establish hosted Storage HTTP byte handling, signed-token finalization or provider-trigger privileges.
+
+## Hosted staging and production gates
+
+Use [the isolated hosted staging requirements](isolated-supabase-staging.md). The current Netlify preview points to production Supabase and must not receive write-capable tests. A distinct hosted project, isolated application configuration and synthetic data are required.
+
+Before production authorization: pass hosted Storage/RLS/trigger and application rehearsal; verify backup/recovery capability and current auto-deploy settings; resolve or explicitly disposition historical admin identity/promotion and rights provenance questions; validate the trusted server capability without exposing secrets. No new blanket Storage permissions are acceptable as a compatibility workaround.
+
+The candidate is for another CI review after local validation. Production remains unmodified. Push, hosted migration application, PR merge and deployment are outside this task.

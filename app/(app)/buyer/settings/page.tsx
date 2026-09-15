@@ -1,8 +1,8 @@
 import { BuyerSettingsForm } from "@/components/buyer/buyer-settings-form";
 import { getBuyerOrders } from "@/services/buyer/queries";
-import { mapLegalOrdersForSettings, mapNotificationPreferencesRow, mapStripeInvoice } from "@/services/buyer/settings";
+import { mapLegalOrdersForSettings, mapNotificationPreferencesRow } from "@/services/buyer/settings";
 import { requireSession } from "@/services/auth/session";
-import { getStripeServerClient } from "@/services/stripe/server";
+import { loadBuyerInvoices } from "@/services/buyer/invoices";
 import { isMissingRelationError, isSchemaCacheTableError } from "@/services/supabase/schema-compat";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 
@@ -20,7 +20,7 @@ export default async function BuyerSettingsPage() {
     loadNotificationPreferences(supabase, sessionUser.id),
     loadTeamInvites(supabase, sessionUser.id),
     getBuyerOrders(sessionUser.id),
-    loadStripeInvoices(user?.email || sessionUser.email)
+    loadBuyerInvoices()
   ]);
 
   return (
@@ -63,24 +63,4 @@ async function loadTeamInvites(supabase: Awaited<ReturnType<typeof createServerS
   }
 
   return data || [];
-}
-
-async function loadStripeInvoices(email: string | null | undefined) {
-  if (!email) {
-    return [];
-  }
-
-  const stripe = getStripeServerClient();
-  if (!stripe) {
-    return [];
-  }
-
-  const customers = await stripe.customers.list({ email, limit: 1 }).catch(() => ({ data: [] }));
-  const customer = customers.data[0];
-  if (!customer) {
-    return [];
-  }
-
-  const invoices = await stripe.invoices.list({ customer: customer.id, limit: 5 }).catch(() => ({ data: [] }));
-  return invoices.data.map(mapStripeInvoice);
 }

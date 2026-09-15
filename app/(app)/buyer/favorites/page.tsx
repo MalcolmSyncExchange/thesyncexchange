@@ -1,4 +1,4 @@
-import { TrackCard } from "@/components/catalog/track-card";
+import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
 import { getBuyerFavorites } from "@/services/buyer/queries";
 import { requireSession } from "@/services/auth/session";
 
@@ -12,7 +12,7 @@ export default async function FavoritesPage() {
       {savedTracks.length ? (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {savedTracks.map((track) => (
-            <TrackCard key={track.id} track={track} href={`/buyer/catalog/${track.slug}`} />
+            <BuyerTrackCard key={track.id} track={track} href={`/buyer/catalog/${track.slug}`} />
           ))}
         </div>
       ) : (

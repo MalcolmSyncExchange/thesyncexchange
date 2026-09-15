@@ -15,9 +15,10 @@ export default async function ArtistSignupPage(
 
   return (
     <AuthPageShell
+      compact
       eyebrow="Artist account"
       title="Create your artist account"
-      description="Start with a dedicated artist account, then continue directly into stage-name setup, professional profile details, licensing preferences, and your first track prompt."
+      description="Create your profile, prepare a track, and submit it for review."
       highlights={[
         { label: "Profile setup", value: "Capture your full name, artist identity, bio, and public-facing details." },
         { label: "Licensing context", value: "Add payout and licensing preferences before your first submission goes live." },

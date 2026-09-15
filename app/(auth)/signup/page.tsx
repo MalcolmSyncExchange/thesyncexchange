@@ -15,13 +15,14 @@ export default async function SignUpPage(
 
   return (
     <AuthPageShell
+      compact
       eyebrow="Account creation"
       title="Create your Sync Exchange account"
-      description="Start with a clean account setup, then continue into onboarding to choose your workflow, complete profile details, and enter the right workspace."
+      description="Find music for your next project or prepare your catalog for licensing."
       highlights={[
         { label: "Simple start", value: "Create the account first, then move directly into onboarding." },
         { label: "Role-aware onboarding", value: "Artists and buyers continue into distinct setup flows after account creation." },
-        { label: "Supabase auth", value: "Email and password authentication is handled through your Supabase project." }
+        { label: "Your workspace", value: "Return to your saved tracks or submissions whenever you need them." }
       ]}
     >
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -29,8 +30,8 @@ export default async function SignUpPage(
         <AuthConfirmationNotice email={confirmationEmail} returnTo="/signup" action={resendSignupConfirmationAction} />
         <SignupForm
           title="Get started"
-          description="Create your account with email and password. You’ll choose or confirm your role in onboarding immediately after signup."
-          helper="If you already know you’re joining as an artist or buyer, you can use the dedicated routes below. Otherwise, create the account here and choose inside onboarding."
+          description="Choose your path below, or create an account and decide during setup."
+          helper="After signup, confirm your email if prompted, then complete your profile."
           returnTo="/signup"
           error={searchParams?.error}
           success={searchParams?.success}

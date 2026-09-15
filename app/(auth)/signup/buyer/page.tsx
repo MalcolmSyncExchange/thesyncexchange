@@ -15,9 +15,10 @@ export default async function BuyerSignupPage(
 
   return (
     <AuthPageShell
+      compact
       eyebrow="Buyer account"
       title="Create your buyer account"
-      description="Set up the account that will carry your company information, discovery preferences, and licensing workflow into the marketplace."
+      description="Set up your profile, then explore music for your next project."
       highlights={[
         { label: "Company setup", value: "Capture company identity, buyer type, and billing context in onboarding." },
         { label: "Discovery setup", value: "Save the genres, moods, and intended-use signals that shape search." },

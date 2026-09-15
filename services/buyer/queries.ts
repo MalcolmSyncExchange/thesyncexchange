@@ -143,7 +143,8 @@ export async function getBuyerDashboardData(buyerUserId: string) {
   return {
     favorites,
     orders,
-    recentlyViewed: catalog.slice(0, 3)
+    catalogCount: catalog.length,
+    featuredTracks: catalog.slice(0, 3)
   };
 }
 
@@ -253,7 +254,7 @@ function mapTrack(row: any, artistName: string, rightsHolderRows: any[], isFavor
     preview_file_path: row.preview_file_path,
     waveform_path: row.waveform_path,
     waveform_preview_url: getPublicStorageUrl(storageBuckets.trackPreviews, row.waveform_path),
-    audio_file_url: null,
+    audio_file_url: getPublicStorageUrl(storageBuckets.trackPreviews, row.preview_file_path),
     cover_art_url: getPublicStorageUrl(storageBuckets.coverArt, row.cover_art_path),
     status: "approved" as TrackStatus,
     featured: row.featured,

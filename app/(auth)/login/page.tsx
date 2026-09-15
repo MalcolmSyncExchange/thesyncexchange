@@ -28,11 +28,10 @@ export default async function LoginPage(
     <AuthPageShell
       eyebrow="Account access"
       title="Sign in to your workspace"
-      description="Access your artist, buyer, or admin workspace with the email and password already associated with your account. We’ll route you to the right place after sign-in."
+      description="Access your workspace with the email and password already associated with your account. We’ll route you to the right place after sign-in."
       highlights={[
         { label: "Artists", value: "Resume submissions, rights setup, and catalog management." },
-        { label: "Buyers", value: "Return to saved tracks, recent orders, and live catalog search." },
-        { label: "Admins", value: "Step back into moderation, compliance, and platform operations." }
+        { label: "Buyers", value: "Return to saved tracks, recent orders, and live catalog search." }
       ]}
     >
       <AuthPanel

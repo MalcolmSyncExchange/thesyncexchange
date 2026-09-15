@@ -43,6 +43,9 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      - name: Artist authorization baseline (offline)
+        run: npm run test:artist-baseline
+
       - name: Build
         run: npm run build
         env:

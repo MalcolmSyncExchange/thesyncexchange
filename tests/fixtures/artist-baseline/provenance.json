@@ -1,0 +1,44 @@
+{
+  "baselineCommit": "4e47997b7bb71af443660ccd4032d12fd43bf269",
+  "productionDeploy": {
+    "id": "6aa994f9349a320008b011d0",
+    "context": "production",
+    "branch": "main",
+    "state": "ready",
+    "commit": "4e47997b7bb71af443660ccd4032d12fd43bf269"
+  },
+  "captureMethod": "Supabase MCP execute_sql: catalog SELECT only; list_migrations; Netlify deploy reader. No live authorization mutations.",
+  "querySha256": "3324d33c932a098477c41820ab5cf23f831149a6e37266a94810cf52860f55d5",
+  "snapshots": {
+    "production": "85a170746045a7fdd41bf3c87edbbc0c87edea46c7262d0aa9e42f481fbe3d3b",
+    "staging": "8e2d4bcc52ba0b909f28acf62deaef73d169970682ad5d0cddbf8c9ace518367"
+  },
+  "repositorySqlSha256": {
+    "supabase/storage-policies.sql": "d67f33d4c395764039ae1c11f5f5a6fbb70c3288bd64b11c460758b12c5c279d",
+    "supabase/migrations/0001_initial_schema.sql": "49f6193a9f853e4b9f8a50dbd2dc8b38dcfce95854ec2acc0a04324d2829571e",
+    "supabase/migrations/0002_submission_policies.sql": "19dc09093a2a24412559c79946eebacd70e16fc472f5067762c649c5ed7ec26e",
+    "supabase/migrations/0003_storage_bucket.sql": "acfb6edb0e79263c4553433c022b3d9385d4123a30f38785ec71a491b4c78917",
+    "supabase/migrations/0004_admin_moderation.sql": "7bfb71a0079e5d0df2693a92bfc145ac2f6351ff61bd4da62fa74b846f2b266f",
+    "supabase/migrations/0005_admin_flag_severity.sql": "41c577e0276719b6610fde1d4e1f0831bd276650196decc5313233548962fa1f",
+    "supabase/migrations/0006_agreements_bucket.sql": "3598724c2428f31e0ad422cbfff9c543c1345bc23c582479acc3752e2f92b531",
+    "supabase/migrations/0006_onboarding_status.sql": "c2b2394987a866107ad1aa08d5f83ca1855f0f9a7860d8ea6cbd19dc37f1dc8e",
+    "supabase/migrations/0007_users_role_nullable.sql": "e3420b4fc2d3eda2ee65af4ea1ff7f9a5b8bf826af62cf356d8a5f35c34c142b",
+    "supabase/migrations/0008_database_foundation.sql": "628c0f4781b2fe48e85ba46305edc09b06f5c94958614ac758a6f5e8a95de8ae",
+    "supabase/migrations/0009_order_lifecycle.sql": "920822b8cbab00fe32f9f89bc0adb5dbabbacf24b9780341eca24f59c89220f3",
+    "supabase/migrations/0010_order_fulfillment_hardening.sql": "8265e4394d0902b12e76f524bf198e6a8c80759f893cc687e3d7d4aefc716a7c",
+    "supabase/migrations/0011_storage_object_policies.sql": "b036c1a7cb546f7c7ce35eaffa68142019b81e9f9800aeb917b352b38f02371c",
+    "supabase/migrations/0012_avatar_storage_path.sql": "01d79714a1b99a6fb79dd0a95fc746d0c3a63c6ef3374bd5ecb5e9602a885c0f",
+    "supabase/migrations/0013_generated_licenses.sql": "8041582dfe8fcaef8c8cb67538f375177322708e6fa257ed5ee4e3bc7c2ff7c0",
+    "supabase/migrations/0014_buyer_workspace_settings.sql": "41ff2ead2a0ad9dbaad611c47f3a0ff99a18c764c445843e3378c1321a253fe0",
+    "supabase/migrations/0016_rls_recursion_fix.sql": "80372268976a58e4887ee6a1bcbd7889eb6b70a053f743a40e37184db82635c1",
+    "supabase/migrations/0017_lock_down_order_writes.sql": "17742ec643e3894a37b5f704fcdcc09723f1c288d9d570eb6e2325614d3f4e3b",
+    "supabase/migrations/0018_lock_down_track_moderation_fields.sql": "7beb9add69d12e1499317dcfc4855d63cefad813e8ecc81f72d6336b5e7fd31f",
+    "supabase/migrations/0019_lock_down_user_profile_roles.sql": "3b689d63492166cf73017019ca29897191e55709578679b9df3ae3ce9dea2e83",
+    "supabase/migrations/0020_remove_auth_profile_role_triggers.sql": "1775ed51134eeae13d2564a53e3731b17d3c2ac9d605689826626d76071e5766",
+    "supabase/migrations/0021_rate_limit_foundation.sql": "756f51f0a06308b0acff1a6ee2cc0a615e21e981df536630e94c183af6391ec9",
+    "supabase/manual-apply/2026-04-foundation-bootstrap.sql": "15984378cf882c10907b4f8054256b68fb4b4513a9a4482ffda197991521ae1e",
+    "supabase/manual-apply/2026-04-rls-recursion-fix.sql": "750a82286d6e93ff33acbed31db5d50273a26175792aff93fbc529fcd33ce52c",
+    "supabase/manual-apply/2026-04-storage-fulfillment-avatar.sql": "36fffec0455654fb4e3d1770207578e019b310265c88847162c39c436a637ece",
+    "supabase/manual-apply/2026-04-storage-owner-required.sql": "ce1517886bcedac8bf0b57a5dc400b4f35da85f58b8a02b0f837edb05eecf830"
+  }
+}

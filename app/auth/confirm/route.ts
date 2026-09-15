@@ -12,16 +12,9 @@ import {
   buildCleanRecoverySuccessUrl,
   getAuthConfirmSuccessRedirectPath,
   isRecoveryAuthFlow,
+  resolveSafeNextPath,
   shouldExchangeAuthCode
 } from "@/services/auth/auth-flow";
-
-function resolveSafeNextPath(rawNext: string | null, fallback: string) {
-  if (rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")) {
-    return rawNext;
-  }
-
-  return fallback;
-}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);

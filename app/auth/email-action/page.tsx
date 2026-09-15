@@ -1,3 +1,4 @@
+import { resolveSafeNextPath as resolveInternalNextPath } from "@/services/auth/auth-flow";
 import { BrandLogo } from "@/components/layout/brand-assets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -121,11 +122,7 @@ function parseTokenHashOtpType(rawType: string | undefined, flow: AuthEmailFlow)
 }
 
 function resolveSafeNextPath(rawNext: string | undefined, flow: AuthEmailFlow) {
-  if (rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")) {
-    return rawNext;
-  }
-
-  return flow === "recovery" ? "/reset-password" : "/onboarding";
+  return resolveInternalNextPath(rawNext, flow === "recovery" ? "/reset-password" : "/onboarding");
 }
 
 function resolveTokenHashConfirmationUrl({

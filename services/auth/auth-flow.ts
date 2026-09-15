@@ -340,3 +340,20 @@ function normalizeOptionalString(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed || undefined;
 }
+
+// Use a fixed base only to parse local destinations; no request host is trusted here.
+export function resolveSafeNextPath(rawNext: string | null | undefined, fallback: string) {
+  if (!rawNext || !rawNext.startsWith("/") || rawNext.startsWith("//") || /[\\\u0000-\u0020\u007f]/.test(rawNext)) {
+    return fallback;
+  }
+  try {
+    const base = "https://auth-path.invalid";
+    const parsed = new URL(rawNext, base);
+    if (parsed.origin !== base || parsed.pathname.startsWith("//") || /%(?:2f|5c|0[0-9a-f]|1[0-9a-f]|7f|25)/i.test(parsed.pathname)) {
+      return fallback;
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return fallback;
+  }
+}

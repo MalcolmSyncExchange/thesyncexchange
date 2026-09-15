@@ -27,7 +27,12 @@
     "e2e": "npx playwright test",
     "e2e:one": "npx playwright test e2e/marketplace-happy-path.spec.mjs",
     "chrome:local": "bash scripts/open-local-chrome.sh",
-    "setup:storage": "node scripts/setup-supabase-storage.mjs"
+    "setup:storage": "node scripts/setup-supabase-storage.mjs",
+    "test:artist-baseline": "node --test --experimental-strip-types tests/artist-baseline-db.test.mjs tests/artist-baseline-api.test.mjs tests/artist-baseline-drift.test.mjs",
+    "audit:artist-drift": "node scripts/artist-baseline/compare.mjs",
+    "test:artist-security:gate": "node --test tests/artist-security-gate.test.mjs",
+    "test:security-pr2": "node --test --experimental-strip-types tests/security-pr2-db.test.mjs tests/security-pr2-api.test.mjs tests/avatar-cleanup.test.mjs tests/admin-bootstrap-security.test.mjs tests/admin-seed-db.test.mjs tests/pr18-pr21-reconciliation.test.mjs",
+    "verify:security-baseline": "node scripts/security-pr2/preflight.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -51,6 +56,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@playwright/test": "^1.59.1",
     "@types/node": "^20.16.4",
     "@types/react": "19.3.0",

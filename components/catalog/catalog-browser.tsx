@@ -13,9 +13,9 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { useCatalogFilters } from "@/hooks/use-catalog-filters";
-import type { Track } from "@/types/models";
+import type { BuyerTrack } from "@/types/models";
 
-export function CatalogBrowser({ tracks, basePath }: { tracks: Track[]; basePath: string }) {
+export function CatalogBrowser({ tracks, basePath }: { tracks: BuyerTrack[]; basePath: string }) {
   const genres = Array.from(new Set(tracks.map((track) => track.genre)));
   const moods = Array.from(new Set(tracks.flatMap((track) => track.mood)));
   const licenseTypes = Array.from(new Set(tracks.flatMap((track) => track.license_options.map((option) => option.slug))));

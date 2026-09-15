@@ -21,9 +21,9 @@ Migration:
 
 - [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0013_generated_licenses.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/migrations/0013_generated_licenses.sql)
 
-Manual hosted bundle:
+Canonical deployment procedure:
 
-- [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql)
+- Follow [canonical migration preflight](security-pr2/deployment.md); retired SQL must not be applied.
 
 `public.generated_licenses` stores:
 
@@ -171,7 +171,7 @@ Do not tie license creation to SMTP availability.
 
 ## Manual setup required
 
-1. Apply migration `0013_generated_licenses.sql` or the hosted-safe bootstrap bundle.
+1. Apply migration `0013_generated_licenses.sql` through the canonical migration procedure.
 2. Confirm the private `agreements` bucket exists.
 3. Confirm Stripe webhook delivery is live in the target environment.
 4. Re-run:

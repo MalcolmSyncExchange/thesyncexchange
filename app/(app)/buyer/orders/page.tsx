@@ -33,6 +33,7 @@ export default async function BuyerOrdersPage() {
                 </div>
 
                 <OrderStatusProgress
+                  checkout_started={order.checkout_started}
                   status={order.order_status}
                   stripe_checkout_session_id={order.stripe_checkout_session_id}
                   stripe_payment_intent_id={order.stripe_payment_intent_id}
@@ -47,7 +48,7 @@ export default async function BuyerOrdersPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
                   <div className="space-y-1">
                     <p className="text-muted-foreground">
-                      {order.agreement_generation_error
+                      {order.agreement_failed
                         ? "Payment cleared, but agreement generation needs attention from the Sync Exchange team."
                         : order.agreement_delivery_blocked
                           ? "Payment cleared and the document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied."
@@ -73,9 +74,9 @@ export default async function BuyerOrdersPage() {
                   </div>
                 </div>
 
-                {order.agreement_generation_error ? (
+                {order.agreement_failed ? (
                   <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
-                    Agreement delivery is still being finalized: {order.agreement_generation_error}
+                    Agreement delivery needs attention from the Sync Exchange team.
                   </div>
                 ) : null}
 

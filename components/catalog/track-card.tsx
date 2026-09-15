@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDuration } from "@/lib/utils";
-import type { Track } from "@/types/models";
+import type { BuyerTrack } from "@/types/models";
 
-export function TrackCard({ track, href }: { track: Track; href: string }) {
+export function TrackCard({ track, href }: { track: BuyerTrack; href: string }) {
   return (
     <Card className="overflow-hidden" data-testid="catalog-track-card">
       <div className="relative aspect-[4/3] overflow-hidden">

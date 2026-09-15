@@ -56,32 +56,22 @@ export async function GET(_request: Request, props: { params: Promise<{ orderId:
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase service role key is missing." }, { status: 500 });
-  }
-
-  const { data: viewerProfile } = (await selectUserProfileCompat(supabase, user.id)) as {
-    data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "role"> | null;
-  };
-  const role = String(viewerProfile?.role || "");
-
-  const order = await loadAgreementOrderCompat(supabase, params.orderId);
-  const generatedLicense = await loadGeneratedLicenseByOrderId(supabase, params.orderId);
-
-  if (!order) {
-    return NextResponse.json({ error: "Order not found." }, { status: 404 });
-  }
-
-  if (role !== "admin" && order.buyer_user_id !== user.id) {
-    await logAgreementAccessEvent(supabase, {
-      orderId: order.id,
-      actorId: user.id,
-      eventType: "agreement_download_forbidden",
-      message: "A non-owner attempted to access a private agreement artifact."
-    });
+  const { data: viewerProfile, error: roleError } = await selectUserProfileCompat(authSupabase, user.id);
+  const role = viewerProfile?.role;
+  if (roleError || (role !== "buyer" && role !== "admin")) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
+  const scope = await authSupabase.from("orders").select("id, buyer_user_id").eq("id", params.orderId).maybeSingle();
+  if (scope.error || !scope.data || (role !== "admin" && scope.data.buyer_user_id !== user.id)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+  const supabase = createAdminSupabaseClient();
+  if (!supabase) return NextResponse.json({ error: "Secure delivery is unavailable." }, { status: 503 });
+  const order = await loadAgreementOrderCompat(supabase, params.orderId);
+  if (!order || (role !== "admin" && order.buyer_user_id !== user.id)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+  const generatedLicense = await loadGeneratedLicenseByOrderId(supabase, params.orderId);
 
   const effectiveAgreementPath = generatedLicense?.pdf_storage_path || null;
   const effectiveContentType = generatedLicense?.pdf_content_type || "application/pdf";

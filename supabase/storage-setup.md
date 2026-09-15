@@ -1,8 +1,7 @@
 # Supabase Storage Setup
 
 This app now expects dedicated buckets instead of the older single `track-assets` bucket.
-Create the buckets through the Supabase dashboard or CLI, then apply the policies in
-[storage-policies.sql](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/storage-policies.sql).
+Bucket creation is a separately approved operation. Follow [canonical deployment](../docs/security-pr2/deployment.md). Do not execute the historical standalone policy bundle.
 
 ## Buckets to create
 
@@ -23,18 +22,9 @@ Create these exact bucket names:
 - `track-audio/{artist_user_id}/{track_id-or-draft}/audio/{timestamp}-{uuid}.{ext}`
 - `agreements/orders/{order_id}/license-agreement.pdf`
 
-## Apply policies
+## Canonical policy contract
 
-After the buckets exist, run the SQL in:
-
-- [storage-policies.sql](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/storage-policies.sql)
-
-Those policies enforce:
-
-- public read for `avatars`, `cover-art`, and `track-previews`
-- owner-scoped writes based on the first folder segment matching `auth.uid()`
-- admin override via `public.is_admin()`
-- private `track-audio` and `agreements` buckets
+See [Storage access matrix](../docs/security-pr2/storage.md). Authenticated uploads and cleanup go through server authorization. Ordinary object CRUD is denied; referenced track media is immutable even to service-role byte replacement. Public image/preview delivery uses public buckets. Full audio and agreements remain private.
 
 ## App expectations
 

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { assertAdminBootstrapIdentity } from "./lib/admin-bootstrap-identity.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 loadEnvFile(path.join(rootDir, ".env.local"));
@@ -125,6 +126,10 @@ console.log("2. Remove QA_TEST_ACCOUNT_PASSWORD from .env.local when you are don
 
 async function ensureQaAccount(client, account) {
   const existingUser = await findAuthUserByEmail(client, account.email);
+  if (account.role === "admin") {
+    assertAdminBootstrapIdentity({ existingUser, expectedUserId: process.env.QA_ADMIN_USER_ID,
+      email: account.email, settingName: "QA_ADMIN_USER_ID" });
+  }
   const now = new Date().toISOString();
 
   let user = existingUser;
@@ -253,7 +258,7 @@ async function ensureSchemaIsReady(client) {
 
   if (schemaCacheErrors) {
     fail(
-      "Supabase app tables are not visible through PostgREST yet. Run npm run verify:supabase and apply supabase/manual-apply/2026-04-foundation-bootstrap.sql before seeding QA accounts."
+      "Supabase app tables are not visible through PostgREST yet. Run npm run verify:supabase and follow docs/security-pr2/deployment.md before seeding QA accounts."
     );
   }
 

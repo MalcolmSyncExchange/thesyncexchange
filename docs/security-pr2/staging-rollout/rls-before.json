@@ -1,0 +1,374 @@
+[
+  {
+    "name": "Admin flags are admin-only",
+    "check": "is_admin()",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "admin_flags",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Artist profiles are readable by owner or admin",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "artist_profiles",
+    "using": "((auth.uid() = user_id) OR is_admin())",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Artist profiles are writable by owner or admin",
+    "check": "((auth.uid() = user_id) OR is_admin())",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "artist_profiles",
+    "using": "((auth.uid() = user_id) OR is_admin())",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Admins can read notification preferences",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "buyer_notification_preferences",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Buyers can manage own notification preferences",
+    "check": "(user_id = auth.uid())",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "buyer_notification_preferences",
+    "using": "(user_id = auth.uid())",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Buyer profiles are readable by owner or admin",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "buyer_profiles",
+    "using": "((auth.uid() = user_id) OR is_admin())",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Buyer profiles are writable by owner or admin",
+    "check": "((auth.uid() = user_id) OR is_admin())",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "buyer_profiles",
+    "using": "((auth.uid() = user_id) OR is_admin())",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Admins can read team invites",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "buyer_team_invites",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Buyers can manage own team invites",
+    "check": "((buyer_user_id = auth.uid()) AND (invited_by = auth.uid()))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "buyer_team_invites",
+    "using": "(buyer_user_id = auth.uid())",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Favorites are managed by the owning buyer or admins",
+    "check": "(is_admin() OR (auth.uid() = buyer_user_id))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "favorites",
+    "using": "(is_admin() OR (auth.uid() = buyer_user_id))",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Admins can read generated licenses",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "generated_licenses",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Buyers can read own generated licenses",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "generated_licenses",
+    "using": "(buyer_id = auth.uid())",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Active license types are readable to authenticated users",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "license_types",
+    "using": "(active OR is_admin())",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "License types are writable by admins",
+    "check": "is_admin()",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "license_types",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Admins can read order activity",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "order_activity_log",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Buyers can read own order activity",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "order_activity_log",
+    "using": "(EXISTS ( SELECT 1\n   FROM orders\n  WHERE ((orders.id = order_activity_log.order_id) AND (orders.buyer_user_id = auth.uid()))))",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Orders are readable by the owning buyer or admins",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "orders",
+    "using": "(is_admin() OR (auth.uid() = buyer_user_id))",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Orders are writable by admins",
+    "check": "is_admin()",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "orders",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "UPDATE",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Review notes are admin-only",
+    "check": "is_admin()",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "review_notes",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Rights holders are readable by track owners or admins",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "rights_holders",
+    "using": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = rights_holders.track_id) AND (tracks.artist_user_id = auth.uid())))))",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Rights holders are writable by track owners or admins",
+    "check": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = rights_holders.track_id) AND (tracks.artist_user_id = auth.uid())))))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "rights_holders",
+    "using": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = rights_holders.track_id) AND (tracks.artist_user_id = auth.uid())))))",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Track audit log is admin-only",
+    "check": "is_admin()",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "track_audit_log",
+    "using": "is_admin()",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Track license options are readable for approved tracks, owners,",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "track_license_options",
+    "using": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = track_license_options.track_id) AND (tracks.artist_user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = track_license_options.track_id) AND (tracks.status = 'approved'::track_status)))))",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Track license options are writable by track owners or admins",
+    "check": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = track_license_options.track_id) AND (tracks.artist_user_id = auth.uid())))))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "track_license_options",
+    "using": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = track_license_options.track_id) AND (tracks.artist_user_id = auth.uid())))))",
+    "schema": "public",
+    "command": "ALL",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Artists and admins can delete owned tracks",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "tracks",
+    "using": "(is_admin() OR (auth.uid() = artist_user_id))",
+    "schema": "public",
+    "command": "DELETE",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Artists and admins can update owned tracks",
+    "check": "(is_admin() OR (auth.uid() = artist_user_id))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "tracks",
+    "using": "(is_admin() OR (auth.uid() = artist_user_id))",
+    "schema": "public",
+    "command": "UPDATE",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Artists can insert their own tracks",
+    "check": "((auth.uid() = artist_user_id) AND (status = ANY (ARRAY['draft'::track_status, 'pending_review'::track_status])) AND (featured = false) AND (approved_at IS NULL) AND (approved_by IS NULL))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "tracks",
+    "using": null,
+    "schema": "public",
+    "command": "INSERT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Tracks are readable by approved buyers, owners, or admins",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "tracks",
+    "using": "(is_admin() OR (auth.uid() = artist_user_id) OR (status = 'approved'::track_status))",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "User profiles are readable by self or admin",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "user_profiles",
+    "using": "((auth.uid() = id) OR is_admin())",
+    "schema": "public",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "User profiles can be inserted by self",
+    "check": "(auth.uid() = id)",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "user_profiles",
+    "using": null,
+    "schema": "public",
+    "command": "INSERT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "User profiles can be updated by self or admin",
+    "check": "((auth.uid() = id) OR is_admin())",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "user_profiles",
+    "using": "((auth.uid() = id) OR is_admin())",
+    "schema": "public",
+    "command": "UPDATE",
+    "permissive": "PERMISSIVE"
+  }
+]

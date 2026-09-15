@@ -22,7 +22,7 @@ npm run setup:storage
 
 - Supabase SQL finalized with:
 
-- [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql)
+- Follow [canonical migration preflight](security-pr2/deployment.md); retired SQL must not be applied.
 
 - readiness is not blocked:
 

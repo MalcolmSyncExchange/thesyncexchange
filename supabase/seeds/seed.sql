@@ -1,3 +1,5 @@
+-- Admin accounts are intentionally excluded from email-matched seeds.
+-- Use scripts/create-admin.mjs with an operator-verified existing Auth UUID.
 insert into public.license_types (id, code, slug, name, description, exclusive, default_price_cents, terms_summary, active)
 values
   ('99999999-0000-0000-0000-000000000001', 'digital-campaign', 'digital-campaign', 'Digital Campaign', 'Paid social, web, and short-form branded content.', false, 120000, '12-month digital-only usage.', true),
@@ -31,7 +33,6 @@ with existing_auth_users as (
         'music@northframe.co',
         'licensing@bayshore.studio'
       ) then 'buyer'
-      when email = 'admin@thesyncexchange.com' then 'admin'
       else null
     end as role,
     case email
@@ -42,7 +43,6 @@ with existing_auth_users as (
       when 'serena@sync.exchange' then 'Serena North'
       when 'music@northframe.co' then 'Elena Park'
       when 'licensing@bayshore.studio' then 'Jordan Pike'
-      when 'admin@thesyncexchange.com' then 'Platform Admin'
       else split_part(email, '@', 1)
     end as full_name
   from auth.users
@@ -53,8 +53,7 @@ with existing_auth_users as (
     'omar@sync.exchange',
     'serena@sync.exchange',
     'music@northframe.co',
-    'licensing@bayshore.studio',
-    'admin@thesyncexchange.com'
+    'licensing@bayshore.studio'
   )
 )
 insert into public.user_profiles (

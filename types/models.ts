@@ -129,6 +129,7 @@ export interface Order {
   track_id: string;
   license_type_id: string;
   stripe_checkout_session_id?: string | null;
+  checkout_started?: boolean;
   stripe_payment_intent_id?: string | null;
   amount_paid: number;
   currency: string;
@@ -140,6 +141,7 @@ export interface Order {
   agreement_generation_error?: string | null;
   agreement_generated?: boolean;
   agreement_ready?: boolean;
+  agreement_failed?: boolean;
   checkout_created_at?: string | null;
   paid_at?: string | null;
   agreement_generated_at?: string | null;
@@ -244,3 +246,8 @@ export interface SessionUser {
   onboardingCompletedAt?: string | null;
   onboardingData?: Record<string, unknown> | null;
 }
+
+export type ArtistPublicProfile = Omit<ArtistProfile, "payout_email">;
+export interface ArtistFinance { payout_email: string | null; legal_entity: null; }
+export type BuyerRightsCredit = Pick<RightsHolder, "id" | "track_id" | "name" | "role_type" | "ownership_percent">;
+export type BuyerTrack = Omit<Track, "artist_user_id" | "audio_file_path" | "approved_at" | "approved_by" | "rights_holders"> & { artist_id?: string; rights_holders: BuyerRightsCredit[] };

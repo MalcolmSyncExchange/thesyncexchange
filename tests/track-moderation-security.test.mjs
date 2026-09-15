@@ -95,7 +95,9 @@ test("admin actions remain the only app path for approval, rejection, and featur
 });
 
 test("buyer catalog remains restricted to legitimately approved tracks", () => {
-  assert.match(buyerQueriesSource, /\.eq\("status", "approved"\)/);
+  assert.match(buyerQueriesSource, /from\("buyer_catalog_public"\)/);
+  const projection = readFileSync(new URL("../supabase/migrations/20260915224822_separate_profile_finance_and_buyer_access.sql", import.meta.url), "utf8");
+  assert.match(projection, /where t.status='approved' and public.current_app_role\(\) in \('buyer','admin'\)/);
   assert.match(buyerQueriesSource, /demoTracks\.filter\(\(track\) => track\.status === "approved"\)/);
   assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "pending_review"\)/);
   assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "draft"\)/);

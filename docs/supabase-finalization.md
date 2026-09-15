@@ -4,41 +4,10 @@ This runbook closes the remaining gap between “the app boots” and “the mar
 
 ## What to run
 
-1. Verify the target project:
+Follow [the canonical migration deployment procedure](security-pr2/deployment.md).
+Run `npm run verify:supabase` for API visibility and `npm run verify:security-baseline` for repository integrity. Capture live catalog metadata with the read-only inventory query and compare it before choosing forward migrations.
 
-```bash
-npm run verify:supabase
-```
-
-2. Create/verify buckets:
-
-```bash
-npm run setup:storage
-```
-
-3. Apply the hosted-safe SQL bundle in Supabase SQL Editor:
-
-- [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql)
-
-4. Only if you have a role that owns `storage.objects`, optionally apply:
-
-- [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-storage-owner-required.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-storage-owner-required.sql)
-
-5. Re-check readiness:
-
-```bash
-curl -s http://127.0.0.1:3000/api/health/readiness
-```
-
-6. If readiness reports missing marketplace license types, seed them:
-
-```bash
-npm run seed:license-types
-```
-
-7. If buyer-authenticated catalog or favorites reads fail with a Postgres stack-depth / recursive policy error after readiness is already healthy, apply:
-
-- [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-rls-recursion-fix.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-rls-recursion-fix.sql)
+Live schema, Storage, seed and ledger mutations require an approved target and operation. Retired manual SQL must not be reused. A healthy readiness endpoint alone does not prove authorization is safe.
 
 ## Readiness meanings
 

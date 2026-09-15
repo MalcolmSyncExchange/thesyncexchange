@@ -10,7 +10,7 @@ import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring
 import { isAbsoluteAssetReference } from "@/lib/storage";
 import { uploadManagedAsset } from "@/services/storage/assets";
 import { inferOnboardingCompletionState } from "@/services/auth/onboarding-completion";
-import { deleteStorageAssetsWithServerAccess } from "@/services/storage/server";
+import { deleteOwnAvatar } from "@/services/storage/avatar-cleanup";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import {
   getNextArtistStep,
@@ -593,12 +593,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         }
       });
       if (uploadedAvatar?.path && user.avatarPath && user.avatarPath !== uploadedAvatar.path) {
-        await deleteStorageAssetsWithServerAccess([
-          {
-            bucket: env.avatarsBucket,
-            path: user.avatarPath
-          }
-        ]).catch(() => undefined);
+        await deleteOwnAvatar(user.avatarPath).catch(() => undefined);
       }
       nextPath = "/onboarding/artist?step=profile";
     } else if (step === "profile") {
@@ -658,12 +653,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
     }
   } catch (error) {
     if (uploadedAvatarPath && uploadedAvatarPath !== user.avatarPath) {
-      await deleteStorageAssetsWithServerAccess([
-        {
-          bucket: env.avatarsBucket,
-          path: uploadedAvatarPath
-        }
-      ]).catch(() => undefined);
+      await deleteOwnAvatar(uploadedAvatarPath).catch(() => undefined);
     }
     reportOperationalError("artist_onboarding_save_failed", error, {
       userId: user.id,

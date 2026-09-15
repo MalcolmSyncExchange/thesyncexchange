@@ -48,10 +48,10 @@ for(const [label,opts,status] of [['anonymous',{user:null},401],['wrong owner',{
  if(status===307) assert.equal(response.headers.get('cache-control'),'private, no-store, max-age=0');
  if(status===401) assert.ok(!h.events.includes('service-client'));
 });
-test('KNOWN GAP: forbidden agreement request fetches license metadata before ownership denial',async()=>{
+test('forbidden agreement request denies before privileged or license retrieval',async()=>{
  const h=harness({owner:ids.a}),{GET}=load('app/api/orders/[orderId]/agreement/route.ts',h.mocks);
  assert.equal((await GET(new Request('https://fixture.invalid'),{params:Promise.resolve({orderId:ids.order})})).status,403);
- assert.ok(h.events.includes('read:license'));assert.ok(!h.events.includes('sign'));
+ assert.ok(!h.events.includes('read:license'));assert.ok(!h.events.includes('service-client'));assert.ok(!h.events.includes('sign'));
 });
 for(const [label,opts,status] of [['anonymous',{user:null},401],['artist role',{role:'artist'},403],['foreign order',{owner:ids.a},404],['own order',{},200]]) test(`checkout entry: ${label}`,async()=>{
  const h=harness(opts),{POST}=load('app/api/checkout/route.ts',h.mocks);
@@ -59,27 +59,34 @@ for(const [label,opts,status] of [['anonymous',{user:null},401],['artist role',{
  assert.equal(h.events.includes('stripe'),status===200);
  if([401,403].includes(status)) assert.ok(!h.events.includes('service-client'));
 });
-for(const action of ['updateTrackStatusAction','updateOrderStatusAction']) test(`KNOWN GAP: ${action} rejects unauthorized mutation but reads context before admin authorization`,async()=>{
+for(const action of ['updateTrackStatusAction','updateOrderStatusAction']) test(`${action} denies before privileged context retrieval`,async()=>{
  const h=harness({role:'buyer'}),actions=load('services/admin/actions.ts',h.mocks);
  const form=new FormData();form.set('trackId',ids.live);form.set('orderId',ids.order);form.set('status','approved');
  await assert.rejects(actions[action](form),/Admin access/);
- assert.ok(h.events.findIndex(x=>x.startsWith('read:'))<h.events.indexOf('auth'));
+ assert.ok(h.events.includes('auth'));assert.ok(!h.events.includes('service-client'));assert.ok(!h.events.some(x=>x.startsWith('read:')));
  assert.ok(!h.events.some(x=>x.startsWith('write:')));
 });
-test('buyer catalog keeps eligibility and public artist projection; reports current internal track field exposure',async()=>{
+test('actual serialized buyer catalog excludes injected private metadata while preserving eligible playback and licensing',async()=>{
  const events=[];const records={
-  tracks:[{id:ids.live,artist_user_id:ids.a,title:'Fixture',slug:'fixture',status:'approved',preview_file_path:'public/preview.mp3',audio_file_path:'private/audio.wav',approved_by:ids.admin,track_license_options:[{active:true,price_cents:5000,license_types:{id:ids.license,active:true,default_price_cents:5000}}]}],
+  buyer_catalog_public:[{artist_id:"public-artist-id",artist_name:"Artist A",id:ids.live,artist_user_id:ids.a,title:'Fixture',slug:'fixture',status:'approved',preview_file_path:'public/preview.mp3',audio_file_path:'private/audio.wav',approved_by:ids.admin,track_license_options:[{active:true,price_cents:5000,license_types:{id:ids.license,active:true,default_price_cents:5000}}]}],
+  track_license_options:[{track_id:ids.live,active:true,price_cents:5000,license_types:{id:ids.license,active:true,default_price_cents:5000}}],
   artist_profiles:[{user_id:ids.a,artist_name:'Artist A'}],track_rights_holders_public:[{id:'holder',track_id:ids.live,name:'Credit',ownership_percent:100}],favorites:[]
  };
- const client={from(table){const q={select(fields){events.push({table,fields});return q;},eq(k,v){events.push({table,k,v});return q;},in:()=>q,order:()=>q,then(resolve){return Promise.resolve({data:records[table],error:null}).then(resolve);}};return q;}};
+ const client={auth:{getUser:async()=>({data:{user:{id:ids.buyer}}})},from(table){const q={select(fields){events.push({table,fields});return q;},eq(k,v){events.push({table,k,v});return q;},in:()=>q,order:()=>q,then(resolve){return Promise.resolve({data:records[table],error:null}).then(resolve);}};return q;}};
+ const authMocks={
+  '@/services/supabase/server':{createServerSupabaseClient:async()=>client},
+  '@/services/auth/user-profiles':{selectUserProfileCompat:async()=>({data:{role:'buyer'},error:null})}
+ };
+ const authorization=load('services/auth/authorization.ts',authMocks);
  const {getBuyerCatalogTracks}=load('services/buyer/queries.ts',{
   '@/lib/env':{hasSupabaseEnv:true,env:{demoMode:false}},'@/lib/storage':{getPublicStorageUrl:()=>null,storageBuckets:{}},
-  '@/services/supabase/privileged':{createPrivilegedSupabaseClient:async()=>client}
+  '@/services/supabase/privileged':{createPrivilegedSupabaseClient:async()=>client},
+  '@/services/auth/authorization':authorization
  });
  const tracks=await getBuyerCatalogTracks(ids.buyer);assert.equal(tracks.length,1);
- assert.ok(events.some(e=>e.table==='tracks'&&e.k==='status'&&e.v==='approved'));
- assert.ok(events.some(e=>e.table==='artist_profiles'&&e.fields==='user_id, artist_name'));
- assert.equal(tracks[0].rights_holders[0].email,'');
- assert.equal(tracks[0].audio_file_path,'private/audio.wav');
- assert.equal(tracks[0].approved_by,ids.admin);
+ assert.ok(events.some(e=>e.table==='buyer_catalog_public'&&e.fields.includes('artist_id')));
+ const serialized=JSON.stringify(tracks);
+ for(const field of ['audio_file_path','artist_user_id','approved_by','approved_at','payout_email','email','approval_status','user_id']) assert.ok(!serialized.includes(`"${field}"`),field);
+ assert.equal(tracks[0].artist_id,'public-artist-id');assert.equal(tracks[0].preview_file_path,'public/preview.mp3');
+ assert.equal(tracks[0].rights_holders[0].name,'Credit');assert.equal(tracks[0].license_options[0].price_override,50);
 });

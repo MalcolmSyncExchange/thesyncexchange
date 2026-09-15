@@ -6,7 +6,7 @@ async function rejects(db,sql,pattern=/permission|policy|authenticated|only|revi
  try {await assert.rejects(db.exec(sql),pattern);} finally {await db.exec('rollback to denied; release denied');}
 }
 async function scalar(db,sql) {return Object.values((await db.query(sql)).rows[0])[0];}
-for(const target of ['repository','production','staging']) test(`${target}: isolated PostgreSQL authorization baseline`,async t=>{
+for(const target of ['historical-repository','production','staging']) test(`${target}: isolated PostgreSQL authorization baseline`,async t=>{
  const db=await database(target);
  const scenario=async(name,fn)=>t.test(name,async()=>{await db.exec('begin');try{await fn();}finally{await db.exec('rollback');}});
  try {
@@ -61,9 +61,9 @@ for(const target of ['repository','production','staging']) test(`${target}: isol
   await scenario('media read ownership and reviewed media difference are captured',()=>asActor(db,ids.b,async()=>{
    assert.equal(await scalar(db,"select count(*)::int from storage.objects where bucket_id='track-audio'"),0);
   }));
-  await scenario(target==='repository'?'KNOWN GAP in repository storage policies: uploader can delete referenced full audio':'captured live storage policies deny direct deletion of referenced full audio',()=>asActor(db,ids.a,async()=>{
+  await scenario(target==='historical-repository'?'KNOWN GAP in repository storage policies: uploader can delete referenced full audio':'captured live storage policies deny direct deletion of referenced full audio',()=>asActor(db,ids.a,async()=>{
    const rows=(await db.query("delete from storage.objects where bucket_id='track-audio' returning id")).rows;
-   assert.equal(rows.length,target==='repository'?1:0);
+   assert.equal(rows.length,target==='historical-repository'?1:0);
   }));
   await scenario('buyer order and generated-license access is isolated; authenticated payment writes denied',async()=>{
    await db.exec(`insert into orders(id,buyer_user_id,track_id,license_type_id,amount_cents,currency,status) values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}',5000,'USD','fulfilled');

@@ -1,3 +1,4 @@
+import { requireAccountScope } from "@/services/auth/authorization";
 import { adminFlags as demoFlags, demoUsers, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { hasAgreementBeenGenerated } from "@/lib/orders";
@@ -69,6 +70,7 @@ export async function getAdminDashboardData() {
     };
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
 
   const [usersResult, tracksResult, rightsResult, flagsResult, reviewNotesResult, profilesResult, ordersResult] = await Promise.all([
@@ -140,6 +142,7 @@ export async function getAdminReviewQueue() {
     return buildDemoReviewQueue();
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
 
   const [tracksResult, rightsResult, flagsResult, reviewNotesResult, profilesResult] = await Promise.all([
@@ -174,6 +177,7 @@ export async function getAdminTracks() {
     }));
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
 
   const [{ data: tracks }, { data: profiles }] = await Promise.all([
@@ -202,6 +206,7 @@ export async function getAdminTrackById(trackId: string) {
     };
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
 
   const [{ data: trackRow }, { data: profiles }, { data: flags }, { data: reviewNotes }, { data: auditLog }] = await Promise.all([
@@ -279,6 +284,7 @@ export async function getAdminAnalytics() {
     };
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
 
   const [tracksResult, ordersResult] = await Promise.all([supabase.from("tracks").select("status"), supabase.from("orders").select("amount_cents")]);
@@ -306,6 +312,7 @@ export async function getAdminComplianceFlags() {
     }));
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
 
   const { data } = await supabase
@@ -348,6 +355,7 @@ export async function getAdminOrders() {
     }));
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
   const primaryOrders = await supabase
     .from("orders")
@@ -528,6 +536,7 @@ export async function getAdminUsers() {
     return demoUsers;
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
 
   const { data } = await supabase.from("user_profiles").select("id, full_name, email, role, created_at").order("created_at", { ascending: false });
@@ -739,6 +748,7 @@ async function getUserNameMap(userIds: string[]) {
     return new Map<string, string>();
   }
 
+  await requireAccountScope("admin");
   const supabase = await createPrivilegedSupabaseClient();
 
   const { data } = await supabase.from("user_profiles").select("id, full_name, email").in("id", userIds);

@@ -47,6 +47,10 @@ function harness(options = {}) {
   const user = options.user === undefined ? { id: artistA, email: "artist@example.invalid" } : options.user;
   const role = options.role === undefined ? "artist" : options.role;
   const client = {
+    async rpc(name, args) {
+      events.push({ op: "rpc", name, values: args.p_values, actor: args.p_actor_id, track: args.p_track_id });
+      return { data: options.failTable ? null : trackId, error: options.failTable ? { message: "Synthetic atomic mutation failure" } : null };
+    },
     auth: { getUser: async () => { events.push({ op: "auth" }); return { data: { user }, error: options.authError }; } },
     from(table) {
       let operation = "select", values;
@@ -84,6 +88,7 @@ function harness(options = {}) {
     "@/services/supabase/privileged": { createPrivilegedSupabaseClient: async () => { events.push({ op: "privileged" }); return client; } }
   };
   const assets = load("services/storage/track-assets.ts", mocks);
+  const avatarCleanup = load("services/storage/avatar-cleanup.ts", { ...mocks, "@/lib/env": config });
   const server = load("services/storage/server.ts", { ...mocks, "@/services/storage/track-assets": assets });
   let parsed = 0;
   const actions = load("services/tracks/actions.ts", {
@@ -94,7 +99,7 @@ function harness(options = {}) {
     "@/services/auth/user-profiles": { selectUserProfileCompat: async () => ({ data: role ? { role } : null, error: options.roleError }) },
     "@/lib/validation/track-submission": { ...schema, parseTrackSubmissionFormData(data) { parsed++; return schema.parseTrackSubmissionFormData(data); } }
   });
-  return { assets, actions, server, client, events, parsed: () => parsed };
+  return { assets, actions, server, avatarCleanup, client, events, parsed: () => parsed };
 }
 
 function form(overrides = {}) {
@@ -115,7 +120,7 @@ function form(overrides = {}) {
   return data;
 }
 const noDelete = (h) => assert.equal(h.events.filter((event) => event.op === "remove").length, 0);
-const noWrite = (h) => assert.equal(h.events.filter((event) => ["insert", "update", "delete"].includes(event.op)).length, 0);
+const noWrite = (h) => assert.equal(h.events.filter((event) => ["insert", "update", "delete", "rpc"].includes(event.op)).length, 0);
 
 for (const options of [{ user: null }, { role: "buyer" }, { role: "admin" }, { role: null }, { authError: {} }, { roleError: {} }, { demo: true }]) {
   test(`both actions reject untrusted authorization before parsing/cleanup: ${JSON.stringify(options)}`, async () => {
@@ -219,7 +224,7 @@ test("update retains omitted existing paths from database and checks only replac
   data.set("audioFilePath", replacement);
   assert.equal((await h.actions.updateTrackAction({}, data)).success, true);
   assert.equal(h.events.filter((event) => event.op === "info").length, 1);
-  const update = h.events.find((event) => event.table === "tracks" && event.op === "update");
+  const update = h.events.find((event) => event.name === "update_artist_track_atomic" && event.op === "rpc");
   assert.equal(update.values.cover_art_path, snapshot().cover_art_path);
   assert.equal(update.values.audio_file_path, replacement); noDelete(h);
 });
@@ -264,14 +269,17 @@ test("even admin cannot sign a track with a foreign owner namespace", async () =
   assert.ok(!h.events.some((event) => event.op === "privileged" || event.op === "sign"));
 });
 
-test("preview access, generic agreement signing and avatar cleanup are unchanged", async () => {
+test("preview/agreement access remains available and avatar cleanup now enforces identity", async () => {
   const h = harness({ user: null });
   const preview = await h.server.withTrackAudioAccess(snapshot(), "preview");
   assert.ok(preview.audio_file_url.includes("/public/track-previews/"));
   assert.equal(h.events.length, 0);
   assert.equal(await h.server.createSignedStorageUrl({ bucket: "agreements", path: "order/license.pdf" }), "https://example.invalid/signed");
-  await h.server.deleteStorageAssetsWithServerAccess([{ bucket: "avatars", path: "owner/profile/old.png" }]);
-  assert.ok(h.events.some((event) => event.op === "remove" && event.bucket === "avatars"));
+  await assert.rejects(h.avatarCleanup.deleteOwnAvatar(`${artistA}/profile/1770000000000-${fileId}.png`), /Authentication/);
+  assert.ok(!h.events.some(event => event.op === "remove"));
+  const artist = harness();
+  await artist.avatarCleanup.deleteOwnAvatar(`${artistA}/profile/1770000000000-${fileId}.png`);
+  assert.ok(artist.events.some(event => event.op === "remove" && event.bucket === "avatars"));
 });
 
 test("track actions contain no storage deletion path; signing uses only canonical database role", () => {

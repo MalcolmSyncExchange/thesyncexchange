@@ -46,6 +46,15 @@ jobs:
       - name: Artist authorization baseline (offline)
         run: npm run test:artist-baseline
 
+      - name: Canonical security manifest
+        run: npm run verify:security-baseline
+
+      - name: Required security gates
+        run: npm run test:artist-security:gate
+
+      - name: Security boundary regressions
+        run: npm run test:security-pr2
+
       - name: Build
         run: npm run build
         env:

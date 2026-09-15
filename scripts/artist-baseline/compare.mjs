@@ -22,7 +22,7 @@ export function compare(a,b,{includeStorage=false}={}) {
  return out;
 }
 if(process.argv[1] && new URL(import.meta.url).pathname===process.argv[1]) {
- const db=await database('repository',{seed:false});
+ const db=await database('historical-repository',{seed:false});
  try {
   const repo=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
   const production=snapshot('production'),staging=snapshot('staging');

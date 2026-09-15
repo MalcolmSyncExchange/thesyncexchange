@@ -1,0 +1,109 @@
+{
+  "format": 1,
+  "baselineCommit": "35062fb",
+  "order": [
+    {
+      "file": "0001_initial_schema.sql",
+      "sha256": "49f6193a9f853e4b9f8a50dbd2dc8b38dcfce95854ec2acc0a04324d2829571e"
+    },
+    {
+      "file": "0002_submission_policies.sql",
+      "sha256": "19dc09093a2a24412559c79946eebacd70e16fc472f5067762c649c5ed7ec26e"
+    },
+    {
+      "file": "0003_storage_bucket.sql",
+      "sha256": "acfb6edb0e79263c4553433c022b3d9385d4123a30f38785ec71a491b4c78917"
+    },
+    {
+      "file": "0004_admin_moderation.sql",
+      "sha256": "7bfb71a0079e5d0df2693a92bfc145ac2f6351ff61bd4da62fa74b846f2b266f"
+    },
+    {
+      "file": "0005_admin_flag_severity.sql",
+      "sha256": "41c577e0276719b6610fde1d4e1f0831bd276650196decc5313233548962fa1f"
+    },
+    {
+      "file": "0006_agreements_bucket.sql",
+      "sha256": "3598724c2428f31e0ad422cbfff9c543c1345bc23c582479acc3752e2f92b531"
+    },
+    {
+      "file": "0006_onboarding_status.sql",
+      "sha256": "c2b2394987a866107ad1aa08d5f83ca1855f0f9a7860d8ea6cbd19dc37f1dc8e"
+    },
+    {
+      "file": "0007_users_role_nullable.sql",
+      "sha256": "e3420b4fc2d3eda2ee65af4ea1ff7f9a5b8bf826af62cf356d8a5f35c34c142b"
+    },
+    {
+      "file": "0008_database_foundation.sql",
+      "sha256": "628c0f4781b2fe48e85ba46305edc09b06f5c94958614ac758a6f5e8a95de8ae"
+    },
+    {
+      "file": "0009_order_lifecycle.sql",
+      "sha256": "920822b8cbab00fe32f9f89bc0adb5dbabbacf24b9780341eca24f59c89220f3"
+    },
+    {
+      "file": "0010_order_fulfillment_hardening.sql",
+      "sha256": "8265e4394d0902b12e76f524bf198e6a8c80759f893cc687e3d7d4aefc716a7c"
+    },
+    {
+      "file": "0011_storage_object_policies.sql",
+      "sha256": "b036c1a7cb546f7c7ce35eaffa68142019b81e9f9800aeb917b352b38f02371c"
+    },
+    {
+      "file": "0012_avatar_storage_path.sql",
+      "sha256": "01d79714a1b99a6fb79dd0a95fc746d0c3a63c6ef3374bd5ecb5e9602a885c0f"
+    },
+    {
+      "file": "0013_generated_licenses.sql",
+      "sha256": "8041582dfe8fcaef8c8cb67538f375177322708e6fa257ed5ee4e3bc7c2ff7c0"
+    },
+    {
+      "file": "0014_buyer_workspace_settings.sql",
+      "sha256": "41ff2ead2a0ad9dbaad611c47f3a0ff99a18c764c445843e3378c1321a253fe0"
+    },
+    {
+      "file": "0016_rls_recursion_fix.sql",
+      "sha256": "80372268976a58e4887ee6a1bcbd7889eb6b70a053f743a40e37184db82635c1"
+    },
+    {
+      "file": "0017_lock_down_order_writes.sql",
+      "sha256": "17742ec643e3894a37b5f704fcdcc09723f1c288d9d570eb6e2325614d3f4e3b"
+    },
+    {
+      "file": "0018_lock_down_track_moderation_fields.sql",
+      "sha256": "7beb9add69d12e1499317dcfc4855d63cefad813e8ecc81f72d6336b5e7fd31f"
+    },
+    {
+      "file": "0019_lock_down_user_profile_roles.sql",
+      "sha256": "3b689d63492166cf73017019ca29897191e55709578679b9df3ae3ce9dea2e83"
+    },
+    {
+      "file": "0020_remove_auth_profile_role_triggers.sql",
+      "sha256": "1775ed51134eeae13d2564a53e3731b17d3c2ac9d605689826626d76071e5766"
+    },
+    {
+      "file": "0021_rate_limit_foundation.sql",
+      "sha256": "756f51f0a06308b0acff1a6ee2cc0a615e21e981df536630e94c183af6391ec9"
+    },
+    {
+      "file": "20260915224738_reconcile_reviewed_rights_and_storage.sql",
+      "sha256": "f946132c756190c6d3b033db6c2c62ddf3080456e1596996eb918145f769056c"
+    },
+    {
+      "file": "20260915224822_separate_profile_finance_and_buyer_access.sql",
+      "sha256": "80c68ee34615f8c66acc46049da9d2cfc40ee9f045823bb1ba05aa76c83235f1"
+    },
+    {
+      "file": "20260915225349_atomic_artist_track_writes.sql",
+      "sha256": "066f8f0bf524c5cba9ae6666400c00c427aadfa0fcc68f99c449b3e30d7c59b2"
+    }
+  ],
+  "storageBuckets": {
+    "avatars": true,
+    "cover-art": true,
+    "track-previews": true,
+    "track-audio": false,
+    "agreements": false
+  }
+}

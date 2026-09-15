@@ -63,10 +63,10 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
   const db = {
     auth: { getUser: async () => ({ data: { user: authenticated ? { id: userId, email: "test@example.invalid" } : null } }) },
     from(table) {
-      let mutation = false;
-      const result = () => ({ data: mutation ? { id: "new-order" } : null, error: null });
+      let mutation = false, selected = "";
+      const result = () => ({ data: mutation ? { id: "new-order" } : table === "orders" && selected === "id, buyer_user_id" ? { id: "order", buyer_user_id: owner } : null, error: null });
       const query = {
-        select() { return query; }, eq() { return query; }, order() { return query; }, limit() { return query; },
+        select(fields) { selected = fields; return query; }, eq() { return query; }, order() { return query; }, limit() { return query; },
         maybeSingle: async () => result(), single: async () => result(),
         then(resolve, reject) { return Promise.resolve(result()).then(resolve, reject); }
       };

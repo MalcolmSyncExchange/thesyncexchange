@@ -8,7 +8,7 @@ export const quote = x => `'${String(x).replaceAll("'","''")}'`;
 export const ident = x => `"${String(x).replaceAll('"','""')}"`;
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
- if (!['repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
+ if (!['repository','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
  const db=new PGlite();
  try {
   await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
@@ -23,12 +23,12 @@ export async function database(target='repository', {seed=true}={}) {
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
    select set_config('request.jwt.claim.role','service_role',false);`);
-  for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql')).sort()) {
+  for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') && (target==='repository' || /^00/.test(x))).sort()) {
    // Only extension installation is adapted; gen_random_uuid is native in this runtime.
    const sql=source(`supabase/migrations/${file}`).replace(/create extension if not exists "pgcrypto";/gi,'');
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }
   }
-  if(target!=='repository') await applyCapturedAuthorization(db,snapshot(target));
+  if(['production','staging'].includes(target)) await applyCapturedAuthorization(db,snapshot(target));
   if(seed) await seedDatabase(db);
   return db;
  } catch(error) { await db.close(); throw error; }

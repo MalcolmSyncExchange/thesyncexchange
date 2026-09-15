@@ -12,7 +12,7 @@ type TableDiagnosticStatus = "visible" | "missing_or_stale" | "schema_exposure_b
 type RecommendedManualAction =
   | "none"
   | "run_storage_setup"
-  | "apply_finalization_bundle"
+  | "review_canonical_migrations"
   | "seed_license_types"
   | "verify_project_exposure";
 
@@ -27,7 +27,7 @@ type DomainReport = {
 };
 
 const FINALIZATION_BUNDLE =
-  "/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql" as const;
+  "docs/security-pr2/deployment.md" as const;
 const FINALIZATION_RUNBOOK =
   "/Users/malcolmw/Documents/The Sync Exchange.2/docs/supabase-finalization.md" as const;
 const REQUIRED_LICENSE_TYPE_SLUGS = ["digital-campaign", "broadcast", "exclusive-buyout"] as const;
@@ -283,12 +283,12 @@ export async function GET() {
     if (storage.missingBuckets.length) {
       recommendedManualAction = "run_storage_setup";
       recommendedManualBundle = FINALIZATION_BUNDLE;
-      notes.push("Required storage buckets are missing. Run npm run setup:storage before applying the finalization SQL bundle.");
+      notes.push("Required storage buckets are missing. Run npm run setup:storage before the approved canonical migration deployment.");
     } else if (finalizationMissing) {
-      recommendedManualAction = "apply_finalization_bundle";
+      recommendedManualAction = "review_canonical_migrations";
       recommendedManualBundle = FINALIZATION_BUNDLE;
       notes.push(
-        "Critical marketplace schema or policy objects are missing or stale. Apply the single finalization SQL bundle, then recheck readiness. If tables still appear unavailable afterward, verify project credentials, public-schema exposure, and PostgREST cache health."
+        "Critical marketplace schema or policy objects are missing or stale. Follow the canonical migration preflight; never replay retired bootstrap SQL. Readiness is not a security attestation. If tables still appear unavailable afterward, verify project credentials, public-schema exposure, and PostgREST cache health."
       );
     } else if (capabilities.licenseTypeSeedSupport.status !== "available") {
       recommendedManualAction = "seed_license_types";
@@ -336,7 +336,7 @@ export async function GET() {
       status,
       ok: status === "healthy",
       environment,
-      manualSupabaseActionRequired: recommendedManualAction === "apply_finalization_bundle" || recommendedManualAction === "run_storage_setup",
+      manualSupabaseActionRequired: recommendedManualAction === "review_canonical_migrations" || recommendedManualAction === "run_storage_setup",
       missingCore,
       missingOperational,
       postgrest,

@@ -10,7 +10,7 @@ import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring
 import { isAbsoluteAssetReference } from "@/lib/storage";
 import { uploadManagedAsset } from "@/services/storage/assets";
 import { inferOnboardingCompletionState } from "@/services/auth/onboarding-completion";
-import { deleteStorageAssetsWithServerAccess } from "@/services/storage/server";
+import { deleteOwnAvatar } from "@/services/storage/avatar-cleanup";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import {
   getNextArtistStep,
@@ -337,7 +337,7 @@ export async function selectOnboardingRoleAction(formData: FormData) {
         onboarding_started_at: user.onboardingStartedAt || now,
         onboarding_completed_at: null,
         onboarding_step: "basics",
-        onboarding_payload: user.onboardingData || {}
+        onboarding_payload: Object.fromEntries(Object.entries(user.onboardingData || {}).filter(([key]) => key !== "payoutEmail"))
       } as Database["public"]["Tables"]["user_profiles"]["Insert"],
     );
 
@@ -593,12 +593,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         }
       });
       if (uploadedAvatar?.path && user.avatarPath && user.avatarPath !== uploadedAvatar.path) {
-        await deleteStorageAssetsWithServerAccess([
-          {
-            bucket: env.avatarsBucket,
-            path: user.avatarPath
-          }
-        ]).catch(() => undefined);
+        await deleteOwnAvatar(user.avatarPath).catch(() => undefined);
       }
       nextPath = "/onboarding/artist?step=profile";
     } else if (step === "profile") {
@@ -658,12 +653,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
     }
   } catch (error) {
     if (uploadedAvatarPath && uploadedAvatarPath !== user.avatarPath) {
-      await deleteStorageAssetsWithServerAccess([
-        {
-          bucket: env.avatarsBucket,
-          path: uploadedAvatarPath
-        }
-      ]).catch(() => undefined);
+      await deleteOwnAvatar(uploadedAvatarPath).catch(() => undefined);
     }
     reportOperationalError("artist_onboarding_save_failed", error, {
       userId: user.id,
@@ -802,7 +792,7 @@ async function ensureAppUser(user: {
       onboarding_started_at: user.onboardingStartedAt || null,
       onboarding_completed_at: user.onboardingCompletedAt || null,
       onboarding_step: user.onboardingStep || null,
-      onboarding_payload: user.onboardingData || {}
+      onboarding_payload: Object.fromEntries(Object.entries(user.onboardingData || {}).filter(([key]) => key !== "payoutEmail"))
     } as Database["public"]["Tables"]["user_profiles"]["Insert"]
   );
 }
@@ -876,7 +866,7 @@ async function persistArtistOnboarding({
         onboarding_started_at: user.onboardingStartedAt || now,
         onboarding_completed_at: null,
         onboarding_step: nextStep,
-        onboarding_payload: payload,
+        onboarding_payload: Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "payoutEmail")),
         ...(userUpdates || {})
       } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
@@ -982,7 +972,7 @@ async function persistBuyerOnboarding({
         onboarding_started_at: user.onboardingStartedAt || now,
         onboarding_completed_at: null,
         onboarding_step: nextStep,
-        onboarding_payload: payload,
+        onboarding_payload: Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "payoutEmail")),
         ...(userUpdates || {})
       } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
@@ -1130,7 +1120,7 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
         onboarding_started_at: user.onboardingStartedAt || completedAt,
         onboarding_step: nextStep,
         onboarding_completed_at: completedAt,
-        onboarding_payload: user.onboardingData || {}
+        onboarding_payload: Object.fromEntries(Object.entries(user.onboardingData || {}).filter(([key]) => key !== "payoutEmail"))
       } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
 

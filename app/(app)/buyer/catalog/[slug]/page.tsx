@@ -76,7 +76,6 @@ export default async function BuyerTrackDetailPage(props: { params: Promise<{ sl
                     </div>
                     <div className="text-right text-sm text-muted-foreground">
                       <p>{holder.ownership_percent}%</p>
-                      <p>{holder.approval_status}</p>
                     </div>
                   </div>
                 ))}

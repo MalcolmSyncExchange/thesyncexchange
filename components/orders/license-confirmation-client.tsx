@@ -19,9 +19,10 @@ type ConfirmationOrder = {
   id: string;
   order_status: "pending" | "paid" | "fulfilled" | "refunded";
   stripe_checkout_session_id?: string | null;
+  checkout_started?: boolean;
   stripe_payment_intent_id?: string | null;
   agreement_url?: string | null;
-  agreement_generation_error?: string | null;
+  agreement_failed?: boolean;
   agreement_delivery_blocked?: boolean | null;
   agreement_ready?: boolean | null;
   agreement_number?: string | null;
@@ -188,9 +189,9 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
               Your license is finalized. The agreement is ready to download.
             </div>
           ) : null}
-          {order?.agreement_generation_error ? (
+          {order?.agreement_failed ? (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
-              Payment was recorded, but agreement generation still needs attention: {order.agreement_generation_error}
+              Payment was recorded, but agreement generation needs attention from the Sync Exchange team.
             </div>
           ) : null}
           {order?.agreement_delivery_blocked ? (
@@ -225,6 +226,7 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
             {order ? (
               <div className="mt-5">
                 <OrderStatusProgress
+                  checkout_started={order.checkout_started}
                   status={order.order_status}
                   stripe_checkout_session_id={order.stripe_checkout_session_id}
                   stripe_payment_intent_id={order.stripe_payment_intent_id}

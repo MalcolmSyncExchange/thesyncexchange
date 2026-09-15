@@ -4,7 +4,7 @@ import {readdirSync} from 'node:fs';
 import {database,snapshot,source,root} from './helpers/artist-baseline-db.mjs';
 import {compare} from '../scripts/artist-baseline/compare.mjs';
 test('replayed repository domain schema matches captured production, without implying complete migration history',async()=>{
- const db=await database('repository',{seed:false});
+ const db=await database('historical-repository',{seed:false});
  try {
   const repo=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
   const diff=compare(repo,snapshot('production'));

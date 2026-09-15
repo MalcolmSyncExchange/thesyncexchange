@@ -30,7 +30,9 @@
     "setup:storage": "node scripts/setup-supabase-storage.mjs",
     "test:artist-baseline": "node --test --experimental-strip-types tests/artist-baseline-db.test.mjs tests/artist-baseline-api.test.mjs tests/artist-baseline-drift.test.mjs",
     "audit:artist-drift": "node scripts/artist-baseline/compare.mjs",
-    "test:artist-security:gate": "node --test tests/artist-security-gate.test.mjs"
+    "test:artist-security:gate": "node --test tests/artist-security-gate.test.mjs",
+    "test:security-pr2": "node --test --experimental-strip-types tests/security-pr2-db.test.mjs tests/security-pr2-api.test.mjs tests/avatar-cleanup.test.mjs",
+    "verify:security-baseline": "node scripts/security-pr2/preflight.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

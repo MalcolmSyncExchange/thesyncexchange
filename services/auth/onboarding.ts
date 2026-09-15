@@ -1,3 +1,5 @@
+import { getArtistFinance } from "@/services/artist/finance";
+import { artistProfileColumns } from "@/services/artist/profile-contract";
 import { buyerOnboardingSteps, artistOnboardingSteps, getArtistStepIndex, getBuyerStepIndex } from "@/lib/validation/onboarding";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { getDemoArtistProfile, getDemoBuyerProfile } from "@/services/auth/demo-store";
@@ -33,6 +35,7 @@ export interface BuyerOnboardingValues {
 
 export async function getArtistOnboardingState(user: SessionUser, requestedStep?: string) {
   const profile = await getArtistProfile(user.id);
+  const finance = await getArtistFinance(user.id);
   const payload = user.onboardingData || {};
   const socialLinks = toStringMap(profile?.social_links);
   const currentStep = resolveArtistStep(user.onboardingStep, requestedStep);
@@ -52,7 +55,7 @@ export async function getArtistOnboardingState(user: SessionUser, requestedStep?
       instagram: String(payload.instagram || profile?.instagram_url || socialLinks.instagram || ""),
       spotify: String(payload.spotify || profile?.spotify_url || socialLinks.spotify || ""),
       youtube: String(payload.youtube || profile?.youtube_url || socialLinks.youtube || ""),
-      payoutEmail: String(payload.payoutEmail || profile?.payout_email || ""),
+      payoutEmail: String(finance.payout_email || ""),
       defaultLicensingPreferences: String(payload.defaultLicensingPreferences || profile?.default_licensing_preferences || ""),
       firstTrackChoice: payload.firstTrackChoice === "upload" ? "upload" : "later"
     } satisfies ArtistOnboardingValues
@@ -122,7 +125,7 @@ async function getArtistProfile(userId: string) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase.from("artist_profiles").select("*").eq("user_id", userId).maybeSingle();
+  const { data } = await supabase.from("artist_profiles").select(artistProfileColumns).eq("user_id", userId).maybeSingle();
   return data;
 }
 

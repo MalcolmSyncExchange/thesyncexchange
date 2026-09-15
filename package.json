@@ -27,7 +27,8 @@
     "e2e": "npx playwright test",
     "e2e:one": "npx playwright test e2e/marketplace-happy-path.spec.mjs",
     "chrome:local": "bash scripts/open-local-chrome.sh",
-    "setup:storage": "node scripts/setup-supabase-storage.mjs"
+    "setup:storage": "node scripts/setup-supabase-storage.mjs",
+    "test:security-db": "node --test tests/reviewed-rights-db.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -60,6 +61,7 @@
     "eslint-config-next": "16.3.5",
     "postcss": "8.5.28",
     "tailwindcss": "^3.4.12",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "@electric-sql/pglite": "0.3.14"
   }
 }

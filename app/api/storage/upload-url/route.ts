@@ -12,6 +12,7 @@ import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { assertStorageUploadMetadata } from "@/services/storage/assets";
+import { consumeRateLimit, rateLimitErrorResponse } from "@/services/security/rate-limit";
 
 const trackAssetKinds = new Set<TrackAssetKind>(["cover-art", "audio", "preview", "waveform"]);
 
@@ -33,9 +34,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "You must be signed in to upload files." }, { status: 401 });
   }
 
-  const supabase = createAdminSupabaseClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase service role key is required for uploads." }, { status: 500 });
+  const { data: profile } = await selectUserProfileCompat(authSupabase, user.id);
+  const role = profile?.role;
+  if (role !== "artist" && role !== "admin") {
+    return NextResponse.json({ error: "Only artist or admin accounts can upload track assets." }, { status: 403 });
   }
 
   const payload = (await request.json().catch(() => null)) as {
@@ -68,10 +70,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: profile } = await selectUserProfileCompat(supabase, user.id);
-  const role = profile?.role;
-  if (role !== "artist" && role !== "admin") {
-    return NextResponse.json({ error: "Only artist or admin accounts can upload track assets." }, { status: 403 });
+  const admission = await consumeRateLimit("upload", user.id);
+  const limitedResponse = rateLimitErrorResponse(admission);
+  if (limitedResponse) return limitedResponse;
+
+  const supabase = createAdminSupabaseClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Unable to prepare uploads right now." }, { status: 503 });
   }
 
   const bucket = getStorageBucketForKind(kind);

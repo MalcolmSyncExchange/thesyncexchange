@@ -36,3 +36,11 @@ Use a Netlify Deploy Preview with authorized buyer and artist accounts to verify
 ## Artist integration browser checks
 
 On the built app in local demo mode, verified Submit Music opens the complete metadata/upload/licensing/splits form, selected submissions open their matching editor, Rights opens split management, and Payouts opens the existing read-only payout profile. Selecting an In review row updates the main journey. Desktop and 390px mobile screenshots were inspected; mobile DOM has no horizontal overflow. Browser console errors: none observed. These checks did not submit files, alter rights, modify payout data or test live backend writes.
+
+## Artist visual correction
+
+The first integration kept the original centered AppShell, which did not match the approved option 3 prototype. The artist layout now uses a dedicated full-height sidebar with icon navigation, Overview/My catalog/Submit music/Rights holders/Payout settings labels, a compact account header, and wider content. Scoped CSS restores the prototype's heading scale, connected submission progress, semantic status colors, and grouped recent-submission rows. Profile, logout and theme controls remain available. Other roles continue using their existing shells.
+
+Account-wide totals remain above the submission journey as requested. Actual cover art, track statuses and existing detailed submission/editor routes remain connected. No authentication, services, database or payment behavior changed in this visual correction.
+
+Rechecked the production build in local demo mode at 1487×1058 and 390×844. Compared matching Live states with the approved prototype, acknowledging real catalog content and the account-total addition. Corrected sidebar overflow and uppercase eyebrow text after the initial comparison. Verified mobile navigation, Escape/focus restoration, all six artist destinations, selected In review state and its editor route, and light/dark appearance. No browser console errors or page overflow observed. Final build passed; 196 unit tests, typecheck and lint passed (one existing React Hook Form warning). Local screenshots and the detailed QA report are excluded from Git.

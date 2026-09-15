@@ -1,0 +1,183 @@
+{
+  "capturedAt": "2026-09-15T22:47:56.568095+00:00",
+  "canonicalMigrationCount": 24,
+  "diff": {
+    "tables": {
+      "onlyLeft": [
+        "public..buyer_catalog_public."
+      ],
+      "onlyRight": [],
+      "changed": []
+    },
+    "columns": {
+      "onlyLeft": [
+        "public.buyer_catalog_public.id.",
+        "public.buyer_catalog_public.artist_id.",
+        "public.buyer_catalog_public.artist_name.",
+        "public.buyer_catalog_public.title.",
+        "public.buyer_catalog_public.slug.",
+        "public.buyer_catalog_public.description.",
+        "public.buyer_catalog_public.genre.",
+        "public.buyer_catalog_public.subgenre.",
+        "public.buyer_catalog_public.moods.",
+        "public.buyer_catalog_public.bpm.",
+        "public.buyer_catalog_public.musical_key.",
+        "public.buyer_catalog_public.duration_seconds.",
+        "public.buyer_catalog_public.instrumental.",
+        "public.buyer_catalog_public.vocals.",
+        "public.buyer_catalog_public.explicit.",
+        "public.buyer_catalog_public.lyrics.",
+        "public.buyer_catalog_public.release_year.",
+        "public.buyer_catalog_public.cover_art_path.",
+        "public.buyer_catalog_public.preview_file_path.",
+        "public.buyer_catalog_public.waveform_path.",
+        "public.buyer_catalog_public.featured.",
+        "public.buyer_catalog_public.created_at.",
+        "public.buyer_catalog_public.updated_at."
+      ],
+      "onlyRight": [
+        "public.track_rights_holders_public.user_id.",
+        "public.track_rights_holders_public.approval_status.",
+        "public.track_rights_holders_public.created_at.",
+        "public.track_rights_holders_public.updated_at."
+      ],
+      "changed": []
+    },
+    "constraints": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "indexes": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "functions": {
+      "onlyLeft": [
+        "public..get_own_artist_finance.",
+        "public..update_artist_track_atomic.p_actor_id uuid, p_track_id uuid, p_expected_updated_at timestamp with time zone, p_values jsonb, p_rights jsonb, p_options jsonb",
+        "security_private..audit_rights_change.",
+        "security_private..guard_artist_profile_review.",
+        "security_private..guard_onboarding_finance_copy.",
+        "security_private..guard_referenced_media_version.",
+        "security_private..guard_reviewed_rights.",
+        "security_private..is_referenced_track_asset.object_path text",
+        "security_private..track_asset_object_names.reference text"
+      ],
+      "onlyRight": [],
+      "changed": []
+    },
+    "triggers": {
+      "onlyLeft": [
+        "public.artist_profiles.guard_artist_profile_review.",
+        "public.rights_holders.audit_rights_change.",
+        "public.rights_holders.guard_reviewed_rights.",
+        "public.user_profiles.guard_onboarding_finance_copy."
+      ],
+      "onlyRight": [],
+      "changed": []
+    },
+    "policies": {
+      "onlyLeft": [
+        "public.tracks.Private tracks are readable by owners or admins."
+      ],
+      "onlyRight": [
+        "public.tracks.Tracks are readable by approved buyers, owners, or admins."
+      ],
+      "changed": [
+        {
+          "key": "public.track_license_options.Track license options are readable for approved tracks, owners,.",
+          "before": {
+            "schema": "public",
+            "table": "track_license_options",
+            "name": "Track license options are readable for approved tracks, owners,",
+            "permissive": "PERMISSIVE",
+            "roles": [
+              "authenticated"
+            ],
+            "command": "SELECT",
+            "using": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM tracks t\n  WHERE ((t.id = track_license_options.track_id) AND (t.artist_user_id = auth.uid())))) OR (active AND (EXISTS ( SELECT 1\n   FROM buyer_catalog_public t\n  WHERE (t.id = track_license_options.track_id)))))",
+            "check": null
+          },
+          "after": {
+            "schema": "public",
+            "table": "track_license_options",
+            "name": "Track license options are readable for approved tracks, owners,",
+            "permissive": "PERMISSIVE",
+            "roles": [
+              "authenticated"
+            ],
+            "command": "SELECT",
+            "using": "(is_admin() OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = track_license_options.track_id) AND (tracks.artist_user_id = auth.uid())))) OR (EXISTS ( SELECT 1\n   FROM tracks\n  WHERE ((tracks.id = track_license_options.track_id) AND (tracks.status = 'approved'::track_status)))))",
+            "check": null
+          }
+        }
+      ]
+    },
+    "views": {
+      "onlyLeft": [
+        "public..buyer_catalog_public."
+      ],
+      "onlyRight": [],
+      "changed": [
+        {
+          "key": "public..track_rights_holders_public.",
+          "before": {
+            "schema": "public",
+            "name": "track_rights_holders_public",
+            "definition": " SELECT r.id,\n    r.track_id,\n    r.name,\n    r.role_type,\n    r.ownership_percent\n   FROM (rights_holders r\n     JOIN tracks t ON ((t.id = r.track_id)))\n  WHERE ((t.status = 'approved'::track_status) AND (current_app_role() = ANY (ARRAY['buyer'::user_role, 'admin'::user_role])));"
+          },
+          "after": {
+            "schema": "public",
+            "name": "track_rights_holders_public",
+            "definition": " SELECT rights_holders.id,\n    rights_holders.track_id,\n    rights_holders.user_id,\n    rights_holders.name,\n    rights_holders.role_type,\n    rights_holders.ownership_percent,\n    rights_holders.approval_status,\n    rights_holders.created_at,\n    rights_holders.updated_at\n   FROM (rights_holders\n     JOIN tracks ON ((tracks.id = rights_holders.track_id)))\n  WHERE (tracks.status = 'approved'::track_status);"
+          }
+        }
+      ]
+    },
+    "storagePolicies": {
+      "onlyLeft": [
+        "storage.objects.Artists can delete own cleanup avatars.",
+        "storage.objects.Artists can select own cleanup avatars.",
+        "storage.objects.Referenced track media cannot be deleted.",
+        "storage.objects.Referenced track media cannot be overwritten.",
+        "storage.objects.Referenced track media cannot be recreated."
+      ],
+      "onlyRight": [],
+      "changed": []
+    },
+    "storageTriggers": {
+      "onlyLeft": [
+        "storage.objects.guard_referenced_media_version."
+      ],
+      "onlyRight": [],
+      "changed": []
+    }
+  },
+  "columnGrantsMatch": false,
+  "routineGrants": [
+    {
+      "name": "get_own_artist_finance",
+      "present": false,
+      "expected": [
+        "authenticated"
+      ],
+      "actual": [],
+      "match": false
+    },
+    {
+      "name": "update_artist_track_atomic",
+      "present": false,
+      "expected": [
+        "service_role"
+      ],
+      "actual": [],
+      "match": false
+    }
+  ],
+  "bucketMismatches": [],
+  "limitations": [
+    "Hosted internal storage tables/triggers excluded except application guard. New RPC EXECUTE grants compared for PUBLIC/anon/authenticated/service_role; provider owners/default grants remain an operational review item. No live mutations or runtime Storage/PostgREST requests."
+  ]
+}

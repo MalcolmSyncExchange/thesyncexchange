@@ -160,7 +160,7 @@ async function ensureSchemaIsReady(client) {
 
   if (schemaCacheErrors) {
     fail(
-      "Supabase app tables are not visible through PostgREST yet. Run npm run verify:supabase and apply supabase/manual-apply/2026-04-foundation-bootstrap.sql before bootstrapping the admin account."
+      "Supabase app tables are not visible through PostgREST yet. Run npm run verify:supabase and follow docs/security-pr2/deployment.md before bootstrapping the admin account."
     );
   }
 

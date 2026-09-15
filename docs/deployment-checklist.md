@@ -38,7 +38,7 @@ Production expectations:
 - run `npm run setup:storage` against the target project
 - run `npm run seed:license-types` against the target project environment
 - apply:
-  - [`/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql)
+- Follow [canonical migration preflight](security-pr2/deployment.md); retired SQL must not be applied.
 - confirm migration `0013_generated_licenses` is live so paid checkouts can persist one finalized agreement row per order
 - confirm readiness is not blocked:
 

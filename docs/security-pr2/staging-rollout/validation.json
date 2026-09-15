@@ -1,0 +1,63 @@
+{
+  "scope": "PR18/PR21 reconciliation before hosted rollout",
+  "results": [
+    {
+      "command": "npm run test:unit",
+      "status": "PASS",
+      "tests": 194
+    },
+    {
+      "command": "npm run test:artist-baseline",
+      "status": "PASS",
+      "tests": 71
+    },
+    {
+      "command": "npm run test:artist-security:gate",
+      "status": "PASS",
+      "tests": 5
+    },
+    {
+      "command": "npm run test:security-pr2",
+      "status": "PASS",
+      "tests": 35
+    },
+    {
+      "command": "npm run verify:security-baseline",
+      "status": "PASS",
+      "detail": "24 migration hashes; original security assertions unchanged"
+    },
+    {
+      "command": "npm run typecheck",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run lint",
+      "status": "PASS_WITH_WARNING",
+      "detail": "Existing react-hooks/incompatible-library warning in submit-music-form.tsx:173"
+    },
+    {
+      "command": "npm run build",
+      "status": "BLOCKED_ENVIRONMENT",
+      "detail": "Turbopack cannot bind temporary local port: EPERM; same result outside sandbox"
+    },
+    {
+      "command": "npx next build --webpack",
+      "status": "PASS",
+      "detail": "Production compilation with placeholder test environment only; not a hosted deploy"
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS"
+    },
+    {
+      "command": "node scripts/security-pr2/preflight.mjs --capture docs/security-pr2/staging-rollout/catalog-before.json --report docs/security-pr2/staging-rollout/drift-before.json",
+      "status": "EXPECTED_NONZERO",
+      "detail": "PR21 unapplied plus documented historical constraint/index names; not counted as a passing live gate"
+    }
+  ],
+  "total_tests": 305,
+  "hosted_after_deploy": "NOT_RUN",
+  "migrations_applied_this_rollout": [],
+  "production_mutations": [],
+  "security_assertions_weakened": false
+}

@@ -67,6 +67,7 @@ for each row execute function security_private.guard_onboarding_finance_copy();
 
 -- Approved status grants catalog visibility, not direct access to private track rows.
 drop policy if exists "Tracks are readable by approved buyers, owners, or admins" on public.tracks;
+drop policy if exists "Private tracks are readable by owners or admins" on public.tracks;
 create policy "Private tracks are readable by owners or admins" on public.tracks
 for select to authenticated using (public.is_admin() or auth.uid()=artist_user_id);
 

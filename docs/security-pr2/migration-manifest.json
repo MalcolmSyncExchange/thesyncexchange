@@ -92,7 +92,7 @@
     },
     {
       "file": "20260915224822_separate_profile_finance_and_buyer_access.sql",
-      "sha256": "80c68ee34615f8c66acc46049da9d2cfc40ee9f045823bb1ba05aa76c83235f1"
+      "sha256": "4897972b1c27d70e7cdff58a8eabb560ce400177558f8db6d6f95a6f14c99d21"
     },
     {
       "file": "20260915225349_atomic_artist_track_writes.sql",

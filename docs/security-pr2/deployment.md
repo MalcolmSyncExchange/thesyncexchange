@@ -2,6 +2,8 @@
 
 **PR 2 prepares code and SQL. Nothing in this procedure has been applied live.** Do not run an unrestricted `supabase db push`, a reset, migration repair, or an old bootstrap against either existing project.
 
+Staging rollout checkpoint: [PR #18 reconciliation and current blockers](staging-rollout/reconciliation.md). This supersedes the older staging-ledger description below: the separate PR #18 rehearsal has now installed avatar cleanup too. PR #21's three forward migrations remain unapplied at this checkpoint.
+
 ## Evidence and repository integrity
 
 - Approved historical baseline: `35062fb`, based on deployed `4e47997`.

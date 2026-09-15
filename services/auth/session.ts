@@ -5,6 +5,7 @@ import { cache } from "react";
 import { demoSessionUsers } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { resolvePublicStorageAssetUrl, storageBuckets } from "@/lib/storage";
+import { resolveSafeNextPath } from "@/services/auth/auth-flow";
 import { inferOnboardingCompletionState } from "@/services/auth/onboarding-completion";
 import { getDemoDirectoryUserByEmail, getDemoDirectoryUserById, toSessionUser } from "@/services/auth/demo-store";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
@@ -254,5 +255,5 @@ function detectPersistedRole(artistProfile?: { id: string } | null, buyerProfile
 }
 
 function isSafeInternalPath(path: string) {
-  return path.startsWith("/") && !path.startsWith("//");
+  return resolveSafeNextPath(path, "") !== "";
 }

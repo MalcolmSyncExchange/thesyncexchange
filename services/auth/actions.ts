@@ -50,6 +50,7 @@ import {
   normalizeAuthEmail,
   requestPasswordResetEmail,
   resolveAuthMode,
+  resolveSafeNextPath,
   type ForgotPasswordActionState
 } from "@/services/auth/auth-flow";
 import { buildBuyerProfileUpsert } from "@/services/auth/buyer-onboarding";
@@ -84,11 +85,7 @@ function resolveSignupPath(role: UserRole | null) {
 
 function resolveSignupReturnPath(formData: FormData, role: UserRole | null) {
   const raw = String(formData.get("returnTo") || "").trim();
-  if (raw.startsWith("/") && !raw.startsWith("//")) {
-    return raw;
-  }
-
-  return resolveSignupPath(role);
+  return resolveSafeNextPath(raw, resolveSignupPath(role));
 }
 
 function buildRelativePath(path: string, params: Record<string, string | null | undefined>) {
@@ -455,7 +452,7 @@ export async function forgotPasswordAction(
 export async function resendSignupConfirmationAction(formData: FormData) {
   const email = normalizeAuthEmail(formData.get("email"));
   const returnTo = String(formData.get("returnTo") || "/signup").trim();
-  const safeReturnTo = returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/signup";
+  const safeReturnTo = resolveSafeNextPath(returnTo, "/signup");
   const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
 
   if (!email) {

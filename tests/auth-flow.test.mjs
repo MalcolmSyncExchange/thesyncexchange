@@ -20,6 +20,7 @@ import {
   normalizeAuthEmail,
   requestPasswordResetEmail,
   resolveAuthMode,
+  resolveSafeNextPath,
   shouldExchangeAuthCode,
   shouldRequestSupabasePasswordReset
 } from "../services/auth/auth-flow.ts";
@@ -341,4 +342,21 @@ test("auth email-action does not prefetch one-time token hash confirmation links
   assert.match(source, /<a href=\{confirmationUrl\}>/);
   assert.doesNotMatch(source, /next\/link/);
   assert.doesNotMatch(source, /<Link href=\{confirmationUrl\}/);
+});
+
+
+test("auth redirect resolver rejects external and parser-normalized destinations", () => {
+  const malicious = ["//evil.invalid", "/\\evil.invalid", "/\t/evil.invalid", "/\n/evil.invalid", "https://evil.invalid", "javascript:alert(1)", "/a/..//evil.invalid", "/%5cevil.invalid", "/%255cevil.invalid", "/%2fevil.invalid", "/%00evil", "/%0devil"];
+  for (const input of malicious) {
+    assert.equal(resolveSafeNextPath(input, "/onboarding"), "/onboarding", JSON.stringify(input));
+  }
+  const decoded = new URLSearchParams("next=%2F%5Cevil.invalid").get("next");
+  assert.equal(resolveSafeNextPath(decoded, "/onboarding"), "/onboarding");
+});
+test("auth redirect resolver preserves local routes, query strings, fragments and recovery", () => {
+  for (const input of ["/", "/onboarding/artist?step=profile", "/buyer/catalog?q=ambient%20piano#results", "/reset-password"]) {
+    assert.equal(resolveSafeNextPath(input, "/onboarding"), input);
+  }
+  assert.equal(getAuthConfirmSuccessRedirectPath({ nextPath: "/buyer/catalog", recoveryFlow: true }), "/reset-password");
+  assert.equal(resolveSafeNextPath(null, "/reset-password"), "/reset-password");
 });

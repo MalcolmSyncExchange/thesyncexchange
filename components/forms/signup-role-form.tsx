@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SignupRoleLinks } from "@/components/forms/signup-role-links";
 
 import { AuthFooterLink, AuthPanel, AuthStatusMessage } from "@/components/forms/auth-form";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
@@ -37,6 +38,7 @@ export function SignupRoleForm({
         <input type="hidden" name="role" value={role} />
         <input type="hidden" name="returnTo" value={returnTo} />
         <AuthStatusMessage error={error} success={success} />
+        <SignupRoleLinks role={role} />
 
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>

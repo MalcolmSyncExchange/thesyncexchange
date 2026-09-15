@@ -17,12 +17,12 @@ export default async function SignUpPage(
     <AuthPageShell
       compact
       eyebrow="Account creation"
-      title="Create your Sync Exchange account"
-      description="Find music for your next project or prepare your catalog for licensing."
+      title="Your next chapter starts here."
+      description="Find music for your next project. Or bring your own music to the catalog."
       highlights={[
-        { label: "Simple start", value: "Create the account first, then move directly into onboarding." },
-        { label: "Role-aware onboarding", value: "Artists and buyers continue into distinct setup flows after account creation." },
-        { label: "Your workspace", value: "Return to your saved tracks or submissions whenever you need them." }
+        { label: "Create your account", value: "Start with your name, email and a password." },
+        { label: "Make it your workspace", value: "Set up the details that matter for your music or your projects." },
+        { label: "Pick up where you left off", value: "Your saved tracks and submissions stay together in your account." }
       ]}
     >
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -30,7 +30,7 @@ export default async function SignUpPage(
         <AuthConfirmationNotice email={confirmationEmail} returnTo="/signup" action={resendSignupConfirmationAction} />
         <SignupForm
           title="Get started"
-          description="Choose your path below, or create an account and decide during setup."
+          description="Choose your path, or decide during setup."
           helper="After signup, confirm your email if prompted, then complete your profile."
           returnTo="/signup"
           error={searchParams?.error}

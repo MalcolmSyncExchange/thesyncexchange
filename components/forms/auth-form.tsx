@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, MailCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, MailCheck } from "lucide-react";
 
-import { BrandLogo } from "@/components/layout/brand-assets";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import styles from "./auth-form.module.css";
+import surface from "@/components/layout/sync-surface.module.css";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/types/models";
 
@@ -24,30 +24,16 @@ export function AuthPageShell({
   children: ReactNode;
 }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-[1.05fr,0.95fr] lg:items-start">
-      <section className={cn("rounded-lg border border-border bg-card/70 p-8 shadow-panel", compact && "p-5 lg:p-8")}>
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{eyebrow}</p>
-        <h1 className="mt-5 text-4xl font-semibold tracking-tight text-foreground">{title}</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground md:text-base">{description}</p>
-
-        <div className={cn("mt-8 gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3", compact ? "hidden lg:grid" : "grid")}>
-          {highlights.map((item) => (
-            <div key={item.label} className="rounded-md border border-border bg-background/80 p-4">
-              <p className="text-sm font-medium text-foreground">{item.label}</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.value}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className={cn("mt-10 max-w-lg", compact && "hidden lg:block")}>
-          <BrandLogo className="w-[170px] sm:w-[196px]" />
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Premium sync licensing infrastructure for artists, buyers, and teams that need speed without sacrificing rights clarity.
-          </p>
-        </div>
+    <div className={styles.layout}>
+      <section className={styles.intro}>
+        <p className={surface.eyebrow}>{eyebrow}</p>
+        <h1 className={surface.heading}>{title}</h1>
+        <p className={surface.description}>{description}</p>
+        <ol className={cn(styles.highlights, compact && styles.compact)}>
+          {highlights.map(item => <li key={item.label}><CheckCircle2 aria-hidden="true" size={24} /><div><h2>{item.label}</h2><p>{item.value}</p></div></li>)}
+        </ol>
       </section>
-
-      <div className="w-full">{children}</div>
+      <div className={styles.formColumn}>{children}</div>
     </div>
   );
 }
@@ -63,18 +49,14 @@ export function AuthPanel({
   description: string;
   children: ReactNode;
 }) {
-  return (
-    <Card className="mx-auto w-full max-w-xl">
-      <CardHeader className="space-y-3">
-        {eyebrow ? <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{eyebrow}</p> : null}
-        <div className="space-y-1">
-          <CardTitle>{title}</CardTitle>
-          <CardDescription className="leading-6">{description}</CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
+  return <section className={styles.panel}>
+    <header className={styles.panelHeader}>
+      {eyebrow ? <p className={surface.eyebrow}>{eyebrow}</p> : null}
+      <h2>{title}</h2>
+      <p>{description}</p>
+    </header>
+    {children}
+  </section>;
 }
 
 export function AuthStatusMessage({ error, success }: { error?: string; success?: string }) {
@@ -113,7 +95,7 @@ export function AuthConfirmationNotice({
             <p className="mt-1 text-sm font-medium text-foreground">{email}</p>
           </div>
           <p className="text-sm leading-6 text-muted-foreground">
-            Confirm this email address to activate the account. Once the link is opened, we’ll route the user back into onboarding automatically.
+            Open the confirmation link in your inbox to activate your account and continue setup.
           </p>
           <form action={action} className="flex flex-wrap items-center gap-3 pt-1">
             <input type="hidden" name="email" value={email} />
@@ -168,12 +150,12 @@ export function AuthSessionNotice({
 
 export function AuthFooterLink({ href, label, actionLabel }: { href: string; label: string; actionLabel: string }) {
   return (
-    <>
+    <span>
       {label}{" "}
       <Link href={href} className="font-medium text-foreground underline-offset-4 hover:underline">
         {actionLabel}
       </Link>
-    </>
+    </span>
   );
 }
 

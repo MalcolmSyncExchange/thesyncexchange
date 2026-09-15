@@ -1,0 +1,26 @@
+.siteHeader { max-width: 1250px; margin: auto; padding: 0 32px; min-height: 104px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid hsl(var(--border)); }
+.siteHeader img { width: 208px; }
+.siteHeader > div { display: flex; align-items: center; gap: 24px; font-size: 14px; color: hsl(var(--muted-foreground)); }
+.main { max-width: 1180px; margin: auto; padding: 56px 32px; }
+.layout { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
+.intro { padding-top: 24px; }
+.highlights { margin-top: 38px; display: grid; gap: 24px; max-width: 400px; }
+.highlights li { display: flex; align-items: flex-start; gap: 16px; }
+.highlights svg { color: hsl(var(--accent)); flex-shrink: 0; margin-top: 1px; }
+.highlights h2 { font-size: 16px; font-weight: 500; }
+.highlights p { font-size: 14px; color: hsl(var(--muted-foreground)); line-height: 1.75; margin-top: 6px; }
+.formColumn { min-width: 0; }
+.panel { padding: 30px; border: 1px solid hsl(var(--border)); border-radius: 8px; width: 100%; }
+.panelHeader { display: grid; gap: 10px; margin-bottom: 26px; }
+.panelHeader h2 { font-size: 25px; line-height: 1.3; font-weight: 600; letter-spacing: -.3px; }
+.panelHeader > p:last-child { font-size: 14px; line-height: 1.7; color: hsl(var(--muted-foreground)); }
+.panel form > button { min-height: 48px; border-radius: 7px; }
+.footer { max-width: 1180px; padding: 12px 32px 36px; margin: auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; font-size: 13px; color: hsl(var(--muted-foreground)); }
+.footer a { padding-block: 10px; }
+.roles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.roles a { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px; border-radius: 7px; border: 1px solid hsl(var(--border)); font-size: 14px; font-weight: 500; }
+.roles a:hover { background: hsl(var(--muted)); }
+.roles a[aria-current] { border-color: hsl(var(--accent)); background: hsl(var(--accent) / .1); }
+.roles svg { color: hsl(var(--accent)); }
+@media(max-width:900px) { .layout { gap: 32px; } .main { padding-top: 32px; } }
+@media(max-width:700px) { .siteHeader { padding-inline: 18px; min-height: 76px; } .siteHeader img { width: 152px; } .siteHeader > div { gap: 12px; font-size: 12px; } .main { padding: 28px 18px; } .layout { grid-template-columns: 1fr; gap: 28px; } .intro { padding: 0; } .compact { display: none; } .panel { padding: 22px; } .panelHeader h2 { font-size: 23px; } .highlights { display: none; } .roles a { padding: 12px; } }

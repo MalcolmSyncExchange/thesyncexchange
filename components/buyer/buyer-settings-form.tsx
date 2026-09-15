@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import surface from "@/components/layout/sync-surface.module.css";
 import { FormEvent, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -328,14 +329,18 @@ export function BuyerSettingsForm({
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">Buyer Settings</p>
-        <h1 className="text-3xl font-semibold">Account And Billing Settings</h1>
+        <p className={surface.eyebrow}>Buyer account</p>
+        <h1 className={surface.heading}>Account settings</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Keep your buyer profile, billing contact, and sign-in credentials aligned with your licensing workflow.
         </p>
       </header>
 
-      <Card>
+      <nav aria-label="Account sections" className="flex flex-wrap gap-x-5 gap-y-1 border-y border-border py-3">
+        {[["profile","Profile"],["security","Security"],["billing","Billing"],["notifications","Notifications"],["team","Team"],["legal","Agreements"]].map(([id,label])=><a key={id} href={`#account-${id}`} className={surface.link}>{label}</a>)}
+      </nav>
+
+      <Card id="account-profile" className="scroll-mt-6 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle>Account Info</CardTitle>
           <CardDescription>Manage the company details attached to orders and generated license records.</CardDescription>
@@ -360,7 +365,7 @@ export function BuyerSettingsForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="account-security" className="scroll-mt-6 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle>Security</CardTitle>
           <CardDescription>Change your password after confirming the current password for this account.</CardDescription>
@@ -405,7 +410,7 @@ export function BuyerSettingsForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="account-billing" className="scroll-mt-6 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle>Billing</CardTitle>
           <CardDescription>Manage billing contact details, account email changes, and Stripe billing portal access.</CardDescription>
@@ -471,7 +476,7 @@ export function BuyerSettingsForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="account-notifications" className="scroll-mt-6 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle>Notifications</CardTitle>
           <CardDescription>Control the workspace updates that should reach your team.</CardDescription>
@@ -530,7 +535,7 @@ export function BuyerSettingsForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="account-team" className="scroll-mt-6 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle>Team</CardTitle>
           <CardDescription>Prepare account administration for collaborators, supervisors, and finance contacts.</CardDescription>
@@ -590,7 +595,7 @@ export function BuyerSettingsForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="account-legal" className="scroll-mt-6 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle>Legal</CardTitle>
           <CardDescription>Review license history, past agreements, and order-linked legal records.</CardDescription>

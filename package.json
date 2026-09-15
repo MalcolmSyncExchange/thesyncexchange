@@ -15,7 +15,7 @@
     "create:admin": "node scripts/create-admin.mjs",
     "seed:qa-accounts": "node scripts/seed-test-accounts.mjs",
     "test": "npm run test:unit",
-    "test:unit": "node --test --experimental-strip-types tests/avatar-consistency.test.mjs tests/avatar-concurrency.test.mjs tests/auth-flow.test.mjs tests/buyer-onboarding.test.mjs tests/buyer-settings.test.mjs tests/onboarding-completion.test.mjs tests/generated-license.test.mjs tests/license-confirmation-polling.test.mjs tests/order-checkout-security.test.mjs tests/privacy-policy.test.mjs tests/track-moderation-security.test.mjs tests/user-role-security.test.mjs tests/admin-actions-security.test.mjs tests/storage-delete-security.test.mjs tests/track-asset-security.test.mjs tests/deployment-target.test.mjs tests/rate-limit-security.test.mjs tests/buyer-invoices-security.test.mjs tests/catalog-discovery.test.mjs",
+    "test:unit": "node --test --experimental-strip-types tests/avatar-consistency.test.mjs tests/avatar-concurrency.test.mjs tests/auth-flow.test.mjs tests/buyer-onboarding.test.mjs tests/buyer-settings.test.mjs tests/onboarding-completion.test.mjs tests/generated-license.test.mjs tests/license-confirmation-polling.test.mjs tests/order-checkout-security.test.mjs tests/privacy-policy.test.mjs tests/track-moderation-security.test.mjs tests/user-role-security.test.mjs tests/admin-actions-security.test.mjs tests/storage-delete-security.test.mjs tests/track-asset-security.test.mjs tests/deployment-target.test.mjs tests/rate-limit-security.test.mjs tests/buyer-invoices-security.test.mjs tests/catalog-discovery.test.mjs tests/artist-dashboard.test.mjs",
     "test:buyer-onboarding": "node --test --experimental-strip-types tests/buyer-onboarding.test.mjs tests/onboarding-completion.test.mjs",
     "test:licenses": "node --test --experimental-strip-types tests/generated-license.test.mjs",
     "verify:artist-onboarding": "node scripts/verify-artist-onboarding-http.mjs",
@@ -33,7 +33,8 @@
     "test:artist-security:gate": "node --test tests/artist-security-gate.test.mjs",
     "test:security-pr2": "node --test --experimental-strip-types tests/security-pr2-db.test.mjs tests/security-pr2-api.test.mjs tests/avatar-cleanup.test.mjs tests/admin-bootstrap-security.test.mjs tests/admin-seed-db.test.mjs tests/pr18-pr21-reconciliation.test.mjs tests/atomic-conflict.test.mjs tests/atomic-rights-identity.test.mjs",
     "verify:security-baseline": "node scripts/security-pr2/preflight.mjs",
-    "test:discovery": "node --test --experimental-strip-types tests/catalog-discovery.test.mjs"
+    "test:discovery": "node --test --experimental-strip-types tests/catalog-discovery.test.mjs",
+    "test:artist-dashboard": "node --test --experimental-strip-types tests/artist-dashboard.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

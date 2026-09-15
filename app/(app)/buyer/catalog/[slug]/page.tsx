@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AudioPlayer } from "@/components/audio/audio-player";
+import { PreviewButton } from "@/components/audio/buyer-discovery-provider";
 import { FavoriteButton } from "@/components/catalog/favorite-button";
-import { TrackCard } from "@/components/catalog/track-card";
+import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,13 +36,13 @@ export default async function BuyerTrackDetailPage(props: { params: Promise<{ sl
           <p className="mt-2 text-lg text-muted-foreground">{track.artist_name}</p>
         </div>
         <div className="flex items-center gap-3">
-          <FavoriteButton trackId={track.id} initialFavorite={Boolean(track.is_favorite)} revalidatePathname={`/buyer/catalog/${track.slug}`} />
+          <FavoriteButton trackTitle={track.title} trackId={track.id} initialFavorite={Boolean(track.is_favorite)} revalidatePathname={`/buyer/catalog/${track.slug}`} />
           <Button asChild size="lg" data-testid="license-track-button">
             <Link href={`/buyer/checkout/${track.slug}`}>License This Track</Link>
           </Button>
         </div>
       </div>
-      <AudioPlayer title={track.title} artist={track.artist_name} src={track.audio_file_url} />
+      <PreviewButton track={track} />
       <div className="grid gap-6 lg:grid-cols-[1fr,360px]">
         <Card>
           <CardHeader>
@@ -96,7 +96,7 @@ export default async function BuyerTrackDetailPage(props: { params: Promise<{ sl
                     <p className="font-medium">{option.name}</p>
                     <p className="mt-1 text-sm text-muted-foreground">{option.terms_summary}</p>
                   </div>
-                  <p className="font-medium">{formatCurrency(option.price_override || option.base_price)}</p>
+                  <p className="font-medium">{formatCurrency(option.price_override ?? option.base_price)}</p>
                 </div>
                 <p className="mt-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
                   {option.exclusive ? "Exclusive negotiation path" : "Standard non-exclusive license"}
@@ -110,7 +110,7 @@ export default async function BuyerTrackDetailPage(props: { params: Promise<{ sl
         <h2 className="text-2xl font-semibold">Related tracks</h2>
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {related.map((item) => (
-            <TrackCard key={item.id} track={item} href={`/buyer/catalog/${item.slug}`} />
+            <BuyerTrackCard key={item.id} track={item} href={`/buyer/catalog/${item.slug}`} />
           ))}
         </div>
       </section>

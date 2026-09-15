@@ -249,15 +249,17 @@ export async function toggleFavoriteAction(formData: FormData) {
   const supabase = await createPrivilegedSupabaseClient();
 
   if (nextValue === "true") {
-    await supabase.from("favorites").upsert(
+    const { error } = await supabase.from("favorites").upsert(
       {
         buyer_user_id: user.id,
         track_id: trackId
       },
       { onConflict: "buyer_user_id,track_id" }
     );
+    if (error) return { error: "Unable to save this favorite." };
   } else {
-    await supabase.from("favorites").delete().eq("buyer_user_id", user.id).eq("track_id", trackId);
+    const { error } = await supabase.from("favorites").delete().eq("buyer_user_id", user.id).eq("track_id", trackId);
+    if (error) return { error: "Unable to remove this favorite." };
   }
 
   revalidatePath("/buyer/dashboard");

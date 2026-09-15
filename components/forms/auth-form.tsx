@@ -13,22 +13,24 @@ export function AuthPageShell({
   title,
   description,
   highlights,
+  compact = false,
   children
 }: {
   eyebrow: string;
   title: string;
   description: string;
   highlights: Array<{ label: string; value: string }>;
+  compact?: boolean;
   children: ReactNode;
 }) {
   return (
     <div className="grid gap-8 lg:grid-cols-[1.05fr,0.95fr] lg:items-start">
-      <section className="rounded-lg border border-border bg-card/70 p-8 shadow-panel">
+      <section className={cn("rounded-lg border border-border bg-card/70 p-8 shadow-panel", compact && "p-5 lg:p-8")}>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{eyebrow}</p>
         <h1 className="mt-5 text-4xl font-semibold tracking-tight text-foreground">{title}</h1>
         <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground md:text-base">{description}</p>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+        <div className={cn("mt-8 gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3", compact ? "hidden lg:grid" : "grid")}>
           {highlights.map((item) => (
             <div key={item.label} className="rounded-md border border-border bg-background/80 p-4">
               <p className="text-sm font-medium text-foreground">{item.label}</p>
@@ -37,7 +39,7 @@ export function AuthPageShell({
           ))}
         </div>
 
-        <div className="mt-10 max-w-lg">
+        <div className={cn("mt-10 max-w-lg", compact && "hidden lg:block")}>
           <BrandLogo className="w-[170px] sm:w-[196px]" />
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Premium sync licensing infrastructure for artists, buyers, and teams that need speed without sacrificing rights clarity.
@@ -78,7 +80,7 @@ export function AuthPanel({
 export function AuthStatusMessage({ error, success }: { error?: string; success?: string }) {
   return (
     <>
-      {error ? <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+      {error ? <div role="alert" className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
       {success ? (
         <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">{success}</div>
       ) : null}

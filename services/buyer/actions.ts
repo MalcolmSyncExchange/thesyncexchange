@@ -17,6 +17,7 @@ import { resolveRoleRedirect } from "@/services/auth/session";
 import type { Database } from "@/types/database";
 import type { SessionUser } from "@/types/models";
 import { getBuyerTrackBySlug } from "@/services/buyer/queries";
+import { consumeRateLimit, getRateLimitMessage } from "@/services/security/rate-limit";
 
 export async function createOrderAction(formData: FormData) {
   const user = await requireBuyerUser();
@@ -27,6 +28,13 @@ export async function createOrderAction(formData: FormData) {
 
   if (!trackId || !trackSlug || !licenseTypeId) {
     redirect(`/buyer/checkout/${trackSlug}?error=Missing%20checkout%20details.`);
+  }
+
+  if (hasSupabaseEnv && !env.demoMode) {
+    const admission = await consumeRateLimit("checkout", user.id);
+    if (admission.status !== "allowed") {
+      redirect(`/buyer/checkout/${trackSlug}?error=${encodeURIComponent(getRateLimitMessage(admission))}`);
+    }
   }
 
   const track = await getBuyerTrackBySlug(trackSlug, user.id);

@@ -1,3 +1,6 @@
+import { resolveDeploymentTarget } from "./lib/deployment-target.mjs";
+import { PHASE_PRODUCTION_SERVER } from "next/constants.js";
+
 const remotePatterns = [
   {
     protocol: "https",
@@ -18,10 +21,14 @@ if (supabaseUrl) {
   }
 }
 
-const nextConfig = {
-  images: {
-    remotePatterns
-  }
-};
-
-export default nextConfig;
+export default function nextConfig(phase) {
+  return {
+    // next start reloads config without build metadata; keep the compiled target.
+    env: phase === PHASE_PRODUCTION_SERVER ? {} : {
+      TSE_BUILD_DEPLOYMENT_TARGET: resolveDeploymentTarget(process.env)
+    },
+    images: {
+      remotePatterns
+    }
+  };
+}

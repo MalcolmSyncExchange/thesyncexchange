@@ -1,3 +1,5 @@
+import { resolveDeploymentTarget, type DeploymentTarget } from "./deployment-target.mjs";
+
 const rawPrimaryAppUrl = normalizeOptionalEnv(process.env.NEXT_PUBLIC_APP_URL);
 const rawFallbackSiteUrl = normalizeOptionalEnv(process.env.NEXT_PUBLIC_SITE_URL);
 const rawAppUrl = rawPrimaryAppUrl || rawFallbackSiteUrl;
@@ -15,7 +17,7 @@ export function resolveDemoMode(value: string | undefined) {
   return value === "true";
 }
 
-export type DeploymentTarget = "local" | "preview" | "production";
+export type { DeploymentTarget };
 
 export type EnvironmentIssue = {
   code: string;
@@ -44,18 +46,15 @@ export function isLocalhostHost(hostname: string) {
 }
 
 export function getDeploymentTarget(): DeploymentTarget {
-  const vercelEnv = process.env.VERCEL_ENV;
-  const netlifyContext = process.env.CONTEXT;
-
-  if (vercelEnv === "production" || netlifyContext === "production") {
-    return "production";
-  }
-
-  if (vercelEnv === "preview" || netlifyContext === "deploy-preview" || netlifyContext === "branch-deploy") {
-    return "preview";
-  }
-
-  return "local";
+  // Next.js inlines this non-secret build value into server and client bundles.
+  // Netlify's CONTEXT is build-only and is not guaranteed in Functions runtime.
+  return resolveDeploymentTarget({
+    CONTEXT: process.env.CONTEXT,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    NETLIFY: process.env.NETLIFY,
+    SITE_ID: process.env.SITE_ID,
+    VERCEL: process.env.VERCEL
+  }, process.env.TSE_BUILD_DEPLOYMENT_TARGET);
 }
 
 export function getMissingCoreEnvKeys(): string[] {

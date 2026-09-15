@@ -711,6 +711,10 @@ export interface Database {
       };
     };
     Functions: {
+      consume_rate_limit: {
+        Args: { p_namespace: string; p_operation: string; p_subject: string };
+        Returns: Array<{ allowed: boolean; remaining: number; retry_after_seconds: number; reset_at: string }>;
+      };
       current_app_role: {
         Args: Record<PropertyKey, never>;
         Returns: Database["public"]["Enums"]["user_role"] | null;

@@ -25,7 +25,7 @@ export function Homepage() {
         <p className={styles.signin}>Already part of The Sync Exchange? <Link href="/login">Log in</Link></p>
       </div>
       <figure className={styles.feature}>
-        <div className={styles.photo}><Image src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80" alt="Studio microphone ready for a recording session" fill priority sizes="(min-width: 1000px) 40vw, 100vw" className="object-cover" /></div>
+        <div className={styles.photo}><Image src="/images/sync-sound-sculpture.webp" alt="Sculptural sound waves in blue glass and smoked chrome with gold edges" fill priority sizes="(min-width: 1000px) 40vw, 100vw" className="object-cover" /></div>
         <figcaption><Music2 aria-hidden="true" size={22} /><div><strong>Independent music. New possibilities.</strong><p>A place for artists and the projects that need their sound.</p></div></figcaption>
       </figure>
     </section>

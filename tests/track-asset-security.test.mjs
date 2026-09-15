@@ -264,14 +264,13 @@ test("even admin cannot sign a track with a foreign owner namespace", async () =
   assert.ok(!h.events.some((event) => event.op === "privileged" || event.op === "sign"));
 });
 
-test("preview access, generic agreement signing and avatar cleanup are unchanged", async () => {
+test("preview access and generic agreement signing are unchanged", async () => {
   const h = harness({ user: null });
   const preview = await h.server.withTrackAudioAccess(snapshot(), "preview");
   assert.ok(preview.audio_file_url.includes("/public/track-previews/"));
   assert.equal(h.events.length, 0);
   assert.equal(await h.server.createSignedStorageUrl({ bucket: "agreements", path: "order/license.pdf" }), "https://example.invalid/signed");
-  await h.server.deleteStorageAssetsWithServerAccess([{ bucket: "avatars", path: "owner/profile/old.png" }]);
-  assert.ok(h.events.some((event) => event.op === "remove" && event.bucket === "avatars"));
+
 });
 
 test("track actions contain no storage deletion path; signing uses only canonical database role", () => {

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { assertAdminBootstrapIdentity } from "./lib/admin-bootstrap-identity.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 loadEnvFile(path.join(rootDir, ".env.local"));
@@ -40,6 +41,8 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 await ensureSchemaIsReady(supabase);
 
 const existingUser = await findAuthUserByEmail(supabase, ADMIN_EMAIL);
+assertAdminBootstrapIdentity({ existingUser, expectedUserId: process.env.ADMIN_BOOTSTRAP_USER_ID,
+  email: ADMIN_EMAIL, settingName: "ADMIN_BOOTSTRAP_USER_ID" });
 const now = new Date().toISOString();
 
 let authUser = existingUser;

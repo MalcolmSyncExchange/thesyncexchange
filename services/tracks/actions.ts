@@ -2,19 +2,17 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { storageBuckets, type StorageAssetRef } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
 import { parseTrackSubmissionFormData } from "@/lib/validation/track-submission";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
-import { deleteStorageAssetsWithServerAccess } from "@/services/storage/server";
+import { trackAssetFields, verifyTrackAssetReferences } from "@/services/storage/track-assets";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { Database, Json } from "@/types/database";
-import type { SessionUser, UserRole } from "@/types/models";
+import type { UserRole } from "@/types/models";
 
 export interface SubmitTrackState {
   success: boolean;
@@ -28,13 +26,11 @@ export interface SubmitTrackState {
 const requiredTrackLicenseSlugs = ["digital-campaign", "broadcast", "exclusive-buyout"] as const;
 
 export async function submitTrackAction(_prevState: SubmitTrackState, formData: FormData): Promise<SubmitTrackState> {
-  let uploadedAssets: StorageAssetRef[] = [];
-
   try {
-    const parsed = parseTrackSubmissionFormData(formData);
-    uploadedAssets = parsed.uploadedAssets;
     const user = await requireArtistUser();
+    const parsed = parseTrackSubmissionFormData(formData);
     const supabase = (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;
+    Object.assign(parsed, await verifyTrackAssetReferences(supabase, user.id, parsed));
 
     const slug = await ensureUniqueTrackSlug(supabase, slugify(parsed.title));
     const status = parsed.saveMode === "publish" ? "pending_review" : "draft";
@@ -71,7 +67,6 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
       .single();
 
     if (trackError || !track) {
-      await cleanupUploadedAssets(uploadedAssets);
       return {
         success: false,
         message: trackError?.message || "Unable to create track."
@@ -91,7 +86,6 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
 
     if (rightsError) {
       await supabase.from("tracks").delete().eq("id", track.id);
-      await cleanupUploadedAssets(uploadedAssets);
       return {
         success: false,
         message: rightsError.message
@@ -102,7 +96,6 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
 
     if (licenseTypeMessage || !licenseTypes) {
       await supabase.from("tracks").delete().eq("id", track.id);
-      await cleanupUploadedAssets(uploadedAssets);
       return {
         success: false,
         message: licenseTypeMessage || "Unable to resolve license types."
@@ -127,7 +120,6 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
     if (licenseOptionError) {
       await supabase.from("rights_holders").delete().eq("track_id", track.id);
       await supabase.from("tracks").delete().eq("id", track.id);
-      await cleanupUploadedAssets(uploadedAssets);
       return {
         success: false,
         message: licenseOptionError.message
@@ -151,8 +143,6 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
       redirectTo: `/artist/catalog?submitted=${track.id}`
     };
   } catch (error) {
-    await cleanupUploadedAssets(uploadedAssets).catch(() => undefined);
-
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -169,36 +159,45 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
 }
 
 export async function updateTrackAction(_prevState: SubmitTrackState, formData: FormData): Promise<SubmitTrackState> {
-  let uploadedAssets: StorageAssetRef[] = [];
-
   try {
-    const parsed = parseTrackSubmissionFormData(formData);
-    uploadedAssets = parsed.uploadedAssets;
+    const user = await requireArtistUser();
     const trackId = String(formData.get("trackId") || "");
     const existingSlug = String(formData.get("existingSlug") || "");
-    const user = await requireArtistUser();
     const supabase = (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;
 
     if (!trackId || !existingSlug) {
-      await cleanupUploadedAssets(uploadedAssets);
       return {
         success: false,
         message: "Track update is missing required identifiers."
       };
     }
 
+    const { data: existingTrack, error: existingTrackError } = await supabase
+      .from("tracks")
+      .select(
+        "id, artist_user_id, title, slug, description, genre, subgenre, moods, bpm, musical_key, duration_seconds, instrumental, vocals, explicit, lyrics, release_year, status, cover_art_path, audio_file_path, preview_file_path, waveform_path"
+      )
+      .eq("id", trackId)
+      .maybeSingle();
+
+    if (existingTrackError || !existingTrack || existingTrack.artist_user_id !== user.id) {
+      return { success: false, message: "Unable to load an artist-owned track for this update." };
+    }
+
+    const input = new FormData();
+    for (const [key, value] of formData.entries()) input.append(key, value);
+    for (const { field, column } of trackAssetFields) {
+      if (!input.has(field) || input.get(field) === (existingTrack[column] || "")) {
+        input.set(field, existingTrack[column] || "");
+      }
+    }
+    const parsed = parseTrackSubmissionFormData(input);
+    Object.assign(parsed, await verifyTrackAssetReferences(supabase, user.id, parsed, existingTrack));
+
     const [
-      { data: existingTrack, error: existingTrackError },
       { data: existingRightsHolders, error: existingRightsHoldersError },
       { data: existingLicenseOptions, error: existingLicenseOptionsError }
     ] = await Promise.all([
-      supabase
-        .from("tracks")
-        .select(
-          "id, artist_user_id, title, slug, description, genre, subgenre, moods, bpm, musical_key, duration_seconds, instrumental, vocals, explicit, lyrics, release_year, status, cover_art_path, audio_file_path, preview_file_path, waveform_path"
-        )
-        .eq("id", trackId)
-        .maybeSingle(),
       supabase
         .from("rights_holders")
         .select("user_id, name, email, role_type, ownership_percent, approval_status")
@@ -209,23 +208,13 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
         .eq("track_id", trackId)
     ]);
 
-    if (existingTrackError || existingRightsHoldersError || existingLicenseOptionsError) {
-      await cleanupUploadedAssets(uploadedAssets);
+    if (existingRightsHoldersError || existingLicenseOptionsError) {
       return {
         success: false,
         message:
-          existingTrackError?.message ||
           existingRightsHoldersError?.message ||
           existingLicenseOptionsError?.message ||
           "Unable to load the current track state before updating it."
-      };
-    }
-
-    if (!existingTrack || existingTrack.artist_user_id !== user.id) {
-      await cleanupUploadedAssets(uploadedAssets);
-      return {
-        success: false,
-        message: "You can only update your own tracks."
       };
     }
 
@@ -263,7 +252,6 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
     const { licenseTypes, errorMessage: licenseTypeMessage } = await loadRequiredLicenseTypes(supabase);
 
     if (licenseTypeMessage || !licenseTypes) {
-      await cleanupUploadedAssets(uploadedAssets);
       return {
         success: false,
         message: licenseTypeMessage || "Unable to resolve license types."
@@ -325,8 +313,6 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
         licenseOptions: existingLicenseOptions || []
       });
 
-      await cleanupUploadedAssets(uploadedAssets);
-
       return {
         success: false,
         message:
@@ -346,8 +332,7 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       slug: nextSlug
     }).catch(() => undefined);
 
-    const supersededAssets = buildSupersededTrackAssets(existingTrack, parsed);
-    await cleanupUploadedAssets(supersededAssets);
+    // Retain superseded objects until provenance and concurrent reference-safe cleanup exist.
 
     revalidatePath("/artist/dashboard");
     revalidatePath("/artist/catalog");
@@ -363,8 +348,6 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       redirectTo: `/artist/tracks/${nextSlug}`
     };
   } catch (error) {
-    await cleanupUploadedAssets(uploadedAssets).catch(() => undefined);
-
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -382,28 +365,15 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
 
 async function requireArtistUser() {
   if (!hasSupabaseEnv || env.demoMode) {
-    const raw = (await cookies()).get("sync-exchange-session")?.value;
-    if (!raw) {
-      throw new Error("You must be signed in to submit music.");
-    }
-
-    const user = JSON.parse(raw) as SessionUser;
-    if (user.role !== "artist") {
-      throw new Error("Only artist accounts can submit tracks.");
-    }
-
-    return {
-      id: user.id,
-      email: user.email
-    };
+    throw new Error("Track writes require an authenticated artist account.");
   }
 
   const supabase = await createServerSupabaseClient();
   const {
-    data: { user }
+    data: { user }, error: authError
   } = await supabase.auth.getUser();
 
-  if (!user?.email) {
+  if (authError || !user?.email) {
     throw new Error("You must be signed in to submit music.");
   }
 
@@ -421,7 +391,8 @@ async function requireArtistUser() {
 
 async function resolveArtistRole(userId: string) {
   const client = (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;
-  const { data } = await selectUserProfileCompat(client, userId);
+  const { data, error } = await selectUserProfileCompat(client, userId);
+  if (error) throw new Error("Unable to verify artist authorization.");
   return data?.role as UserRole | null | undefined;
 }
 
@@ -488,14 +459,6 @@ function flattenZodErrors(error: z.ZodError) {
   return result;
 }
 
-async function cleanupUploadedAssets(assets: StorageAssetRef[]) {
-  if (!assets.length) {
-    return;
-  }
-
-  await deleteStorageAssetsWithServerAccess(assets);
-}
-
 async function appendTrackAuditLog(
   supabase: SupabaseClient<Database>,
   trackId: string,
@@ -509,31 +472,6 @@ async function appendTrackAuditLog(
     action,
     metadata: metadata as Json
   });
-}
-
-function buildSupersededTrackAssets(
-  existingTrack: Pick<Database["public"]["Tables"]["tracks"]["Row"], "cover_art_path" | "audio_file_path" | "preview_file_path" | "waveform_path">,
-  parsed: ReturnType<typeof parseTrackSubmissionFormData>
-) {
-  const nextAssets: StorageAssetRef[] = [];
-
-  if (existingTrack.cover_art_path && existingTrack.cover_art_path !== parsed.coverArtPath) {
-    nextAssets.push({ bucket: storageBuckets.coverArt, path: existingTrack.cover_art_path });
-  }
-
-  if (existingTrack.audio_file_path && existingTrack.audio_file_path !== parsed.audioFilePath) {
-    nextAssets.push({ bucket: storageBuckets.trackAudio, path: existingTrack.audio_file_path });
-  }
-
-  if (existingTrack.preview_file_path && existingTrack.preview_file_path !== parsed.previewFilePath) {
-    nextAssets.push({ bucket: storageBuckets.trackPreviews, path: existingTrack.preview_file_path });
-  }
-
-  if (existingTrack.waveform_path && existingTrack.waveform_path !== parsed.waveformPath) {
-    nextAssets.push({ bucket: storageBuckets.trackPreviews, path: existingTrack.waveform_path });
-  }
-
-  return nextAssets;
 }
 
 async function rollbackTrackUpdateMutation(

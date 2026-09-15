@@ -7,6 +7,7 @@ import {
   type StorageAssetRef
 } from "@/lib/storage";
 import type { Track } from "@/types/models";
+import { signAuthorizedTrackAudio } from "@/services/storage/track-assets";
 
 export async function createSignedStorageUrl(asset: StorageAssetRef | null, expiresInSeconds = 900) {
   if (!asset?.path) {
@@ -54,7 +55,7 @@ export async function deleteStorageAssetsWithServerAccess(assets: StorageAssetRe
   );
 }
 
-export async function withTrackAudioAccess<T extends Pick<Track, "audio_file_path" | "preview_file_path" | "audio_file_url">>(
+export async function withTrackAudioAccess<T extends Pick<Track, "id" | "audio_file_path" | "preview_file_path" | "audio_file_url">>(
   track: T,
   access: "preview" | "full"
 ) {
@@ -76,9 +77,6 @@ export async function withTrackAudioAccess<T extends Pick<Track, "audio_file_pat
 
   return {
     ...track,
-    audio_file_url: await createSignedStorageUrl(
-      { bucket: storageBuckets.trackAudio, path: track.audio_file_path },
-      60 * 30
-    ).catch(() => null)
+    audio_file_url: await signAuthorizedTrackAudio(track.id).catch(() => null)
   };
 }

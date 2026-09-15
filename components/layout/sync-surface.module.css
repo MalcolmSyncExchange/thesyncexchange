@@ -1,0 +1,11 @@
+.surface { background: hsl(var(--background)); color: hsl(var(--foreground)); min-height: 100dvh; }
+:global(.dark) .surface { --background: 205 27% 9%; --card: 205 27% 9%; --muted: 209 26% 16%; --muted-foreground: 215 18% 70%; --border: 210 20% 20%; --accent: 190 56% 57%; --primary: 190 56% 57%; }
+.surface a:focus-visible, .surface button:focus-visible, .surface input:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; }
+.eyebrow { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 3px; color: hsl(var(--muted-foreground)); }
+.heading { font-size: 48px; line-height: 1.2; font-weight: 600; letter-spacing: -.7px; margin-top: 12px; }
+.description { font-size: 20px; line-height: 1.6; color: hsl(var(--muted-foreground)); margin-top: 12px; max-width: 660px; }
+.panel { border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 28px 32px; }
+.link { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; color: hsl(var(--accent)); }
+.link:hover { text-decoration: underline; text-underline-offset: 4px; }
+@media(max-width: 1150px) { .heading { font-size: 38px; } }
+@media(max-width: 600px) { .heading { font-size: 32px; } .description { font-size: 17px; } .panel { padding: 20px; } .eyebrow { font-size: 10px; } }

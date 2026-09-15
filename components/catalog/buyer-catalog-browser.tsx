@@ -1,5 +1,6 @@
 "use client";
 
+import styles from "@/components/buyer/buyer-workspace.module.css";
 import { LayoutGrid, Rows3, SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
@@ -81,7 +82,7 @@ export function BuyerCatalogBrowser({ tracks, basePath, interests }: { tracks: T
           <Button type="button" variant={filters.layout === "grid" ? "secondary" : "ghost"} className="h-11 w-11 p-0" aria-label="Grid view" aria-pressed={filters.layout === "grid"} onClick={() => update("layout", "grid")}><LayoutGrid className="h-4 w-4" aria-hidden="true" /></Button>
         </div>
       </div>
-      {filteredTracks.length ? <div className={filters.layout === "grid" ? "grid gap-5 md:grid-cols-2 xl:grid-cols-3" : "space-y-3"}>
+      {filteredTracks.length ? <div className={filters.layout === "grid" ? "grid gap-5 md:grid-cols-2 xl:grid-cols-3" : styles.trackList}>
         {filteredTracks.map(track => <BuyerTrackCard key={track.id} track={track} href={`${basePath}/${track.slug}`} layout={filters.layout} licenseType={filters.licenseType} />)}
       </div> : <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
         <h3 className="text-lg font-semibold">{tracks.length ? "No tracks match your search" : "New music is on its way"}</h3>

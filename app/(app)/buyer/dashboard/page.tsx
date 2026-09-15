@@ -1,52 +1,29 @@
+import Image from "next/image";
 import Link from "next/link";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, ChevronRight, Music2 } from "lucide-react";
+import { BuyerSearch } from "@/components/buyer/buyer-search";
+import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
 import { getBuyerDashboardData } from "@/services/buyer/queries";
 import { requireSession } from "@/services/auth/session";
+import surface from "@/components/layout/sync-surface.module.css";
+import styles from "@/components/buyer/buyer-workspace.module.css";
 
 export default async function BuyerDashboardPage() {
   const user = await requireSession("buyer");
   const { favorites, orders, featuredTracks, catalogCount } = await getBuyerDashboardData(user.id);
-
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-semibold">Buyer dashboard</h1>
-        <p className="mt-2 text-muted-foreground">Track shortlists, licensing activity, and quick re-entry into active searches.</p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard title="Saved tracks" value={String(favorites.length)} change={`${Math.min(favorites.length, 2)} ready for internal review`} />
-        <StatCard title="Orders placed" value={String(orders.length)} change={orders[0] ? `Latest status: ${orders[0].order_status}` : "No completed purchases yet"} />
-        <StatCard title="Approved catalog" value={String(catalogCount)} change="Explore tracks available for licensing" />
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Explore the catalog</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {featuredTracks.length ? featuredTracks.map((track) => (
-              <div key={track.id} className="rounded-md border border-border p-4">
-                <Link href={`/buyer/catalog/${track.slug}`} className="font-medium underline-offset-4 hover:underline">{track.title}</Link>
-                <p className="text-sm text-muted-foreground">{track.artist_name}</p>
-              </div>
-            )) : <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">Approved catalog activity will appear here once tracks are live.</div>}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Saved shortlist</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {favorites.length ? favorites.map((track) => (
-              <div key={track.id} className="rounded-md border border-border p-4">
-                <Link href={`/buyer/catalog/${track.slug}`} className="font-medium underline-offset-4 hover:underline">{track.title}</Link>
-                <p className="text-sm text-muted-foreground">{track.genre}</p>
-              </div>
-            )) : <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground"><Link href="/buyer/catalog" className="underline">Explore music and save your first favorite.</Link></div>}
-          </CardContent>
-        </Card>
-      </div>
+  return <div className={styles.dashboard}>
+    <header><p className={surface.eyebrow}>Buyer overview</p><h1 className={surface.heading}>Your next project starts here.</h1><p className={surface.description}>Find a sound that fits. Pick up a shortlist. Bring your next idea to life.</p><BuyerSearch /></header>
+    <div className={styles.metrics}>
+      {[["Saved tracks", favorites.length, "/buyer/favorites"],["Orders placed",orders.length,"/buyer/orders"],["Tracks to explore",catalogCount,"/buyer/catalog"]].map(([label,count,href])=><Link href={String(href)} key={label}><dl><dt>{label}</dt><dd>{count}</dd></dl></Link>)}
     </div>
-  );
+    <div className={styles.columns}>
+      <section className={styles.section} aria-labelledby="explore-title"><div className={styles.sectionHeader}><h2 id="explore-title">Explore the catalog</h2><Link href="/buyer/catalog">View all music<ArrowRight aria-hidden="true" size={16} /></Link></div>
+        {featuredTracks.length ? featuredTracks.map(track=><BuyerTrackCard key={track.id} track={track} href={`/buyer/catalog/${track.slug}`} layout="list" />) : <div className={styles.empty}><h3>New music is on its way</h3><p>Approved tracks will appear here as they become available.</p></div>}
+      </section>
+      <aside className={styles.section}><div className={styles.sectionHeader}><h2>Your shortlist</h2><Link href="/buyer/favorites">View saved<ArrowRight aria-hidden="true" size={16} /></Link></div>
+        {favorites.length ? favorites.slice(0,3).map(track=><Link href={`/buyer/catalog/${track.slug}`} key={track.id} className={styles.savedRow}><span className={styles.cover}>{track.cover_art_url ? <Image src={track.cover_art_url} alt="" fill sizes="48px" className="object-cover" /> : <Music2 aria-hidden="true" size={22} />}</span><div><strong>{track.title}</strong><p>{track.artist_name}</p></div><ChevronRight aria-hidden="true" size={18} /></Link>) : <div className={styles.empty}><h3>Keep the good ones close.</h3><p>Save tracks while you browse to build your first shortlist.</p><Link href="/buyer/catalog" className={surface.link}>Discover music<ArrowRight aria-hidden="true" size={16} /></Link></div>}
+        <div className={styles.help}><h3>Ready to use a track?</h3><p>Open its details to compare license options for your project. After purchase, return to your orders for your license agreement.</p><Link href="/buyer/orders" className={surface.link}>Licenses & orders<ArrowRight aria-hidden="true" size={16} /></Link></div>
+      </aside>
+    </div>
+  </div>;
 }

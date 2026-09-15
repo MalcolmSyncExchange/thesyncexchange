@@ -1,3 +1,4 @@
+import styles from "./buyer-track-card.module.css";
 import Image from "next/image";
 import Link from "next/link";
 import { Music4 } from "lucide-react";
@@ -13,14 +14,14 @@ export function BuyerTrackCard({ track, href, layout = "grid", licenseType = "al
   const price = getCatalogPrice(track, licenseType);
   const compact = layout === "list";
   return (
-    <article className={cn("overflow-hidden rounded-lg border border-border bg-card", compact && "flex flex-wrap items-center gap-4 p-4")} data-testid="catalog-track-card">
+    <article className={cn("overflow-hidden rounded-lg border border-border bg-card", compact && styles.row)} data-testid="catalog-track-card">
       <div className={cn("relative overflow-hidden", compact ? "h-16 w-16 shrink-0 rounded-md" : "aspect-[4/3]")}>
         {track.cover_art_url ? <Image src={track.cover_art_url} alt="" fill sizes={compact ? "64px" : "(max-width: 768px) 100vw, 360px"} className="object-cover" /> : <div className="flex h-full items-center justify-center bg-muted"><Music4 aria-hidden="true" className="h-8 w-8 text-muted-foreground" /></div>}
       </div>
       <div className={cn("min-w-0", compact ? "flex-1 basis-40" : "px-5 pt-5")}>
         <h3 className="text-lg font-semibold"><Link href={href} className="underline-offset-4 hover:underline">{track.title}</Link></h3>
         <p className="text-sm text-muted-foreground">{track.artist_name}</p>
-        <div className="mt-2 flex flex-wrap gap-2"><Badge variant="outline">{track.genre}</Badge>{track.mood.slice(0, 2).map(mood => <Badge key={mood}>{mood}</Badge>)}</div>
+        {compact ? <p className="mt-2 text-xs text-muted-foreground">{[track.genre,...track.mood.slice(0,2)].join(" · ")}</p> : <div className="mt-2 flex flex-wrap gap-2"><Badge variant="outline">{track.genre}</Badge>{track.mood.slice(0, 2).map(mood => <Badge key={mood}>{mood}</Badge>)}</div>}
         <p className="mt-2 text-sm text-muted-foreground">{track.bpm} BPM · {formatDuration(track.duration_seconds)} · {track.vocals ? "Vocals" : "Instrumental"}</p>
       </div>
       <div className={cn("space-y-3", compact ? "w-full sm:w-auto" : "p-5")}>

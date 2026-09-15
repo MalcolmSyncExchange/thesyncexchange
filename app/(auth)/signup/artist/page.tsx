@@ -17,12 +17,12 @@ export default async function ArtistSignupPage(
     <AuthPageShell
       compact
       eyebrow="Artist account"
-      title="Create your artist account"
-      description="Create your profile, prepare a track, and submit it for review."
+      title="Your next release starts here."
+      description="Create an artist account to prepare your catalog, manage rights and follow your submissions."
       highlights={[
-        { label: "Profile setup", value: "Capture your full name, artist identity, bio, and public-facing details." },
-        { label: "Licensing context", value: "Add payout and licensing preferences before your first submission goes live." },
-        { label: "Next step", value: "After signup, you’ll move immediately into guided artist onboarding." }
+        { label: "Introduce your music", value: "Build your artist profile with a bio and links." },
+        { label: "Prepare your catalog", value: "Add track details, rights holders and licensing preferences." },
+        { label: "Follow your progress", value: "Save a draft, submit for review and see where each track stands." }
       ]}
     >
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -31,8 +31,8 @@ export default async function ArtistSignupPage(
         <SignupRoleForm
           role="artist"
           title="Sign up as an artist"
-          description="Create the account you’ll use to manage submissions, rights information, and artist-facing catalog operations."
-          helper="This account leads straight into artist onboarding, where you’ll configure your profile, licensing setup, and first-track workflow."
+          description="One account for your music, submissions and rights."
+          helper="Next, confirm your email if prompted and set up your artist profile."
           returnTo="/signup/artist"
           alternateHref="/signup/buyer"
           alternateLabel="Need buyer access instead?"

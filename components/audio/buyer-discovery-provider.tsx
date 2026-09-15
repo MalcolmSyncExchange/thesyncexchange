@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./buyer-discovery-provider.module.css";
+
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { Pause, Play, X } from "lucide-react";
 import Link from "next/link";
@@ -73,7 +75,7 @@ export function BuyerDiscoveryProvider({ children }: { children: ReactNode }) {
         onDurationChange={() => setDuration(Number.isFinite(audio.current?.duration) ? audio.current!.duration : 0)}
         onError={() => { setPlaying(false); if (activeId.current) setError("Preview unavailable. Try again or choose another track."); }} />
       {active ? (
-        <section aria-label="Music preview player" className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 shadow-panel">
+        <section aria-label="Music preview player" className={`${styles.player} fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4`}>
           <div className="mx-auto max-w-5xl space-y-2">
             <div className="flex items-center gap-3">
               <Button type="button" className="h-11 w-11 shrink-0 p-0" aria-label={`${playing ? "Pause" : "Play"} ${active.title}`} onClick={() => void toggle(active)}>

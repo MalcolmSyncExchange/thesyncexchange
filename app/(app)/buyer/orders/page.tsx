@@ -1,3 +1,4 @@
+import surface from "@/components/layout/sync-surface.module.css";
 import Link from "next/link";
 
 import { OrderStatusProgress } from "@/components/orders/order-status-progress";
@@ -13,7 +14,7 @@ export default async function BuyerOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold">Orders and license history</h1>
+      <header><p className={surface.eyebrow}>Your account</p><h1 className={surface.heading}>Licenses & orders</h1><p className={surface.description}>Follow your purchases and find your license agreements.</p></header>
       <div className="space-y-4">
         {orders.length ? (
           orders.map((order: any) => (
@@ -92,7 +93,7 @@ export default async function BuyerOrdersPage() {
             </Card>
           ))
         ) : (
-          <div className="rounded-lg border border-dashed border-border p-8 text-sm text-muted-foreground">No license orders yet.</div>
+          <div className="rounded-lg border border-dashed border-border p-8 text-sm text-muted-foreground"><p>No license orders yet.</p><Link href="/buyer/catalog" className={surface.link}>Discover music</Link></div>
         )}
       </div>
     </div>

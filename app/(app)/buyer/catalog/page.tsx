@@ -1,3 +1,4 @@
+import surface from "@/components/layout/sync-surface.module.css";
 import { BuyerCatalogBrowser } from "@/components/catalog/buyer-catalog-browser";
 import { requireSession } from "@/services/auth/session";
 import { getBuyerOnboardingState } from "@/services/auth/onboarding";
@@ -10,8 +11,9 @@ export default async function BuyerCatalogPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold">Catalog</h1>
-        <p className="mt-2 text-muted-foreground">Search premium tracks with clear licensing posture, creative metadata, and rights visibility.</p>
+        <p className={surface.eyebrow}>Music discovery</p>
+        <h1 className={surface.heading}>Find your next sound.</h1>
+        <p className={surface.description}>Listen, explore and save music for your next project.</p>
       </div>
       <BuyerCatalogBrowser tracks={tracks} basePath="/buyer/catalog" interests={{ genres: onboarding.values.genres, moods: onboarding.values.moods }} />
     </div>

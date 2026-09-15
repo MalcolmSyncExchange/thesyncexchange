@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { SignupRoleLinks } from "@/components/forms/signup-role-links";
 
 import { AuthFooterLink, AuthPanel, AuthStatusMessage } from "@/components/forms/auth-form";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
@@ -26,10 +26,7 @@ export function SignupForm({
       <form action={signupAction} className="space-y-5">
         <input type="hidden" name="returnTo" value={returnTo} />
         <AuthStatusMessage error={error} success={success} />
-        <nav aria-label="Choose your account type" className="grid grid-cols-2 gap-3">
-          <Link href="/signup/buyer" className="rounded-md border border-border p-3 text-center font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">I’m finding music</Link>
-          <Link href="/signup/artist" className="rounded-md border border-border p-3 text-center font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">I’m an artist</Link>
-        </nav>
+        <SignupRoleLinks />
 
         <div className="space-y-2">
           <Label htmlFor="fullName">Full name</Label>

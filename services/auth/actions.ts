@@ -562,6 +562,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
   const step = String(formData.get("step") || "basics");
   let nextPath = "/onboarding/artist";
   let uploadedAvatarPath: string | null = null;
+  let avatarReferenceWriteStarted = false;
 
   try {
     if (step === "basics") {
@@ -580,6 +581,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
       await persistArtistOnboarding({
         user,
         nextStep: getNextArtistStep("basics"),
+        beforeUserProfileWrite: uploadedAvatar ? () => { avatarReferenceWriteStarted = true; } : undefined,
         payload,
         userUpdates: {
           full_name: data.fullName,
@@ -592,10 +594,15 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
           artist_name: data.artistName
         }
       });
-      if (uploadedAvatar?.path && user.avatarPath && user.avatarPath !== uploadedAvatar.path) {
-        await deleteOwnAvatar(user.avatarPath).catch(() => undefined);
-      }
       nextPath = "/onboarding/artist?step=profile";
+      if (uploadedAvatar?.path && user.avatarPath && user.avatarPath !== uploadedAvatar.path) {
+        try {
+          await deleteOwnAvatar(user.avatarPath);
+        } catch {
+          reportOperationalEvent("avatar_cleanup_pending", "An avatar object was retained for later cleanup.", { userId: user.id });
+          nextPath += "&cleanup=pending";
+        }
+      }
     } else if (step === "profile") {
       const data = parseArtistProfile(formData);
       const payload = {
@@ -653,7 +660,17 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
     }
   } catch (error) {
     if (uploadedAvatarPath && uploadedAvatarPath !== user.avatarPath) {
-      await deleteOwnAvatar(uploadedAvatarPath).catch(() => undefined);
+      // A failed response does not prove that the reference write rolled back.
+      // Only compensate an upload before that write has even been dispatched.
+      if (!avatarReferenceWriteStarted) {
+        try {
+          await deleteOwnAvatar(uploadedAvatarPath);
+        } catch {
+          reportOperationalEvent("avatar_cleanup_pending", "An avatar object was retained for later cleanup.", { userId: user.id });
+        }
+      } else {
+        reportOperationalEvent("avatar_save_outcome_uncertain", "Avatar reference write outcome is uncertain; uploaded object retained.", { userId: user.id });
+      }
     }
     reportOperationalError("artist_onboarding_save_failed", error, {
       userId: user.id,
@@ -840,18 +857,44 @@ async function persistArtistOnboarding({
   nextStep,
   payload,
   userUpdates,
-  profileUpdates
+  profileUpdates,
+  beforeUserProfileWrite
 }: {
   user: SessionUser;
   nextStep: string;
   payload: Record<string, unknown>;
   userUpdates?: Record<string, unknown>;
   profileUpdates?: Record<string, unknown>;
+  beforeUserProfileWrite?: () => void;
 }) {
   const now = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
     const client = await getUserProfileMutationClient(user.role);
+    if (profileUpdates) {
+      const existingProfileResult = await client.from("artist_profiles").select("*").eq("user_id", user.id).maybeSingle();
+      if (existingProfileResult.error) {
+        throw existingProfileResult.error;
+      }
+
+      const artistProfileWrite = buildArtistProfileUpsert({
+        userId: user.id,
+        onboardingPayload: payload,
+        profileUpdates,
+        existingProfile: existingProfileResult.data
+      });
+
+      const { error: profileError } = await client.from("artist_profiles").upsert(
+        artistProfileWrite as Database["public"]["Tables"]["artist_profiles"]["Insert"],
+        { onConflict: "user_id" }
+      );
+
+      if (profileError) {
+        throw profileError;
+      }
+    }
+
+    beforeUserProfileWrite?.();
     const { error: userError } = await upsertUserProfileCompat(
       client,
       {
@@ -875,28 +918,6 @@ async function persistArtistOnboarding({
       throw userError;
     }
 
-    if (profileUpdates) {
-      const existingProfileResult = await client.from("artist_profiles").select("*").eq("user_id", user.id).maybeSingle();
-      if (existingProfileResult.error) {
-        throw existingProfileResult.error;
-      }
-
-      const artistProfileWrite = buildArtistProfileUpsert({
-        userId: user.id,
-        onboardingPayload: payload,
-        profileUpdates,
-        existingProfile: existingProfileResult.data
-      });
-
-      const { error: profileError } = await client.from("artist_profiles").upsert(
-        artistProfileWrite as Database["public"]["Tables"]["artist_profiles"]["Insert"],
-        { onConflict: "user_id" }
-      );
-
-      if (profileError) {
-        throw profileError;
-      }
-    }
 
     return;
   }

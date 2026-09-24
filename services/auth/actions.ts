@@ -35,7 +35,7 @@ import {
   upsertDemoBuyerProfile,
   upsertDemoDirectoryUser
 } from "@/services/auth/demo-store";
-import { selectUserProfileCompat, upsertUserProfileCompat } from "@/services/auth/user-profiles";
+import { selectUserProfileCompat, upsertUserProfileCompat, transitionArtistAvatar } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { getSessionUser, resolveOnboardingPath, resolvePostLoginRedirect, resolveRoleRedirect } from "@/services/auth/session";
 import {
@@ -581,7 +581,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
       await persistArtistOnboarding({
         user,
         nextStep: getNextArtistStep("basics"),
-        beforeUserProfileWrite: uploadedAvatar ? () => { avatarReferenceWriteStarted = true; } : undefined,
+        beforeUserProfileWrite: uploadedAvatar ? (started = true) => { avatarReferenceWriteStarted = started; } : undefined,
         payload,
         userUpdates: {
           full_name: data.fullName,
@@ -865,7 +865,7 @@ async function persistArtistOnboarding({
   payload: Record<string, unknown>;
   userUpdates?: Record<string, unknown>;
   profileUpdates?: Record<string, unknown>;
-  beforeUserProfileWrite?: () => void;
+  beforeUserProfileWrite?: (started?: boolean) => void;
 }) {
   const now = new Date().toISOString();
 
@@ -895,7 +895,10 @@ async function persistArtistOnboarding({
     }
 
     beforeUserProfileWrite?.();
-    const { error: userError } = await upsertUserProfileCompat(
+    const writeProfile = beforeUserProfileWrite
+      ? (client: Awaited<ReturnType<typeof getUserProfileMutationClient>>, values: Database["public"]["Tables"]["user_profiles"]["Insert"]) => transitionArtistAvatar(client, values, { path: user.avatarPath || null, url: user.avatarPath ? null : user.avatarUrl || null })
+      : upsertUserProfileCompat;
+    const profileResult = await writeProfile(
       client,
       {
         id: user.id,
@@ -914,6 +917,10 @@ async function persistArtistOnboarding({
       } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
 
+    if ("definitelyNotWritten" in profileResult && profileResult.definitelyNotWritten === true) {
+      beforeUserProfileWrite?.(false);
+    }
+    const userError = profileResult.error;
     if (userError) {
       throw userError;
     }

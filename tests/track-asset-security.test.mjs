@@ -58,7 +58,7 @@ function harness(options = {}) {
       const result = () => {
         events.push({ table, op: operation, values, filters: { ...filters } });
         if (options.failTable === table && operation !== "select") return { data: null, error: { message: "Synthetic mutation failure" } };
-        if (table === "user_profiles") return { data: role ? { role } : null, error: options.roleError };
+        if (table === "user_profiles") return { data: role ? { role, avatar_path: null, avatar_url: null, onboarding_payload: {} } : null, error: options.roleError };
         if (table === "tracks") return {
           data: operation === "insert" ? { id: trackId } : filters.slug ? null : current,
           error: options.trackError

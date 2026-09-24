@@ -11,7 +11,7 @@ function harness(options = {}) {
   const calls = [];
   const client = {
     auth: { getUser: async () => ({ data: { user: options.noUser ? null : { id: owner } }, error: options.authError }) },
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: options.role || 'artist' }, error: options.roleError }) }) }) }),
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: options.role || 'artist', avatar_path: options.activePath ?? null, avatar_url: options.legacyUrl ?? null, onboarding_payload: options.payload ?? {} }, error: options.roleError }) }) }) }),
     storage: { from: bucket => ({ remove: async paths => { calls.push({ bucket, paths }); return { error: options.removeError }; } }) }
   };
   const mocks = {
@@ -46,3 +46,5 @@ test('demo and missing configuration never create a client; invalid identities c
 test('storage errors do not report successful deletion', async () => {
   await assert.rejects(harness({ removeError: true }).run(path), /Unable to clean up/);
 });
+
+test('active or legacy reference is never removed',async()=>{for(const options of [{activePath:path},{legacyUrl:'https://example.invalid/old.png'},{payload:{avatarPath:path}}]){const h=harness(options);await assert.rejects(h.run(path),/cleanup deferred/);assert.equal(h.calls.length,1);}});

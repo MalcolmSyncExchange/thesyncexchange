@@ -4,12 +4,14 @@ import { readFileSync } from "node:fs";
 
 import { resolveDemoMode } from "../lib/env.ts";
 import {
+  AUTH_CALLBACK_COMPLETION_PARAM,
+  AUTH_CALLBACK_COMPLETION_VALUE,
   DEMO_ACCOUNT_NOT_FOUND_MESSAGE,
   SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE,
   FORGOT_PASSWORD_SUCCESS_MESSAGE,
   FORGOT_PASSWORD_UNAVAILABLE_MESSAGE,
-  buildCleanRecoverySuccessUrl,
   buildAuthCallbackRedirectUrl,
+  buildAuthConfirmSuccessUrl,
   buildPasswordResetRedirectUrl,
   buildRecoveryConfirmPath,
   canUpdatePasswordWithSession,
@@ -195,20 +197,6 @@ test("successful recovery confirmation redirects to clean reset password URL", (
   );
 });
 
-test("clean recovery success URL strips one-time auth query params", () => {
-  const finalUrl = buildCleanRecoverySuccessUrl(
-    "https://thesyncexchange.com/auth/confirm?token_hash=secret&type=recovery&next=/reset-password"
-  );
-  const parsed = new URL(finalUrl);
-
-  assert.equal(finalUrl, "https://thesyncexchange.com/reset-password");
-  assert.equal(parsed.pathname, "/reset-password");
-  assert.equal(parsed.search, "");
-  assert.equal(parsed.searchParams.has("token_hash"), false);
-  assert.equal(parsed.searchParams.has("type"), false);
-  assert.equal(parsed.searchParams.has("next"), false);
-});
-
 test("non-recovery confirmation preserves safe next path", () => {
   assert.equal(
     getAuthConfirmSuccessRedirectPath({
@@ -217,6 +205,94 @@ test("non-recovery confirmation preserves safe next path", () => {
     }),
     "/onboarding"
   );
+});
+
+test("auth confirmation success URL suppresses Netlify callback query passthrough", () => {
+  const requestUrl =
+    "https://security-staging.example.test/auth/confirm?token_hash=one-time-secret&type=magiclink&next=https%3A%2F%2Fevil.example%2Fsteal";
+  const redirectUrl = buildAuthConfirmSuccessUrl({
+    requestUrl,
+    destinationPath: "/onboarding"
+  });
+  const parsed = new URL(redirectUrl);
+
+  assert.equal(parsed.origin, "https://security-staging.example.test");
+  assert.equal(parsed.pathname, "/onboarding");
+  assert.deepEqual([...parsed.searchParams.entries()], [[AUTH_CALLBACK_COMPLETION_PARAM, AUTH_CALLBACK_COMPLETION_VALUE]]);
+  assert.equal(redirectUrl.includes("one-time-secret"), false);
+  assert.equal(redirectUrl.includes("evil.example"), false);
+});
+
+test("auth confirmation completion marker prevents Netlify from copying callback parameters", () => {
+  const incoming = new URL(
+    "https://security-staging.example.test/auth/confirm?token_hash=one-time-secret&type=magiclink&next=%2Fonboarding"
+  );
+  const originLocation = buildAuthConfirmSuccessUrl({
+    requestUrl: incoming.toString(),
+    destinationPath: "/onboarding"
+  });
+
+  // Netlify passes through incoming query parameters only when the SSR origin
+  // redirects to a location with no destination query of its own.
+  const providerLocation = new URL(originLocation);
+  if (!providerLocation.search) {
+    providerLocation.search = incoming.search;
+  }
+
+  assert.equal(providerLocation.searchParams.get(AUTH_CALLBACK_COMPLETION_PARAM), AUTH_CALLBACK_COMPLETION_VALUE);
+  assert.equal(providerLocation.searchParams.has("token_hash"), false);
+  assert.equal(providerLocation.searchParams.has("type"), false);
+  assert.equal(providerLocation.searchParams.has("next"), false);
+});
+
+test("auth confirmation success URL removes callback-reserved destination state", () => {
+  const redirectUrl = buildAuthConfirmSuccessUrl({
+    requestUrl: "https://security-staging.example.test/auth/confirm?code=provider-code&type=recovery&next=%2Freset-password",
+    destinationPath: "/buyer/catalog?q=ambient&code=leaked&token_hash=leaked&type=magiclink&next=https%3A%2F%2Fevil.example#token_hash=fragment"
+  });
+  const parsed = new URL(redirectUrl);
+
+  assert.equal(parsed.pathname, "/buyer/catalog");
+  assert.equal(parsed.searchParams.get("q"), "ambient");
+  assert.equal(parsed.searchParams.get(AUTH_CALLBACK_COMPLETION_PARAM), AUTH_CALLBACK_COMPLETION_VALUE);
+  assert.equal(parsed.searchParams.has("code"), false);
+  assert.equal(parsed.searchParams.has("token_hash"), false);
+  assert.equal(parsed.searchParams.has("type"), false);
+  assert.equal(parsed.searchParams.has("next"), false);
+  assert.equal(parsed.hash, "");
+});
+
+test("auth confirmation success URL rejects cross-origin destinations", () => {
+  for (const destinationPath of [
+    "https://evil.example/steal",
+    "//evil.example/steal",
+    "https://thesyncexchange.com/admin",
+    "https://sync-exchange-artist-desk-staging.netlify.app/admin",
+    "javascript:alert(1)",
+    "data:text/html,malicious"
+  ]) {
+    assert.throws(
+      () =>
+        buildAuthConfirmSuccessUrl({
+          requestUrl: "https://security-staging.example.test/auth/confirm?token_hash=secret&type=magiclink",
+          destinationPath
+        }),
+      /must stay on the configured application origin/
+    );
+  }
+});
+
+test("auth confirmation success URL preserves reviewed internal destination state", () => {
+  const redirectUrl = buildAuthConfirmSuccessUrl({
+    requestUrl: "https://security-staging.example.test/auth/confirm?token_hash=secret&type=magiclink&next=%2Fbuyer%2Fcatalog",
+    destinationPath: "/buyer/catalog?q=ambient%20piano#results"
+  });
+  const parsed = new URL(redirectUrl);
+
+  assert.equal(parsed.pathname, "/buyer/catalog");
+  assert.equal(parsed.searchParams.get("q"), "ambient piano");
+  assert.equal(parsed.searchParams.get(AUTH_CALLBACK_COMPLETION_PARAM), AUTH_CALLBACK_COMPLETION_VALUE);
+  assert.equal(parsed.hash, "#results");
 });
 
 test("reset password with session and token hash renders form instead of reverifying", () => {

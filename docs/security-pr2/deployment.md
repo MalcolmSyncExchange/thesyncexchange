@@ -1,13 +1,13 @@
 # Canonical security deployment and migration-history reconciliation
 
-**PR 2 prepares code and SQL. Nothing in this procedure has been applied live.** Do not run an unrestricted `supabase db push`, a reset, migration repair, or an old bootstrap against either existing project.
+**PR 2 prepares code and SQL for production. Nothing in this procedure has been applied to production.** Do not run an unrestricted `supabase db push`, a reset, migration repair, or an old bootstrap against either existing project.
 
-Staging rollout checkpoint: [PR #18 reconciliation and current blockers](staging-rollout/reconciliation.md). This supersedes the older staging-ledger description below: the separate PR #18 rehearsal has now installed avatar cleanup too. PR #21's three forward migrations remain unapplied at this checkpoint.
+The historical [PR #18 reconciliation checkpoint](staging-rollout/reconciliation.md) predates the completed isolated PR #21 rehearsal. Security staging now contains all five PR #21 forward migrations; production remains unapplied and requires separate approval.
 
 ## Evidence and repository integrity
 
 - Approved historical baseline: `35062fb`, based on deployed `4e47997`.
-- Current expected effects: ordered 24-file [migration manifest](migration-manifest.json). The historical 21 SQL files remain byte-for-byte unchanged; three forward migrations define PR 2.
+- Current expected effects: ordered 26-file [migration manifest](migration-manifest.json). The historical 21 SQL files remain byte-for-byte unchanged; five forward migrations define PR 2.
 - [Read-only inventory](../../scripts/artist-baseline/inventory.sql) captures tables/columns/constraints/indexes/views/functions/triggers/policies/grants/buckets/ledger, not customer rows.
 - [Preflight](../../scripts/security-pr2/preflight.mjs) replays canonical SQL in an isolated in-memory PostgreSQL instance. It does not open a network connection.
 
@@ -18,13 +18,13 @@ npm run test:security-pr2
 node scripts/security-pr2/preflight.mjs --capture /absolute/path/to/catalog-export.json --report /absolute/path/to/drift-report.json
 ```
 
-The capture comparison must return nonzero for today's production/staging: PR 2 is unapplied. A green repository-only check is not a live attestation. Catalog comparison covers application schema and application-owned Storage policies/trigger; hosted internal Storage structures are excluded. New RPC EXECUTE grants and profile column grants are checked; provider owners, default privileges and provider maintenance behavior still require operator review.
+The capture comparison must still return nonzero for production because PR 2 is unapplied there. Isolated security staging should match the five-migration target after its hosted rehearsal. A green repository-only check is not a live attestation. Catalog comparison covers application schema and application-owned Storage policies/trigger; hosted internal Storage structures are excluded. New RPC EXECUTE grants and profile column grants are checked; provider owners, default privileges and provider maintenance behavior still require operator review.
 
 `--write-manifest` is a deliberate maintainer operation **after reviewing changed SQL**, not an automatic CI repair. CI compares the committed manifest and runs the original five gates plus the security regressions.
 
 ## Production ledger: do not fabricate history
 
-Production records only `20260913180113 / 0021_rate_limit_foundation`, despite independently verified effects of the historical application schema. Staging records its bootstrap plus two security migrations. Historical filenames also contain two `0006` versions; they cannot safely be treated as a clean CLI version ledger.
+Production records only `20260913180113 / 0021_rate_limit_foundation`, despite independently verified effects of the historical application schema. Security staging records its baseline/rehearsal history plus all five PR #21 forward entries. Historical filenames also contain two `0006` versions; they cannot safely be treated as a clean CLI version ledger.
 
 1. Retain the live catalog exports, query hash, SQL hashes and ledger as immutable evidence.
 2. Verify each expected effect, including function bodies, constraints, RLS, grants, Storage and removed auth triggers. A matching name is insufficient.
@@ -44,6 +44,8 @@ Apply exactly these files in order:
 1. `20260915224738_reconcile_reviewed_rights_and_storage.sql`
 2. `20260915224822_separate_profile_finance_and_buyer_access.sql`
 3. `20260915225349_atomic_artist_track_writes.sql`
+4. `20260924052925_nonretryable_artist_track_stale_conflict.sql`
+5. `20260924171123_preserve_atomic_rights_holder_identity.sql`
 
 Migration 2 has an explicit, bounded data operation: if an artist's existing payout contact is null, preserve the already-entered `onboarding_payload.payoutEmail` there, then remove only that duplicate key from generic onboarding payloads. It does **not** infer a payee or entity. Review affected-row counts privately before approval. Its transaction-local service claim lets SQL Editor/CLI migrations run without an end-user JWT; it resets at transaction end and does not weaken application guards.
 

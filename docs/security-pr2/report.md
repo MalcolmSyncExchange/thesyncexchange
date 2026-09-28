@@ -85,7 +85,7 @@ Historical SQL remains byte-for-byte unchanged. `supabase/manual-apply.md` retai
 
 ## I. Migration history
 
-See [deployment and reconciliation procedure](deployment.md). Production's one-entry ledger is not repaired. A 24-file SHA-256 manifest, isolated full replay, schema/policy/column/RPC checks, refreshed catalog exports, before/after drift reports and CI gates establish the expected state.
+See [deployment and reconciliation procedure](deployment.md). Production's one-entry ledger is not repaired. A 26-file SHA-256 manifest, isolated full replay, schema/policy/column/RPC checks, refreshed catalog exports, before/after drift reports and CI gates establish the expected state.
 
 New forward migrations may be applied only through an approved explicit procedure after live drift review. A later ledger/checkpoint operation must independently verify effects, handle duplicate historical `0006` versions, preserve evidence, and distinguish intentional supersession. Never mark historical migrations applied merely to silence tooling.
 

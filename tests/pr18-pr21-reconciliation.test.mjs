@@ -6,7 +6,9 @@ import { database, applyCapturedAuthorization, source, root, asActor, ids } from
 const files = [
   '20260915224738_reconcile_reviewed_rights_and_storage.sql',
   '20260915224822_separate_profile_finance_and_buyer_access.sql',
-  '20260915225349_atomic_artist_track_writes.sql'
+  '20260915225349_atomic_artist_track_writes.sql',
+  '20260924052925_nonretryable_artist_track_stale_conflict.sql',
+  '20260924171123_preserve_atomic_rights_holder_identity.sql'
 ];
 const before = JSON.parse(source('docs/security-pr2/staging-rollout/catalog-before.json'));
 const inventory = async db => (await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;

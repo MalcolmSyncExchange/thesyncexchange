@@ -97,6 +97,14 @@
     {
       "file": "20260915225349_atomic_artist_track_writes.sql",
       "sha256": "066f8f0bf524c5cba9ae6666400c00c427aadfa0fcc68f99c449b3e30d7c59b2"
+    },
+    {
+      "file": "20260924052925_nonretryable_artist_track_stale_conflict.sql",
+      "sha256": "12c3bdda46969bdca3743ca4e1449b308c330d7b6c37e172a5a16471f2aedb87"
+    },
+    {
+      "file": "20260924171123_preserve_atomic_rights_holder_identity.sql",
+      "sha256": "373b3fb8461101e171fb43fd6a7dd278a880f0d50072782410db52feb22baa28"
     }
   ],
   "storageBuckets": {

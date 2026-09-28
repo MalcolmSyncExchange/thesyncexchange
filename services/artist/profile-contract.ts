@@ -1,0 +1,1 @@
+export const artistProfileColumns = "id,user_id,artist_name,bio,location,website,instagram_url,spotify_url,youtube_url,social_links,default_licensing_preferences,verification_status,created_at,updated_at";

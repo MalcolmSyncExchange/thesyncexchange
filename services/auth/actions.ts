@@ -10,7 +10,7 @@ import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring
 import { isAbsoluteAssetReference } from "@/lib/storage";
 import { uploadManagedAsset } from "@/services/storage/assets";
 import { inferOnboardingCompletionState } from "@/services/auth/onboarding-completion";
-import { deleteStorageAssetsWithServerAccess } from "@/services/storage/server";
+import { deleteOwnAvatar } from "@/services/storage/avatar-cleanup";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import {
   getNextArtistStep,
@@ -35,7 +35,7 @@ import {
   upsertDemoBuyerProfile,
   upsertDemoDirectoryUser
 } from "@/services/auth/demo-store";
-import { selectUserProfileCompat, upsertUserProfileCompat } from "@/services/auth/user-profiles";
+import { selectUserProfileCompat, upsertUserProfileCompat, transitionArtistAvatar } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { getSessionUser, resolveOnboardingPath, resolvePostLoginRedirect, resolveRoleRedirect } from "@/services/auth/session";
 import {
@@ -337,7 +337,7 @@ export async function selectOnboardingRoleAction(formData: FormData) {
         onboarding_started_at: user.onboardingStartedAt || now,
         onboarding_completed_at: null,
         onboarding_step: "basics",
-        onboarding_payload: user.onboardingData || {}
+        onboarding_payload: Object.fromEntries(Object.entries(user.onboardingData || {}).filter(([key]) => key !== "payoutEmail"))
       } as Database["public"]["Tables"]["user_profiles"]["Insert"],
     );
 
@@ -562,6 +562,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
   const step = String(formData.get("step") || "basics");
   let nextPath = "/onboarding/artist";
   let uploadedAvatarPath: string | null = null;
+  let avatarReferenceWriteStarted = false;
 
   try {
     if (step === "basics") {
@@ -580,6 +581,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
       await persistArtistOnboarding({
         user,
         nextStep: getNextArtistStep("basics"),
+        beforeUserProfileWrite: uploadedAvatar ? (started = true) => { avatarReferenceWriteStarted = started; } : undefined,
         payload,
         userUpdates: {
           full_name: data.fullName,
@@ -592,15 +594,15 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
           artist_name: data.artistName
         }
       });
-      if (uploadedAvatar?.path && user.avatarPath && user.avatarPath !== uploadedAvatar.path) {
-        await deleteStorageAssetsWithServerAccess([
-          {
-            bucket: env.avatarsBucket,
-            path: user.avatarPath
-          }
-        ]).catch(() => undefined);
-      }
       nextPath = "/onboarding/artist?step=profile";
+      if (uploadedAvatar?.path && user.avatarPath && user.avatarPath !== uploadedAvatar.path) {
+        try {
+          await deleteOwnAvatar(user.avatarPath);
+        } catch {
+          reportOperationalEvent("avatar_cleanup_pending", "An avatar object was retained for later cleanup.", { userId: user.id });
+          nextPath += "&cleanup=pending";
+        }
+      }
     } else if (step === "profile") {
       const data = parseArtistProfile(formData);
       const payload = {
@@ -658,12 +660,17 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
     }
   } catch (error) {
     if (uploadedAvatarPath && uploadedAvatarPath !== user.avatarPath) {
-      await deleteStorageAssetsWithServerAccess([
-        {
-          bucket: env.avatarsBucket,
-          path: uploadedAvatarPath
+      // A failed response does not prove that the reference write rolled back.
+      // Only compensate an upload before that write has even been dispatched.
+      if (!avatarReferenceWriteStarted) {
+        try {
+          await deleteOwnAvatar(uploadedAvatarPath);
+        } catch {
+          reportOperationalEvent("avatar_cleanup_pending", "An avatar object was retained for later cleanup.", { userId: user.id });
         }
-      ]).catch(() => undefined);
+      } else {
+        reportOperationalEvent("avatar_save_outcome_uncertain", "Avatar reference write outcome is uncertain; uploaded object retained.", { userId: user.id });
+      }
     }
     reportOperationalError("artist_onboarding_save_failed", error, {
       userId: user.id,
@@ -802,7 +809,7 @@ async function ensureAppUser(user: {
       onboarding_started_at: user.onboardingStartedAt || null,
       onboarding_completed_at: user.onboardingCompletedAt || null,
       onboarding_step: user.onboardingStep || null,
-      onboarding_payload: user.onboardingData || {}
+      onboarding_payload: Object.fromEntries(Object.entries(user.onboardingData || {}).filter(([key]) => key !== "payoutEmail"))
     } as Database["public"]["Tables"]["user_profiles"]["Insert"]
   );
 }
@@ -850,41 +857,20 @@ async function persistArtistOnboarding({
   nextStep,
   payload,
   userUpdates,
-  profileUpdates
+  profileUpdates,
+  beforeUserProfileWrite
 }: {
   user: SessionUser;
   nextStep: string;
   payload: Record<string, unknown>;
   userUpdates?: Record<string, unknown>;
   profileUpdates?: Record<string, unknown>;
+  beforeUserProfileWrite?: (started?: boolean) => void;
 }) {
   const now = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
     const client = await getUserProfileMutationClient(user.role);
-    const { error: userError } = await upsertUserProfileCompat(
-      client,
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        full_name: String(payload.fullName || user.fullName),
-        ...getStoredAvatarFields({
-          avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
-          avatarUrl: String(payload.avatarUrl || user.avatarUrl || "") || null
-        }),
-        onboarding_started_at: user.onboardingStartedAt || now,
-        onboarding_completed_at: null,
-        onboarding_step: nextStep,
-        onboarding_payload: payload,
-        ...(userUpdates || {})
-      } as Database["public"]["Tables"]["user_profiles"]["Insert"]
-    );
-
-    if (userError) {
-      throw userError;
-    }
-
     if (profileUpdates) {
       const existingProfileResult = await client.from("artist_profiles").select("*").eq("user_id", user.id).maybeSingle();
       if (existingProfileResult.error) {
@@ -907,6 +893,38 @@ async function persistArtistOnboarding({
         throw profileError;
       }
     }
+
+    beforeUserProfileWrite?.();
+    const writeProfile = beforeUserProfileWrite
+      ? (client: Awaited<ReturnType<typeof getUserProfileMutationClient>>, values: Database["public"]["Tables"]["user_profiles"]["Insert"]) => transitionArtistAvatar(client, values, { path: user.avatarPath || null, url: user.avatarPath ? null : user.avatarUrl || null })
+      : upsertUserProfileCompat;
+    const profileResult = await writeProfile(
+      client,
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        full_name: String(payload.fullName || user.fullName),
+        ...getStoredAvatarFields({
+          avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
+          avatarUrl: String(payload.avatarUrl || user.avatarUrl || "") || null
+        }),
+        onboarding_started_at: user.onboardingStartedAt || now,
+        onboarding_completed_at: null,
+        onboarding_step: nextStep,
+        onboarding_payload: Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "payoutEmail")),
+        ...(userUpdates || {})
+      } as Database["public"]["Tables"]["user_profiles"]["Insert"]
+    );
+
+    if ("definitelyNotWritten" in profileResult && profileResult.definitelyNotWritten === true) {
+      beforeUserProfileWrite?.(false);
+    }
+    const userError = profileResult.error;
+    if (userError) {
+      throw userError;
+    }
+
 
     return;
   }
@@ -982,7 +1000,7 @@ async function persistBuyerOnboarding({
         onboarding_started_at: user.onboardingStartedAt || now,
         onboarding_completed_at: null,
         onboarding_step: nextStep,
-        onboarding_payload: payload,
+        onboarding_payload: Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "payoutEmail")),
         ...(userUpdates || {})
       } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
@@ -1130,7 +1148,7 @@ async function finalizeOnboarding(user: SessionUser, nextStep: string) {
         onboarding_started_at: user.onboardingStartedAt || completedAt,
         onboarding_step: nextStep,
         onboarding_completed_at: completedAt,
-        onboarding_payload: user.onboardingData || {}
+        onboarding_payload: Object.fromEntries(Object.entries(user.onboardingData || {}).filter(([key]) => key !== "payoutEmail"))
       } as Database["public"]["Tables"]["user_profiles"]["Insert"]
     );
 

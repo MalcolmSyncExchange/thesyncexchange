@@ -11,6 +11,7 @@ import type { OrderStatus } from "@/types/models";
 type OrderStatusProgressProps = {
   status: OrderStatus;
   stripe_checkout_session_id?: string | null;
+  checkout_started?: boolean;
   stripe_payment_intent_id?: string | null;
   agreement_url?: string | null;
   checkout_created_at?: string | null;

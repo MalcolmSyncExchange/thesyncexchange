@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import vm from "node:vm";
 import ts from "typescript";
 import { resolveDeploymentTarget } from "../lib/deployment-target.mjs";
 
 const root = new URL("../", import.meta.url);
 const envSource = readFileSync(new URL("../lib/env.ts", import.meta.url), "utf8");
+const serverEnvSource = readFileSync(new URL("../lib/server-env.ts", import.meta.url), "utf8");
 
 function loadAppEnv(variables, buildTarget) {
   // Model Next's DefinePlugin replacement, then run the actual application resolver.
@@ -25,6 +26,46 @@ function loadAppEnv(variables, buildTarget) {
     }
   });
   return exports;
+}
+
+function loadServerEnv(variables, deploymentTarget = "preview") {
+  const exports = {};
+  const publicEnv = { stripePublishableKey: variables.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY };
+  vm.runInNewContext(ts.transpileModule(serverEnvSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText, {
+    exports,
+    process: { env: variables },
+    require: (name) => {
+      assert.equal(name, "@/lib/env");
+      return {
+        env: publicEnv,
+        getDeploymentTarget: () => deploymentTarget,
+        getPublicEnvironmentDiagnostics: () => ({ deploymentTarget, issues: [], errors: [], warnings: [] })
+      };
+    }
+  });
+  return exports;
+}
+
+function validateStripeEnvironment({ context, secretKey, publishableKey }) {
+  return spawnSync(process.execPath, ["scripts/validate-env.mjs"], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      NETLIFY: "true",
+      CONTEXT: context,
+      NEXT_PUBLIC_APP_URL: "https://example.invalid",
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_example",
+      SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+      STRIPE_SECRET_KEY: secretKey,
+      STRIPE_WEBHOOK_SECRET: "whsec_example",
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: publishableKey
+    }
+  });
 }
 
 function buildConfig(variables, phase = "phase-production-build") {
@@ -130,4 +171,81 @@ test("environment CLI validation uses the same resolver", () => {
   assert.match(source, /import \{ resolveDeploymentTarget \} from "\.\.\/lib\/deployment-target\.mjs"/);
   assert.match(source, /const deploymentTarget = resolveDeploymentTarget\(process.env\)/);
   assert.doesNotMatch(source, /function getDeploymentTarget/);
+});
+
+test("Stripe diagnostics recognize standard and restricted key modes without widening publishable keys", () => {
+  const diagnostics = loadServerEnv({});
+  for (const prefix of ["sk", "rk"]) {
+    assert.equal(diagnostics.getStripeKeyMode(`${prefix}_test_example`, "sk"), "test");
+    assert.equal(diagnostics.getStripeKeyMode(`${prefix}_live_example`, "sk"), "live");
+  }
+  assert.equal(diagnostics.getStripeKeyMode("pk_test_example", "pk"), "test");
+  assert.equal(diagnostics.getStripeKeyMode("pk_live_example", "pk"), "live");
+  assert.equal(diagnostics.getStripeKeyMode("rk_test_example", "pk"), "unknown");
+  assert.equal(diagnostics.getStripeKeyMode("pk_test_example", "sk"), "unknown");
+  assert.equal(diagnostics.getStripeKeyMode("rk_other_example", "sk"), "unknown");
+  assert.equal(diagnostics.getStripeKeyMode(undefined, "sk"), "missing");
+});
+
+test("restricted test keys preserve fail-closed production mismatch detection", () => {
+  const diagnostics = loadServerEnv({
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+    STRIPE_SECRET_KEY: "rk_test_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_example"
+  }, "production");
+  const result = diagnostics.getServerEnvironmentDiagnostics();
+  assert.equal(result.stripe.secretKeyMode, "test");
+  assert.equal(result.stripe.publishableKeyMode, "live");
+  assert.equal(result.stripe.modesMatch, false);
+  assert.deepEqual(Array.from(result.errors, (issue) => issue.code), [
+    "stripe_key_mode_mismatch",
+    "stripe_test_mode_in_production"
+  ]);
+  assert.throws(() => diagnostics.assertStripeServerConfiguration("Checkout"), /mixing test\/live modes/);
+});
+
+test("matching restricted Stripe modes remain valid in their intended deployment targets", () => {
+  const live = loadServerEnv({
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+    STRIPE_SECRET_KEY: "rk_live_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_example"
+  }, "production").getServerEnvironmentDiagnostics();
+  assert.equal(live.stripe.modesMatch, true);
+  assert.equal(live.errors.length, 0);
+
+  const testMode = loadServerEnv({
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+    STRIPE_SECRET_KEY: "rk_test_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_example"
+  }, "preview").getServerEnvironmentDiagnostics();
+  assert.equal(testMode.stripe.modesMatch, true);
+  assert.equal(testMode.errors.length, 0);
+});
+
+test("environment CLI rejects restricted test keys in production and accepts matching modes", () => {
+  const mismatch = validateStripeEnvironment({
+    context: "production",
+    secretKey: "rk_test_example",
+    publishableKey: "pk_live_example"
+  });
+  assert.equal(mismatch.status, 1);
+  assert.match(mismatch.stderr, /mixing test\/live modes/);
+  assert.match(mismatch.stderr, /still in test mode/);
+
+  const production = validateStripeEnvironment({
+    context: "production",
+    secretKey: "rk_live_example",
+    publishableKey: "pk_live_example"
+  });
+  assert.equal(production.status, 0, production.stderr);
+
+  const preview = validateStripeEnvironment({
+    context: "deploy-preview",
+    secretKey: "rk_test_example",
+    publishableKey: "pk_test_example"
+  });
+  assert.equal(preview.status, 0, preview.stderr);
 });

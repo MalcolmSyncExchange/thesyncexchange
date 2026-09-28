@@ -65,10 +65,10 @@ let recommendedBundle = null;
 
 if (missingBuckets.length > 0) {
   recommendedAction = "run_storage_setup";
-  recommendedBundle = "supabase/manual-apply/2026-04-foundation-bootstrap.sql";
+  recommendedBundle = "docs/security-pr2/deployment.md";
 } else if (!finalizationReady) {
-  recommendedAction = "apply_finalization_bundle";
-  recommendedBundle = "supabase/manual-apply/2026-04-foundation-bootstrap.sql";
+  recommendedAction = "review_canonical_migrations";
+  recommendedBundle = "docs/security-pr2/deployment.md";
 } else if (!referenceDataReady) {
   recommendedAction = "seed_license_types";
 }
@@ -91,12 +91,11 @@ const result = {
   recommendedBundle,
   runbook: "docs/supabase-finalization.md",
   nextSteps:
-    recommendedAction === "apply_finalization_bundle"
+    recommendedAction === "review_canonical_migrations"
       ? [
           "Run npm run setup:storage",
-          "Open the Supabase SQL Editor",
-          "Paste supabase/manual-apply/2026-04-foundation-bootstrap.sql",
-          "Run the query once",
+          "Follow docs/security-pr2/deployment.md; compare catalog evidence before selecting migrations",
+          "Obtain deployment approval before any live mutation",
           "Re-check with npm run verify:supabase or /api/health/readiness"
         ]
       : recommendedAction === "seed_license_types"

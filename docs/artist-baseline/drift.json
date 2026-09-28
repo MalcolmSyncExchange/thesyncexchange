@@ -1,0 +1,134 @@
+{
+  "baselineCommit": "4e47997b7bb71af443660ccd4032d12fd43bf269",
+  "limitations": [
+    "Hosted storage schema excluded from repo comparison; storage policies compared separately.",
+    "Repository ACLs inherit explicit simulated hosted grants; compare live grants separately, not inferred defaults.",
+    "Owners and hosting ACLs are captured but excluded from structural equality."
+  ],
+  "repositoryToProduction": {
+    "tables": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "columns": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "constraints": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "indexes": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "functions": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "triggers": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "policies": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "views": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    }
+  },
+  "productionToStaging": {
+    "tables": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "columns": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    },
+    "constraints": {
+      "onlyLeft": [
+        "public.user_profiles.users_email_key.",
+        "public.user_profiles.users_pkey."
+      ],
+      "onlyRight": [
+        "public.user_profiles.user_profiles_email_key.",
+        "public.user_profiles.user_profiles_pkey."
+      ],
+      "changed": []
+    },
+    "indexes": {
+      "onlyLeft": [
+        "public.user_profiles.users_email_key.",
+        "public.user_profiles.users_pkey."
+      ],
+      "onlyRight": [
+        "public.user_profiles.user_profiles_email_key.",
+        "public.user_profiles.user_profiles_pkey."
+      ],
+      "changed": []
+    },
+    "functions": {
+      "onlyLeft": [],
+      "onlyRight": [
+        "security_private..guard_referenced_media_version.",
+        "security_private..guard_reviewed_rights.",
+        "security_private..is_referenced_track_asset.object_path text",
+        "security_private..track_asset_object_names.reference text"
+      ],
+      "changed": []
+    },
+    "triggers": {
+      "onlyLeft": [],
+      "onlyRight": [
+        "public.rights_holders.guard_reviewed_rights.",
+        "storage.objects.guard_referenced_media_version."
+      ],
+      "changed": []
+    },
+    "policies": {
+      "onlyLeft": [],
+      "onlyRight": [
+        "storage.objects.Referenced track media cannot be deleted.",
+        "storage.objects.Referenced track media cannot be overwritten.",
+        "storage.objects.Referenced track media cannot be recreated."
+      ],
+      "changed": []
+    },
+    "views": {
+      "onlyLeft": [],
+      "onlyRight": [],
+      "changed": []
+    }
+  },
+  "storagePoliciesRepositoryToProduction": {
+    "onlyLeft": [
+      "storage.objects.Admins can manage agreements.",
+      "storage.objects.Admins can manage avatars.",
+      "storage.objects.Admins can manage cover art.",
+      "storage.objects.Admins can manage private track audio.",
+      "storage.objects.Admins can manage track previews.",
+      "storage.objects.Artists can manage cover art.",
+      "storage.objects.Artists can manage private track audio.",
+      "storage.objects.Artists can manage track previews.",
+      "storage.objects.Owners can manage avatars.",
+      "storage.objects.Public avatars are readable.",
+      "storage.objects.Public cover art is readable.",
+      "storage.objects.Public track previews are readable."
+    ],
+    "onlyRight": [],
+    "changed": []
+  }
+}

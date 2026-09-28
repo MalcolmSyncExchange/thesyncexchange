@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Artists can delete own cleanup avatars",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": "((bucket_id = 'avatars'::text) AND (( SELECT current_app_role() AS current_app_role) = 'artist'::user_role) AND ((string_to_array(name, '/'::text))[1] = (( SELECT auth.uid() AS uid))::text) AND (name !~ '[[:cntrl:]]'::text) AND (name ~ '^[0-9a-f-]+/profile/[0-9]{13}-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9]{13})\\.(jpg|jpeg|png|webp)$'::text))",
+    "schema": "storage",
+    "command": "DELETE",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Artists can select own cleanup avatars",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": "((bucket_id = 'avatars'::text) AND (( SELECT current_app_role() AS current_app_role) = 'artist'::user_role) AND ((string_to_array(name, '/'::text))[1] = (( SELECT auth.uid() AS uid))::text) AND (name !~ '[[:cntrl:]]'::text) AND (name ~ '^[0-9a-f-]+/profile/[0-9]{13}-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9]{13})\\.(jpg|jpeg|png|webp)$'::text))",
+    "schema": "storage",
+    "command": "SELECT",
+    "permissive": "PERMISSIVE"
+  },
+  {
+    "name": "Referenced track media cannot be deleted",
+    "check": null,
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": "(is_admin() OR (NOT security_private.is_referenced_track_asset(name)))",
+    "schema": "storage",
+    "command": "DELETE",
+    "permissive": "RESTRICTIVE"
+  },
+  {
+    "name": "Referenced track media cannot be overwritten",
+    "check": "(is_admin() OR (NOT security_private.is_referenced_track_asset(name)))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": "(is_admin() OR (NOT security_private.is_referenced_track_asset(name)))",
+    "schema": "storage",
+    "command": "UPDATE",
+    "permissive": "RESTRICTIVE"
+  },
+  {
+    "name": "Referenced track media cannot be recreated",
+    "check": "(is_admin() OR (NOT security_private.is_referenced_track_asset(name)))",
+    "roles": [
+      "authenticated"
+    ],
+    "table": "objects",
+    "using": null,
+    "schema": "storage",
+    "command": "INSERT",
+    "permissive": "RESTRICTIVE"
+  }
+]

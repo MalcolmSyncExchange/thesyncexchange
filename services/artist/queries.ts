@@ -1,13 +1,14 @@
+import { requireAccountScope } from "@/services/auth/authorization";
+import { artistProfileColumns } from "./profile-contract";
 import { artistProfiles, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { getDemoArtistProfile } from "@/services/auth/demo-store";
 import { withTrackAudioAccess } from "@/services/storage/server";
-import { createServerSupabaseClient } from "@/services/supabase/server";
-import type { ArtistProfile, LicenseType, RightsHolder, Track, TrackStatus } from "@/types/models";
+import type { ArtistPublicProfile, LicenseType, RightsHolder, Track, TrackStatus } from "@/types/models";
 
 interface ArtistWorkspaceData {
-  profile: ArtistProfile | null;
+  profile: ArtistPublicProfile | null;
   tracks: Track[];
 }
 
@@ -15,13 +16,13 @@ export async function getArtistWorkspaceData(userId: string): Promise<ArtistWork
   if (!hasSupabaseEnv || env.demoMode) {
     const profile = (await getDemoArtistProfile(userId)) || artistProfiles.find((item) => item.user_id === userId) || null;
     return {
-      profile,
+      profile: profile ? mapArtistProfile(profile) : null,
       tracks: demoTracks.filter((track) => track.artist_user_id === userId)
     };
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data: profileRow } = await supabase.from("artist_profiles").select("*").eq("user_id", userId).maybeSingle();
+  const { supabase } = await requireAccountScope("artist", userId);
+  const { data: profileRow } = await supabase.from("artist_profiles").select(artistProfileColumns).eq("user_id", userId).maybeSingle();
 
   const { data: trackRows } = await supabase
     .from("tracks")
@@ -66,7 +67,7 @@ export async function getArtistTrackBySlug(userId: string, slug: string) {
   return withTrackAudioAccess(track, "full");
 }
 
-function mapArtistProfile(row: any): ArtistProfile {
+function mapArtistProfile(row: any): ArtistPublicProfile {
   return {
     id: row.id,
     user_id: row.user_id,
@@ -78,7 +79,6 @@ function mapArtistProfile(row: any): ArtistProfile {
     spotify_url: row.spotify_url || row.social_links?.spotify || null,
     youtube_url: row.youtube_url || row.social_links?.youtube || null,
     social_links: row.social_links || {},
-    payout_email: row.payout_email,
     default_licensing_preferences: row.default_licensing_preferences,
     verification_status: row.verification_status,
     created_at: row.created_at,

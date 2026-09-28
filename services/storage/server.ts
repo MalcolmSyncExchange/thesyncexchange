@@ -1,7 +1,6 @@
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import {
   getPublicStorageUrl,
-  groupStorageAssetsByBucket,
   isAbsoluteAssetReference,
   storageBuckets,
   type StorageAssetRef
@@ -26,33 +25,6 @@ export async function createSignedStorageUrl(asset: StorageAssetRef | null, expi
   }
 
   return data.signedUrl;
-}
-
-export async function deleteStorageAssetsWithServerAccess(assets: StorageAssetRef[]) {
-  if (!assets.length) {
-    return;
-  }
-
-  const supabase = await createPrivilegedSupabaseClient();
-  const grouped = groupStorageAssetsByBucket(assets);
-
-  await Promise.all(
-    Array.from(grouped.entries()).map(async ([bucket, paths]) => {
-      const uniquePaths = Array.from(new Set(paths.filter(Boolean)));
-      if (!uniquePaths.length) {
-        return;
-      }
-
-      const { error } = await supabase.storage.from(bucket).remove(uniquePaths);
-      if (error) {
-        console.warn("[storage cleanup] remove failed", {
-          bucket,
-          pathCount: uniquePaths.length,
-          message: error.message
-        });
-      }
-    })
-  );
 }
 
 export async function withTrackAudioAccess<T extends Pick<Track, "id" | "audio_file_path" | "preview_file_path" | "audio_file_url">>(

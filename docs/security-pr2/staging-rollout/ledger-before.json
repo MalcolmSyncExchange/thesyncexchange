@@ -1,0 +1,27 @@
+[
+  {
+    "version": "20260915085537",
+    "name": "staging_pre_security_baseline"
+  },
+  {
+    "version": "20260915204719",
+    "name": "protect_reviewed_rights",
+    "source_file": "20260915065140_protect_reviewed_rights.sql",
+    "source_sha256": "366d55bc8a3a1234683c416517b2671f6a7df3e85be9d72053801c53f2cac560",
+    "source_commit": "2166aa172475b23874c14c4f487146e1c85c8722"
+  },
+  {
+    "version": "20260915204805",
+    "name": "protect_referenced_media",
+    "source_file": "20260915065205_protect_referenced_media.sql",
+    "source_sha256": "8fe4419fc4183d2fb4ed0a93b05e97e3b17ea9afb670938c5706341c79e19ddd",
+    "source_commit": "2166aa172475b23874c14c4f487146e1c85c8722"
+  },
+  {
+    "version": "20260915231125",
+    "name": "allow_artist_avatar_cleanup",
+    "source_file": "20260915082111_allow_artist_avatar_cleanup.sql",
+    "source_sha256": "c8aedbe26cf196083e732a4f3b9ab36b4fd5a6f5d8f878c720691b3aac047966",
+    "source_commit": "2166aa172475b23874c14c4f487146e1c85c8722"
+  }
+]

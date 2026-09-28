@@ -87,8 +87,8 @@ curl -s http://127.0.0.1:3000/api/health/readiness
 - Storage bucket definitions and operational notes live in:
   - [`supabase/storage-plan.md`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-plan.md)
   - [`supabase/storage-setup.md`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-setup.md)
-  - [`supabase/storage-policies.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-policies.sql)
-  - [`supabase/manual-apply.md`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/manual-apply.md)
+- Follow [canonical migration preflight](/docs/security-pr2/deployment.md); retired SQL must not be applied.
+- Follow [canonical migration preflight](/docs/security-pr2/deployment.md); retired SQL must not be applied.
   - [`docs/supabase-finalization.md`](/Users/malcolmw/Documents/The Sync Exchange.2/docs/supabase-finalization.md)
 - Create or verify the required buckets with:
 
@@ -161,7 +161,7 @@ After the script succeeds:
 
 Important:
 
-- if `npm run verify:supabase` reports `apply_foundation_bootstrap`, run that SQL first
+- if schema readiness fails, follow `docs/security-pr2/deployment.md`; do not infer missing schema from an incomplete migration ledger
 - the admin role is enforced from `public.user_profiles.role` and checked throughout the app with `public.is_admin()`
 - the script never exposes the service-role key or password to the browser
 
@@ -198,9 +198,9 @@ npm run verify:supabase
 ```
 
 4. Apply the Supabase SQL that matches that diagnosis:
-   - apply the single finalization bundle:
-     - [`supabase/manual-apply/2026-04-foundation-bootstrap.sql`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply/2026-04-foundation-bootstrap.sql)
-   - the underlying migration chain included in that bundle is:
+   - follow the reviewed migration preflight:
+- Follow [canonical migration preflight](/docs/security-pr2/deployment.md); retired SQL must not be applied.
+   - historical migration effects must be verified before any ledger repair:
    - [`supabase/migrations/0008_database_foundation.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0008_database_foundation.sql)
    - [`supabase/migrations/0009_order_lifecycle.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0009_order_lifecycle.sql)
    - [`supabase/migrations/0010_order_fulfillment_hardening.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/migrations/0010_order_fulfillment_hardening.sql)
@@ -262,23 +262,9 @@ You can capture those cookie headers from a logged-in browser session or from sc
 
 If webhook delivery is delayed, the confirmation page also attempts a session-based sync when `session_id` is present on the return URL.
 
-## Pre/Post Migration Behavior
+## Schema verification
 
-Before the manual SQL bundle is applied:
-
-- avatar uploads still work, but `avatar_path` falls back to `avatar_url` compatibility mode
-- payment syncing still works, but order rows will not retain the richer `0010` webhook/document metadata
-- agreement PDFs can still be generated, but secure buyer delivery stays blocked until `agreement_path` metadata is live
-- admin orders omit recent activity when `order_activity_log` is not live
-- readiness diagnostics will report `manualSupabaseActionRequired: true`
-- `npm run verify:supabase` will usually recommend either `apply_foundation_bootstrap` or `apply_follow_up_bundle`
-
-After the manual SQL bundle is applied:
-
-- avatar storage paths become first-class persisted fields
-- webhook processing errors and agreement generation errors are recorded on orders
-- order activity and webhook dedupe are fully enabled
-- admin order cards show the richer fulfillment lifecycle and recent activity
+`npm run verify:supabase` verifies API visibility only. Use the canonical migration preflight to compare functions, triggers, policies, grants and migration files. Never replay historical migration bundles against an existing project.
 
 ## Readiness Status Meaning
 
@@ -298,7 +284,7 @@ After the manual SQL bundle is applied:
   - a core assumption is missing
   - examples: missing env, missing service-role key, missing buckets, or public schema visibility not available through PostgREST
 
-Important: readiness can verify what the app can see through Supabase APIs, but it cannot directly prove whether a table exists in Postgres if PostgREST is not exposing it. Use the SQL checks in [`supabase/manual-apply.md`](/Users/malcolmw/Documents/The%20Sync%20Exchange.2/supabase/manual-apply.md) to distinguish:
+- Follow [canonical migration preflight](/docs/security-pr2/deployment.md); retired SQL must not be applied.
 
 - table truly missing
 - table exists but PostgREST schema cache is stale
@@ -340,7 +326,7 @@ The readiness payload also includes `tableDiagnostics` for `user_profiles`, `ord
 - Configure all required env vars in Vercel and Supabase.
 - Apply the database migrations through your normal Supabase deployment workflow.
 - Run `npm run setup:storage` against the target Supabase project.
-- Apply [`supabase/storage-policies.sql`](/Users/malcolmw/Documents/The Sync Exchange.2/supabase/storage-policies.sql) or the matching migration before enabling uploads.
+- Follow [canonical migration preflight](/docs/security-pr2/deployment.md); retired SQL must not be applied.
 - Configure Stripe webhook delivery to the deployed `/api/webhooks/stripe` route.
 - Run one full artist -> admin -> buyer -> webhook -> agreement QA pass against production-like data before launch.
 

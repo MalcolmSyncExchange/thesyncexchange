@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 
-import type { Track } from "@/types/models";
+import type { BuyerTrack } from "@/types/models";
 
-export function useCatalogFilters(tracks: Track[]) {
+export function useCatalogFilters(tracks: BuyerTrack[]) {
   const [query, setQuery] = useState("");
   const [genre, setGenre] = useState("all");
   const [mood, setMood] = useState("all");

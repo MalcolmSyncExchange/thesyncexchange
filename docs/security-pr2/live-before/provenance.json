@@ -1,0 +1,15 @@
+{
+  "readOnly": true,
+  "productionProject": "sgpubcpldfxcuhjjdcau",
+  "stagingProject": "xgbiypruultmzbwhhjrx",
+  "capturedAt": {
+    "production": "2026-09-15T22:47:56.568095+00:00",
+    "staging": "2026-09-15T22:48:00.483275+00:00"
+  },
+  "sha256": {
+    "scripts/artist-baseline/inventory.sql": "3324d33c932a098477c41820ab5cf23f831149a6e37266a94810cf52860f55d5",
+    "docs/security-pr2/live-before/production.json": "497f65d1dbf12879aacbba79cbbaaaf3fd12570826bed5e9fe6b5235619d136b",
+    "docs/security-pr2/live-before/staging.json": "ba713a9004f73bfd48068bd76ccc34521c84a5f70aa578102f4f416bb47ce9e7"
+  },
+  "notes": "Catalog metadata only; no live mutation. Original Phase0/1 immutable fixtures retained separately."
+}

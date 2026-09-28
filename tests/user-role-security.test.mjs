@@ -92,7 +92,7 @@ test("database persisted role remains the authorization source for admin artist 
   assert.match(uploadUrlRouteSource, /const role = profile\?\.role;/);
   assert.match(uploadRouteSource, /const role = profile\?\.role;/);
   assert.match(deleteRouteSource, /profile\?\.role !== "artist"/);
-  assert.match(agreementRouteSource, /const role = String\(viewerProfile\?\.role \|\| ""\)/);
+  assert.match(agreementRouteSource, /const role = viewerProfile\?\.role;/);
   assert.match(buyerActionsSource, /const role = persistedProfile\?\.role;/);
   assert.match(buyerQueriesSource, /const viewerRole = viewerProfile\?\.role;/);
 });

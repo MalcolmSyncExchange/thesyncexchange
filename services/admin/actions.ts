@@ -23,10 +23,10 @@ export async function updateTrackStatusAction(formData: FormData) {
     return;
   }
 
+  const actorId = await requireAdminActorId();
   const supabase = await createPrivilegedSupabaseClient();
   const { data: trackContext } = await supabase.from("tracks").select("id, slug").eq("id", trackId).maybeSingle();
 
-  const actorId = await requireAdminActorId();
   const updateResult = await supabase
     .from("tracks")
     .update({
@@ -67,8 +67,8 @@ export async function toggleTrackFeaturedAction(formData: FormData) {
     return;
   }
 
-  const supabase = await createPrivilegedSupabaseClient();
   await requireAdminActorId();
+  const supabase = await createPrivilegedSupabaseClient();
 
   await supabase.from("tracks").update({ featured }).eq("id", trackId);
   await appendTrackAuditLog(supabase, trackId, "track_featured_toggled", { featured });
@@ -178,10 +178,10 @@ export async function updateOrderStatusAction(formData: FormData) {
     return;
   }
 
+  const actorId = await requireAdminActorId();
   const supabase = await createPrivilegedSupabaseClient();
   const now = new Date().toISOString();
   const order = await loadAdminOrderStatusSnapshot(supabase, orderId);
-  const actorId = await requireAdminActorId();
 
   if (!order) {
     return;
@@ -231,8 +231,8 @@ export async function retryAgreementGenerationAction(formData: FormData) {
     return;
   }
 
-  const supabase = await createPrivilegedSupabaseClient();
   const actorId = await requireAdminActorId();
+  const supabase = await createPrivilegedSupabaseClient();
   const order = await loadAdminOrderStatusSnapshot(supabase, orderId);
   if (!order) {
     throw new Error("Order not found.");

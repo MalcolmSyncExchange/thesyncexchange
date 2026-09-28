@@ -27,12 +27,14 @@ export function ArtistOnboardingFlow({
   step,
   values,
   error,
+  cleanupPending,
   saveAction,
   finishAction
 }: {
   step: ArtistOnboardingStep;
   values: ArtistOnboardingValues;
   error?: string;
+  cleanupPending?: boolean;
   saveAction: (formData: FormData) => Promise<void>;
   finishAction: (formData: FormData) => Promise<void>;
 }) {
@@ -46,6 +48,7 @@ export function ArtistOnboardingFlow({
     >
       <div className="mx-auto w-full max-w-3xl space-y-8">
         {error ? <FormError error={error} /> : null}
+        {cleanupPending ? <p role="status">Your profile was saved. Cleanup of the previous image is pending.</p> : null}
         {step === "basics" ? <ArtistBasicsStep action={saveAction} values={values} /> : null}
         {step === "profile" ? <ArtistProfileStep action={saveAction} values={values} /> : null}
         {step === "licensing" ? <ArtistLicensingStep action={saveAction} values={values} /> : null}

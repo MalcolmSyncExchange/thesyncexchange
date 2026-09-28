@@ -27,6 +27,10 @@ export const RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE =
   "This password reset link format cannot be completed securely. Request a new reset link and try again.";
 export const AUTH_CODE_LINK_PKCE_MISSING_MESSAGE =
   "This verification link needs a browser session that is no longer available. Request a fresh verification email and use the latest link.";
+export const AUTH_CALLBACK_COMPLETION_PARAM = "auth_callback";
+export const AUTH_CALLBACK_COMPLETION_VALUE = "complete";
+
+const authCallbackReservedParams = new Set(["code", "next", "token_hash", "type"]);
 
 export function normalizeAuthEmail(value: unknown) {
   return String(value || "")
@@ -152,11 +156,35 @@ export function getAuthConfirmSuccessRedirectPath({
   return recoveryFlow ? "/reset-password" : nextPath;
 }
 
-export function buildCleanRecoverySuccessUrl(requestUrl: string) {
-  const cleanUrl = new URL("/reset-password", requestUrl);
-  cleanUrl.search = "";
-  cleanUrl.hash = "";
-  return cleanUrl.toString();
+export function buildAuthConfirmSuccessUrl({
+  requestUrl,
+  destinationPath
+}: {
+  requestUrl: string;
+  destinationPath: string;
+}) {
+  const requestOrigin = new URL(requestUrl).origin;
+  const destination = new URL(destinationPath, requestOrigin);
+
+  if (destination.origin !== requestOrigin || !destinationPath.startsWith("/") || destinationPath.startsWith("//")) {
+    throw new Error("Auth confirmation destination must stay on the configured application origin.");
+  }
+
+  for (const key of [...destination.searchParams.keys()]) {
+    if (authCallbackReservedParams.has(key.toLowerCase())) {
+      destination.searchParams.delete(key);
+    }
+  }
+
+  if (/(?:^|[?&])(code|next|token_hash|type)=/i.test(destination.hash.slice(1))) {
+    destination.hash = "";
+  }
+
+  // Netlify preserves an incoming query when an SSR origin redirect has no
+  // destination query. An explicit safe marker prevents callback credentials
+  // from being copied into the browser-visible Location header.
+  destination.searchParams.set(AUTH_CALLBACK_COMPLETION_PARAM, AUTH_CALLBACK_COMPLETION_VALUE);
+  return destination.toString();
 }
 
 export function getResetPasswordRecoveryRoutingDecision({

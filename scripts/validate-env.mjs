@@ -122,11 +122,13 @@ function getStripeKeyMode(key, expectedPrefix) {
     return "missing";
   }
 
-  if (key.startsWith(`${expectedPrefix}_test_`)) {
+  const acceptedPrefixes = expectedPrefix === "sk" ? ["sk", "rk"] : ["pk"];
+
+  if (acceptedPrefixes.some((prefix) => key.startsWith(`${prefix}_test_`))) {
     return "test";
   }
 
-  if (key.startsWith(`${expectedPrefix}_live_`)) {
+  if (acceptedPrefixes.some((prefix) => key.startsWith(`${prefix}_live_`))) {
     return "live";
   }
 

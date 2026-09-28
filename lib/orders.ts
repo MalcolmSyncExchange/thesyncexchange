@@ -5,6 +5,7 @@ export type OrderLifecycleStep = "pending" | "checkout_created" | "paid" | "agre
 export interface OrderLifecycleSnapshot {
   status: OrderStatus;
   stripe_checkout_session_id?: string | null;
+  checkout_started?: boolean;
   stripe_payment_intent_id?: string | null;
   agreement_url?: string | null;
   agreement_path?: string | null;
@@ -25,7 +26,7 @@ export const ORDER_LIFECYCLE_STEPS: Array<{ key: OrderLifecycleStep; label: stri
 ];
 
 export function hasCheckoutBeenCreated(order: OrderLifecycleSnapshot) {
-  return Boolean(order.checkout_created_at || order.stripe_checkout_session_id);
+  return Boolean(order.checkout_started || order.checkout_created_at || order.stripe_checkout_session_id);
 }
 
 export function hasPaymentCleared(order: OrderLifecycleSnapshot) {

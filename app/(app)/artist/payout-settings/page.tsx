@@ -1,12 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getArtistWorkspaceData } from "@/services/artist/queries";
+import { getArtistFinance } from "@/services/artist/finance";
 import { requireSession } from "@/services/auth/session";
 
 export default async function PayoutSettingsPage() {
   const user = await requireSession("artist");
-  const { profile } = await getArtistWorkspaceData(user.id);
+  const finance = await getArtistFinance(user.id);
 
   return (
     <div className="space-y-6">
@@ -19,11 +19,11 @@ export default async function PayoutSettingsPage() {
           <div className="grid gap-5 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Payout email</Label>
-              <Input defaultValue={profile?.payout_email || user.email} readOnly />
+              <Input defaultValue={finance.payout_email || "Not provided"} readOnly />
             </div>
             <div className="space-y-2">
               <Label>Tax / entity name</Label>
-              <Input defaultValue={profile?.artist_name ? `${profile.artist_name} Music` : "Not yet provided"} readOnly />
+              <Input defaultValue={finance.legal_entity || "Not provided"} readOnly />
             </div>
           </div>
           <div className="rounded-md border border-border bg-muted/50 p-4 text-sm text-muted-foreground">

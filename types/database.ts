@@ -695,22 +695,18 @@ export interface Database {
       };
     };
     Views: {
+      buyer_catalog_public: {
+        Row: Pick<Database["public"]["Tables"]["tracks"]["Row"], "id" | "title" | "slug" | "description" | "genre" | "subgenre" | "moods" | "bpm" | "musical_key" | "duration_seconds" | "instrumental" | "vocals" | "explicit" | "lyrics" | "release_year" | "cover_art_path" | "preview_file_path" | "waveform_path" | "featured" | "created_at" | "updated_at"> & { artist_id: string; artist_name: string };
+        Relationships: [];
+      };
       track_rights_holders_public: {
-        Row: {
-          id: string | null;
-          track_id: string | null;
-          user_id: string | null;
-          name: string | null;
-          role_type: string | null;
-          ownership_percent: number | null;
-          approval_status: Database["public"]["Enums"]["approval_status"] | null;
-          created_at: string | null;
-          updated_at: string | null;
-        };
+        Row: Pick<Database["public"]["Tables"]["rights_holders"]["Row"], "id" | "track_id" | "name" | "role_type" | "ownership_percent">;
         Relationships: [];
       };
     };
     Functions: {
+      update_artist_track_atomic: { Args: { p_actor_id: string; p_track_id: string; p_expected_updated_at: string; p_values: Json; p_rights: Json; p_options: Json }; Returns: string };
+      get_own_artist_finance: { Args: Record<string, never>; Returns: { payout_email: string | null }[] };
       consume_rate_limit: {
         Args: { p_namespace: string; p_operation: string; p_subject: string };
         Returns: Array<{ allowed: boolean; remaining: number; retry_after_seconds: number; reset_at: string }>;

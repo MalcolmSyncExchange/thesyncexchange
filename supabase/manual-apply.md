@@ -1,3 +1,13 @@
+# RETIRED: historical manual setup instructions
+
+> **Do not execute these bundles against an existing environment.** The September 15 Artist Desk baseline confirmed that the foundation bootstrap restores security logic superseded by migrations 0017–0020. The storage policy bundles also differ from both live environments. The SQL files and historical instructions below are retained as evidence, not an approved deployment procedure.
+>
+> See [the current baseline and drift report](../docs/artist-baseline/README.md). Reconcile the exact target database and obtain approval for a narrow forward migration. Do not use the older scripts’ bootstrap recommendations as authorization to apply it.
+
+---
+
+## Historical content (superseded)
+
 # Manual Supabase Apply Steps
 
 Use this path when the app code is ready but you do not have Supabase CLI or direct database access wired into the repo.

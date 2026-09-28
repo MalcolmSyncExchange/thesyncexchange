@@ -40,6 +40,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Buyer access is required." }, { status: 403 });
   }
 
+  const scope = await authSupabase.from("orders").select("id, buyer_user_id").eq("id", orderId).eq("buyer_user_id", user.id).maybeSingle();
+  if (scope.error || !scope.data || scope.data.buyer_user_id !== user.id) {
+    return NextResponse.json({ error: "Order not found." }, { status: 404 });
+  }
   const supabase = await createPrivilegedSupabaseClient();
 
   let trustedCheckout;

@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBuyerDiscovery } from "@/components/audio/buyer-discovery-provider";
 import { filterCatalog, defaultCatalogFilters, type CatalogFilters } from "@/lib/catalog-discovery";
-import type { Track } from "@/types/models";
+import type { BuyerTrack } from "@/types/models";
 
 const selectStyle = "h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
-export function BuyerCatalogBrowser({ tracks, basePath, interests }: { tracks: Track[]; basePath: string; interests?: { genres: string[]; moods: string[] } }) {
+export function BuyerCatalogBrowser({ tracks, basePath, interests }: { tracks: BuyerTrack[]; basePath: string; interests?: { genres: string[]; moods: string[] } }) {
   const { filters, setFilters } = useBuyerDiscovery();
   const filteredTracks = useMemo(() => filterCatalog(tracks, filters), [tracks, filters]);
   const [open, setOpen] = useState(false);

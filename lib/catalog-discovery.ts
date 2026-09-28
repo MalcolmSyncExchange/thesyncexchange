@@ -1,4 +1,4 @@
-import type { Track } from "../types/models.ts";
+import type { BuyerTrack } from "../types/models.ts";
 
 export type CatalogFilters = {
   query: string; genre: string; mood: string; licenseType: string; vocalProfile: string;
@@ -12,7 +12,7 @@ export const defaultCatalogFilters: CatalogFilters = {
 
 // Display, budget matching and ordering share the same eligible license price.
 // Null means unavailable; zero is an explicit price, never a fallback for missing data.
-export function getCatalogPrice(track: Pick<Track, "license_options">, licenseType = "all") {
+export function getCatalogPrice(track: Pick<BuyerTrack, "license_options">, licenseType = "all") {
   const eligible = track.license_options.flatMap((option) => {
     const amount = option.price_override ?? option.base_price;
     if (option.active === false || (licenseType !== "all" && option.slug !== licenseType) ||
@@ -22,7 +22,7 @@ export function getCatalogPrice(track: Pick<Track, "license_options">, licenseTy
   return eligible.sort((a, b) => a.amount - b.amount)[0] ?? null;
 }
 
-export function filterCatalog(tracks: Track[], filters: CatalogFilters) {
+export function filterCatalog(tracks: BuyerTrack[], filters: CatalogFilters) {
   const query = filters.query.trim().toLocaleLowerCase();
   const min = filters.minBpm === "" ? null : Number(filters.minBpm);
   const max = filters.maxBpm === "" ? null : Number(filters.maxBpm);

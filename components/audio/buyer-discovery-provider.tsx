@@ -8,9 +8,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { defaultCatalogFilters, type CatalogFilters } from "@/lib/catalog-discovery";
 import { formatDuration } from "@/lib/utils";
-import type { Track } from "@/types/models";
+import type { BuyerTrack } from "@/types/models";
 
-type PreviewTrack = Pick<Track, "id" | "slug" | "title" | "artist_name" | "audio_file_url">;
+type PreviewTrack = Pick<BuyerTrack, "id" | "slug" | "title" | "artist_name" | "audio_file_url">;
 type DiscoveryContext = {
   active: PreviewTrack | null; playing: boolean; toggle: (track: PreviewTrack) => void;
   filters: CatalogFilters; setFilters: Dispatch<SetStateAction<CatalogFilters>>;

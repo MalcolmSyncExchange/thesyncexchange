@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCatalogPrice } from "@/lib/catalog-discovery";
 import { cn, formatCurrency, formatDuration } from "@/lib/utils";
-import type { Track } from "@/types/models";
+import type { BuyerTrack } from "@/types/models";
 
-export function BuyerTrackCard({ track, href, layout = "grid", licenseType = "all" }: { track: Track; href: string; layout?: "grid" | "list"; licenseType?: string }) {
+export function BuyerTrackCard({ track, href, layout = "grid", licenseType = "all" }: { track: BuyerTrack; href: string; layout?: "grid" | "list"; licenseType?: string }) {
   const price = getCatalogPrice(track, licenseType);
   const compact = layout === "list";
   return (

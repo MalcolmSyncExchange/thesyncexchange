@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> Engineering operating workflow: `docs/agent-skills/engineering-v1.md`. This file remains the canonical project policy; the engineering skill supplements it.
+
 ## Project Overview
 
 The Sync Exchange is a premium sync licensing marketplace built for three user roles:
@@ -170,7 +172,7 @@ If a command is unavailable in a future branch, inspect `package.json` and use t
 - Make migrations idempotent where practical.
 - Do not apply migrations to production without explicit user approval.
 - Do not alter existing production data unless the user explicitly approves the data operation.
-- Avoid broad `auth.uid() is null` trusted bypasses. If a privileged path is needed, use explicit `auth.role() = 'service_role'`, verified admin checks, or narrowly scoped `SECURITY DEFINER` functions.
+- Avoid broad `auth.uid() is null` trusted bypasses. Do not use deprecated `auth.role()` checks as a general authorization pattern. If a privileged path is needed, prefer verified server-side authorization before service-role use; use narrowly scoped `SECURITY DEFINER` functions only when genuinely required and explicitly hardened.
 - Protect moderation and role fields with database-level safeguards, not only application code.
 - Include RLS `WITH CHECK` policies for write paths where ownership or allowed state transitions matter.
 - After migration work, run `npm run verify:supabase` when safe and relevant.

@@ -11,8 +11,10 @@ const rawSupabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const rawStripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const rawStripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const rawPaymentMode = process.env.SYNC_EXCHANGE_PAYMENT_MODE;
+const rawBillingPortalEnabled = process.env.SYNC_EXCHANGE_BILLING_PORTAL_ENABLED;
 
 export type StripeKeyMode = "test" | "live" | "missing" | "unknown";
+export type BillingPortalFlagState = "enabled" | "disabled" | "missing" | "invalid";
 
 export const serverEnv = {
   supabaseServiceRoleKey: rawSupabaseServiceRoleKey,
@@ -238,6 +240,31 @@ export function getPaymentRuntimeConfiguration() {
     livePaymentsEnabled: diagnostics.livePaymentsEnabled,
     expectedLivemode: diagnostics.paymentMode === "live"
   };
+}
+
+export function getBillingPortalRuntimeConfiguration() {
+  const diagnostics = getServerEnvironmentDiagnostics();
+  const normalized = typeof rawBillingPortalEnabled === "string" ? rawBillingPortalEnabled.trim().toLowerCase() : "";
+  const flagState: BillingPortalFlagState =
+    normalized === "true" ? "enabled" : normalized === "false" ? "disabled" : normalized ? "invalid" : "missing";
+  const productionBeta = diagnostics.releaseMode === "production_beta";
+  const environmentValid = diagnostics.errors.length === 0;
+  const enabled = flagState === "enabled" && environmentValid && !productionBeta;
+
+  return {
+    enabled,
+    flagState,
+    releaseMode: diagnostics.releaseMode as OperationalReleaseMode,
+    reason: productionBeta
+      ? "production_beta"
+      : !environmentValid
+        ? "environment_invalid"
+        : flagState === "invalid"
+          ? "invalid_flag"
+          : flagState === "enabled"
+            ? "enabled"
+            : "not_enabled"
+  } as const;
 }
 
 export function assertStripeRuntimeObject(

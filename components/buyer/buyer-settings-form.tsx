@@ -27,6 +27,7 @@ type BuyerSettingsFormProps = {
   initialCompanyName: string;
   initialBillingEmail: string;
   currentEmail: string;
+  billingPortalEnabled?: boolean;
   initialNotificationPreferences?: BuyerNotificationPreferences;
   initialTeamInvites?: TeamInvite[];
   invoices?: InvoiceSummary[];
@@ -62,6 +63,7 @@ export function BuyerSettingsForm({
   initialCompanyName,
   initialBillingEmail,
   currentEmail,
+  billingPortalEnabled = false,
   initialNotificationPreferences = defaultBuyerNotificationPreferences,
   initialTeamInvites = [],
   invoices = [],
@@ -416,16 +418,20 @@ export function BuyerSettingsForm({
           <CardDescription>Manage billing contact details, account email changes, and Stripe billing portal access.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Stripe Billing Portal</p>
-              <p className="text-sm text-muted-foreground">Open Stripe to manage receipts, payment methods, and billing details when a Stripe customer profile exists.</p>
-            </div>
-            <Button type="button" variant="outline" onClick={manageBilling} disabled={billingSaving}>
-              {billingSaving ? "Opening Billing..." : "Manage Billing"}
-            </Button>
-          </div>
-          <FormFeedback feedback={billingFeedback} />
+          {billingPortalEnabled ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Stripe Billing Portal</p>
+                  <p className="text-sm text-muted-foreground">Open Stripe to manage receipts, payment methods, and billing details when a Stripe customer profile exists.</p>
+                </div>
+                <Button type="button" variant="outline" onClick={manageBilling} disabled={billingSaving}>
+                  {billingSaving ? "Opening Billing..." : "Manage Billing"}
+                </Button>
+              </div>
+              <FormFeedback feedback={billingFeedback} />
+            </>
+          ) : null}
           <div className="space-y-3">
             <div>
               <p className="text-sm font-medium">Invoices And Receipts</p>

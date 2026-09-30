@@ -280,3 +280,42 @@ test("production beta accepts only explicit test mode with matching test keys", 
     assert.ok(rejected.errors.some((issue) => ["missing_payment_mode", "invalid_payment_mode"].includes(issue.code)));
   }
 });
+
+test("billing portal is explicit, fail closed, and always disabled in production beta", () => {
+  const base = {
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+    STRIPE_SECRET_KEY: "rk_test_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+    SYNC_EXCHANGE_PAYMENT_MODE: "test"
+  };
+
+  for (const [value, flagState, reason] of [
+    [undefined, "missing", "not_enabled"],
+    ["false", "disabled", "not_enabled"],
+    ["yes", "invalid", "invalid_flag"]
+  ]) {
+    const configuration = loadServerEnv({
+      ...base,
+      SYNC_EXCHANGE_BILLING_PORTAL_ENABLED: value
+    }, "preview").getBillingPortalRuntimeConfiguration();
+    assert.equal(configuration.enabled, false);
+    assert.equal(configuration.flagState, flagState);
+    assert.equal(configuration.reason, reason);
+  }
+
+  const preview = loadServerEnv({
+    ...base,
+    SYNC_EXCHANGE_BILLING_PORTAL_ENABLED: "true"
+  }, "preview").getBillingPortalRuntimeConfiguration();
+  assert.equal(preview.enabled, true);
+  assert.equal(preview.reason, "enabled");
+
+  const productionBeta = loadServerEnv({
+    ...base,
+    SYNC_EXCHANGE_BILLING_PORTAL_ENABLED: "true"
+  }, "production").getBillingPortalRuntimeConfiguration();
+  assert.equal(productionBeta.enabled, false);
+  assert.equal(productionBeta.releaseMode, "production_beta");
+  assert.equal(productionBeta.reason, "production_beta");
+});

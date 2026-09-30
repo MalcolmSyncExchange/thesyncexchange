@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { env } from "@/lib/env";
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
+import { getBillingPortalRuntimeConfiguration } from "@/lib/server-env";
 import { assertAuthenticatedBuyerSettingsUser, buildBillingPortalReturnUrl } from "@/services/buyer/settings";
 import { getStripeServerClient } from "@/services/stripe/server";
 import { createServerSupabaseClient } from "@/services/supabase/server";
@@ -18,6 +19,10 @@ export async function POST() {
 
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  if (!getBillingPortalRuntimeConfiguration().enabled) {
+    return NextResponse.json({ error: "Billing portal is unavailable in this environment." }, { status: 503 });
   }
 
   if (!auth.user.email) {

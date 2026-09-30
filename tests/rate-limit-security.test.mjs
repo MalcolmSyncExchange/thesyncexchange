@@ -87,7 +87,15 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     "next/headers": { cookies: async () => ({ get: () => undefined }) },
     "next/navigation": { redirect, unstable_rethrow(e) { if (e.digest === "NEXT_REDIRECT") throw e; } },
     "@/lib/env": { env: { demoMode: false }, hasSupabaseEnv: true },
-    "@/lib/server-env": { assertStripeServerConfiguration() {} },
+    "@/lib/server-env": {
+      assertStripeServerConfiguration() {},
+      getPaymentRuntimeConfiguration: () => ({ paymentMode: "test", releaseMode: "preview", livePaymentsEnabled: false }),
+      getPaymentActivityMetadata: () => ({ paymentMode: "test", releaseMode: "preview", livemode: false, commercialRightsGranted: false })
+    },
+    "@/lib/payment-mode.mjs": {
+      getStripeCheckoutSessionMode: value => String(value || "").startsWith("cs_test_") ? "test" : "unknown",
+      canReusePendingOrderForPaymentMode: (value, mode) => String(value || "").startsWith(`cs_${mode}_`)
+    },
     "@/lib/license": { generateAgreementPlaceholder() { throw new Error("Unexpected demo mode"); } },
     "@/lib/storage": {
       buildTrackAssetPath: ({ userId: id, scope, kind, fileName }) => `${id}/${scope}/${kind}/${fileName}`,

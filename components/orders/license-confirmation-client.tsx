@@ -33,6 +33,9 @@ type ConfirmationOrder = {
   agreement_generated_at?: string | null;
   fulfilled_at?: string | null;
   refunded_at?: string | null;
+  payment_mode?: "test" | "live" | "unknown" | null;
+  test_transaction?: boolean | null;
+  commercial_rights_granted?: boolean | null;
   track?: {
     title?: string | null;
   } | null;
@@ -172,6 +175,12 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
           <CardTitle>License Confirmation</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
+          {order?.test_transaction ? (
+            <div className="rounded-lg border-2 border-amber-500 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100">
+              <p className="font-bold">TEST MODE — NO REAL PAYMENT</p>
+              <p className="mt-1">This order and its watermarked agreement are for beta testing only and grant no commercial rights.</p>
+            </div>
+          ) : null}
           <p className="text-muted-foreground">
             This confirmation tracks payment, agreement generation, and private delivery for your purchased sync license.
           </p>
@@ -186,7 +195,9 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
           ) : null}
           {complete ? (
             <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-200" role="status" aria-live="polite">
-              Your license is finalized. The agreement is ready to download.
+              {order?.test_transaction
+                ? "Your test transaction is complete. The watermarked test agreement grants no commercial rights."
+                : "Your license is finalized. The agreement is ready to download."}
             </div>
           ) : null}
           {order?.agreement_failed ? (
@@ -246,7 +257,7 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
             </Button>
             {order?.agreement_ready && order?.agreement_url ? (
               <Button asChild variant="outline">
-                <Link href={order.agreement_url}>Download License Agreement</Link>
+                <Link href={order.agreement_url}>{order.test_transaction ? "Download Test Agreement" : "Download License Agreement"}</Link>
               </Button>
             ) : null}
           </div>

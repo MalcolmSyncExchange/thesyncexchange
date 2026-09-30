@@ -1,4 +1,6 @@
 import { env } from "@/lib/env";
+import { buildPaymentClassification, getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
+import { getPaymentRuntimeConfiguration } from "@/lib/server-env";
 import { getAgreementAccessUrl } from "@/lib/license";
 import { buildAgreementNumber, buildGeneratedLicenseTermsSnapshot } from "@/lib/licenses/generated-license-snapshot";
 import { type GeneratedLicenseTermsSnapshot, renderSyncLicenseAgreementHtml, renderSyncLicenseAgreementPdf } from "@/lib/licenses/templates/sync-license-template";
@@ -77,6 +79,15 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
     };
   }
 
+  if (
+    !["paid", "fulfilled", "refunded"].includes(normalizedOrder.status) ||
+    !normalizedOrder.paid_at ||
+    !normalizedOrder.stripe_checkout_session_id ||
+    !normalizedOrder.stripe_payment_intent_id
+  ) {
+    throw new Error("Stripe-verified payment evidence is required before generating an agreement.");
+  }
+
   const { data: buyerProfile } = (await supabase
     .from("user_profiles")
     .select("full_name, email")
@@ -97,6 +108,10 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
   let failedSnapshot: GeneratedLicenseTermsSnapshot | null = null;
   let htmlSnapshot: string | null = null;
   const generatedAt = normalizedOrder.agreement_generated_at || existingGeneratedLicense?.generated_at || new Date().toISOString();
+  const payment = resolveAgreementPaymentClassification({
+    checkoutSessionId: normalizedOrder.stripe_checkout_session_id,
+    existingSnapshot: existingGeneratedLicense?.terms_snapshot_json
+  });
 
   try {
     const snapshot = buildGeneratedLicenseTermsSnapshot({
@@ -112,6 +127,7 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
         paidAt: normalizedOrder.paid_at,
         stripeCheckoutSessionId: normalizedOrder.stripe_checkout_session_id,
         stripePaymentIntentId: normalizedOrder.stripe_payment_intent_id,
+        payment,
         trackTitle: normalizedOrder.tracks?.title || "Selected Track",
         artistName: artistProfile?.artist_name || "The Sync Exchange Artist",
         buyerLegalName: buyerProfile?.full_name || "Buyer",
@@ -187,7 +203,8 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
         generatedLicenseId: persistedGeneratedLicense.id,
         agreementPath,
         contentType,
-        sizeBytes
+        sizeBytes,
+        ...payment
       }
     }).catch(() => undefined);
 
@@ -198,7 +215,8 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
       agreementPath,
       contentType,
       sizeBytes,
-      orderStatus: persistedStatus
+      orderStatus: persistedStatus,
+      ...payment
     });
 
     return {
@@ -240,7 +258,8 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
       message,
       metadata: {
         agreementNumber,
-        agreementPath
+        agreementPath,
+        ...payment
       }
     }).catch(() => undefined);
 
@@ -253,6 +272,40 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
 
     throw error;
   }
+}
+
+function resolveAgreementPaymentClassification({
+  checkoutSessionId,
+  existingSnapshot
+}: {
+  checkoutSessionId: string | null;
+  existingSnapshot: unknown;
+}) {
+  const persisted = (existingSnapshot as { payment?: Record<string, unknown> } | null)?.payment;
+  if (
+    persisted &&
+    (persisted.paymentMode === "test" || persisted.paymentMode === "live") &&
+    typeof persisted.releaseMode === "string" &&
+    typeof persisted.livemode === "boolean" &&
+    typeof persisted.commercialRightsGranted === "boolean"
+  ) {
+    return persisted as {
+      paymentMode: "test" | "live";
+      releaseMode: "local" | "preview" | "production_beta" | "production_live";
+      livemode: boolean;
+      commercialRightsGranted: boolean;
+    };
+  }
+
+  const runtime = getPaymentRuntimeConfiguration();
+  const sessionMode = getStripeCheckoutSessionMode(checkoutSessionId);
+  if (checkoutSessionId && sessionMode === "unknown") {
+    throw new Error("Agreement generation is blocked because the Stripe Checkout Session mode is unknown.");
+  }
+  if (sessionMode !== "unknown" && sessionMode !== runtime.paymentMode) {
+    throw new Error("Agreement generation is blocked because the Stripe Checkout Session belongs to a different payment mode.");
+  }
+  return buildPaymentClassification(runtime.paymentMode, runtime.releaseMode);
 }
 
 export async function downloadAgreementArtifact(path: string) {

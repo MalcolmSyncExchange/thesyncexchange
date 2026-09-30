@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { getPaymentRuntimeConfiguration } from "@/lib/server-env";
 import { getAdminDashboardData } from "@/services/admin/queries";
 import type { AdminFlagSeverity } from "@/types/models";
 
@@ -38,6 +39,7 @@ const severityMeta: Record<AdminFlagSeverity, { label: string; tone: string; bar
 
 export default async function AdminDashboardPage() {
   const data = await getAdminDashboardData();
+  const payment = getPaymentRuntimeConfiguration();
   const liveRatio = data.totalTracks ? Math.round((data.approvedTracks / data.totalTracks) * 100) : 0;
   const flagSummaryTotal = data.flagSummary.reduce((sum, item) => sum + item.count, 0);
 
@@ -89,7 +91,11 @@ export default async function AdminDashboardPage() {
           value={String(data.pendingReviews)}
           change={data.pendingReviews ? "Queue requires moderation attention" : "Review queue is clear"}
         />
-        <StatCard title="Orders" value={String(data.totalOrders)} change={`${formatCurrency(data.grossVolume)} in processed license value`} />
+        <StatCard
+          title={payment.paymentMode === "test" ? "Test orders" : "Orders"}
+          value={String(data.totalOrders)}
+          change={`${formatCurrency(data.grossVolume)} in ${payment.paymentMode === "test" ? "sandbox order value — no live revenue" : "processed license value"}`}
+        />
         <StatCard
           title="Open flags"
           value={String(data.openFlags)}

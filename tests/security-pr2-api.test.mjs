@@ -21,6 +21,7 @@ function context({role='artist',id=ids.a,authError=null,roleError=null,records={
   './profile-contract':load('services/artist/profile-contract.ts'),
   '@/lib/storage':{getPublicStorageUrl:()=>null,storageBuckets:{}},
   '@/lib/orders':{hasAgreementBeenGenerated:()=>true,hasExtendedOrderMetadata:()=>true},
+  '@/lib/payment-mode.mjs':{getStripeCheckoutSessionMode:value=>String(value||'').startsWith('cs_test_')?'test':String(value||'').startsWith('cs_live_')?'live':'unknown'},
   '@/services/generated-licenses/server':{listGeneratedLicensesByOrderIds:async()=>new Map([[ids.order,{status:licenseStatus,pdf_storage_path:'private.pdf',agreement_number:'TSE-TEST'}]])}
  };
  mocks['@/services/auth/authorization']=load('services/auth/authorization.ts',mocks);

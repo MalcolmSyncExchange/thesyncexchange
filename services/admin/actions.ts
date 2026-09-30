@@ -5,6 +5,8 @@ import { cookies } from "next/headers";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { reportOperationalError } from "@/lib/monitoring";
+import { getPaymentActivityMetadata, getPaymentRuntimeConfiguration } from "@/lib/server-env";
+import { getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { loadGeneratedLicenseByOrderId } from "@/services/generated-licenses/server";
@@ -187,16 +189,23 @@ export async function updateOrderStatusAction(formData: FormData) {
     return;
   }
 
+  if (status === "paid" || status === "fulfilled" || status === "refunded") {
+    const runtime = getPaymentRuntimeConfiguration();
+    const sessionMode = getStripeCheckoutSessionMode(order.stripe_checkout_session_id);
+    if (!order.paid_at || !order.stripe_payment_intent_id || sessionMode !== runtime.paymentMode) {
+      throw new Error("Stripe-verified payment evidence matching the active payment mode is required for this order status.");
+    }
+  }
+
   if (status === "fulfilled") {
     await updateOrderStatusCompat(supabase, orderId, {
-      paid_at: order.paid_at || now,
       agreement_generation_error: null
     });
     await generateAgreementArtifactForOrder(orderId);
   } else {
     await updateOrderStatusCompat(supabase, orderId, {
       status: status as Database["public"]["Enums"]["order_status"],
-      paid_at: status === "paid" ? order.paid_at || now : order.paid_at,
+      paid_at: order.paid_at,
       refunded_at: status === "refunded" ? order.refunded_at || now : order.refunded_at,
       fulfilled_at: status === "pending" ? null : order.fulfilled_at,
       agreement_generation_error: status === "pending" ? null : order.agreement_generation_error
@@ -209,7 +218,7 @@ export async function updateOrderStatusAction(formData: FormData) {
     source: "admin",
     eventType: "order_status_updated",
     message: `Admin manually updated the order status to ${status}.`,
-    metadata: { status }
+    metadata: { status, ...getPaymentActivityMetadata() }
   }).catch(() => undefined);
 
   if (order.track_id) {
@@ -310,7 +319,7 @@ async function requireAdminActorId() {
 async function loadAdminOrderStatusSnapshot(supabase: AppSupabaseClient, orderId: string) {
   const primary = await supabase
     .from("orders")
-    .select("track_id, agreement_url, agreement_generated_at, agreement_generation_error, paid_at, fulfilled_at, refunded_at")
+    .select("track_id, agreement_url, agreement_generated_at, agreement_generation_error, paid_at, fulfilled_at, refunded_at, stripe_checkout_session_id, stripe_payment_intent_id")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -323,6 +332,8 @@ async function loadAdminOrderStatusSnapshot(supabase: AppSupabaseClient, orderId
       paid_at: string | null;
       fulfilled_at: string | null;
       refunded_at: string | null;
+      stripe_checkout_session_id: string | null;
+      stripe_payment_intent_id: string | null;
     } | null;
   }
 
@@ -338,7 +349,7 @@ async function loadAdminOrderStatusSnapshot(supabase: AppSupabaseClient, orderId
 
   const fallback = await supabase
     .from("orders")
-    .select("track_id, agreement_url, agreement_generated_at, paid_at, fulfilled_at, refunded_at")
+    .select("track_id, agreement_url, agreement_generated_at, paid_at, fulfilled_at, refunded_at, stripe_checkout_session_id, stripe_payment_intent_id")
     .eq("id", orderId)
     .maybeSingle();
 

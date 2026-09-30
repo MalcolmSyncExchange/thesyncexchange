@@ -25,6 +25,11 @@ export default async function AdminOrdersPage() {
                     <p className="text-sm text-muted-foreground">
                       {order.license_name || "License"} • {order.buyer_name || "Buyer"} • {formatCurrency(order.amount_paid, order.currency)}
                     </p>
+                    {order.test_transaction ? (
+                      <p className="mt-2 text-xs font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+                        Stripe test order — excluded from commercial rights
+                      </p>
+                    ) : null}
                   </div>
                   <div className="space-y-2 text-right">
                     <OrderStatusBadge status={order.order_status} />
@@ -100,6 +105,9 @@ export default async function AdminOrdersPage() {
                               {event.event_type.replace(/_/g, " ").replace(/\b\w/g, (char: string) => char.toUpperCase())}
                             </p>
                             {event.message ? <p className="text-muted-foreground">{event.message}</p> : null}
+                            {event.metadata?.paymentMode ? (
+                              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Payment mode: {event.metadata.paymentMode}</p>
+                            ) : null}
                           </div>
                           <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{formatDateTime(event.created_at)}</p>
                         </div>

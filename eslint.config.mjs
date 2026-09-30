@@ -13,6 +13,7 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     ".next-dev/**",
+    ".netlify/**",
     "output/**",
     "out/**",
     "build/**",

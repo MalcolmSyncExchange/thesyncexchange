@@ -5,6 +5,7 @@ import { env, hasSupabaseEnv } from "@/lib/env";
 import { reportOperationalError } from "@/lib/monitoring";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { hasAgreementBeenGenerated, hasExtendedOrderMetadata } from "@/lib/orders";
+import { getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { listGeneratedLicensesByOrderIds } from "@/services/generated-licenses/server";
 import { withTrackAudioAccess } from "@/services/storage/server";
@@ -306,6 +307,16 @@ function enrichLiveOrder(row: any, generatedLicense: any) {
       : []),
     ...(agreementGenerated && !generatedLicense ? ["The structured generated license record is not available for this order yet. Re-run agreement generation after migration 0013 is applied."] : [])
   ];
+  const snapshotPayment = generatedLicense?.terms_snapshot_json?.payment;
+  const sessionMode = getStripeCheckoutSessionMode(row.stripe_checkout_session_id);
+  const paymentMode =
+    snapshotPayment?.paymentMode === "test" || snapshotPayment?.paymentMode === "live"
+      ? snapshotPayment.paymentMode
+      : sessionMode;
+  const commercialRightsGranted =
+    typeof snapshotPayment?.commercialRightsGranted === "boolean"
+      ? snapshotPayment.commercialRightsGranted
+      : paymentMode === "live";
 
   return {
     id: row.id,
@@ -331,6 +342,10 @@ function enrichLiveOrder(row: any, generatedLicense: any) {
     agreement_number: generatedLicense?.agreement_number || null,
     generated_license_status: generatedLicense?.status || null,
     generated_license_downloaded_at: generatedLicense?.downloaded_at || null,
+    payment_mode: paymentMode,
+    release_mode: snapshotPayment?.releaseMode || (paymentMode === "test" ? "production_beta" : paymentMode === "live" ? "production_live" : null),
+    test_transaction: paymentMode === "test",
+    commercial_rights_granted: commercialRightsGranted,
     schema_degraded: !hasExtendedOrderMetadata(row) || (agreementGenerated && !generatedLicense),
     degraded_messages: degradedMessages,
     track: row.tracks || null,

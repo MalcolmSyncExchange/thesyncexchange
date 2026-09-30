@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveDeploymentTarget } from "../lib/deployment-target.mjs";
+import { resolvePaymentConfiguration } from "../lib/payment-mode.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 loadEnvFile(path.join(rootDir, ".env.local"));
@@ -28,6 +29,7 @@ const presentDeprecatedAuthKeys = deprecatedAuthKeys.filter((key) => process.env
 const deploymentTarget = resolveDeploymentTarget(process.env);
 const stripeSecretKeyMode = getStripeKeyMode(process.env.STRIPE_SECRET_KEY, "sk");
 const stripePublishableKeyMode = getStripeKeyMode(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY, "pk");
+const payment = resolvePaymentConfiguration(process.env.SYNC_EXCHANGE_PAYMENT_MODE, deploymentTarget);
 
 const appUrlWarnings = [];
 const blockingIssues = [];
@@ -78,8 +80,28 @@ if (
   blockingIssues.push("Stripe secret and publishable keys are mixing test/live modes. Use matching key modes in the same environment.");
 }
 
-if (deploymentTarget === "production" && (stripeSecretKeyMode === "test" || stripePublishableKeyMode === "test")) {
-  blockingIssues.push("Stripe keys are still in test mode while the deployment target is production. Switch both keys to live mode before launch.");
+if (!payment.valid) {
+  blockingIssues.push(payment.message);
+}
+
+if (stripeSecretKeyMode === "unknown" || stripePublishableKeyMode === "unknown") {
+  blockingIssues.push("Stripe keys must use recognized test or live key prefixes.");
+}
+
+if (
+  payment.valid &&
+  ((stripeSecretKeyMode !== "missing" && stripeSecretKeyMode !== payment.paymentMode) ||
+    (stripePublishableKeyMode !== "missing" && stripePublishableKeyMode !== payment.paymentMode))
+) {
+  blockingIssues.push(`Stripe keys do not match the configured ${payment.paymentMode} payment mode.`);
+}
+
+if (
+  deploymentTarget === "production" &&
+  (stripeSecretKeyMode === "test" || stripePublishableKeyMode === "test") &&
+  process.env.SYNC_EXCHANGE_PAYMENT_MODE !== "test"
+) {
+  blockingIssues.push("Stripe test keys in production require explicit SYNC_EXCHANGE_PAYMENT_MODE=test beta configuration.");
 }
 
 if (missingCore.length === 0 && missingOperational.length === 0) {

@@ -6,6 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { createOrderAction } from "@/services/buyer/actions";
 import { getBuyerTrackBySlug } from "@/services/buyer/queries";
 import { requireSession } from "@/services/auth/session";
+import { getPaymentRuntimeConfiguration } from "@/lib/server-env";
 
 export default async function CheckoutPage(
   props: {
@@ -18,10 +19,18 @@ export default async function CheckoutPage(
   const user = await requireSession("buyer");
   const track = await getBuyerTrackBySlug(params.trackSlug, user.id);
   if (!track) notFound();
+  const payment = getPaymentRuntimeConfiguration();
+  const testPayment = payment.paymentMode === "test";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <h1 className="text-3xl font-semibold">License checkout</h1>
+      {testPayment ? (
+        <div className="rounded-lg border-2 border-amber-500 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100" role="status">
+          <p className="font-bold">TEST MODE — NO REAL PAYMENT</p>
+          <p className="mt-1">Use Stripe test payment details only. This checkout creates a test transaction and no commercial license rights.</p>
+        </div>
+      ) : null}
       {searchParams?.error ? (
         <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">{searchParams.error}</div>
       ) : null}
@@ -80,7 +89,9 @@ export default async function CheckoutPage(
                   </label>
                 ))}
               </div>
-              <Button className="w-full" data-testid="buyer-checkout-submit">Continue to Secure Checkout</Button>
+              <Button className="w-full" data-testid="buyer-checkout-submit">
+                {testPayment ? "Continue to Test Checkout" : "Continue to Secure Checkout"}
+              </Button>
             </form>
           </CardContent>
         </Card>

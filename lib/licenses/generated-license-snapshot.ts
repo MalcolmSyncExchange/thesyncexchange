@@ -20,6 +20,12 @@ export type GeneratedLicenseOrderSnapshotContext = {
   paidAt: string | null;
   stripeCheckoutSessionId: string | null;
   stripePaymentIntentId: string | null;
+  payment: {
+    paymentMode: "test" | "live";
+    releaseMode: "local" | "preview" | "production_beta" | "production_live";
+    livemode: boolean;
+    commercialRightsGranted: boolean;
+  };
   trackTitle: string;
   artistName: string;
   buyerLegalName: string;
@@ -175,6 +181,26 @@ export function buildGeneratedLicenseTermsSnapshot({
     exclusive: context.licenseExclusive
   });
   const effectiveDate = context.paidAt || context.createdAt;
+  const testOnly = context.payment.paymentMode === "test" || !context.payment.commercialRightsGranted;
+  const testGrantText =
+    "This artifact records a sandbox transaction only. It grants no synchronization, commercial, distribution, performance, or other exploitation rights.";
+  const testPermittedMedia = ["None. This sandbox transaction grants no media-use rights."];
+  const testRestrictions = [
+    "This test artifact may not be relied upon as a commercial license or authorization to use the recording.",
+    "No payment, checkout completion, or generated test artifact authorizes exploitation of the composition or recording."
+  ];
+  const testOnlyTerms = {
+    termsSummary: "Sandbox checkout record only. No commercial rights are granted.",
+    territory: "Not applicable — test transaction",
+    termLength: "Not applicable — test transaction",
+    creditRequirements: null,
+    ownershipReservation:
+      "All right, title, and interest remain with the applicable artist and rights holders. This sandbox record transfers no rights or interests.",
+    transferRestriction: "Not applicable. This sandbox record grants no transferable or sublicensable rights.",
+    terminationTerms: "Not applicable. No commercial authorization arises from this sandbox transaction.",
+    governingLaw: "Not applicable — test transaction",
+    legalReviewRequired: false
+  };
 
   return {
     templateVersion: SYNC_LICENSE_TEMPLATE_VERSION,
@@ -204,25 +230,26 @@ export function buildGeneratedLicenseTermsSnapshot({
       typeId: context.licenseTypeId,
       typeSlug: context.licenseTypeSlug,
       typeName: context.licenseTypeName,
-      termsSummary: context.licenseTermsSummary,
+      termsSummary: testOnly ? testOnlyTerms.termsSummary : context.licenseTermsSummary,
       pricePaidCents: context.amountCents,
       currency: context.currency,
-      territory: preset.territory,
-      termLength: preset.termLength,
-      permittedMedia: preset.permittedMedia,
-      exclusivity: preset.exclusivity,
-      restrictions: preset.restrictions,
-      creditRequirements: preset.creditRequirements,
-      grantText: preset.grantText,
-      ownershipReservation: preset.ownershipReservation,
-      transferRestriction: preset.transferRestriction,
-      terminationTerms: preset.terminationTerms,
-      governingLaw: preset.governingLaw,
-      legalReviewRequired: preset.legalReviewRequired
+      territory: testOnly ? testOnlyTerms.territory : preset.territory,
+      termLength: testOnly ? testOnlyTerms.termLength : preset.termLength,
+      permittedMedia: testOnly ? testPermittedMedia : preset.permittedMedia,
+      exclusivity: testOnly ? "Not applicable — test transaction" : preset.exclusivity,
+      restrictions: testOnly ? testRestrictions : preset.restrictions,
+      creditRequirements: testOnly ? testOnlyTerms.creditRequirements : preset.creditRequirements,
+      grantText: testOnly ? testGrantText : preset.grantText,
+      ownershipReservation: testOnly ? testOnlyTerms.ownershipReservation : preset.ownershipReservation,
+      transferRestriction: testOnly ? testOnlyTerms.transferRestriction : preset.transferRestriction,
+      terminationTerms: testOnly ? testOnlyTerms.terminationTerms : preset.terminationTerms,
+      governingLaw: testOnly ? testOnlyTerms.governingLaw : preset.governingLaw,
+      legalReviewRequired: testOnly ? testOnlyTerms.legalReviewRequired : preset.legalReviewRequired
     },
     stripe: {
       checkoutSessionId: context.stripeCheckoutSessionId,
       paymentIntentId: context.stripePaymentIntentId
-    }
+    },
+    payment: context.payment
   };
 }

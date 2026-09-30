@@ -10,6 +10,7 @@ import {
   serverEnv
 } from "@/lib/server-env";
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
+import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 import {
   getStripeServerClient,
   markOrderCheckoutSessionPaymentFailed,
@@ -18,6 +19,9 @@ import {
 } from "@/services/stripe/server";
 
 export async function POST(request: Request) {
+  if (resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE).blocksApplication) {
+    return NextResponse.json({ ok: false, error: "maintenance_mode" }, { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+  }
   if (!hasStripeWebhookEnv) {
     return NextResponse.json({
       received: false,

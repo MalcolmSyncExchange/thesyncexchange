@@ -4,6 +4,7 @@ import { env, getMissingCoreEnvKeys, hasSupabaseEnv } from "@/lib/env";
 import { getMissingOperationalEnvKeys, getServerEnvironmentDiagnostics, serverEnv } from "@/lib/server-env";
 import { storageBuckets } from "@/lib/storage";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 import { isMissingColumnError, isMissingRelationError, isSchemaCacheTableError } from "@/services/supabase/schema-compat";
 
 type CapabilityStatus = "available" | "degraded" | "blocked";
@@ -39,10 +40,12 @@ type TableDiagnostic = {
 };
 
 export async function GET() {
+  const maintenance = resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE);
   const missingCore = getMissingCoreEnvKeys();
   const missingOperational = getMissingOperationalEnvKeys();
   const environment = getServerEnvironmentDiagnostics();
   const notes: string[] = [];
+  if (!maintenance.valid) notes.push("Maintenance mode configuration is invalid.");
 
   const storage = {
     serviceRoleReady: Boolean(serverEnv.supabaseServiceRoleKey),
@@ -323,7 +326,7 @@ export async function GET() {
   const criticalOperationalMissing = missingOperational.filter((key) =>
     ["SUPABASE_SERVICE_ROLE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].includes(key)
   );
-  const environmentHasBlockingErrors = environment.errors.length > 0;
+  const environmentHasBlockingErrors = environment.errors.length > 0 || !maintenance.valid;
   const environmentHasDeploymentWarnings = environment.deploymentTarget !== "local" && environment.warnings.length > 0;
   const status: ReadinessStatus =
     missingCore.length > 0 || criticalOperationalMissing.length > 0 || blockedDomains.length > 0 || environmentHasBlockingErrors
@@ -340,6 +343,7 @@ export async function GET() {
       releaseMode: environment.releaseMode,
       paymentMode: environment.paymentMode,
       livePaymentsEnabled: environment.livePaymentsEnabled,
+      maintenanceMode: maintenance.mode,
       stripePublishableKeyMode: environment.stripe.publishableKeyMode,
       stripeSecretKeyMode: environment.stripe.secretKeyMode,
       environment,
@@ -361,7 +365,8 @@ export async function GET() {
       degradedDomains,
       notes
     },
-    { status: status === "healthy" ? 200 : status === "degraded" ? 200 : 503 }
+    { status: status === "healthy" ? 200 : status === "degraded" ? 200 : 503,
+      headers: { "Cache-Control": "private, no-store, max-age=0", "Netlify-CDN-Cache-Control": "no-store" } }
   );
 }
 

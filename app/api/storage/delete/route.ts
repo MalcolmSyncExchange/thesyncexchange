@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { isAbsoluteAssetReference, storageBuckets, type StorageAssetRef } from "@/lib/storage";
@@ -10,6 +11,9 @@ import type { AppSupabaseClient } from "@/services/supabase/types";
 const cleanupBuckets = new Set<string>([storageBuckets.coverArt, storageBuckets.trackPreviews, storageBuckets.trackAudio]);
 
 export async function POST(request: Request) {
+  if (resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE).blocksApplication) {
+    return NextResponse.json({ ok: false, error: "maintenance_mode" }, { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+  }
   if (!hasSupabaseEnv || env.demoMode) {
     return NextResponse.json({ error: "Storage deletion requires live Supabase mode." }, { status: 503 });
   }

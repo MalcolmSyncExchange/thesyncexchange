@@ -22,7 +22,7 @@ function loadModule(path, stubs) {
   const loadedModule = { exports: {} };
   runInNewContext(outputText, {
     module: loadedModule, exports: loadedModule.exports, Response, Request, FormData, File,
-    AbortSignal, URL, crypto: webcrypto,
+    AbortSignal, URL, crypto: webcrypto, process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
     require(name) {
       assert.ok(Object.hasOwn(stubs, name), `Unmocked dependency: ${name}`);
       return stubs[name];
@@ -87,6 +87,7 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     "next/headers": { cookies: async () => ({ get: () => undefined }) },
     "next/navigation": { redirect, unstable_rethrow(e) { if (e.digest === "NEXT_REDIRECT") throw e; } },
     "@/lib/env": { env: { demoMode: false }, hasSupabaseEnv: true },
+    "@/lib/maintenance-mode.mjs": { resolveMaintenanceMode: () => ({ blocksApplication: false }) },
     "@/lib/server-env": {
       assertStripeServerConfiguration() {},
       getPaymentRuntimeConfiguration: () => ({ paymentMode: "test", releaseMode: "preview", livePaymentsEnabled: false }),

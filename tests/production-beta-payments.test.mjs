@@ -128,6 +128,7 @@ async function runWebhookRoute(livemode) {
       serverEnv: { stripeWebhookSecret: "redacted-test-fixture" }
     },
     "@/lib/monitoring": { reportOperationalError() {}, reportOperationalEvent() {} },
+    "@/lib/maintenance-mode.mjs": { resolveMaintenanceMode: () => ({ blocksApplication: false }) },
     "@/services/stripe/server": {
       getStripeServerClient: () => stripe,
       markOrderCheckoutSessionPaymentFailed: async () => null,
@@ -141,6 +142,7 @@ async function runWebhookRoute(livemode) {
     Response,
     Request,
     console,
+    process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
     require(name) {
       assert.ok(Object.hasOwn(stubs, name), `Unmocked dependency: ${name}`);
       return stubs[name];

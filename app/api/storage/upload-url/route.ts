@@ -13,6 +13,7 @@ import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { assertStorageUploadMetadata } from "@/services/storage/assets";
 import { consumeRateLimit, rateLimitErrorResponse } from "@/services/security/rate-limit";
+import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 
 const trackAssetKinds = new Set<TrackAssetKind>(["cover-art", "audio", "preview", "waveform"]);
 
@@ -21,6 +22,9 @@ function isTrackAssetKind(kind: StorageAssetKind | undefined): kind is TrackAsse
 }
 
 export async function POST(request: Request) {
+  if (resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE).blocksApplication) {
+    return NextResponse.json({ ok: false, error: "maintenance_mode" }, { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+  }
   if (!hasSupabaseEnv || env.demoMode) {
     return NextResponse.json({ error: "Storage uploads require live Supabase mode." }, { status: 503 });
   }

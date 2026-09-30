@@ -36,6 +36,7 @@ import {
   upsertDemoDirectoryUser
 } from "@/services/auth/demo-store";
 import { selectUserProfileCompat, upsertUserProfileCompat, transitionArtistAvatar } from "@/services/auth/user-profiles";
+import { reconcileAppUserProfile } from "@/services/auth/reconcile-app-user.mjs";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { getSessionUser, resolveOnboardingPath, resolvePostLoginRedirect, resolveRoleRedirect } from "@/services/auth/session";
 import {
@@ -786,32 +787,11 @@ async function ensureAppUser(user: {
   onboardingData?: Record<string, unknown>;
 }) {
   const lookupClient = await getMutationClient();
-  const { data: existingProfile } = await selectUserProfileCompat(lookupClient, user.id);
-  const persistedRole = parseRole(existingProfile?.role);
-  const roleToPersist = persistedRole || user.role;
-  const client = await getUserProfileMutationClient(roleToPersist);
-  const avatarFields =
-    user.avatarPath !== undefined || user.avatarUrl !== undefined
-      ? getStoredAvatarFields({
-          avatarPath: user.avatarPath,
-          avatarUrl: user.avatarUrl
-        })
-      : {};
-
-  await upsertUserProfileCompat(
-    client,
-    {
-      id: user.id,
-      email: user.email,
-      role: roleToPersist,
-      full_name: user.fullName,
-      ...avatarFields,
-      onboarding_started_at: user.onboardingStartedAt || null,
-      onboarding_completed_at: user.onboardingCompletedAt || null,
-      onboarding_step: user.onboardingStep || null,
-      onboarding_payload: Object.fromEntries(Object.entries(user.onboardingData || {}).filter(([key]) => key !== "payoutEmail"))
-    } as Database["public"]["Tables"]["user_profiles"]["Insert"]
-  );
+  await reconcileAppUserProfile({
+    user,
+    lookup: (userId: string) => selectUserProfileCompat(lookupClient, userId),
+    getClient: getUserProfileMutationClient
+  });
 }
 
 async function hasCompletedOnboarding(userId: string, role: UserRole | null) {

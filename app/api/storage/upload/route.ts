@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
@@ -11,6 +12,9 @@ import { consumeRateLimit, rateLimitErrorResponse } from "@/services/security/ra
 const trackAssetKinds = new Set<StorageAssetKind>(["cover-art", "audio", "preview", "waveform"]);
 
 export async function POST(request: Request) {
+  if (resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE).blocksApplication) {
+    return NextResponse.json({ ok: false, error: "maintenance_mode" }, { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+  }
   if (!hasSupabaseEnv || env.demoMode) {
     return NextResponse.json({ error: "Storage uploads require live Supabase mode." }, { status: 503 });
   }

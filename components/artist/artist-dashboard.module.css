@@ -1,0 +1,91 @@
+.dashboard { display: grid; gap: 22px; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: 3px; color: hsl(var(--muted-foreground)); margin-bottom: 12px; }
+.title { font-size: 48px; line-height: 1.2; font-weight: 600; letter-spacing: -.7px; }
+.subtitle { color: hsl(var(--muted-foreground)); font-size: 23px; line-height: 1.5; letter-spacing: -.35px; margin-top: 10px; }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 18px 0; }
+.stat { padding: 0 24px; border-right: 1px solid hsl(var(--border)); }
+.stat:last-child { border: 0; }
+.stat dd { font-size: 26px; margin-top: 4px; }
+.journey { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(255px, 1fr); gap: 36px; padding: 32px 34px; border: 1px solid hsl(var(--border)); border-radius: 8px; }
+.progress { min-width: 0; }
+.stages { display: flex; padding: 0; margin: 0 0 20px; max-width: 540px; justify-content: space-between; }
+.stage { display: flex; flex-direction: column; gap: 8px; color: hsl(var(--muted-foreground)); font-size: 14px; position: relative; flex: 1; }
+.stage:last-child { flex: 0; white-space: nowrap; }
+.stage:not(:last-child)::after { content: ""; border-top: 2px solid hsl(var(--border)); position: absolute; left: 42px; right: 6px; top: 17px; }
+.reached { color: hsl(var(--foreground)); }
+.reached svg { color: hsl(var(--accent)); }
+.stageNote { font-size: 13px; line-height: 1.55; color: hsl(var(--muted-foreground)); padding-bottom: 28px; margin-bottom: 28px; border-bottom: 1px solid hsl(var(--border)); }
+.trackFeature { display: flex; gap: 25px; align-items: flex-start; }
+.featureCover { width: 150px; height: 150px; border: 1px solid hsl(var(--border)); }
+.trackDetails { flex: 1; min-width: 0; }
+.trackTitle { font-size: 23px; line-height: 1.25; font-weight: 600; letter-spacing: -.3px; margin-bottom: 9px; overflow-wrap: anywhere; }
+.description { font-size: 16px; color: hsl(var(--muted-foreground)); line-height: 1.55; margin: 10px 0 20px; }
+.primary { min-height: 48px; min-width: min(245px, 100%); max-width: 100%; white-space: normal; text-align: center; gap: 25px; padding: 12px 26px; border-radius: 7px; font-size: 15px; font-weight: 600; }
+.next { border-left: 1px solid hsl(var(--border)); padding-left: 35px; }
+.nextTitle { font-size: 21px; line-height: 1.3; font-weight: 600; }
+.nextList { margin-top: 25px; display: grid; gap: 26px; }
+.nextStep { display: flex; gap: 22px; }
+.number { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; flex-shrink: 0; background: hsl(var(--muted)); }
+.submissions { border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 20px 34px; }
+.sectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.sectionHeading h2 { font-size: 19px; }
+.catalogLink { display: inline-flex; align-items: center; gap: 12px; color: hsl(var(--accent)); font-size: 13px; min-height: 44px; }
+.catalogLink:hover { text-decoration: underline; text-underline-offset: 4px; }
+.trackList li + li { border-top: 1px solid hsl(var(--border)); }
+.trackRow { display: flex; align-items: center; gap: 22px; width: 100%; text-align: left; padding: 10px 4px; min-height: 72px; border-radius: 6px; transition: background-color .15s; }
+.trackRow:hover, .selected { background: hsl(var(--muted) / .65); }
+.trackRow.selected { padding-inline: 12px; }
+.rowCover { width: 52px; height: 52px; border: 1px solid hsl(var(--border)); }
+.trackRow > .badge { margin-right: 24%; }
+.badge { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; min-width: 78px; border-radius: 99px; padding: 6px 16px; font-size: 13px; line-height: 1.3; background: hsl(var(--muted)); color: hsl(var(--foreground)); white-space: nowrap; }
+.draft { background: #eee3cd; color: #51462d; }
+.pending_review { background: #dde7f0; color: #273746; }
+.approved { background: #d6eee1; color: #175c3e; }
+.rejected { background: #f8ded8; color: #7a3029; }
+.archived { background: #e5e7e9; color: #484c52; }
+:global(.dark) .draft { background: #51462d; color: #eee3cd; }
+:global(.dark) .pending_review { background: #273746; color: #e0e8f0; }
+:global(.dark) .approved { background: #173b30; color: #9ad1b7; }
+:global(.dark) .rejected { background: #412929; color: #f4b5ab; }
+:global(.dark) .archived { background: #292d33; color: #d0d4d8; }
+@media (max-width: 1150px) {
+  .title { font-size: 35px; }
+  .subtitle { font-size: 19px; }
+  .journey { padding: 24px; gap: 24px; grid-template-columns: minmax(0, 1.7fr) minmax(210px, 1fr); }
+  .next { padding-left: 24px; }
+  .nextStep { gap: 12px; }
+  .trackFeature { gap: 16px; }
+  .featureCover { width: 108px; height: 108px; }
+  .trackRow > .badge { margin-right: 10%; }
+  .submissions { padding: 18px 22px; }
+}
+@media (max-width: 1000px) {
+  .journey { display: block; }
+  .next { border: 0; border-top: 1px solid hsl(var(--border)); padding: 24px 0 0; margin-top: 28px; }
+  .nextList { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+}
+@media (max-width: 600px) {
+  .title { font-size: 32px; letter-spacing: -.8px; }
+  .eyebrow { font-size: 10px; }
+  .subtitle { font-size: 17px; }
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0; }
+  .stat { padding: 14px 18px; }
+  .stat:nth-child(2) { border-right: 0; }
+  .stat:nth-child(-n+2) { border-bottom: 1px solid hsl(var(--border)); }
+  .journey { padding: 20px; }
+  .nextList { grid-template-columns: 1fr; }
+  .trackFeature { gap: 16px; }
+  .featureCover { width: 85px; height: 85px; }
+  .trackTitle { font-size: 20px; }
+  .description { font-size: 14px; }
+  .primary { padding: 12px 15px; gap: 14px; font-size: 14px; min-width: 0; }
+  .submissions { padding: 18px; }
+  .sectionHeading { align-items: flex-start; flex-direction: column; gap: 0; }
+  .trackRow { gap: 10px; }
+  .trackRow > .badge { margin: 0; font-size: 11px; padding: 6px 9px; min-width: 60px; }
+  .trackRow > span { font-size: 14px; }
+  .trackRow > span > span + span { font-size: 12px; }
+  .rowCover { width: 42px; height: 42px; }
+  .trackRow.selected { padding-inline: 6px; }
+  .stageNote { font-size: 12px; padding-bottom: 24px; margin-bottom: 24px; }
+}

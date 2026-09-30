@@ -5,7 +5,8 @@ import { cookies } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { assertStripeServerConfiguration } from "@/lib/server-env";
+import { assertStripeServerConfiguration, getPaymentActivityMetadata, getPaymentRuntimeConfiguration } from "@/lib/server-env";
+import { canReusePendingOrderForPaymentMode } from "@/lib/payment-mode.mjs";
 import { generateAgreementPlaceholder } from "@/lib/license";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
@@ -66,7 +67,7 @@ export async function createOrderAction(formData: FormData) {
   }
 
   const supabase = await createPrivilegedSupabaseClient();
-  const { data: existingPendingOrder } = await supabase
+  const { data: latestPendingOrder } = await supabase
     .from("orders")
     .select("id, stripe_checkout_session_id, amount_cents, currency")
     .eq("buyer_user_id", user.id)
@@ -76,6 +77,13 @@ export async function createOrderAction(formData: FormData) {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  const paymentRuntime = getPaymentRuntimeConfiguration();
+  const existingPendingOrder =
+    latestPendingOrder?.stripe_checkout_session_id &&
+    canReusePendingOrderForPaymentMode(latestPendingOrder.stripe_checkout_session_id, paymentRuntime.paymentMode)
+      ? latestPendingOrder
+      : null;
 
   const createdNewOrder = !existingPendingOrder?.id;
   const orderId = existingPendingOrder?.id || crypto.randomUUID();
@@ -112,7 +120,8 @@ export async function createOrderAction(formData: FormData) {
         metadata: {
           trackId,
           licenseTypeId,
-          amountCents
+          amountCents,
+          ...getPaymentActivityMetadata()
         }
       }).catch(() => undefined);
     } else if (
@@ -200,7 +209,8 @@ export async function createOrderAction(formData: FormData) {
       eventType: createdNewOrder ? "checkout_created" : "checkout_recreated",
       message: createdNewOrder ? "Hosted Stripe Checkout Session created for the order." : "Hosted Stripe Checkout Session recreated for an existing pending order.",
       metadata: {
-        sessionId: checkoutSessionId
+        sessionId: checkoutSessionId,
+        ...getPaymentActivityMetadata()
       }
     }).catch(() => undefined);
 
@@ -249,15 +259,17 @@ export async function toggleFavoriteAction(formData: FormData) {
   const supabase = await createPrivilegedSupabaseClient();
 
   if (nextValue === "true") {
-    await supabase.from("favorites").upsert(
+    const { error } = await supabase.from("favorites").upsert(
       {
         buyer_user_id: user.id,
         track_id: trackId
       },
       { onConflict: "buyer_user_id,track_id" }
     );
+    if (error) return { error: "Unable to save this favorite." };
   } else {
-    await supabase.from("favorites").delete().eq("buyer_user_id", user.id).eq("track_id", trackId);
+    const { error } = await supabase.from("favorites").delete().eq("buyer_user_id", user.id).eq("track_id", trackId);
+    if (error) return { error: "Unable to remove this favorite." };
   }
 
   revalidatePath("/buyer/dashboard");

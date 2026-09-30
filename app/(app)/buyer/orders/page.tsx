@@ -1,3 +1,4 @@
+import surface from "@/components/layout/sync-surface.module.css";
 import Link from "next/link";
 
 import { OrderStatusProgress } from "@/components/orders/order-status-progress";
@@ -13,7 +14,7 @@ export default async function BuyerOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold">Orders and license history</h1>
+      <header><p className={surface.eyebrow}>Your account</p><h1 className={surface.heading}>Licenses & orders</h1><p className={surface.description}>Follow your purchases and find your license agreements.</p></header>
       <div className="space-y-4">
         {orders.length ? (
           orders.map((order: any) => (
@@ -25,6 +26,11 @@ export default async function BuyerOrdersPage() {
                     <p className="text-sm text-muted-foreground">
                       {order.license_type?.name || "License"} • {formatCurrency(order.amount_paid, order.currency)}
                     </p>
+                    {order.test_transaction ? (
+                      <p className="mt-2 text-xs font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+                        Test transaction — no commercial rights
+                      </p>
+                    ) : null}
                   </div>
                   <div className="space-y-2 text-right">
                     <OrderStatusBadge status={order.order_status} />
@@ -53,7 +59,9 @@ export default async function BuyerOrdersPage() {
                         : order.agreement_delivery_blocked
                           ? "Payment cleared and the document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied."
                         : order.agreement_ready
-                        ? "Agreement generated and ready for download."
+                        ? order.test_transaction
+                          ? "Test agreement generated. It is watermarked and grants no commercial rights."
+                          : "Agreement generated and ready for download."
                         : order.paid_at
                           ? "Payment received. Agreement generation is in progress."
                           : order.checkout_created_at
@@ -68,7 +76,7 @@ export default async function BuyerOrdersPage() {
                     </Link>
                     {order.agreement_ready && order.agreement_url ? (
                       <Link href={order.agreement_url} className="font-medium text-foreground underline-offset-4 hover:underline">
-                        Download License Agreement
+                        {order.test_transaction ? "Download Test Agreement" : "Download License Agreement"}
                       </Link>
                     ) : null}
                   </div>
@@ -93,7 +101,7 @@ export default async function BuyerOrdersPage() {
             </Card>
           ))
         ) : (
-          <div className="rounded-lg border border-dashed border-border p-8 text-sm text-muted-foreground">No license orders yet.</div>
+          <div className="rounded-lg border border-dashed border-border p-8 text-sm text-muted-foreground"><p>No license orders yet.</p><Link href="/buyer/catalog" className={surface.link}>Discover music</Link></div>
         )}
       </div>
     </div>

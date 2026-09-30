@@ -27,10 +27,14 @@ export const RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE =
   "This password reset link format cannot be completed securely. Request a new reset link and try again.";
 export const AUTH_CODE_LINK_PKCE_MISSING_MESSAGE =
   "This verification link needs a browser session that is no longer available. Request a fresh verification email and use the latest link.";
+export const AUTH_CONFIRM_CONFIGURATION_ERROR_MESSAGE =
+  "Authentication confirmation is temporarily unavailable. Please try again later.";
+export const AUTH_CONFIRM_LINK_INVALID_MESSAGE = "The confirmation link is invalid or expired.";
 export const AUTH_CALLBACK_COMPLETION_PARAM = "auth_callback";
 export const AUTH_CALLBACK_COMPLETION_VALUE = "complete";
 
 const authCallbackReservedParams = new Set(["code", "next", "token_hash", "type"]);
+const productionAppHosts = new Set(["thesyncexchange.com", "www.thesyncexchange.com"]);
 
 export function normalizeAuthEmail(value: unknown) {
   return String(value || "")
@@ -69,23 +73,13 @@ export function buildAuthCallbackRedirectUrl({
   deploymentTarget: DeploymentTarget;
   nextPath: string;
 }) {
-  let parsedAppUrl: URL;
-
-  try {
-    parsedAppUrl = new URL(appUrl);
-  } catch {
-    throw new Error("NEXT_PUBLIC_APP_URL or NEXT_PUBLIC_SITE_URL is invalid. Set the public app origin before sending authentication emails.");
-  }
-
-  if (deploymentTarget === "production" && isLocalhostHost(parsedAppUrl.hostname)) {
-    throw new Error("NEXT_PUBLIC_APP_URL or NEXT_PUBLIC_SITE_URL points to a local-only address. Update it to the public app domain before sending authentication emails.");
-  }
-
-  if (deploymentTarget === "production" && parsedAppUrl.protocol !== "https:") {
-    throw new Error("NEXT_PUBLIC_APP_URL or NEXT_PUBLIC_SITE_URL must use https:// before sending production authentication emails.");
-  }
-
-  const callbackUrl = new URL("/auth/confirm", parsedAppUrl);
+  const callbackUrl = new URL(
+    "/auth/confirm",
+    resolveConfiguredAuthAppOrigin({
+      configuredAppUrl: appUrl,
+      deploymentTarget
+    })
+  );
   callbackUrl.searchParams.set("next", nextPath);
   return callbackUrl.toString();
 }
@@ -156,17 +150,74 @@ export function getAuthConfirmSuccessRedirectPath({
   return recoveryFlow ? "/reset-password" : nextPath;
 }
 
-export function buildAuthConfirmSuccessUrl({
-  requestUrl,
-  destinationPath
+export function resolveConfiguredAuthAppOrigin({
+  configuredAppUrl,
+  deploymentTarget
 }: {
-  requestUrl: string;
-  destinationPath: string;
+  configuredAppUrl?: string | null;
+  deploymentTarget: DeploymentTarget;
 }) {
-  const requestOrigin = new URL(requestUrl).origin;
-  const destination = new URL(destinationPath, requestOrigin);
+  const candidate = normalizeOptionalString(configuredAppUrl);
 
-  if (destination.origin !== requestOrigin || !destinationPath.startsWith("/") || destinationPath.startsWith("//")) {
+  if (!candidate) {
+    throw new Error("NEXT_PUBLIC_APP_URL or NEXT_PUBLIC_SITE_URL is required for authentication confirmation redirects.");
+  }
+
+  let parsedAppUrl: URL;
+
+  try {
+    parsedAppUrl = new URL(candidate);
+  } catch {
+    throw new Error("NEXT_PUBLIC_APP_URL or NEXT_PUBLIC_SITE_URL is not a valid authentication origin.");
+  }
+
+  const normalizedHostname = parsedAppUrl.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
+  const localhost = isLocalhostHost(normalizedHostname);
+  const localHttp = deploymentTarget === "local" && localhost && parsedAppUrl.protocol === "http:";
+
+  if (parsedAppUrl.username || parsedAppUrl.password) {
+    throw new Error("Authentication application origins cannot include credentials.");
+  }
+
+  if (parsedAppUrl.pathname !== "/" || parsedAppUrl.search || parsedAppUrl.hash) {
+    throw new Error("Authentication application origins cannot include a path, query, or fragment.");
+  }
+
+  if (parsedAppUrl.protocol !== "https:" && !localHttp) {
+    throw new Error("Authentication application origins must use https:// except for explicit localhost development.");
+  }
+
+  if (deploymentTarget !== "local" && localhost) {
+    throw new Error("Hosted authentication application origins cannot use localhost.");
+  }
+
+  if (deploymentTarget === "production" && !productionAppHosts.has(normalizedHostname)) {
+    throw new Error("Production authentication redirects must use the configured production application origin.");
+  }
+
+  if (deploymentTarget !== "production" && productionAppHosts.has(normalizedHostname)) {
+    throw new Error("Non-production authentication redirects cannot use the production application origin.");
+  }
+
+  return parsedAppUrl.origin;
+}
+
+function buildAuthConfirmDestinationUrl({
+  appOrigin,
+  destinationPath,
+  includeCompletionMarker
+}: {
+  appOrigin: string;
+  destinationPath: string;
+  includeCompletionMarker: boolean;
+}) {
+  const normalizedAppOrigin = new URL(appOrigin).origin;
+  const destination = new URL(destinationPath, normalizedAppOrigin);
+
+  if (destination.origin !== normalizedAppOrigin || !destinationPath.startsWith("/") || destinationPath.startsWith("//")) {
     throw new Error("Auth confirmation destination must stay on the configured application origin.");
   }
 
@@ -180,10 +231,45 @@ export function buildAuthConfirmSuccessUrl({
     destination.hash = "";
   }
 
-  // Netlify preserves an incoming query when an SSR origin redirect has no
-  // destination query. An explicit safe marker prevents callback credentials
-  // from being copied into the browser-visible Location header.
-  destination.searchParams.set(AUTH_CALLBACK_COMPLETION_PARAM, AUTH_CALLBACK_COMPLETION_VALUE);
+  if (includeCompletionMarker) {
+    // Netlify preserves an incoming query when an SSR origin redirect has no
+    // destination query. An explicit safe marker prevents callback credentials
+    // from being copied into the browser-visible Location header.
+    destination.searchParams.set(AUTH_CALLBACK_COMPLETION_PARAM, AUTH_CALLBACK_COMPLETION_VALUE);
+  }
+
+  return destination;
+}
+
+export function buildAuthConfirmSuccessUrl({
+  appOrigin,
+  destinationPath
+}: {
+  appOrigin: string;
+  destinationPath: string;
+}) {
+  return buildAuthConfirmDestinationUrl({
+    appOrigin,
+    destinationPath,
+    includeCompletionMarker: true
+  }).toString();
+}
+
+export function buildAuthConfirmErrorUrl({
+  appOrigin,
+  destinationPath,
+  message
+}: {
+  appOrigin: string;
+  destinationPath: string;
+  message: string;
+}) {
+  const destination = buildAuthConfirmDestinationUrl({
+    appOrigin,
+    destinationPath,
+    includeCompletionMarker: false
+  });
+  destination.searchParams.set("error", message);
   return destination.toString();
 }
 

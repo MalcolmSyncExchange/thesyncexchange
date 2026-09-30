@@ -18,17 +18,26 @@ Set all of these in the deployment platform:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- `SYNC_EXCHANGE_PAYMENT_MODE` (`test` or `live`; required on hosted deployments)
 - optional:
   - `SENTRY_DSN`
   - `SENTRY_ENVIRONMENT`
 
-Production expectations:
+Production-beta expectations:
 
 - `NEXT_PUBLIC_APP_URL` must be the public origin: `https://thesyncexchange.com`
-- production Stripe keys must be mode-matched:
-  - `STRIPE_SECRET_KEY=sk_live_...`
-  - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...`
-- `STRIPE_WEBHOOK_SECRET` must come from the production webhook endpoint, not from the Stripe CLI
+- `SYNC_EXCHANGE_PAYMENT_MODE=test` explicitly classifies the release as `production_beta`
+- Stripe server and publishable keys must both be sandbox/test credentials (`sk_test_...` or restricted `rk_test_...`, and `pk_test_...`)
+- `STRIPE_WEBHOOK_SECRET` must come from the test-mode webhook endpoint for `https://thesyncexchange.com/api/webhooks/stripe`, not from the Stripe CLI
+- health/readiness must report `releaseMode=production_beta` and `livePaymentsEnabled=false`
+- test agreements must carry the noncommercial watermark; test orders are not live revenue
+- no live Stripe credential belongs in the production-beta environment
+
+Future commercial-launch expectations require a separate authorization:
+
+- set `SYNC_EXCHANGE_PAYMENT_MODE=live`
+- switch server, publishable, and webhook credentials together to live mode
+- reconcile open test checkouts before cutover so delayed test events cannot reach the live-only webhook path
 - never leave legacy GoTrue variables in the deployment platform:
   - `GOTRUE_JWT_DEFAULT_GROUP_NAME`
   - `GOTRUE_JWT_ADMIN_GROUP_NAME`

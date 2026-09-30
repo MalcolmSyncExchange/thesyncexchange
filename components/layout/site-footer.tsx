@@ -37,9 +37,9 @@ export function SiteFooter() {
         <div className="space-y-4">
           <BrandLogo className="w-[176px] sm:w-[196px]" />
           <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-            Premium music licensing infrastructure for artists, supervisors, agencies, and brands that need fast clearance and credible catalog quality.
+            Independent music for films, campaigns and creative projects. A workspace for the artists who make it and the people who bring it to the screen.
           </p>
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Fast clearance. Premium catalog. Institutional-grade trust.</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Discover. Save. License.</p>
         </div>
         <div className="grid gap-10 sm:grid-cols-3">
           {footerColumns.map((column) => (

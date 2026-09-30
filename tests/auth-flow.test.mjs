@@ -6,11 +6,13 @@ import { resolveDemoMode } from "../lib/env.ts";
 import {
   AUTH_CALLBACK_COMPLETION_PARAM,
   AUTH_CALLBACK_COMPLETION_VALUE,
+  AUTH_CONFIRM_LINK_INVALID_MESSAGE,
   DEMO_ACCOUNT_NOT_FOUND_MESSAGE,
   SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE,
   FORGOT_PASSWORD_SUCCESS_MESSAGE,
   FORGOT_PASSWORD_UNAVAILABLE_MESSAGE,
   buildAuthCallbackRedirectUrl,
+  buildAuthConfirmErrorUrl,
   buildAuthConfirmSuccessUrl,
   buildPasswordResetRedirectUrl,
   buildRecoveryConfirmPath,
@@ -22,6 +24,7 @@ import {
   normalizeAuthEmail,
   requestPasswordResetEmail,
   resolveAuthMode,
+  resolveConfiguredAuthAppOrigin,
   resolveSafeNextPath,
   shouldExchangeAuthCode,
   shouldRequestSupabasePasswordReset
@@ -211,7 +214,7 @@ test("auth confirmation success URL suppresses Netlify callback query passthroug
   const requestUrl =
     "https://security-staging.example.test/auth/confirm?token_hash=one-time-secret&type=magiclink&next=https%3A%2F%2Fevil.example%2Fsteal";
   const redirectUrl = buildAuthConfirmSuccessUrl({
-    requestUrl,
+    appOrigin: new URL(requestUrl).origin,
     destinationPath: "/onboarding"
   });
   const parsed = new URL(redirectUrl);
@@ -228,7 +231,7 @@ test("auth confirmation completion marker prevents Netlify from copying callback
     "https://security-staging.example.test/auth/confirm?token_hash=one-time-secret&type=magiclink&next=%2Fonboarding"
   );
   const originLocation = buildAuthConfirmSuccessUrl({
-    requestUrl: incoming.toString(),
+    appOrigin: incoming.origin,
     destinationPath: "/onboarding"
   });
 
@@ -247,7 +250,7 @@ test("auth confirmation completion marker prevents Netlify from copying callback
 
 test("auth confirmation success URL removes callback-reserved destination state", () => {
   const redirectUrl = buildAuthConfirmSuccessUrl({
-    requestUrl: "https://security-staging.example.test/auth/confirm?code=provider-code&type=recovery&next=%2Freset-password",
+    appOrigin: "https://security-staging.example.test",
     destinationPath: "/buyer/catalog?q=ambient&code=leaked&token_hash=leaked&type=magiclink&next=https%3A%2F%2Fevil.example#token_hash=fragment"
   });
   const parsed = new URL(redirectUrl);
@@ -274,7 +277,7 @@ test("auth confirmation success URL rejects cross-origin destinations", () => {
     assert.throws(
       () =>
         buildAuthConfirmSuccessUrl({
-          requestUrl: "https://security-staging.example.test/auth/confirm?token_hash=secret&type=magiclink",
+          appOrigin: "https://security-staging.example.test",
           destinationPath
         }),
       /must stay on the configured application origin/
@@ -284,7 +287,7 @@ test("auth confirmation success URL rejects cross-origin destinations", () => {
 
 test("auth confirmation success URL preserves reviewed internal destination state", () => {
   const redirectUrl = buildAuthConfirmSuccessUrl({
-    requestUrl: "https://security-staging.example.test/auth/confirm?token_hash=secret&type=magiclink&next=%2Fbuyer%2Fcatalog",
+    appOrigin: "https://security-staging.example.test",
     destinationPath: "/buyer/catalog?q=ambient%20piano#results"
   });
   const parsed = new URL(redirectUrl);
@@ -293,6 +296,111 @@ test("auth confirmation success URL preserves reviewed internal destination stat
   assert.equal(parsed.searchParams.get("q"), "ambient piano");
   assert.equal(parsed.searchParams.get(AUTH_CALLBACK_COMPLETION_PARAM), AUTH_CALLBACK_COMPLETION_VALUE);
   assert.equal(parsed.hash, "#results");
+});
+
+test("auth confirmation uses the configured staging alias instead of the rewritten Netlify deploy host", () => {
+  const configuredAppUrl = "https://security-staging--sync-exchange-security-staging-2.netlify.app";
+  const rewrittenRequestUrl =
+    "https://6abab87d3cdc4a2ca9ab10e8--sync-exchange-security-staging-2.netlify.app/auth/confirm?token_hash=secret&type=magiclink&next=%2Fbuyer";
+  const appOrigin = resolveConfiguredAuthAppOrigin({
+    configuredAppUrl,
+    deploymentTarget: "preview"
+  });
+  const location = buildAuthConfirmSuccessUrl({ appOrigin, destinationPath: "/buyer" });
+
+  assert.equal(new URL(location).origin, configuredAppUrl);
+  assert.equal(location.startsWith(`${configuredAppUrl}/`), true);
+  assert.equal(location.startsWith(`${new URL(rewrittenRequestUrl).origin}/`), false);
+});
+
+test("auth confirmation preserves alias-host cookie continuity for token-hash and PKCE success", () => {
+  const aliasOrigin = "https://security-staging--sync-exchange-security-staging-2.netlify.app";
+  const immutableDeployOrigin = "https://6abab87d3cdc4a2ca9ab10e8--sync-exchange-security-staging-2.netlify.app";
+  const appOrigin = resolveConfiguredAuthAppOrigin({ configuredAppUrl: aliasOrigin, deploymentTarget: "preview" });
+
+  for (const [mode, destinationPath] of [
+    ["token_hash", "/buyer"],
+    ["pkce_code", "/reset-password"]
+  ]) {
+    const location = buildAuthConfirmSuccessUrl({ appOrigin, destinationPath });
+    const callbackCookieHost = new URL(aliasOrigin).hostname;
+    const protectedRequestHost = new URL(location).hostname;
+
+    assert.equal(protectedRequestHost, callbackCookieHost, `${mode} must keep the host-only session cookie available`);
+    assert.notEqual(protectedRequestHost, new URL(immutableDeployOrigin).hostname, `${mode} must not switch to the immutable deploy host`);
+  }
+
+  assert.notEqual(
+    new URL(buildAuthConfirmSuccessUrl({ appOrigin: immutableDeployOrigin, destinationPath: "/buyer" })).hostname,
+    new URL(aliasOrigin).hostname,
+    "the regression model must fail cookie continuity when the immutable deploy origin is used"
+  );
+});
+
+test("auth confirmation error redirects use the configured origin and strip callback state", () => {
+  const appOrigin = resolveConfiguredAuthAppOrigin({
+    configuredAppUrl: "https://security-staging--sync-exchange-security-staging-2.netlify.app",
+    deploymentTarget: "preview"
+  });
+  const location = buildAuthConfirmErrorUrl({
+    appOrigin,
+    destinationPath: "/login?token_hash=secret&code=secret&type=magiclink&next=https%3A%2F%2Fevil.example#token_hash=secret",
+    message: AUTH_CONFIRM_LINK_INVALID_MESSAGE
+  });
+  const parsed = new URL(location);
+
+  assert.equal(parsed.origin, appOrigin);
+  assert.equal(parsed.pathname, "/login");
+  assert.equal(parsed.searchParams.get("error"), AUTH_CONFIRM_LINK_INVALID_MESSAGE);
+  assert.equal(parsed.searchParams.has("token_hash"), false);
+  assert.equal(parsed.searchParams.has("code"), false);
+  assert.equal(parsed.searchParams.has("type"), false);
+  assert.equal(parsed.searchParams.has("next"), false);
+  assert.equal(parsed.hash, "");
+  assert.equal(location.includes("secret"), false);
+  assert.equal(location.includes("evil.example"), false);
+});
+
+test("auth confirmation origin validation rejects invalid, insecure, credentialed and cross-environment configuration", () => {
+  const invalidConfigurations = [
+    [null, "preview"],
+    ["not a URL", "preview"],
+    ["http://security-staging.example.test", "preview"],
+    ["https://user:password@security-staging.example.test", "preview"],
+    ["https://security-staging.example.test/path", "preview"],
+    ["https://security-staging.example.test?mode=preview", "preview"],
+    ["https://security-staging.example.test#callback", "preview"],
+    ["http://localhost:3000", "preview"],
+    ["https://thesyncexchange.com", "preview"],
+    ["https://security-staging.example.test", "production"]
+  ];
+
+  for (const [configuredAppUrl, deploymentTarget] of invalidConfigurations) {
+    assert.throws(
+      () => resolveConfiguredAuthAppOrigin({ configuredAppUrl, deploymentTarget }),
+      undefined,
+      `${String(configuredAppUrl)} must be rejected for ${deploymentTarget}`
+    );
+  }
+
+  assert.equal(
+    resolveConfiguredAuthAppOrigin({ configuredAppUrl: "http://127.0.0.1:3000", deploymentTarget: "local" }),
+    "http://127.0.0.1:3000"
+  );
+  assert.equal(
+    resolveConfiguredAuthAppOrigin({ configuredAppUrl: "https://thesyncexchange.com", deploymentTarget: "production" }),
+    "https://thesyncexchange.com"
+  );
+});
+
+test("auth confirmation route never uses the request origin as a redirect base or exposes provider errors", () => {
+  const source = readFileSync(new URL("../app/auth/confirm/route.ts", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /requestUrl\.origin/);
+  assert.doesNotMatch(source, /safeMessage\s*=.*error\.message/);
+  assert.doesNotMatch(source, /supabaseErrorMessage|sessionErrorMessage/);
+  assert.match(source, /configuredAppUrl:\s*env\.configuredAppUrl/);
+  assert.match(source, /redirectWithError/);
 });
 
 test("reset password with session and token hash renders form instead of reverifying", () => {

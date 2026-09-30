@@ -5,6 +5,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import vm from "node:vm";
 import ts from "typescript";
 import { resolveDeploymentTarget } from "../lib/deployment-target.mjs";
+import * as paymentMode from "../lib/payment-mode.mjs";
 
 const root = new URL("../", import.meta.url);
 const envSource = readFileSync(new URL("../lib/env.ts", import.meta.url), "utf8");
@@ -37,6 +38,7 @@ function loadServerEnv(variables, deploymentTarget = "preview") {
     exports,
     process: { env: variables },
     require: (name) => {
+      if (name === "@/lib/payment-mode.mjs") return paymentMode;
       assert.equal(name, "@/lib/env");
       return {
         env: publicEnv,
@@ -48,7 +50,7 @@ function loadServerEnv(variables, deploymentTarget = "preview") {
   return exports;
 }
 
-function validateStripeEnvironment({ context, secretKey, publishableKey }) {
+function validateStripeEnvironment({ context, secretKey, publishableKey, paymentMode: configuredPaymentMode }) {
   return spawnSync(process.execPath, ["scripts/validate-env.mjs"], {
     cwd: root,
     encoding: "utf8",
@@ -63,7 +65,8 @@ function validateStripeEnvironment({ context, secretKey, publishableKey }) {
       SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
       STRIPE_SECRET_KEY: secretKey,
       STRIPE_WEBHOOK_SECRET: "whsec_example",
-      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: publishableKey
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: publishableKey,
+      SYNC_EXCHANGE_PAYMENT_MODE: configuredPaymentMode
     }
   });
 }
@@ -192,16 +195,14 @@ test("restricted test keys preserve fail-closed production mismatch detection", 
     SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
     STRIPE_SECRET_KEY: "rk_test_example",
     STRIPE_WEBHOOK_SECRET: "whsec_example",
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_example"
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_example",
+    SYNC_EXCHANGE_PAYMENT_MODE: "test"
   }, "production");
   const result = diagnostics.getServerEnvironmentDiagnostics();
   assert.equal(result.stripe.secretKeyMode, "test");
   assert.equal(result.stripe.publishableKeyMode, "live");
   assert.equal(result.stripe.modesMatch, false);
-  assert.deepEqual(Array.from(result.errors, (issue) => issue.code), [
-    "stripe_key_mode_mismatch",
-    "stripe_test_mode_in_production"
-  ]);
+  assert.deepEqual(Array.from(result.errors, (issue) => issue.code), ["stripe_key_mode_mismatch", "stripe_payment_mode_mismatch"]);
   assert.throws(() => diagnostics.assertStripeServerConfiguration("Checkout"), /mixing test\/live modes/);
 });
 
@@ -210,7 +211,8 @@ test("matching restricted Stripe modes remain valid in their intended deployment
     SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
     STRIPE_SECRET_KEY: "rk_live_example",
     STRIPE_WEBHOOK_SECRET: "whsec_example",
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_example"
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_example",
+    SYNC_EXCHANGE_PAYMENT_MODE: "live"
   }, "production").getServerEnvironmentDiagnostics();
   assert.equal(live.stripe.modesMatch, true);
   assert.equal(live.errors.length, 0);
@@ -219,7 +221,8 @@ test("matching restricted Stripe modes remain valid in their intended deployment
     SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
     STRIPE_SECRET_KEY: "rk_test_example",
     STRIPE_WEBHOOK_SECRET: "whsec_example",
-    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_example"
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+    SYNC_EXCHANGE_PAYMENT_MODE: "test"
   }, "preview").getServerEnvironmentDiagnostics();
   assert.equal(testMode.stripe.modesMatch, true);
   assert.equal(testMode.errors.length, 0);
@@ -229,23 +232,90 @@ test("environment CLI rejects restricted test keys in production and accepts mat
   const mismatch = validateStripeEnvironment({
     context: "production",
     secretKey: "rk_test_example",
-    publishableKey: "pk_live_example"
+    publishableKey: "pk_live_example",
+    paymentMode: "test"
   });
   assert.equal(mismatch.status, 1);
   assert.match(mismatch.stderr, /mixing test\/live modes/);
-  assert.match(mismatch.stderr, /still in test mode/);
+  assert.match(mismatch.stderr, /configured test payment mode/);
 
   const production = validateStripeEnvironment({
     context: "production",
     secretKey: "rk_live_example",
-    publishableKey: "pk_live_example"
+    publishableKey: "pk_live_example",
+    paymentMode: "live"
   });
   assert.equal(production.status, 0, production.stderr);
 
   const preview = validateStripeEnvironment({
     context: "deploy-preview",
     secretKey: "rk_test_example",
-    publishableKey: "pk_test_example"
+    publishableKey: "pk_test_example",
+    paymentMode: "test"
   });
   assert.equal(preview.status, 0, preview.stderr);
+});
+
+test("production beta accepts only explicit test mode with matching test keys", () => {
+  const accepted = loadServerEnv({
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+    STRIPE_SECRET_KEY: "rk_test_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+    SYNC_EXCHANGE_PAYMENT_MODE: "test"
+  }, "production").getServerEnvironmentDiagnostics();
+  assert.equal(accepted.errors.length, 0);
+  assert.equal(accepted.paymentMode, "test");
+  assert.equal(accepted.releaseMode, "production_beta");
+  assert.equal(accepted.livePaymentsEnabled, false);
+
+  for (const value of [undefined, "unknown"]) {
+    const rejected = loadServerEnv({
+      SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+      STRIPE_SECRET_KEY: "rk_test_example",
+      STRIPE_WEBHOOK_SECRET: "whsec_example",
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+      SYNC_EXCHANGE_PAYMENT_MODE: value
+    }, "production").getServerEnvironmentDiagnostics();
+    assert.ok(rejected.errors.some((issue) => ["missing_payment_mode", "invalid_payment_mode"].includes(issue.code)));
+  }
+});
+
+test("billing portal is explicit, fail closed, and always disabled in production beta", () => {
+  const base = {
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+    STRIPE_SECRET_KEY: "rk_test_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+    SYNC_EXCHANGE_PAYMENT_MODE: "test"
+  };
+
+  for (const [value, flagState, reason] of [
+    [undefined, "missing", "not_enabled"],
+    ["false", "disabled", "not_enabled"],
+    ["yes", "invalid", "invalid_flag"]
+  ]) {
+    const configuration = loadServerEnv({
+      ...base,
+      SYNC_EXCHANGE_BILLING_PORTAL_ENABLED: value
+    }, "preview").getBillingPortalRuntimeConfiguration();
+    assert.equal(configuration.enabled, false);
+    assert.equal(configuration.flagState, flagState);
+    assert.equal(configuration.reason, reason);
+  }
+
+  const preview = loadServerEnv({
+    ...base,
+    SYNC_EXCHANGE_BILLING_PORTAL_ENABLED: "true"
+  }, "preview").getBillingPortalRuntimeConfiguration();
+  assert.equal(preview.enabled, true);
+  assert.equal(preview.reason, "enabled");
+
+  const productionBeta = loadServerEnv({
+    ...base,
+    SYNC_EXCHANGE_BILLING_PORTAL_ENABLED: "true"
+  }, "production").getBillingPortalRuntimeConfiguration();
+  assert.equal(productionBeta.enabled, false);
+  assert.equal(productionBeta.releaseMode, "production_beta");
+  assert.equal(productionBeta.reason, "production_beta");
 });

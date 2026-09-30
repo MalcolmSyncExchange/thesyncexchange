@@ -1,0 +1,21 @@
+.header { border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--background)); }
+.inner { max-width: 1360px; min-height: 100px; margin: auto; padding: 0 32px; display: flex; align-items: center; gap: 28px; }
+.logo { flex-shrink: 0; }
+.logo img { width: 208px; }
+.desktopNav { display: flex; flex: 1; justify-content: center; gap: 22px; font-size: 14px; color: hsl(var(--muted-foreground)); }
+.desktopNav a { padding-block: 14px; white-space: nowrap; }
+.desktopNav a:hover, .desktopNav a[aria-current] { color: hsl(var(--foreground)); }
+.actions { display: flex; align-items: center; gap: 18px; }
+.login { font-size: 14px; padding-block: 14px; white-space: nowrap; }
+.menuButton { display: none; width: 44px; height: 44px; place-items: center; }
+.overlay { position: fixed; inset: 0; background: rgb(0 0 0 / .55); z-index: 60; }
+.menu { position: fixed; inset: 0 0 0 auto; z-index: 61; background: hsl(var(--background)); width: min(390px, 100vw); padding: 24px; display: flex; flex-direction: column; overflow-y: auto; }
+.menuHeading { display: flex; align-items: center; justify-content: space-between; font-size: 15px; gap: 12px; padding-bottom: 24px; border-bottom: 1px solid hsl(var(--border)); }
+.menuHeading button { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; }
+.menu nav { display: grid; gap: 8px; margin-block: 24px; }
+.menu nav a { display: flex; justify-content: space-between; align-items: center; min-height: 48px; padding: 12px; border-radius: 7px; }
+.menu nav a:hover, .menu nav a[aria-current] { background: hsl(var(--muted)); }
+.mobileActions { margin-top: auto; display: grid; gap: 18px; border-top: 1px solid hsl(var(--border)); padding-top: 24px; }
+.mobileActions > a { display: grid; place-items: center; min-height: 44px; }
+@media(max-width:1150px) { .desktopNav { gap: 14px; font-size: 13px; } .inner { gap: 16px; padding-inline: 24px; } .logo img { width: 170px; } .actions { gap: 10px; } }
+@media(max-width:1000px) { .desktopNav, .actions { display: none; } .inner { justify-content: space-between; min-height: 76px; padding-inline: 18px; } .logo img { width: 152px; } .menuButton { display: grid; } }

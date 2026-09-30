@@ -1,15 +1,26 @@
 import { env, getDeploymentTarget, getPublicEnvironmentDiagnostics, type EnvironmentIssue } from "@/lib/env";
+import {
+  assertStripeObjectMode,
+  buildPaymentClassification,
+  resolvePaymentConfiguration,
+  type PaymentMode,
+  type OperationalReleaseMode
+} from "@/lib/payment-mode.mjs";
 
 const rawSupabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const rawStripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const rawStripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const rawPaymentMode = process.env.SYNC_EXCHANGE_PAYMENT_MODE;
+const rawBillingPortalEnabled = process.env.SYNC_EXCHANGE_BILLING_PORTAL_ENABLED;
 
 export type StripeKeyMode = "test" | "live" | "missing" | "unknown";
+export type BillingPortalFlagState = "enabled" | "disabled" | "missing" | "invalid";
 
 export const serverEnv = {
   supabaseServiceRoleKey: rawSupabaseServiceRoleKey,
   stripeSecretKey: rawStripeSecretKey,
-  stripeWebhookSecret: rawStripeWebhookSecret
+  stripeWebhookSecret: rawStripeWebhookSecret,
+  paymentMode: rawPaymentMode
 };
 
 export const hasStripeSecretEnv = Boolean(serverEnv.stripeSecretKey);
@@ -50,6 +61,15 @@ export function getServerEnvironmentDiagnostics() {
   const issues: EnvironmentIssue[] = [...publicDiagnostics.issues];
   const stripeSecretKeyMode = getStripeKeyMode(rawStripeSecretKey, "sk");
   const stripePublishableKeyMode = getStripeKeyMode(env.stripePublishableKey, "pk");
+  const payment = resolvePaymentConfiguration(rawPaymentMode, deploymentTarget);
+
+  if (!payment.valid) {
+    issues.push({
+      code: payment.issueCode || "invalid_payment_mode",
+      severity: "error",
+      message: payment.message || "The configured payment mode is invalid."
+    });
+  }
 
   if (!rawSupabaseServiceRoleKey) {
     issues.push({
@@ -109,16 +129,48 @@ export function getServerEnvironmentDiagnostics() {
     });
   }
 
-  if (deploymentTarget === "production" && (stripeSecretKeyMode === "test" || stripePublishableKeyMode === "test")) {
+  for (const [keyMode, keyName] of [
+    [stripeSecretKeyMode, "STRIPE_SECRET_KEY"],
+    [stripePublishableKeyMode, "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"]
+  ] as const) {
+    if (keyMode === "unknown") {
+      issues.push({
+        code: "stripe_key_mode_unknown",
+        severity: "error",
+        message: `${keyName} does not have a recognized Stripe test or live key prefix.`
+      });
+    }
+  }
+
+  if (
+    payment.valid &&
+    ((stripeSecretKeyMode !== "missing" && stripeSecretKeyMode !== payment.paymentMode) ||
+      (stripePublishableKeyMode !== "missing" && stripePublishableKeyMode !== payment.paymentMode))
+  ) {
+    issues.push({
+      code: "stripe_payment_mode_mismatch",
+      severity: "error",
+      message: `Stripe keys do not match the configured ${payment.paymentMode} payment mode.`
+    });
+  }
+
+  if (
+    deploymentTarget === "production" &&
+    (stripeSecretKeyMode === "test" || stripePublishableKeyMode === "test") &&
+    rawPaymentMode !== "test"
+  ) {
     issues.push({
       code: "stripe_test_mode_in_production",
       severity: "error",
-      message: "Stripe keys are still in test mode while the deployment target is production. Switch both keys to live mode before launch."
+      message: "Stripe test keys in production require explicit SYNC_EXCHANGE_PAYMENT_MODE=test beta configuration."
     });
   }
 
   return {
     deploymentTarget,
+    paymentMode: payment.paymentMode,
+    releaseMode: payment.releaseMode,
+    livePaymentsEnabled: payment.livePaymentsEnabled,
     stripe: {
       secretKeyMode: stripeSecretKeyMode,
       publishableKeyMode: stripePublishableKeyMode,
@@ -159,7 +211,12 @@ export function assertStripeServerConfiguration(
   const blockingIssue = diagnostics.errors.find((issue) =>
     [
       "stripe_key_mode_mismatch",
+      "stripe_key_mode_unknown",
+      "stripe_payment_mode_mismatch",
       "stripe_test_mode_in_production",
+      "missing_payment_mode",
+      "invalid_payment_mode",
+      "live_payments_outside_production",
       "missing_stripe_secret_key",
       "missing_stripe_publishable_key",
       "missing_stripe_webhook_secret"
@@ -169,4 +226,57 @@ export function assertStripeServerConfiguration(
   if (blockingIssue) {
     throw new Error(blockingIssue.message);
   }
+}
+
+export function getPaymentRuntimeConfiguration() {
+  const diagnostics = getServerEnvironmentDiagnostics();
+  if (diagnostics.errors.length > 0 || (diagnostics.paymentMode !== "test" && diagnostics.paymentMode !== "live")) {
+    throw new Error("Payment runtime configuration is invalid.");
+  }
+  return {
+    deploymentTarget: diagnostics.deploymentTarget,
+    paymentMode: diagnostics.paymentMode as PaymentMode,
+    releaseMode: diagnostics.releaseMode as OperationalReleaseMode,
+    livePaymentsEnabled: diagnostics.livePaymentsEnabled,
+    expectedLivemode: diagnostics.paymentMode === "live"
+  };
+}
+
+export function getBillingPortalRuntimeConfiguration() {
+  const diagnostics = getServerEnvironmentDiagnostics();
+  const normalized = typeof rawBillingPortalEnabled === "string" ? rawBillingPortalEnabled.trim().toLowerCase() : "";
+  const flagState: BillingPortalFlagState =
+    normalized === "true" ? "enabled" : normalized === "false" ? "disabled" : normalized ? "invalid" : "missing";
+  const productionBeta = diagnostics.releaseMode === "production_beta";
+  const environmentValid = diagnostics.errors.length === 0;
+  const enabled = flagState === "enabled" && environmentValid && !productionBeta;
+
+  return {
+    enabled,
+    flagState,
+    releaseMode: diagnostics.releaseMode as OperationalReleaseMode,
+    reason: productionBeta
+      ? "production_beta"
+      : !environmentValid
+        ? "environment_invalid"
+        : flagState === "invalid"
+          ? "invalid_flag"
+          : flagState === "enabled"
+            ? "enabled"
+            : "not_enabled"
+  } as const;
+}
+
+export function assertStripeRuntimeObject(
+  context: string,
+  input: { livemode: boolean | undefined; checkoutSessionId?: string | null }
+) {
+  const runtime = getPaymentRuntimeConfiguration();
+  assertStripeObjectMode({ context, paymentMode: runtime.paymentMode, ...input });
+  return buildPaymentClassification(runtime.paymentMode, runtime.releaseMode);
+}
+
+export function getPaymentActivityMetadata() {
+  const runtime = getPaymentRuntimeConfiguration();
+  return buildPaymentClassification(runtime.paymentMode, runtime.releaseMode);
 }

@@ -2,7 +2,13 @@ import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-import { assertStripeServerConfiguration, getServerEnvironmentDiagnostics, hasStripeWebhookEnv, serverEnv } from "@/lib/server-env";
+import {
+  assertStripeRuntimeObject,
+  assertStripeServerConfiguration,
+  getServerEnvironmentDiagnostics,
+  hasStripeWebhookEnv,
+  serverEnv
+} from "@/lib/server-env";
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import {
   getStripeServerClient,
@@ -54,6 +60,15 @@ export async function POST(request: Request) {
       {
         error: error instanceof Error ? error.message : "Unable to verify Stripe webhook signature."
       },
+      { status: 400 }
+    );
+  }
+
+  try {
+    assertStripeRuntimeObject("Stripe webhook event", { livemode: event.livemode });
+  } catch {
+    return NextResponse.json(
+      { received: false, error: "Stripe webhook event mode does not match this deployment." },
       { status: 400 }
     );
   }

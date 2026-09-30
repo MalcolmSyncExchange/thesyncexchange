@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 const adminActionsSource = readFileSync(new URL("../services/admin/actions.ts", import.meta.url), "utf8");
 const complianceActionSource =
   adminActionsSource.match(/export async function updateComplianceFlagStatusAction[\s\S]*?\nexport async function createComplianceFlagAction/)?.[0] || "";
+const orderStatusActionSource =
+  adminActionsSource.match(/export async function updateOrderStatusAction[\s\S]*?\nexport async function retryAgreementGenerationAction/)?.[0] || "";
 
 function indexOfOrFail(source, pattern, label) {
   const index = typeof pattern === "string" ? source.indexOf(pattern) : source.search(pattern);
@@ -44,4 +46,12 @@ test("compliance flag action keeps authorization database-backed without metadat
   assert.match(complianceActionSource, /requireAdminActorId\(\)/);
   assert.doesNotMatch(complianceActionSource, /user_metadata\?\.role|user_metadata\.role/);
   assert.doesNotMatch(complianceActionSource, /app_metadata\?\.role|app_metadata\.role/);
+});
+
+test("admin order controls cannot manufacture paid or fulfilled status without matching Stripe evidence", () => {
+  const evidenceCheck = indexOfOrFail(orderStatusActionSource, /!order\.paid_at \|\| !order\.stripe_payment_intent_id \|\| sessionMode !== runtime\.paymentMode/, "Stripe evidence gate");
+  const mutation = indexOfOrFail(orderStatusActionSource, /if \(status === "fulfilled"\)/, "status mutation");
+  assert.ok(evidenceCheck < mutation);
+  assert.doesNotMatch(orderStatusActionSource, /paid_at:\s*order\.paid_at \|\| now/);
+  assert.match(orderStatusActionSource, /getPaymentActivityMetadata\(\)/);
 });

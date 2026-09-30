@@ -185,6 +185,7 @@ Detailed operator docs now live in:
    - `STRIPE_SECRET_KEY`
    - `STRIPE_WEBHOOK_SECRET`
    - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+   - `SYNC_EXCHANGE_PAYMENT_MODE` (`test` for local/staging/production beta; `live` only for an authorized commercial production launch)
 2. Validate the environment:
 
 ```bash

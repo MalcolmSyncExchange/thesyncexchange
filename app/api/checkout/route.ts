@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { assertStripeServerConfiguration } from "@/lib/server-env";
+import { assertStripeServerConfiguration, getPaymentActivityMetadata, getPaymentRuntimeConfiguration } from "@/lib/server-env";
+import { getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { getStoredOrderPricingMismatch, loadTrustedCheckoutDetails } from "@/services/orders/checkout-pricing";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
@@ -75,6 +76,14 @@ export async function POST(request: Request) {
       },
       { status: 503 }
     );
+  }
+
+  const paymentRuntime = getPaymentRuntimeConfiguration();
+  const storedSessionMode = trustedCheckout.order.stripe_checkout_session_id
+    ? getStripeCheckoutSessionMode(trustedCheckout.order.stripe_checkout_session_id)
+    : null;
+  if (trustedCheckout.order.stripe_checkout_session_id && storedSessionMode !== paymentRuntime.paymentMode) {
+    return NextResponse.json({ error: "This pending order belongs to a different payment environment." }, { status: 409 });
   }
 
   const admission = await consumeRateLimit("checkout", user.id);
@@ -158,7 +167,8 @@ export async function POST(request: Request) {
     eventType: "checkout_created_via_api",
     message: "Hosted Stripe Checkout Session created through the checkout API route.",
     metadata: {
-      sessionId: session.id
+      sessionId: session.id,
+      ...getPaymentActivityMetadata()
     }
   }).catch(() => undefined);
 

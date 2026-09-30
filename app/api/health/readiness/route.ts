@@ -311,7 +311,8 @@ export async function GET() {
     storage,
     capabilities,
     missingCore,
-    missingOperational
+    missingOperational,
+    paymentMode: environment.paymentMode
   });
   const blockedDomains = Object.entries(domains)
     .filter(([, value]) => value.status === "blocked")
@@ -335,6 +336,12 @@ export async function GET() {
     {
       status,
       ok: status === "healthy",
+      deploymentTarget: environment.deploymentTarget,
+      releaseMode: environment.releaseMode,
+      paymentMode: environment.paymentMode,
+      livePaymentsEnabled: environment.livePaymentsEnabled,
+      stripePublishableKeyMode: environment.stripe.publishableKeyMode,
+      stripeSecretKeyMode: environment.stripe.secretKeyMode,
       environment,
       manualSupabaseActionRequired: recommendedManualAction === "review_canonical_migrations" || recommendedManualAction === "run_storage_setup",
       missingCore,
@@ -679,7 +686,8 @@ function buildReadinessDomains({
   storage,
   capabilities,
   missingCore,
-  missingOperational
+  missingOperational,
+  paymentMode
 }: {
   hasSupabaseEnv: boolean;
   storage: {
@@ -698,6 +706,7 @@ function buildReadinessDomains({
   >;
   missingCore: string[];
   missingOperational: string[];
+  paymentMode: string;
 }): Record<
   | "authProfile"
   | "catalog"
@@ -738,11 +747,12 @@ function buildReadinessDomains({
   const generatedLicenses = capabilities.generatedLicenseSupport;
   const agreements = capabilities.agreementMetadataSupport;
   const activityLog = capabilities.orderActivitySupport;
+  const testPayments = paymentMode === "test";
 
   const webhook: DomainReport = missingOperational.includes("STRIPE_SECRET_KEY") || missingOperational.includes("STRIPE_WEBHOOK_SECRET")
     ? {
         status: "blocked",
-        summary: "Stripe secret/webhook credentials are missing, so the real paid order fulfillment loop cannot complete."
+        summary: `Stripe ${testPayments ? "test" : "live"} secret/webhook credentials are missing, so the configured order fulfillment loop cannot complete.`
       }
       : orders.status === "blocked" || generatedLicenses.status === "blocked"
       ? {
@@ -757,7 +767,7 @@ function buildReadinessDomains({
           }
         : {
             status: "available",
-            summary: "Stripe webhook credentials, order fulfillment metadata, and generated-license persistence are present."
+            summary: `Stripe ${testPayments ? "test-mode" : "live-mode"} webhook credentials, order fulfillment metadata, and generated-license persistence are present.`
           };
 
   const domainValues = [authProfile, catalog, storageDomain, orders, generatedLicenses, agreements, activityLog, webhook];
@@ -765,17 +775,19 @@ function buildReadinessDomains({
     ? {
         status: "blocked",
         summary:
-          "The marketplace cannot complete a real artist-to-buyer purchase flow yet because one or more critical domains are still blocked."
+          "The marketplace cannot complete the configured artist-to-buyer purchase flow because one or more critical domains are blocked."
       }
     : domainValues.some((domain) => domain.status === "degraded")
       ? {
           status: "degraded",
           summary:
-            "The marketplace can run in compatibility mode, but a real purchase flow still has degraded infrastructure that should be finalized before launch."
+            "The marketplace can run in compatibility mode, but the configured purchase flow still has degraded infrastructure that should be finalized before launch."
         }
       : {
           status: "available",
-          summary: "The app has the core dependencies needed to complete the real marketplace purchase flow."
+          summary: testPayments
+            ? "The app has the core dependencies needed for the production-beta test purchase flow; live payments remain disabled."
+            : "The app has the core dependencies needed to complete the live marketplace purchase flow."
         };
 
   return {

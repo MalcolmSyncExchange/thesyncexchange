@@ -24,6 +24,12 @@ const baseContext = {
   paidAt: "2026-04-29T12:05:00.000Z",
   stripeCheckoutSessionId: "cs_test_sync_exchange",
   stripePaymentIntentId: "pi_test_sync_exchange",
+  payment: {
+    paymentMode: "test",
+    releaseMode: "production_beta",
+    livemode: false,
+    commercialRightsGranted: false
+  },
   trackTitle: "Midnight Run",
   artistName: "Nova Signal",
   buyerLegalName: "Jordan Banks",
@@ -91,9 +97,19 @@ test("terms snapshot freezes the buyer, track, license, and Stripe purchase deta
   assert.equal(snapshot.license.typeSlug, "broadcast");
   assert.equal(snapshot.license.pricePaidCents, 150000);
   assert.equal(snapshot.license.currency, "USD");
-  assert.equal(snapshot.license.territory, "Worldwide");
-  assert.ok(snapshot.license.permittedMedia.length > 1);
+  assert.equal(snapshot.license.territory, "Not applicable — test transaction");
+  assert.equal(snapshot.license.permittedMedia.length, 1);
   assert.equal(snapshot.stripe.checkoutSessionId, "cs_test_sync_exchange");
+  assert.deepEqual(snapshot.payment, baseContext.payment);
+  assert.equal(snapshot.license.grantText.includes("grants no"), true);
+  assert.deepEqual(snapshot.license.permittedMedia, ["None. This sandbox transaction grants no media-use rights."]);
+  assert.equal(snapshot.license.exclusivity, "Not applicable — test transaction");
+  assert.ok(snapshot.license.restrictions[0].includes("may not be relied upon as a commercial license"));
+  assert.equal(snapshot.license.territory, "Not applicable — test transaction");
+  assert.equal(snapshot.license.termLength, "Not applicable — test transaction");
+  assert.equal(snapshot.license.creditRequirements, null);
+  assert.equal(snapshot.license.governingLaw, "Not applicable — test transaction");
+  assert.equal(snapshot.license.legalReviewRequired, false);
 });
 
 test("agreement dates format in UTC without raw ISO timestamps", () => {
@@ -116,6 +132,15 @@ test("agreement HTML includes the snapshotted agreement number and buyer display
   assert.match(html, /North Frame Studios \(Jordan Banks\)/);
   assert.match(html, /Broadcast Campaign/);
   assert.match(html, /The Sync Exchange, on behalf of the applicable artist and rights holders/);
+  assert.match(html, /TEST — NOT A COMMERCIAL LICENSE/);
+  assert.match(html, /Commercial Rights Granted/);
+  assert.match(html, />No</);
+  assert.doesNotMatch(html, /records the commercial terms of the purchase/);
+  assert.doesNotMatch(html, /limited license expressly granted/i);
+  assert.doesNotMatch(html, /transfer or resell this license/i);
+  assert.doesNotMatch(html, /terminate this license/i);
+  assert.doesNotMatch(html, /standard broadcast advertising/i);
+  assert.doesNotMatch(html, /countersigned legal instrument/i);
 });
 
 test("agreement PDF renderer returns a valid PDF payload", () => {
@@ -160,7 +185,53 @@ test("agreement PDF includes production document sections and formatted summary 
   assert.match(pdfText, /Nova Signal/);
   assert.match(pdfText, /Composer/);
   assert.match(pdfText, /Total Ownership: 100%/);
+  assert.match(pdfText, /TEST - NOT A COMMERCIAL LICENSE/);
+  assert.doesNotMatch(pdfText, /records the commercial terms of the purchase/);
+  assert.doesNotMatch(pdfText, /limited license expressly granted/i);
+  assert.doesNotMatch(pdfText, /transfer or resell this license/i);
+  assert.doesNotMatch(pdfText, /terminate this license/i);
+  assert.doesNotMatch(pdfText, /standard broadcast advertising/i);
   assert.doesNotMatch(pdfText, /2026-09-05T06:12:01/);
+});
+
+test("live agreement snapshots remain commercially classified and omit test watermark", () => {
+  const snapshot = buildGeneratedLicenseTermsSnapshot({
+    agreementNumber: "TSE-SYNC-20260429-LIVE123456",
+    context: {
+      ...baseContext,
+      stripeCheckoutSessionId: "cs_live_sync_exchange",
+      payment: {
+        paymentMode: "live",
+        releaseMode: "production_live",
+        livemode: true,
+        commercialRightsGranted: true
+      }
+    }
+  });
+  assert.equal(snapshot.payment?.commercialRightsGranted, true);
+  assert.doesNotMatch(renderSyncLicenseAgreementHtml(snapshot), /TEST — NOT A COMMERCIAL LICENSE/);
+  assert.doesNotMatch(renderSyncLicenseAgreementPdf(snapshot).toString("utf8"), /TEST - NOT A COMMERCIAL LICENSE/);
+});
+
+test("test-only PDF marks every page as noncommercial", () => {
+  const snapshot = buildGeneratedLicenseTermsSnapshot({
+    agreementNumber: "TSE-SYNC-20260429-TESTPAGES",
+    context: {
+      ...baseContext,
+      rightsHolders: Array.from({ length: 12 }, (_, index) => ({
+        name: `Test Rights Holder ${index + 1}`,
+        roleType: index % 2 === 0 ? "Composer" : "Master Owner",
+        ownershipPercent: Number((100 / 12).toFixed(2))
+      }))
+    }
+  });
+  snapshot.license.permittedMedia = Array.from({ length: 20 }, (_, index) => `Test-only media item ${index + 1}.`);
+  snapshot.license.restrictions = Array.from({ length: 20 }, (_, index) => `Test-only restriction ${index + 1}.`);
+
+  const pdfText = renderSyncLicenseAgreementPdf(snapshot).toString("utf8");
+  const streams = [...pdfText.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((match) => match[1]);
+  assert.ok(streams.length > 1);
+  streams.forEach((stream) => assert.match(stream, /TEST - NOT A COMMERCIAL LICENSE/));
 });
 
 test("agreement PDF paginates long agreements and adds page numbering", () => {
@@ -168,6 +239,12 @@ test("agreement PDF paginates long agreements and adds page numbering", () => {
     agreementNumber: "TSE-SYNC-20260429-LONGDOC123",
     context: {
       ...baseContext,
+      payment: {
+        paymentMode: "live",
+        releaseMode: "production_live",
+        livemode: true,
+        commercialRightsGranted: true
+      },
       licenseTermsSummary: "Long-form campaign license.",
       rightsHolders: Array.from({ length: 12 }, (_, index) => ({
         name: `Rights Holder ${index + 1} With Extended Legal Name`,
@@ -191,6 +268,12 @@ test("agreement PDF explicitly paints every page white before document content",
     agreementNumber: "TSE-SYNC-20260429-WHITEPAGE",
     context: {
       ...baseContext,
+      payment: {
+        paymentMode: "live",
+        releaseMode: "production_live",
+        livemode: true,
+        commercialRightsGranted: true
+      },
       licenseTermsSummary: "Long-form campaign license.",
       rightsHolders: Array.from({ length: 10 }, (_, index) => ({
         name: `Rights Holder ${index + 1}`,

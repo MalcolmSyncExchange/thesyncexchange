@@ -33,7 +33,11 @@ function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false
   '@/services/orders/activity':{appendOrderActivityLog:async()=>events.push('activity')},
   '@/services/agreements/server':{createAgreementSignedUrl:async()=>{events.push('sign');return'https://fixture.invalid/agreement';},downloadAgreementArtifact:async()=>{events.push('bytes');return'fixture';}},
   '@/services/orders/checkout-pricing':{loadTrustedCheckoutDetails:async()=>{events.push('read:checkout');return{order:{id:ids.order,buyer_user_id:owner,status:'pending'},amountCents:5000,currency:'USD',trackTitle:'Fixture',trackSlug:'fixture',licenseName:'Digital'};},getStoredOrderPricingMismatch:()=>({amountMismatch:false,currencyMismatch:false})},
-  '@/lib/server-env':{assertStripeServerConfiguration:()=>{}},
+  '@/lib/server-env':{
+   assertStripeServerConfiguration:()=>{},
+   getPaymentRuntimeConfiguration:()=>({paymentMode:'test',releaseMode:'preview',livePaymentsEnabled:false}),
+   getPaymentActivityMetadata:()=>({paymentMode:'test',releaseMode:'preview',commercialRightsGranted:false})
+  },
   '@/services/security/rate-limit':{consumeRateLimit:async()=>({allowed:true}),rateLimitErrorResponse:()=>null},
   '@/services/stripe/server':{createStripeCheckoutSession:async()=>{events.push('stripe');return{id:'cs_fixture',url:'https://fixture.invalid/checkout'};}}
  };

@@ -4,6 +4,7 @@ import { env, hasSupabaseEnv } from "@/lib/env";
 import { hasAgreementBeenGenerated } from "@/lib/orders";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { listGeneratedLicensesByOrderIds } from "@/services/generated-licenses/server";
+import { getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
 import { withTrackAudioAccess } from "@/services/storage/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { isMissingColumnError, isMissingRelationError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -457,7 +458,7 @@ export async function getAdminOrders() {
   if (orderIds.length) {
     const activityResult = await supabase
       .from("order_activity_log")
-      .select("id, order_id, event_type, message, created_at")
+      .select("id, order_id, event_type, message, metadata, created_at")
       .in("order_id", orderIds)
       .order("created_at", { ascending: false });
 
@@ -477,7 +478,7 @@ export async function getAdminOrders() {
     }
   }
 
-  const activityByOrderId = new Map<string, Array<{ id: string; event_type: string; message: string | null; created_at: string }>>();
+  const activityByOrderId = new Map<string, Array<{ id: string; event_type: string; message: string | null; metadata?: unknown; created_at: string }>>();
 
   for (const row of activityRows) {
     const current = activityByOrderId.get(row.order_id) || [];
@@ -492,27 +493,42 @@ export async function getAdminOrders() {
     orders.map((order: any) => order.id)
   );
 
-  return orders.map((order: any) => ({
+  return orders.map((order: any) => {
+    const generatedLicense = generatedLicensesByOrderId.get(order.id);
+    const snapshotPayment = (generatedLicense?.terms_snapshot_json as any)?.payment;
+    const sessionMode = getStripeCheckoutSessionMode(order.stripe_checkout_session_id);
+    const paymentMode =
+      snapshotPayment?.paymentMode === "test" || snapshotPayment?.paymentMode === "live"
+        ? snapshotPayment.paymentMode
+        : sessionMode;
+    return ({
     ...order,
     amount_paid: Number(order.amount_cents || 0) / 100,
     order_status: order.status,
     agreement_generated:
-      generatedLicensesByOrderId.get(order.id)?.status === "generated" ? true : hasAgreementBeenGenerated(order),
+      generatedLicense?.status === "generated" ? true : hasAgreementBeenGenerated(order),
     agreement_ready: Boolean(
-      generatedLicensesByOrderId.get(order.id)?.status === "generated" &&
-        generatedLicensesByOrderId.get(order.id)?.pdf_storage_path &&
-        !generatedLicensesByOrderId.get(order.id)?.generation_error &&
+      generatedLicense?.status === "generated" &&
+        generatedLicense?.pdf_storage_path &&
+        !generatedLicense?.generation_error &&
         !order.agreement_generation_error
     ),
-    agreement_delivery_blocked: generatedLicensesByOrderId.get(order.id)
-      ? generatedLicensesByOrderId.get(order.id)?.status === "generated" &&
-        (!generatedLicensesByOrderId.get(order.id)?.pdf_storage_path ||
-          Boolean(generatedLicensesByOrderId.get(order.id)?.generation_error || order.agreement_generation_error))
+    agreement_delivery_blocked: generatedLicense
+      ? generatedLicense?.status === "generated" &&
+        (!generatedLicense?.pdf_storage_path ||
+          Boolean(generatedLicense?.generation_error || order.agreement_generation_error))
       : hasAgreementBeenGenerated(order),
-    agreement_number: generatedLicensesByOrderId.get(order.id)?.agreement_number || null,
-    generated_license_status: generatedLicensesByOrderId.get(order.id)?.status || null,
-    generated_license_downloaded_at: generatedLicensesByOrderId.get(order.id)?.downloaded_at || null,
-    schema_degraded: schemaDegraded || (hasAgreementBeenGenerated(order) && !generatedLicensesByOrderId.get(order.id)),
+    agreement_number: generatedLicense?.agreement_number || null,
+    generated_license_status: generatedLicense?.status || null,
+    generated_license_downloaded_at: generatedLicense?.downloaded_at || null,
+    payment_mode: paymentMode,
+    release_mode: snapshotPayment?.releaseMode || (paymentMode === "test" ? "production_beta" : paymentMode === "live" ? "production_live" : null),
+    test_transaction: paymentMode === "test",
+    commercial_rights_granted:
+      typeof snapshotPayment?.commercialRightsGranted === "boolean"
+        ? snapshotPayment.commercialRightsGranted
+        : paymentMode === "live",
+    schema_degraded: schemaDegraded || (hasAgreementBeenGenerated(order) && !generatedLicense),
     activity_degraded: activityDegraded,
     degraded_messages: [
       ...(schemaDegraded ? ["Extended fulfillment metadata is unavailable until migration 0010 is applied."] : []),
@@ -520,7 +536,7 @@ export async function getAdminOrders() {
       ...(order.agreement_generated_at && !order.agreement_path
         ? ["Agreement generation completed, but secure buyer delivery remains blocked until agreement_path metadata is available."]
         : []),
-      ...(hasAgreementBeenGenerated(order) && !generatedLicensesByOrderId.get(order.id)
+      ...(hasAgreementBeenGenerated(order) && !generatedLicense
         ? ["The structured generated license record is not available for this order yet. Re-run agreement generation after migration 0013 is applied."]
         : [])
     ],
@@ -528,7 +544,8 @@ export async function getAdminOrders() {
     track_title: order.tracks?.title || "Track",
     license_name: order.license_types?.name || "License",
     recent_activity: activityByOrderId.get(order.id) || []
-  }));
+  });
+  });
 }
 
 export async function getAdminUsers() {

@@ -54,6 +54,12 @@ export type GeneratedLicenseTermsSnapshot = {
     checkoutSessionId: string | null;
     paymentIntentId: string | null;
   };
+  payment?: {
+    paymentMode: "test" | "live";
+    releaseMode: "local" | "preview" | "production_beta" | "production_live";
+    livemode: boolean;
+    commercialRightsGranted: boolean;
+  };
 };
 
 export function renderSyncLicenseAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) {
@@ -100,13 +106,21 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
   const effectiveDate = formatAgreementDate(snapshot.effectiveDate);
   const purchaseDate = formatAgreementDate(snapshot.purchaseDate);
   const templateVersion = getTemplateVersion(snapshot);
+  const testOnly = isTestOnlyAgreement(snapshot);
+  const agreementDescription = testOnly
+    ? "This document records a Stripe sandbox transaction for product testing. It is not a commercial license and grants no commercial rights."
+    : "This license agreement was generated automatically after verified Stripe payment. It records the commercial rights granted for this purchase and the secure delivery entitlement for the buyer identified below.";
   const buyerDisplay = snapshot.buyer.companyName
     ? `${snapshot.buyer.companyName} (${snapshot.buyer.legalName})`
     : snapshot.buyer.legalName;
   const legalReviewNotice = snapshot.license.legalReviewRequired
     ? `
       <div class="notice">
-        Attorney review required before this agreement template is treated as final production legal language. This artifact records the commercial terms of the purchase and the delivery entitlement for the buyer.
+        ${
+          testOnly
+            ? "This test artifact is not final production legal language, does not record enforceable commercial terms, and grants no delivery or exploitation rights."
+            : "Attorney review required before this agreement template is treated as final production legal language. This artifact records the commercial terms of the purchase and the delivery entitlement for the buyer."
+        }
       </div>
     `
     : "";
@@ -229,6 +243,17 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
         padding: 16px;
         color: #92400e;
       }
+      .test-only-banner {
+        margin: 24px 0;
+        border: 3px solid #b91c1c;
+        background: #fee2e2;
+        color: #7f1d1d;
+        padding: 16px;
+        text-align: center;
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
       @media print {
         body {
           background: #ffffff;
@@ -247,10 +272,11 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
       <img class="watermark" src="${watermarkUrl}" alt="" />
       <div class="content">
         <img class="brand-mark" src="${brandLogoUrl}" alt="The Sync Exchange" />
+        ${testOnly ? '<div class="test-only-banner">TEST — NOT A COMMERCIAL LICENSE</div>' : ""}
         <p class="eyebrow">The Sync Exchange</p>
         <h1 class="headline">Sync License Agreement</h1>
         <p class="lede">
-          This license agreement was generated automatically after verified Stripe payment. It records the commercial rights granted for this purchase and the secure delivery entitlement for the buyer identified below.
+          ${escapeHtml(agreementDescription)}
         </p>
 
         <section class="grid">
@@ -269,6 +295,14 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
           <div class="panel">
             <p class="label">Template Version</p>
             <p class="value">${escapeHtml(templateVersion)}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Payment Mode</p>
+            <p class="value">${escapeHtml(snapshot.payment?.paymentMode || "legacy / unclassified")}</p>
+          </div>
+          <div class="panel">
+            <p class="label">Commercial Rights Granted</p>
+            <p class="value">${snapshot.payment?.commercialRightsGranted === false ? "No" : "Yes"}</p>
           </div>
           <div class="panel">
             <p class="label">Order</p>
@@ -383,7 +417,11 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
 
         <section class="section">
           <h2>Acceptance</h2>
-          <p class="body-copy">Execution and signature language requires final legal review before this automated agreement template is treated as a countersigned legal instrument.</p>
+          <p class="body-copy">${
+            testOnly
+              ? "This test artifact cannot be accepted, signed, or relied upon as a commercial license. No commercial rights are granted."
+              : "Execution and signature language requires final legal review before this automated agreement template is treated as a countersigned legal instrument."
+          }</p>
         </section>
 
         ${legalReviewNotice}
@@ -427,6 +465,10 @@ function buildProfessionalAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) 
   const purchaseDate = formatAgreementDate(snapshot.purchaseDate);
   const buyerDisplay = snapshot.buyer.legalName;
   const templateVersion = getTemplateVersion(snapshot);
+  const testOnly = isTestOnlyAgreement(snapshot);
+  const agreementDescription = testOnly
+    ? "This document records a Stripe sandbox transaction for product testing. It is not a commercial license and grants no commercial rights."
+    : "This license agreement was generated automatically after verified Stripe payment. It records the commercial rights granted for this purchase and the secure delivery entitlement for the buyer identified below.";
   const rightsTotal = snapshot.track.rightsHolders.reduce((total, holder) => total + Number(holder.ownershipPercent || 0), 0);
   const pages: PdfPage[] = [{ commands: [] }];
   const pageWidth = 612;
@@ -624,9 +666,16 @@ function buildProfessionalAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) 
   moveDown(36);
   drawLine(marginX, cursorY, marginX + contentWidth, cursorY, pdfColors.gold, 1);
   moveDown(22);
-  addParagraph(
-    "This license agreement was generated automatically after verified Stripe payment. It records the commercial rights granted for this purchase and the secure delivery entitlement for the buyer identified below."
-  );
+  if (testOnly) {
+    drawRect(marginX, cursorY - 36, contentWidth, 42, { fill: [1, 0.89, 0.89], stroke: [0.72, 0.11, 0.11], strokeWidth: 1.5 });
+    drawText("TEST - NOT A COMMERCIAL LICENSE", marginX + 108, cursorY - 18, {
+      font: "bold",
+      size: 14,
+      color: [0.5, 0.11, 0.11]
+    });
+    moveDown(58);
+  }
+  addParagraph(agreementDescription);
 
   addSectionHeading("License Summary");
   addSummaryGrid([
@@ -682,14 +731,33 @@ function buildProfessionalAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) 
   }
   if (snapshot.license.legalReviewRequired) {
     addParagraph(
-      "Attorney review required before this agreement template is treated as final production legal language. This artifact records the commercial terms of the purchase and the delivery entitlement for the buyer."
+      testOnly
+        ? "This test artifact is not final production legal language, does not record enforceable commercial terms, and grants no delivery or exploitation rights."
+        : "Attorney review required before this agreement template is treated as final production legal language. This artifact records the commercial terms of the purchase and the delivery entitlement for the buyer."
     );
   }
 
   addSectionHeading("Acceptance");
   addParagraph(
-    "Execution and signature language requires final legal review before this automated agreement template is treated as a countersigned legal instrument."
+    testOnly
+      ? "This test artifact cannot be accepted, signed, or relied upon as a commercial license. No commercial rights are granted."
+      : "Execution and signature language requires final legal review before this automated agreement template is treated as a countersigned legal instrument."
   );
+
+  if (testOnly) {
+    for (const page of pages) {
+      page.commands.push(
+        [
+          "BT",
+          formatColor([0.72, 0.11, 0.11], "fill"),
+          "/F2 12 Tf",
+          "125 30 Td",
+          "(TEST - NOT A COMMERCIAL LICENSE) Tj",
+          "ET"
+        ].join("\n")
+      );
+    }
+  }
 
   return buildPdfFromPages(pages, {
     pageWidth,
@@ -704,6 +772,10 @@ function buildProfessionalAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) 
 
 function getTemplateVersion(snapshot: GeneratedLicenseTermsSnapshot) {
   return snapshot.templateVersion || FALLBACK_TEMPLATE_VERSION;
+}
+
+function isTestOnlyAgreement(snapshot: GeneratedLicenseTermsSnapshot) {
+  return snapshot.payment?.paymentMode === "test" || snapshot.payment?.commercialRightsGranted === false;
 }
 
 function formatOwnershipPercent(value: number) {

@@ -1,7 +1,13 @@
 import Stripe from "stripe";
 
 import { env } from "@/lib/env";
-import { assertStripeServerConfiguration, serverEnv } from "@/lib/server-env";
+import {
+  assertStripeRuntimeObject,
+  assertStripeServerConfiguration,
+  getPaymentActivityMetadata,
+  getPaymentRuntimeConfiguration,
+  serverEnv
+} from "@/lib/server-env";
 import { appendOrderActivityLog, hasProcessedOrderDedupeKey } from "@/services/orders/activity";
 import { assertStripeSessionMatchesTrustedCheckout, loadTrustedCheckoutDetails } from "@/services/orders/checkout-pricing";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
@@ -30,6 +36,8 @@ export function getStripeServerClient() {
   if (!serverEnv.stripeSecretKey) {
     return null;
   }
+
+  assertStripeServerConfiguration("Stripe server client");
 
   if (!stripeClient) {
     stripeClient = new Stripe(serverEnv.stripeSecretKey, {
@@ -73,7 +81,13 @@ export async function createStripeCheckoutSession({
     throw new Error("Stripe secret key is not configured.");
   }
 
-  return stripe.checkout.sessions.create({
+  const payment = getPaymentRuntimeConfiguration();
+  const paymentMetadata = {
+    paymentMode: payment.paymentMode,
+    releaseMode: payment.releaseMode,
+    commercialRightsGranted: String(payment.paymentMode === "live")
+  };
+  const session = await stripe.checkout.sessions.create({
     mode: "payment",
     client_reference_id: orderId,
     customer_email: buyerEmail,
@@ -83,7 +97,8 @@ export async function createStripeCheckoutSession({
       licenseName,
       buyerUserId: buyerUserId || "",
       trackId: trackId || "",
-      licenseTypeId: licenseTypeId || ""
+      licenseTypeId: licenseTypeId || "",
+      ...paymentMetadata
     },
     line_items: [
       {
@@ -100,12 +115,19 @@ export async function createStripeCheckoutSession({
     ],
     payment_intent_data: {
       metadata: {
-        orderId
+        orderId,
+        ...paymentMetadata
       }
     },
     success_url: `${getOrderConfirmationUrl(orderId)}?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${env.appUrl}/buyer/checkout/${trackSlug}?error=${encodeURIComponent("Checkout was canceled before payment was completed.")}`
   });
+
+  assertStripeRuntimeObject("Stripe Checkout Session creation", {
+    livemode: session.livemode,
+    checkoutSessionId: session.id
+  });
+  return session;
 }
 
 export async function syncOrderFromStripeSession({
@@ -119,6 +141,10 @@ export async function syncOrderFromStripeSession({
   webhookEventId?: string | null;
   webhookEventType?: string | null;
 }) {
+  const paymentClassification = assertStripeRuntimeObject("Stripe Checkout Session fulfillment", {
+    livemode: session.livemode,
+    checkoutSessionId: session.id
+  });
   const supabase = createAdminSupabaseClient();
   if (!supabase) {
     return null;
@@ -187,7 +213,8 @@ export async function syncOrderFromStripeSession({
       metadata: {
         sessionId: session.id,
         paymentStatus: session.payment_status,
-        paymentIntentId
+        paymentIntentId,
+        ...paymentClassification
       },
       dedupeKey: webhookEventId || null
     }).catch(() => undefined);
@@ -219,7 +246,8 @@ export async function syncOrderFromStripeSession({
       message,
       metadata: {
         webhookEventId,
-        webhookEventType
+        webhookEventType,
+        ...paymentClassification
       },
       dedupeKey: webhookEventId ? `${webhookEventId}:failure` : null
     }).catch(() => undefined);
@@ -254,6 +282,10 @@ export async function markOrderCheckoutSessionPaymentFailed({
   webhookEventId?: string | null;
   webhookEventType?: string | null;
 }) {
+  const paymentClassification = assertStripeRuntimeObject("Stripe failed Checkout Session", {
+    livemode: session.livemode,
+    checkoutSessionId: session.id
+  });
   const supabase = createAdminSupabaseClient();
   if (!supabase) {
     return null;
@@ -281,7 +313,8 @@ export async function markOrderCheckoutSessionPaymentFailed({
     message,
     metadata: {
       sessionId: session.id,
-      paymentStatus: session.payment_status
+      paymentStatus: session.payment_status,
+      ...paymentClassification
     },
     dedupeKey: webhookEventId || null
   }).catch(() => undefined);
@@ -322,7 +355,8 @@ export async function markOrderRefundedByPaymentIntent(
       eventType: webhookEventType || "charge.refunded",
       message: `Stripe reported a refund for payment intent ${paymentIntentId}.`,
       metadata: {
-        paymentIntentId
+        paymentIntentId,
+        ...getPaymentActivityMetadata()
       },
       dedupeKey: webhookEventId || null
     }).catch(() => undefined);

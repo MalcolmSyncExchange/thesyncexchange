@@ -205,6 +205,112 @@ test("public design, responsive navigation, theme persistence, and brand geometr
   await mobile.close();
 });
 
+test("public header navigation has proportionate type, active state, and restrained interaction feedback", async ({ browser }) => {
+  const desktop = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
+  await desktop.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  const page = await desktop.newPage();
+  await page.goto("/");
+
+  const header = page.locator("header");
+  const nav = page.getByRole("navigation", { name: "Primary navigation" });
+  const discover = nav.getByRole("link", { name: "Discover" });
+  const login = page.getByRole("link", { name: "Log in", exact: true }).first();
+  const signup = page.getByRole("link", { name: "Sign up", exact: true }).first();
+  const navMetrics = await nav.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { fontSize: style.fontSize, fontWeight: style.fontWeight, gap: Number.parseFloat(style.columnGap) };
+  });
+  expect(navMetrics.fontSize).toBe("16px");
+  expect(navMetrics.fontWeight).toBe("500");
+  expect(navMetrics.gap).toBeGreaterThanOrEqual(30);
+  expect(navMetrics.gap).toBeLessThanOrEqual(36);
+  await expect(nav.locator("[aria-current='page']")).toHaveCount(0);
+  await header.screenshot({ path: path.join(outputDir, "header-desktop-dark-default.png") });
+
+  await discover.hover();
+  await page.waitForTimeout(260);
+  const hoverIndicator = await discover.evaluate((element) => {
+    const style = getComputedStyle(element, "::after");
+    return { height: style.height, opacity: Number.parseFloat(style.opacity), transform: style.transform };
+  });
+  expect(hoverIndicator.height).toBe("2px");
+  expect(hoverIndicator.opacity).toBeGreaterThanOrEqual(0.8);
+  expect(hoverIndicator.transform).not.toContain("matrix(0");
+  await header.screenshot({ path: path.join(outputDir, "header-desktop-dark-nav-hover.png") });
+
+  const loginBefore = await login.evaluate((element) => getComputedStyle(element).color);
+  await login.hover();
+  await page.waitForTimeout(200);
+  const loginAfter = await login.evaluate((element) => getComputedStyle(element).color);
+  expect(loginAfter).not.toBe(loginBefore);
+  await header.screenshot({ path: path.join(outputDir, "header-desktop-dark-login-hover.png") });
+
+  await signup.hover();
+  await page.waitForTimeout(240);
+  expect(await signup.locator("svg").evaluate((element) => getComputedStyle(element).transform)).toContain("3");
+  await header.screenshot({ path: path.join(outputDir, "header-desktop-dark-signup-hover.png") });
+
+  await page.reload();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  const focusedDiscover = page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Discover" });
+  await expect(focusedDiscover).toBeFocused();
+  expect(await focusedDiscover.evaluate((element) => getComputedStyle(element).outlineWidth)).toBe("2px");
+  await page.locator("header").screenshot({ path: path.join(outputDir, "header-desktop-dark-keyboard-focus.png") });
+
+  await page.goto("/discover");
+  const activeDiscover = page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Discover" });
+  await expect(activeDiscover).toHaveAttribute("aria-current", "page");
+  const activeIndicator = await activeDiscover.evaluate((element) => {
+    const style = getComputedStyle(element, "::after");
+    return { opacity: style.opacity, transform: style.transform };
+  });
+  expect(activeIndicator.opacity).toBe("1");
+  expect(activeIndicator.transform).not.toContain("matrix(0");
+  await page.locator("header").screenshot({ path: path.join(outputDir, "header-desktop-dark-active-discover.png") });
+
+  await page.getByRole("button", { name: "Toggle color theme" }).click();
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  await page.locator("header").screenshot({ path: path.join(outputDir, "header-desktop-light-active-discover.png") });
+  await desktop.close();
+
+  const tablet = await browser.newContext({ viewport: { width: 1024, height: 900 }, colorScheme: "dark" });
+  await tablet.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  const tabletPage = await tablet.newPage();
+  await tabletPage.goto("/");
+  const tabletNav = tabletPage.getByRole("navigation", { name: "Primary navigation" });
+  await expect(tabletNav).toBeVisible();
+  await expect(tabletNav).toHaveCSS("font-size", "15px");
+  expect(await tabletPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await tabletPage.locator("header").screenshot({ path: path.join(outputDir, "header-tablet-dark.png") });
+  await tablet.close();
+
+  const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "dark" });
+  await mobile.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  const mobilePage = await mobile.newPage();
+  await mobilePage.goto("/discover");
+  await mobilePage.locator("header").screenshot({ path: path.join(outputDir, "header-mobile-dark-closed.png") });
+  await mobilePage.getByRole("button", { name: "Open menu" }).click();
+  const mobileNav = mobilePage.getByRole("navigation", { name: "Mobile primary navigation" });
+  const mobileDiscover = mobileNav.getByRole("link", { name: "Discover" });
+  await expect(mobileDiscover).toHaveAttribute("aria-current", "page");
+  await expect(mobileDiscover).toHaveCSS("font-size", "17px");
+  const mobileTargets = await Promise.all([
+    mobilePage.getByRole("button", { name: "Toggle color theme" }).evaluate((element) => element.getBoundingClientRect().height),
+    mobilePage.getByRole("link", { name: "Sign up", exact: true }).evaluate((element) => element.getBoundingClientRect().height)
+  ]);
+  expect(mobileTargets.every((height) => height >= 44)).toBeTruthy();
+  expect(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await mobilePage.screenshot({ path: path.join(outputDir, "header-mobile-dark-menu-active-discover.png") });
+  await mobile.close();
+
+  const reduced = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+  const reducedPage = await reduced.newPage();
+  await reducedPage.goto("/");
+  await expect(reducedPage.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Discover" })).toHaveCSS("transition-duration", "0s");
+  await reduced.close();
+});
+
 test("buyer and artist shells retain approved branding at desktop and mobile", async ({ browser }) => {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const buyerPage = await desktop.newPage();

@@ -24,12 +24,12 @@ export function SiteHeader() {
     <div className={styles.inner}>
       <Link href="/" className={styles.logo}><BrandHeaderLogo priority /></Link>
       <nav className={styles.desktopNav} aria-label="Primary navigation">
-        {links.map(link => <Link key={link.href} href={link.href} aria-current={pathname === link.href ? "page" : undefined}>{link.label}</Link>)}
+        {links.map(link => <Link className={styles.navLink} key={link.href} href={link.href} aria-current={pathname === link.href ? "page" : undefined}>{link.label}</Link>)}
       </nav>
       <div className={styles.actions}>
-        <ThemeToggle />
+        <ThemeToggle className={styles.themeToggle} />
         <Link href="/login" className={styles.login}>Log in</Link>
-        <Button asChild className="min-h-11"><Link href="/signup">Sign up<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link></Button>
+        <Button asChild className={styles.signup}><Link href="/signup">Sign up<ArrowRight aria-hidden="true" className={`${styles.signupArrow} h-4 w-4`} /></Link></Button>
       </div>
       <Dialog.Root open={open} onOpenChange={setOpen}>
         <Dialog.Trigger className={styles.menuButton} aria-label="Open menu"><Menu aria-hidden="true" /></Dialog.Trigger>
@@ -38,9 +38,9 @@ export function SiteHeader() {
           <div className={styles.menuHeading}><Dialog.Title>Explore The Sync Exchange</Dialog.Title><Dialog.Close aria-label="Close menu"><X aria-hidden="true" /></Dialog.Close></div>
           <nav aria-label="Mobile primary navigation">{links.map(link => <Link key={link.href} href={link.href} aria-current={pathname === link.href ? "page" : undefined} onClick={()=>setOpen(false)}>{link.label}<ArrowRight aria-hidden="true" size={18} /></Link>)}</nav>
           <div className={styles.mobileActions}>
-            <ThemeToggle />
-            <Link href="/login" onClick={()=>setOpen(false)}>Log in</Link>
-            <Button asChild className="min-h-11"><Link href="/signup" onClick={()=>setOpen(false)}>Sign up</Link></Button>
+            <ThemeToggle className={styles.themeToggle} />
+            <Link className={styles.mobileLogin} href="/login" onClick={()=>setOpen(false)}>Log in</Link>
+            <Button asChild className={styles.mobileSignup}><Link href="/signup" onClick={()=>setOpen(false)}>Sign up</Link></Button>
           </div>
         </Dialog.Content>
       </Dialog.Root>

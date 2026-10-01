@@ -103,6 +103,22 @@ test("shared controls expose pointer and focus cues", () => {
   assert.match(select, /focus-visible:ring-2/);
 });
 
+test("public header uses the approved navigation hierarchy and motion", () => {
+  const header = read("components/layout/site-header.tsx");
+  const styles = read("components/layout/site-header.module.css");
+
+  assert.match(styles, /\.desktopNav \{[^}]*font-size: 16px;[^}]*font-weight: 500;/s);
+  assert.match(styles, /gap: clamp\(24px, 2\.35vw, 36px\)/);
+  assert.match(styles, /\.navLink::after \{[^}]*height: 2px;[^}]*scaleX\(0\)/s);
+  assert.match(styles, /\.navLink\[aria-current="page"\]::after \{ opacity: 1; \}/);
+  assert.match(styles, /\.login \{[^}]*font-size: 16px;[^}]*font-weight: 500;/s);
+  assert.match(styles, /\.signup:hover \.signupArrow[^}]*translateX\(3px\)/);
+  assert.match(styles, /\.themeToggle \{[^}]*border-color: hsl\(var\(--border\) \/ \.62\)/s);
+  assert.match(styles, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.match(header, /aria-current=\{pathname === link\.href \? "page" : undefined\}/);
+  assert.doesNotMatch(header, /BrandCursor|brand-cursor|pointermove/);
+});
+
 test("About explains the approved problem, product path, and both sides", () => {
   const source = read("app/(marketing)/about/page.tsx");
 

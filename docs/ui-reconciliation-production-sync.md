@@ -36,7 +36,7 @@ The messaging and brand revisions are approved design overlays newer than the fr
 | Discover | No public entry route | Public discovery in approved design | Add public entry page; keep live catalog behind current buyer authorization |
 | Public Artist/Track | Not present | Buyer-safe public pages | Defer until an approved anonymous data contract/RLS path exists |
 | Typography/buttons/focus | Production baseline | Frozen refinement styling | Port CSS and component refinements |
-| Cursor glow | Larger radius | Reduced radius | Port 140px frozen setting |
+| Global cursor effects | Branded cursor and trailing glow | Removed | Use native browser cursors; retain component hover and focus feedback |
 | Theme persistence | Route resets possible | One saved choice across surfaces | Port shared theme storage key |
 | Buyer/artist shells | Legacy logo use | Canonical brand component | Port branding only; keep authorization and data behavior |
 

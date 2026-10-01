@@ -21,6 +21,17 @@ test("homepage hero matches the approved cinematic responsive treatment", async 
   await expect(hero.getByRole("link", { name: "List your music" })).toBeVisible();
   await expect(hero.locator("figure, figcaption")).toHaveCount(0);
   await expect(artwork).toHaveAttribute("src", /sync-sound-sculpture-hero/);
+  const nativeCursorState = await page.evaluate(() => ({
+    body: getComputedStyle(document.body).cursor,
+    primaryAction: getComputedStyle(document.querySelector("a[href='/discover']")).cursor,
+    customCursorElements: document.querySelectorAll("[class*='brand-cursor'], [class*='brandCursor']").length
+  }));
+  expect(nativeCursorState.body).not.toContain("url(");
+  expect(nativeCursorState.primaryAction).toBe("pointer");
+  expect(nativeCursorState.customCursorElements).toBe(0);
+  await page.mouse.move(1120, 420);
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => document.querySelectorAll("[class*='brand-cursor'], [class*='brandCursor']").length)).toBe(0);
   const artworkSource = await artwork.evaluate((image) => ({
     naturalWidth: image.naturalWidth,
     naturalHeight: image.naturalHeight,

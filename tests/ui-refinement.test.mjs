@@ -70,11 +70,16 @@ test("homepage hero can request the high-quality optimized image tier", () => {
   assert.doesNotMatch(source, /\bpriority\b/);
 });
 
-test("cursor glow diameter is half of the approved baseline", () => {
-  const source = read("components/layout/brand-cursor.module.css");
+test("global custom cursor and cursor-following glow are absent", () => {
+  const rootLayout = read("app/layout.tsx");
+  const globalCss = read("app/globals.css");
 
-  assert.match(source, /width: 140px; height: 140px; left: -70px; top: -70px/);
-  assert.doesNotMatch(source, /width: 280px|height: 280px/);
+  assert.doesNotMatch(rootLayout, /BrandCursor|brand-cursor/);
+  assert.doesNotMatch(globalCss, /cursor:\s*url\(|\/cursors\//);
+  assert.equal(fs.existsSync(path.join(root, "components/layout/brand-cursor.tsx")), false);
+  assert.equal(fs.existsSync(path.join(root, "components/layout/brand-cursor.module.css")), false);
+  assert.equal(fs.existsSync(path.join(root, "public/cursors/sync-pointer.svg")), false);
+  assert.equal(fs.existsSync(path.join(root, "public/cursors/sync-hand.svg")), false);
 });
 
 test("theme choice uses one persistent key across the root application", () => {

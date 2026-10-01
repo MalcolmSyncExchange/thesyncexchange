@@ -8,16 +8,17 @@ const files = [
   '20260915224822_separate_profile_finance_and_buyer_access.sql',
   '20260915225349_atomic_artist_track_writes.sql',
   '20260924052925_nonretryable_artist_track_stale_conflict.sql',
-  '20260924171123_preserve_atomic_rights_holder_identity.sql'
+  '20260924171123_preserve_atomic_rights_holder_identity.sql',
+  '20261001042359_secure_buyer_catalog_views.sql'
 ];
 const before = JSON.parse(source('docs/security-pr2/staging-rollout/catalog-before.json'));
 const inventory = async db => (await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
 
-test('PR21 is the only forward migration path; PR18 migrations cannot enter the directory', () => {
+test('PR21 and its reviewed security follow-up are the only forward migration path; PR18 migrations cannot enter the directory', () => {
   assert.deepEqual(readdirSync(new URL('supabase/migrations/', root)).filter(f => /^2026.*\.sql$/.test(f)).sort(), files);
 });
 
-test('captured staging PR18 protections reconcile to PR21, preserve records, and reapply idempotently', async () => {
+test('captured staging PR18 protections reconcile forward, preserve records, and reject duplicate view remediation without drift', async () => {
   const db = await database('historical-repository');
   const canonical = await database();
   try {
@@ -33,7 +34,8 @@ test('captured staging PR18 protections reconcile to PR21, preserve records, and
       await assert.rejects(db.exec(`update rights_holders set name='Bypass' where track_id='${ids.live}'`), /Reviewed/);
       await assert.rejects(db.exec(`update rights_holders set approval_status='approved' where track_id='${ids.draft}'`), /workflow/);
     });
-    for (const file of files) await db.exec(source(`supabase/migrations/${file}`));
+    await assert.rejects(db.exec(source(`supabase/migrations/${files.at(-1)}`)), /catalog view option baseline mismatch|helper function name collision/);
+    await db.exec('rollback');
     const second = await inventory(db);
     for (const category of ['policies', 'views', 'functions', 'triggers', 'column_grants']) assert.deepEqual(second[category], first[category], category);
   } finally { await db.close(); await canonical.close(); }

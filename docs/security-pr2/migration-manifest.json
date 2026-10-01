@@ -105,6 +105,10 @@
     {
       "file": "20260924171123_preserve_atomic_rights_holder_identity.sql",
       "sha256": "373b3fb8461101e171fb43fd6a7dd278a880f0d50072782410db52feb22baa28"
+    },
+    {
+      "file": "20261001042359_secure_buyer_catalog_views.sql",
+      "sha256": "c1bd8a145198d44d4e3c6f4afab652c87e1afe974cc81722854d9c4152e844ea"
     }
   ],
   "storageBuckets": {

@@ -20,7 +20,14 @@ test("homepage hero matches the approved cinematic responsive treatment", async 
   await expect(hero.getByRole("link", { name: "Search music" })).toBeVisible();
   await expect(hero.getByRole("link", { name: "List your music" })).toBeVisible();
   await expect(hero.locator("figure, figcaption")).toHaveCount(0);
-  await expect(artwork).toHaveAttribute("src", /sync-sound-sculpture/);
+  await expect(artwork).toHaveAttribute("src", /sync-sound-sculpture-hero/);
+  const artworkSource = await artwork.evaluate((image) => ({
+    naturalWidth: image.naturalWidth,
+    naturalHeight: image.naturalHeight,
+    currentSrc: image.currentSrc
+  }));
+  expect(artworkSource.naturalWidth).toBeGreaterThanOrEqual(1440);
+  expect(artworkSource.naturalHeight).toBeGreaterThanOrEqual(590);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
 
   await hero.evaluate((element) => {
@@ -47,6 +54,37 @@ test("homepage hero matches the approved cinematic responsive treatment", async 
   await page.locator("section[aria-labelledby='home-title']").screenshot({ path: path.join(outputDir, "homepage-hero-desktop-light.png") });
   await desktop.close();
 
+  const wideDesktop = await browser.newContext({ viewport: { width: 1920, height: 1080 }, colorScheme: "dark" });
+  await wideDesktop.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  const widePage = await wideDesktop.newPage();
+  await widePage.goto("/");
+  await widePage.waitForTimeout(900);
+  const wideHero = widePage.locator("section[aria-labelledby='home-title']");
+  const wideArtwork = wideHero.locator("img");
+  const wideMetrics = await wideArtwork.evaluate((image) => ({
+    naturalWidth: image.naturalWidth,
+    naturalHeight: image.naturalHeight,
+    renderedWidth: image.getBoundingClientRect().width,
+    renderedHeight: image.getBoundingClientRect().height
+  }));
+  expect(wideMetrics.naturalWidth).toBe(1920);
+  expect(wideMetrics.naturalHeight).toBe(800);
+  expect(wideMetrics.renderedWidth).toBeGreaterThan(1920);
+  expect(wideMetrics.renderedWidth).toBeLessThan(1960);
+  expect(wideMetrics.renderedHeight).toBeGreaterThanOrEqual(680);
+  expect(await widePage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await wideHero.screenshot({ path: path.join(outputDir, "homepage-hero-desktop-1920-dark.png") });
+  await widePage.screenshot({ path: path.join(outputDir, "homepage-waveform-1920-closeup.png"), clip: { x: 900, y: 140, width: 960, height: 660 } });
+  await wideDesktop.close();
+
+  const retina = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: "dark" });
+  await retina.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  const retinaPage = await retina.newPage();
+  await retinaPage.goto("/");
+  await retinaPage.waitForTimeout(900);
+  await retinaPage.locator("section[aria-labelledby='home-title']").screenshot({ path: path.join(outputDir, "homepage-hero-retina-2x-dark.png") });
+  await retina.close();
+
   const tablet = await browser.newContext({ viewport: { width: 834, height: 1112 }, colorScheme: "dark" });
   await tablet.addInitScript(() => window.localStorage.setItem("theme", "dark"));
   const tabletPage = await tablet.newPage();
@@ -62,6 +100,8 @@ test("homepage hero matches the approved cinematic responsive treatment", async 
   await mobilePage.goto("/");
   await mobilePage.waitForTimeout(900);
   const mobileHero = mobilePage.locator("section[aria-labelledby='home-title']");
+  const mobileArtwork = mobileHero.locator("img");
+  await expect.poll(() => mobileArtwork.evaluate((image) => image.currentSrc)).toContain("sync-sound-sculpture-hero-mobile");
   await expect(mobileHero.getByRole("link", { name: "Search music" })).toHaveCSS("width", "354px");
   expect(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   await mobileHero.screenshot({ path: path.join(outputDir, "homepage-hero-mobile-dark.png") });
@@ -73,6 +113,7 @@ test("homepage hero matches the approved cinematic responsive treatment", async 
   await mobileLightPage.goto("/");
   await mobileLightPage.waitForTimeout(900);
   await expect(mobileLightPage.locator("html")).not.toHaveClass(/dark/);
+  await expect.poll(() => mobileLightPage.locator("section[aria-labelledby='home-title'] img").evaluate((image) => image.currentSrc)).toContain("sync-sound-sculpture-hero-mobile");
   await mobileLightPage.locator("section[aria-labelledby='home-title']").screenshot({ path: path.join(outputDir, "homepage-hero-mobile-light.png") });
   await mobileLight.close();
 

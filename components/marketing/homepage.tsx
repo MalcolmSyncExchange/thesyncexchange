@@ -15,7 +15,14 @@ export function Homepage() {
   return <main className={styles.home}>
     <section className={styles.hero} aria-labelledby="home-title">
       <div className={styles.heroMedia} aria-hidden="true">
-        <Image src="/images/sync-sound-sculpture.webp" alt="" fill priority sizes="100vw" className={styles.heroArtwork} />
+        <picture className={styles.heroPicture}>
+          <source
+            media="(max-width: 700px)"
+            srcSet="/images/sync-sound-sculpture-hero-mobile-400.webp 400w, /images/sync-sound-sculpture-hero-mobile.webp 800w"
+            sizes="100vw"
+          />
+          <Image src="/images/sync-sound-sculpture-hero.webp" alt="" fill fetchPriority="high" sizes="100vw" quality={90} className={styles.heroArtwork} />
+        </picture>
       </div>
       <div className={styles.heroAtmosphere} aria-hidden="true" />
       <div className={styles.heroTransition} aria-hidden="true" />

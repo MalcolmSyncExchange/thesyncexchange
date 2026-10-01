@@ -28,7 +28,8 @@ export default function nextConfig(phase) {
       TSE_BUILD_DEPLOYMENT_TARGET: resolveDeploymentTarget(process.env)
     },
     images: {
-      remotePatterns
+      remotePatterns,
+      qualities: [75, 90]
     }
   };
 }

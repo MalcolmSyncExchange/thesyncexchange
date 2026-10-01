@@ -23,14 +23,15 @@
   --hero-secondary-hover: rgb(7 17 27 / .78);
 }
 .heroMedia { position: absolute; inset: 0; z-index: -3; overflow: hidden; background: #07131d; }
+.heroPicture { position: absolute; inset: 0; display: block; }
 .heroArtwork {
   object-fit: cover;
-  object-position: center 48%;
-  transform: scale(1.035);
-  filter: blur(1.2px) saturate(.88) brightness(1.13);
+  object-position: center 50%;
+  transform: scale(1.008);
+  filter: blur(.35px) saturate(.9) brightness(1.1);
   will-change: transform;
 }
-:global(.dark) .heroArtwork { filter: blur(1.2px) saturate(1.04) brightness(.82); }
+:global(.dark) .heroArtwork { filter: blur(.35px) saturate(1.02) brightness(.86); }
 .heroAtmosphere {
   position: absolute;
   inset: 0;
@@ -106,8 +107,8 @@
 .closing :global(.text-muted-foreground) { margin-top: 14px; }
 @keyframes hero-enter { to { opacity: 1; transform: translateY(0); } }
 @keyframes hero-depth {
-  from { transform: scale(1.035) translate3d(0, 0, 0); }
-  to { transform: scale(1.055) translate3d(0, 18px, 0); }
+  from { transform: scale(1.008) translate3d(0, 0, 0); }
+  to { transform: scale(1.018) translate3d(0, 10px, 0); }
 }
 @supports (animation-timeline: scroll()) {
   .heroArtwork {
@@ -121,7 +122,7 @@
   .heroContent { padding-inline: 24px; }
   .heroCopy { width: min(610px, 65%); }
   .hero h1 { font-size: 48px; }
-  .heroArtwork { object-position: 57% 48%; }
+  .heroArtwork { object-position: 55% 50%; }
   .artist { gap: 32px; padding: 28px; }
   .artistJourney { padding-left: 24px; }
 }
@@ -132,8 +133,8 @@
   .heroCopy { width: 100%; }
   .hero h1 { max-width: 520px; font-size: clamp(40px, 12vw, 48px); line-height: 1.03; }
   .heroDescription { max-width: 500px; }
-  .heroArtwork { animation: none; object-position: 59% center; transform: scale(1.045); filter: blur(.8px) saturate(.84) brightness(1.13); }
-  :global(.dark) .heroArtwork { filter: blur(.8px) saturate(1.02) brightness(.76); }
+  .heroArtwork { animation: none; object-position: center; transform: scale(1.008); filter: blur(.25px) saturate(.88) brightness(1.1); }
+  :global(.dark) .heroArtwork { filter: blur(.25px) saturate(1.02) brightness(.8); }
   .heroAtmosphere {
     background:
       radial-gradient(ellipse at 58% 60%, transparent 0%, rgb(3 13 22 / .24) 68%, rgb(3 13 22 / .5) 100%),
@@ -157,6 +158,6 @@
   .closing { padding: 40px 0; }
 }
 @media(prefers-reduced-motion: reduce) {
-  .heroArtwork { animation: none; transform: scale(1.035); }
+  .heroArtwork { animation: none; transform: scale(1.008); }
   .heroEyebrow, .heroTitle, .heroDescription, .heroConversion { opacity: 1; transform: none; animation: none; }
 }

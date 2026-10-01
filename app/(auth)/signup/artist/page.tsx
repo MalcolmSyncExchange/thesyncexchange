@@ -16,13 +16,13 @@ export default async function ArtistSignupPage(
   return (
     <AuthPageShell
       compact
-      eyebrow="Artist account"
-      title="Your next release starts here."
-      description="Create an artist account to prepare your catalog, manage rights and follow your submissions."
+      eyebrow="Artist signup"
+      title="Put your music in reach."
+      description="Create one account. Start with the workspace you need today."
       highlights={[
         { label: "Introduce your music", value: "Build your artist profile with a bio and links." },
-        { label: "Prepare your catalog", value: "Add track details, rights holders and licensing preferences." },
-        { label: "Follow your progress", value: "Save a draft, submit for review and see where each track stands." }
+        { label: "Add your music", value: "Add track details, rights holders, and license choices." },
+        { label: "See what happens next", value: "Save a draft, send it for review, and see each track’s status." }
       ]}
     >
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -30,13 +30,13 @@ export default async function ArtistSignupPage(
         <AuthConfirmationNotice email={confirmationEmail} returnTo="/signup/artist" action={resendSignupConfirmationAction} />
         <SignupRoleForm
           role="artist"
-          title="Sign up as an artist"
-          description="One account for your music, submissions and rights."
-          helper="Next, confirm your email if prompted and set up your artist profile."
+          title="List music for licensing"
+          description="Start with your artist identity, then build your profile and catalog."
+          helper="Next, check your email if asked. Then set up your artist profile."
           returnTo="/signup/artist"
           alternateHref="/signup/buyer"
           alternateLabel="Need buyer access instead?"
-          alternateActionLabel="Create a Buyer Account"
+          alternateActionLabel="I’m looking for music instead"
           error={searchParams?.error}
           success={searchParams?.success}
         />

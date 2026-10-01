@@ -26,18 +26,18 @@ export default async function LoginPage(
 
   return (
     <AuthPageShell
-      eyebrow="Account access"
-      title="Sign in to your workspace"
-      description="Access your workspace with the email and password already associated with your account. We’ll route you to the right place after sign-in."
+      eyebrow="Welcome back"
+      title="Pick up where you left off."
+      description="Log in to open a workspace you can use."
       highlights={[
-        { label: "Artists", value: "Resume submissions, rights setup, and catalog management." },
-        { label: "Buyers", value: "Return to saved tracks, recent orders, and live catalog search." }
+        { label: "Artists", value: "Go back to your music, rights details, and catalog." },
+        { label: "Buyers", value: "Go back to saved tracks, orders, and music search." }
       ]}
     >
       <AuthPanel
-        eyebrow="Log in"
-        title="Welcome back"
-        description="Use your existing account credentials. New accounts should start from the account creation flow."
+        eyebrow="Account access"
+        title="Log in"
+        description="Use the email and password for your account."
       >
         <form action={loginAction} className="space-y-5" data-testid="login-form">
           <input type="hidden" name="redirectTo" value={searchParams?.redirectTo || ""} />
@@ -61,7 +61,7 @@ export default async function LoginPage(
           </div>
 
           <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
-            Sign in once and the platform will send you to onboarding if setup is incomplete, or straight into the correct workspace if you’re already configured.
+            If setup is not done, we’ll take you there first. If it is done, we’ll open your workspace.
           </div>
 
           <FormSubmitButton className="w-full" pendingLabel="Signing You In..." data-testid="login-submit">

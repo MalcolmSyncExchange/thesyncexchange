@@ -115,7 +115,7 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
         <div className="relative mx-auto flex min-h-[74px] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="min-w-0 flex-1 pr-16 lg:pr-0">
             <Link href="/" className="flex items-center">
-              <BrandLogo className="w-[124px] sm:w-[140px] lg:w-[188px]" />
+              <BrandLogo className="w-[168px] sm:w-[184px] lg:w-[208px]" />
             </Link>
             <div className="mt-1 flex items-center gap-2 lg:hidden">
               <span className="inline-flex h-1.5 w-1.5 rounded-full bg-accent/85" />

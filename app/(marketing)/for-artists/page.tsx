@@ -10,41 +10,38 @@ export default function ForArtistsPage() {
   return (
     <main>
       <PageHero
-        eyebrow="For Artists"
-        title="Present music like a premium rights-ready asset."
-        description="The artist workflow is designed to help serious creators package tracks for real sync opportunities."
-        actions={
-          <Button asChild>
-            <Link href="/signup/artist">Create Artist Account</Link>
-          </Button>
-        }
+        eyebrow="For artists & rightsholders"
+        title="Make your music easy to find and ready to license."
+        description="Build your public profile, add your catalog, provide recording and composition details, and set supported license prices."
+        actions={<Button asChild><Link href="/signup/artist">Start your artist workspace</Link></Button>}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <SectionHeader
-          eyebrow="Artist value"
-          title="The platform is shaped around professional submission standards."
-          description="Metadata discipline, rights visibility, and premium presentation help your music arrive with more credibility."
+          eyebrow="Your music. Your offer."
+          title="Give buyers a clear path from listen to license."
+          description="Artist Desk keeps your public profile, catalog, rights information, and license activity in one focused workspace. You choose what you offer. Listing does not promise placements or income."
         />
         <div className="mt-12">
           <FeatureGrid
-            columns="two"
             items={[
-              { title: "Submission quality", description: "Capture titles, moods, BPM, lyrics, splits, and pricing in one intentional workflow." },
-              { title: "Rights clarity", description: "Manage collaborators, percentages, and approval states before a buyer ever asks the question." },
-              { title: "Commercial credibility", description: "Public artist pages and catalog presentation feel polished enough for agency and studio buyers." },
-              { title: "Revenue readiness", description: "Payout settings, order history, and license configuration live alongside the music itself." }
+              { title: "1. Be found.", description: "Build a public artist profile and add your catalog." },
+              { title: "2. Make the rights clear.", description: "Provide recording and composition information separately. Save a draft and return when needed." },
+              { title: "3. Set license options.", description: "Choose supported offer prices. Platform terms stay separate from your settings." }
             ]}
           />
         </div>
       </section>
+      <section className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <div className="rounded-lg border border-border bg-card p-6 sm:p-8">
+          <h2 className="text-2xl font-semibold">Build your catalog before payout setup.</h2>
+          <p className="mt-3 max-w-3xl leading-7 text-muted-foreground">Create your profile, prepare music, and submit for review first. Payee and payout setup must be complete before a track can be purchased.</p>
+          <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">Your artist identity, business, contracting party, and payee are separate. A manager or label relationship does not grant workspace access or prove ownership.</p>
+        </div>
+      </section>
       <CtaBand
-        title="Get your catalog into a licensing environment built for trust."
-        description="Start with structured submissions, cleaner splits, and a presentation designed for serious buyers."
-        actions={
-          <Button asChild>
-            <Link href="/signup/artist">Start as an Artist</Link>
-          </Button>
-        }
+        title="Prepare your music one clear step at a time."
+        description="See the artist journey, then start a workspace when you are ready."
+        actions={<Button asChild><Link href="/how-it-works#artists">See the artist journey</Link></Button>}
       />
     </main>
   );

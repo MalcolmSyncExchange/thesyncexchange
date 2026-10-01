@@ -95,7 +95,7 @@ export function AuthConfirmationNotice({
             <p className="mt-1 text-sm font-medium text-foreground">{email}</p>
           </div>
           <p className="text-sm leading-6 text-muted-foreground">
-            Open the confirmation link in your inbox to activate your account and continue setup.
+            Open the link in your email to turn on your account and keep going.
           </p>
           <form action={action} className="flex flex-wrap items-center gap-3 pt-1">
             <input type="hidden" name="email" value={email} />
@@ -136,8 +136,8 @@ export function AuthSessionNotice({
           <p className="text-sm font-medium text-foreground">{user.fullName || user.email}</p>
           <p className="text-sm text-muted-foreground">
             {intent === "login"
-              ? `You’re already signed in as ${roleLabel}. Use this page to sign into a different account, or continue where you left off.`
-              : `You’re already signed in as ${roleLabel}. Continue with the current workspace, or create a different account in a new session.`}
+              ? `You’re already signed in as ${roleLabel}. Keep going, or sign in to a different account.`
+              : `You’re already signed in as ${roleLabel}. Keep using this workspace, or open a new session for a different account.`}
           </p>
         </div>
         <Link href={continueHref} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
@@ -178,7 +178,7 @@ export function AuthRoleCard({
     <Link
       href={href}
       className={cn(
-        "group block rounded-lg border border-border bg-card p-6 shadow-panel transition-colors hover:border-foreground/20 hover:bg-card/80",
+        "group block rounded-lg border border-border bg-card p-6 shadow-panel transition-colors hover:border-foreground/20 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className
       )}
     >

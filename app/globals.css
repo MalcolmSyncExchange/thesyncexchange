@@ -71,6 +71,15 @@
   }
 }
 
+:where(a[href], summary, [role="button"]):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+
+:where(a[href], button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary, select:not(:disabled)) {
+  cursor: pointer;
+}
+
 /* Brand cursor: retain system cursors for touch, reduced motion and high contrast. */
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) and (forced-colors: none) {
   body { cursor: url("/cursors/sync-pointer.svg") 3 3, auto; }

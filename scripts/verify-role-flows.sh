@@ -94,14 +94,14 @@ require_cookie_header() {
 check_status() {
   local label="$1"
   local expected_csv="$2"
-  local path="$3"
+  local route_path="$3"
   local cookie_header="${4:-}"
   local request_cookie_header
   request_cookie_header="$(build_cookie_header "${cookie_header}")"
 
   local http_code
-  if ! http_code="$(request_status "${BASE_URL}${path}" "${request_cookie_header}")"; then
-    echo "FAIL ${label}: request failed for ${BASE_URL}${path}" >&2
+  if ! http_code="$(request_status "${BASE_URL}${route_path}" "${request_cookie_header}")"; then
+    echo "FAIL ${label}: request failed for ${BASE_URL}${route_path}" >&2
     print_body_file
     return 1
   fi
@@ -127,11 +127,11 @@ check_status() {
 check_authenticated_route() {
   local label="$1"
   local cookie_header="$2"
-  local path="$3"
+  local route_path="$3"
   local expected="${4:-200}"
 
   require_cookie_header "${label}" "${cookie_header}"
-  check_status "${label}" "${expected}" "${path}" "${cookie_header}"
+  check_status "${label}" "${expected}" "${route_path}" "${cookie_header}"
 }
 
 check_agreement_access() {

@@ -16,13 +16,13 @@ export default async function BuyerSignupPage(
   return (
     <AuthPageShell
       compact
-      eyebrow="Buyer account"
-      title="Find your next sound."
-      description="Create a buyer account to discover music, build a shortlist and license tracks for your projects."
+      eyebrow="Buyer signup"
+      title="Start finding music."
+      description="Create one account. Start with the workspace you need today."
       highlights={[
-        { label: "Your projects", value: "Tell us a little about your company and the work you create." },
-        { label: "Your taste", value: "Save your favorite genres and moods to help you start exploring." },
-        { label: "Your shortlist", value: "Keep the tracks you love close, and return when you’re ready to license." }
+        { label: "Your projects", value: "Tell us about your company and the work you make." },
+        { label: "Your taste", value: "Save the genres and moods you like." },
+        { label: "Your saved tracks", value: "Keep the tracks you love and come back when you are ready." }
       ]}
     >
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -30,13 +30,13 @@ export default async function BuyerSignupPage(
         <AuthConfirmationNotice email={confirmationEmail} returnTo="/signup/buyer" action={resendSignupConfirmationAction} />
         <SignupRoleForm
           role="buyer"
-          title="Sign up as a buyer"
-          description="One account for discovery, saved tracks and licenses."
-          helper="Next, confirm your email if prompted and set up your buyer profile."
+          title="Find music for a project"
+          description="Start with music search, saved tracks, and license records."
+          helper="Next, check your email if asked. Then set up your buyer profile."
           returnTo="/signup/buyer"
           alternateHref="/signup/artist"
           alternateLabel="Looking to upload music instead?"
-          alternateActionLabel="Create an Artist Account"
+          alternateActionLabel="I want to list music instead"
           error={searchParams?.error}
           success={searchParams?.success}
         />

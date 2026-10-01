@@ -6,49 +6,56 @@ import { SectionHeader } from "@/components/marketing/section-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+const pricingAreas = [
+  {
+    title: "Buyer access",
+    heading: "Browse before you buy.",
+    description: "Open Discover first. The live catalog requires an authorized buyer account. License prices are separate."
+  },
+  {
+    title: "Music licenses",
+    heading: "A price for each offered license.",
+    description: "See the price and terms with the offer. Final license pricing must come from the approved live offer."
+  },
+  {
+    title: "Artist access",
+    heading: "Final plan pricing is pending.",
+    description: "Artist plans, platform fees, and transaction fees still need business approval."
+  }
+];
+
 export default function PricingPage() {
   return (
     <main>
       <PageHero
         eyebrow="Pricing"
-        title="Structured for premium catalog supply and flexible buyer demand."
-        description="Artist plans, transactional licensing, and enterprise support can evolve without changing the product foundation."
+        title="See each cost before you commit."
+        description="A music license price is separate from any platform charge. This page keeps those costs easy to tell apart."
       />
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <SectionHeader
-          eyebrow="Commercial model"
-          title="Simple enough to understand, premium enough to scale."
-          description="The marketplace is structured around recurring artist access, transactional buyer licensing, and enterprise support for higher-volume sourcing."
+          eyebrow="Pricing decisions still awaiting approval"
+          title="Know which cost is which."
+          description="No price or fee shown here is final until the business model and authoritative license offers are approved."
         />
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
-          {[
-            ["Artist Plan", "$39/mo", "Submission workflow, rights management, and buyer-ready catalog presence.", "Start Submitting"],
-            ["Buyer Access", "Free to browse", "Search, shortlist, and purchase licenses only when needed.", "Browse Catalog"],
-            ["Enterprise", "Custom", "Negotiated sourcing, white-glove licensing, and tailored terms.", "Contact Sales"]
-          ].map(([title, price, copy, cta]) => (
-            <Card key={title}>
+          {pricingAreas.map((item) => (
+            <Card key={item.title}>
               <CardHeader>
-                <CardTitle>{title}</CardTitle>
+                <p className="text-sm font-medium text-muted-foreground">{item.title}</p>
+                <CardTitle>{item.heading}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-5">
-                <p className="text-4xl font-semibold">{price}</p>
-                <p className="text-sm leading-6 text-muted-foreground">{copy}</p>
-                <Button asChild className="w-full">
-                  <Link href={title === "Enterprise" ? "/contact" : title === "Buyer Access" ? "/signup/buyer" : "/signup/artist"}>{cta}</Link>
-                </Button>
+              <CardContent>
+                <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
               </CardContent>
             </Card>
           ))}
         </div>
       </section>
       <CtaBand
-        title="Need custom licensing support or higher-volume sourcing?"
-        description="Enterprise pathways can accommodate bespoke pricing, higher-touch search support, and tailored rights handling."
-        actions={
-          <Button asChild>
-            <Link href="/contact">Start a Conversation</Link>
-          </Button>
-        }
+        title="Have a pricing question?"
+        description="Tell us whether you are asking about buyer access, an artist plan, a license, or a larger team."
+        actions={<Button asChild><Link href="/contact">Ask about pricing</Link></Button>}
       />
     </main>
   );

@@ -16,6 +16,7 @@ export function ThemeToggle({ className, size = "sm" }: { className?: string; si
   }, []);
 
   const currentTheme = mounted ? (theme === "system" ? resolvedTheme : theme) : undefined;
+  const isReady = currentTheme === "light" || currentTheme === "dark";
   const isDark = currentTheme === "dark";
 
   return (
@@ -24,12 +25,12 @@ export function ThemeToggle({ className, size = "sm" }: { className?: string; si
       variant="outline"
       size={size}
       onClick={() => {
-        if (!mounted) return;
+        if (!isReady) return;
         setTheme(isDark ? "light" : "dark");
       }}
-      aria-disabled={!mounted}
+      aria-disabled={!isReady}
       aria-label="Toggle color theme"
-      title={mounted ? `Switch to ${isDark ? "light" : "dark"} mode` : "Loading theme controls"}
+      title={isReady ? `Switch to ${isDark ? "light" : "dark"} mode` : "Loading theme controls"}
       className={cn(className)}
     >
       {isDark ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

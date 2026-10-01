@@ -13,7 +13,7 @@ export function OnboardingShell({ roleLabel, title, description, steps, currentS
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-          <Link href="/"><BrandLogo className="w-[164px]" /></Link>
+          <Link href="/"><BrandLogo className="w-[184px]" /></Link>
           <span className="text-sm text-muted-foreground">{roleLabel}</span>
         </header>
         <div className="mt-6 grid gap-6 lg:grid-cols-[280px,1fr]">

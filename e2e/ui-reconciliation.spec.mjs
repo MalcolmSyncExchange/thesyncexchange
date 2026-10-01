@@ -8,6 +8,84 @@ test.beforeAll(async () => {
   await fs.mkdir(outputDir, { recursive: true });
 });
 
+test("homepage hero matches the approved cinematic responsive treatment", async ({ browser }) => {
+  const desktop = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
+  await desktop.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  const page = await desktop.newPage();
+  await page.goto("/");
+
+  const hero = page.locator("section[aria-labelledby='home-title']");
+  const artwork = hero.locator("img");
+  await expect(hero.getByRole("heading", { level: 1, name: "Find it. Clear it. License it." })).toBeVisible();
+  await expect(hero.getByRole("link", { name: "Search music" })).toBeVisible();
+  await expect(hero.getByRole("link", { name: "List your music" })).toBeVisible();
+  await expect(hero.locator("figure, figcaption")).toHaveCount(0);
+  await expect(artwork).toHaveAttribute("src", /sync-sound-sculpture/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+
+  await hero.evaluate((element) => {
+    for (const animation of element.getAnimations({ subtree: true })) {
+      if (animation.timeline === document.timeline) {
+        animation.pause();
+        animation.currentTime = 0;
+      }
+    }
+  });
+  await hero.screenshot({ path: path.join(outputDir, "homepage-hero-desktop-dark-initial.png") });
+
+  await page.reload();
+  await page.waitForTimeout(900);
+  await page.locator("section[aria-labelledby='home-title']").screenshot({ path: path.join(outputDir, "homepage-hero-desktop-dark.png") });
+  await page.evaluate(() => window.scrollTo(0, 320));
+  await page.screenshot({ path: path.join(outputDir, "homepage-hero-desktop-dark-scrolled.png") });
+  await page.getByRole("heading", { level: 2, name: "From first listen to license record." }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(outputDir, "homepage-hero-to-how-it-works-dark.png") });
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByRole("button", { name: "Toggle color theme" }).click();
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  await page.locator("section[aria-labelledby='home-title']").screenshot({ path: path.join(outputDir, "homepage-hero-desktop-light.png") });
+  await desktop.close();
+
+  const tablet = await browser.newContext({ viewport: { width: 834, height: 1112 }, colorScheme: "dark" });
+  await tablet.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  const tabletPage = await tablet.newPage();
+  await tabletPage.goto("/");
+  await tabletPage.waitForTimeout(900);
+  expect(await tabletPage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await tabletPage.locator("section[aria-labelledby='home-title']").screenshot({ path: path.join(outputDir, "homepage-hero-tablet-dark.png") });
+  await tablet.close();
+
+  const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "dark" });
+  await mobile.addInitScript(() => window.localStorage.setItem("theme", "dark"));
+  const mobilePage = await mobile.newPage();
+  await mobilePage.goto("/");
+  await mobilePage.waitForTimeout(900);
+  const mobileHero = mobilePage.locator("section[aria-labelledby='home-title']");
+  await expect(mobileHero.getByRole("link", { name: "Search music" })).toHaveCSS("width", "354px");
+  expect(await mobilePage.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await mobileHero.screenshot({ path: path.join(outputDir, "homepage-hero-mobile-dark.png") });
+  await mobile.close();
+
+  const mobileLight = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" });
+  await mobileLight.addInitScript(() => window.localStorage.setItem("theme", "light"));
+  const mobileLightPage = await mobileLight.newPage();
+  await mobileLightPage.goto("/");
+  await mobileLightPage.waitForTimeout(900);
+  await expect(mobileLightPage.locator("html")).not.toHaveClass(/dark/);
+  await mobileLightPage.locator("section[aria-labelledby='home-title']").screenshot({ path: path.join(outputDir, "homepage-hero-mobile-light.png") });
+  await mobileLight.close();
+
+  const reduced = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+  const reducedPage = await reduced.newPage();
+  await reducedPage.goto("/");
+  const reducedHeading = reducedPage.getByRole("heading", { level: 1, name: "Find it. Clear it. License it." });
+  await expect(reducedHeading).toHaveCSS("opacity", "1");
+  await expect(reducedHeading).toHaveCSS("transform", "none");
+  expect(await reducedPage.locator("section[aria-labelledby='home-title'] img").evaluate((image) => getComputedStyle(image).animationName)).toBe("none");
+  await reduced.close();
+});
+
 test("public design, responsive navigation, theme persistence, and brand geometry", async ({ browser }) => {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await desktop.addInitScript(() => {
@@ -18,6 +96,7 @@ test("public design, responsive navigation, theme persistence, and brand geometr
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "Find it. Clear it. License it." })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+  await page.waitForTimeout(900);
   await page.screenshot({ path: path.join(outputDir, "homepage-desktop-dark.png"), fullPage: true });
 
   const headerLogo = page.locator("header img:visible").first();
@@ -62,6 +141,7 @@ test("public design, responsive navigation, theme persistence, and brand geometr
   const mobilePage = await mobile.newPage();
   await mobilePage.goto("/");
   await expect(mobilePage.getByRole("button", { name: "Open menu" })).toBeVisible();
+  await mobilePage.waitForTimeout(900);
   await mobilePage.screenshot({ path: path.join(outputDir, "homepage-mobile.png"), fullPage: true });
   await mobilePage.getByRole("button", { name: "Open menu" }).click();
   await expect(mobilePage.getByRole("dialog", { name: "Explore The Sync Exchange" })).toBeVisible();

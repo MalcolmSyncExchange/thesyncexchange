@@ -14,20 +14,25 @@ const buyerSteps = [
 export function Homepage() {
   return <main className={styles.home}>
     <section className={styles.hero} aria-labelledby="home-title">
-      <div>
-        <p className={`${surface.eyebrow} ${styles.titleCaseEyebrow}`}>Music Licensing Marketplace</p>
-        <h1 id="home-title">Find it. Clear it. License it.</h1>
-        <p className={surface.description}>A music licensing marketplace for buyers and artists. Find music, review what is offered, and choose a license for your project.</p>
-        <div className={styles.actions}>
-          <Button asChild size="lg"><Link href="/discover">Search music<ArrowRight aria-hidden="true" size={18} /></Link></Button>
-          <Button asChild variant="outline" size="lg"><Link href="/signup/artist">List your music<Music2 aria-hidden="true" size={18} /></Link></Button>
-        </div>
-        <p className={styles.signin}>Already part of The Sync Exchange? <Link href="/login">Log in</Link></p>
+      <div className={styles.heroMedia} aria-hidden="true">
+        <Image src="/images/sync-sound-sculpture.webp" alt="" fill priority sizes="100vw" className={styles.heroArtwork} />
       </div>
-      <figure className={styles.feature}>
-        <div className={styles.photo}><Image src="/images/sync-sound-sculpture.webp" alt="Sculptural sound waves in blue glass and smoked chrome with gold edges" fill priority sizes="(min-width: 1000px) 40vw, 100vw" className="object-cover" /></div>
-        <figcaption><Music2 aria-hidden="true" size={22} /><div><strong>Music to start with</strong><p>Independent artists. Distinctive tracks.</p></div></figcaption>
-      </figure>
+      <div className={styles.heroAtmosphere} aria-hidden="true" />
+      <div className={styles.heroTransition} aria-hidden="true" />
+      <div className={styles.heroContent}>
+        <div className={styles.heroCopy}>
+          <p className={`${surface.eyebrow} ${styles.titleCaseEyebrow} ${styles.heroEyebrow}`}>Music Licensing Marketplace</p>
+          <h1 id="home-title" className={styles.heroTitle}>Find it. Clear it. License it.</h1>
+          <p className={`${surface.description} ${styles.heroDescription}`}>A music licensing marketplace for buyers and artists. Find music, review what is offered, and choose a license for your project.</p>
+          <div className={styles.heroConversion}>
+            <div className={styles.actions}>
+              <Button asChild size="lg" className={styles.primaryAction}><Link href="/discover">Search music<ArrowRight aria-hidden="true" size={18} /></Link></Button>
+              <Button asChild variant="outline" size="lg" className={styles.secondaryAction}><Link href="/signup/artist">List your music<Music2 aria-hidden="true" size={18} /></Link></Button>
+            </div>
+            <p className={styles.signin}>Already part of The Sync Exchange? <Link href="/login">Log in</Link></p>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section className={styles.discovery} aria-labelledby="discovery-title">

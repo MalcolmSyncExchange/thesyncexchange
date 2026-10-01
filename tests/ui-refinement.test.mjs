@@ -15,6 +15,13 @@ test("homepage uses the latest approved messaging overlay", () => {
   assert.match(styles, /\.titleCaseEyebrow \{ text-transform: none; \}/);
   assert.match(source, /Find it\. Clear it\. License it\./);
   assert.match(source, /Know what is offered before you move forward/);
+  assert.match(source, /heroMedia/);
+  assert.match(source, /sizes="100vw"/);
+  assert.doesNotMatch(source, /Music to start with|Independent artists\. Distinctive tracks\./);
+  assert.doesNotMatch(styles, /\.feature|\.photo/);
+  assert.match(styles, /min-height: clamp\(680px, 76vh, 780px\)/);
+  assert.match(styles, /animation-timeline: scroll\(root block\)/);
+  assert.match(styles, /@media\(prefers-reduced-motion: reduce\)/);
   assert.doesNotMatch(source, /license posture|operational readiness|institutional polish/i);
 });
 

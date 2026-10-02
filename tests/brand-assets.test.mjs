@@ -25,7 +25,19 @@ const expectedPngDimensions = new Map([
   ["public/brand/the-sync-exchange/app/favicon-512x512.png", [512, 512]],
   ["public/brand/the-sync-exchange/app/favicon-192x192.png", [192, 192]],
   ["public/brand/the-sync-exchange/app/favicon-96x96.png", [96, 96]],
+  ["public/brand/the-sync-exchange/app/favicon-64x64.png", [64, 64]],
   ["public/brand/the-sync-exchange/app/favicon-32x32.png", [32, 32]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/favicon-512x512.png", [512, 512]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/favicon-192x192.png", [192, 192]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/favicon-96x96.png", [96, 96]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/favicon-64x64.png", [64, 64]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/favicon-48x48.png", [48, 48]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/favicon-32x32.png", [32, 32]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/favicon-16x16.png", [16, 16]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/apple-touch-icon-180x180.png", [180, 180]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/app-icon-1024x1024.png", [1024, 1024]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/maskable-192x192.png", [192, 192]],
+  ["public/brand/the-sync-exchange/app/blue-s-v1/maskable-512x512.png", [512, 512]],
   ["public/brand/the-sync-exchange/social/social-profile-logo-1080x1080.png", [1080, 1080]],
   ["public/brand/the-sync-exchange/social/social-share-og-1200x630.png", [1200, 630]],
   ["public/brand/the-sync-exchange/watermark/Watermark.png", [1024, 1024]],
@@ -35,6 +47,7 @@ const expectedPngDimensions = new Map([
   ["public/favicon-16x16.png", [16, 16]],
   ["public/favicon-32x32.png", [32, 32]],
   ["public/favicon-48x48.png", [48, 48]],
+  ["public/favicon-64x64.png", [64, 64]],
   ["public/favicon-96x96.png", [96, 96]]
 ]);
 
@@ -236,9 +249,136 @@ test("horizontal lockups preserve the full padded approved S geometry", async ()
   }
 });
 
-test("favicon.ico is valid and verified legacy files are gone", async () => {
+test("favicon.ico contains real 16, 32, 48 and 64 pixel icon entries", async () => {
   const favicon = await readFile("public/favicon.ico");
   assert.deepEqual([...favicon.subarray(0, 4)], [0, 0, 1, 0]);
+  const count = favicon.readUInt16LE(4);
+  assert.equal(count, 4);
+  const sizes = [];
+  for (let index = 0; index < count; index += 1) {
+    const entry = 6 + index * 16;
+    const width = favicon.readUInt8(entry) || 256;
+    const height = favicon.readUInt8(entry + 1) || 256;
+    const byteLength = favicon.readUInt32LE(entry + 8);
+    const offset = favicon.readUInt32LE(entry + 12);
+    assert.equal(width, height);
+    assert.deepEqual([...favicon.subarray(offset, offset + 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.ok(byteLength > 8);
+    sizes.push(width);
+  }
+  assert.deepEqual(sizes, [16, 32, 48, 64]);
+
+  const versioned = await readFile("public/brand/the-sync-exchange/app/blue-s-v1/favicon.ico");
+  assert.deepEqual(versioned, favicon);
+});
+
+test("standard favicon family uses the canonical S at maximum safe occupancy", async () => {
+  const source = await sharp(
+    "public/brand/the-sync-exchange/logos/website-symbol-transparent.png"
+  )
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  for (const size of [16, 32, 48, 64, 96, 192, 512]) {
+    const path = `public/brand/the-sync-exchange/app/blue-s-v1/favicon-${size}x${size}.png`;
+    const actual = await sharp(path)
+      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const expected = await sharp(source)
+      .resize({
+        height: size === 16 ? 14 : Math.round(size * 0.92),
+        fit: "inside",
+        kernel: "lanczos3"
+      })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    assert.deepEqual(
+      [actual.info.width, actual.info.height, actual.info.channels],
+      [expected.info.width, expected.info.height, expected.info.channels],
+      path
+    );
+    let alphaDifference = 0;
+    let colorDifference = 0;
+    for (let offset = 0; offset < actual.data.length; offset += 4) {
+      alphaDifference += Math.abs(actual.data[offset + 3] - expected.data[offset + 3]);
+      colorDifference += Math.abs(actual.data[offset] - expected.data[offset]);
+      colorDifference += Math.abs(actual.data[offset + 1] - expected.data[offset + 1]);
+      colorDifference += Math.abs(actual.data[offset + 2] - expected.data[offset + 2]);
+    }
+    assert.ok(alphaDifference / (actual.data.length / 4) < 1, { path, alphaDifference });
+    assert.ok(colorDifference / (actual.data.length * 0.75) < 2, { path, colorDifference });
+    const occupancy = actual.info.height / size;
+    assert.ok(occupancy >= 0.875 && occupancy <= 0.94, { path, occupancy });
+  }
+});
+
+test("conventional root and legacy-compatible icon paths match the versioned blue S family", async () => {
+  const copies = [
+    ["public/favicon-16x16.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-16x16.png"],
+    ["public/favicon-32x32.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-32x32.png"],
+    ["public/favicon-48x48.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-48x48.png"],
+    ["public/favicon-64x64.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-64x64.png"],
+    ["public/favicon-96x96.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-96x96.png"],
+    ["public/android-chrome-192x192.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-192x192.png"],
+    ["public/android-chrome-512x512.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-512x512.png"],
+    ["public/brand/the-sync-exchange/app/favicon-32x32.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-32x32.png"],
+    ["public/brand/the-sync-exchange/app/favicon-64x64.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-64x64.png"],
+    ["public/brand/the-sync-exchange/app/favicon-96x96.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-96x96.png"],
+    ["public/brand/the-sync-exchange/app/favicon-192x192.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-192x192.png"],
+    ["public/brand/the-sync-exchange/app/favicon-512x512.png", "public/brand/the-sync-exchange/app/blue-s-v1/favicon-512x512.png"],
+    ["public/apple-touch-icon.png", "public/brand/the-sync-exchange/app/blue-s-v1/apple-touch-icon-180x180.png"],
+    ["public/brand/the-sync-exchange/app/apple-touch-icon-180x180.png", "public/brand/the-sync-exchange/app/blue-s-v1/apple-touch-icon-180x180.png"],
+    ["public/brand/the-sync-exchange/app/app-icon-1024x1024.png", "public/brand/the-sync-exchange/app/blue-s-v1/app-icon-1024x1024.png"],
+    ["public/android-chrome-maskable-192x192.png", "public/brand/the-sync-exchange/app/blue-s-v1/maskable-192x192.png"],
+    ["public/android-chrome-maskable-512x512.png", "public/brand/the-sync-exchange/app/blue-s-v1/maskable-512x512.png"]
+  ];
+
+  for (const [copy, canonical] of copies) {
+    assert.deepEqual(await readFile(copy), await readFile(canonical), copy);
+  }
+});
+
+test("Apple and maskable icons use the approved opaque brand treatment", async () => {
+  const cases = [
+    ["public/brand/the-sync-exchange/app/blue-s-v1/apple-touch-icon-180x180.png", 180],
+    ["public/brand/the-sync-exchange/app/blue-s-v1/maskable-192x192.png", 192],
+    ["public/brand/the-sync-exchange/app/blue-s-v1/maskable-512x512.png", 512]
+  ];
+
+  for (const [path, size] of cases) {
+    const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.deepEqual([info.width, info.height], [size, size]);
+    for (let offset = 3; offset < data.length; offset += 4) assert.equal(data[offset], 255, path);
+
+    if (path.includes("maskable")) {
+      const [backgroundR, backgroundG, backgroundB] = [data[0], data[1], data[2]];
+      let furthestSymbolPixel = 0;
+      for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+          const offset = (y * size + x) * 4;
+          const differsFromBackground = Math.max(
+            Math.abs(data[offset] - backgroundR),
+            Math.abs(data[offset + 1] - backgroundG),
+            Math.abs(data[offset + 2] - backgroundB)
+          ) > 3;
+          if (!differsFromBackground) continue;
+          furthestSymbolPixel = Math.max(
+            furthestSymbolPixel,
+            Math.hypot(x + 0.5 - size / 2, y + 0.5 - size / 2)
+          );
+        }
+      }
+      assert.ok(furthestSymbolPixel <= size * 0.4, { path, furthestSymbolPixel });
+    }
+  }
+});
+
+test("verified legacy brand files remain removed", async () => {
 
   for (const path of [
     "public/favicon.svg",
@@ -260,10 +400,17 @@ test("metadata uses the approved social image and new icon family", async () => 
   ]);
 
   assert.match(layout, /social\/social-share-og-1200x630\.png/);
-  assert.match(layout, /app-icon-1024x1024\.png/);
+  assert.match(layout, /blue-s-v1\/favicon\.ico/);
+  assert.match(layout, /blue-s-v1\/favicon-64x64\.png/);
+  assert.match(layout, /blue-s-v1\/apple-touch-icon-180x180\.png/);
   assert.doesNotMatch(layout, /AppIcon_|Primary_Logo_|Icon_Gold|favicon\.svg/);
-  assert.match(manifest, /android-chrome-192x192\.png/);
-  assert.match(manifest, /android-chrome-512x512\.png/);
+  assert.doesNotMatch(layout, /url: "\/favicon/);
+  assert.match(manifest, /blue-s-v1\/favicon-192x192\.png/);
+  assert.match(manifest, /blue-s-v1\/favicon-512x512\.png/);
+  assert.match(manifest, /blue-s-v1\/maskable-192x192\.png/);
+  assert.match(manifest, /blue-s-v1\/maskable-512x512\.png/);
+  assert.match(manifest, /purpose: "any"/);
+  assert.match(manifest, /purpose: "maskable"/);
 });
 
 test("shared brand component maps each UI role to its approved asset", async () => {

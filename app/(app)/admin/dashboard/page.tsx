@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { getPaymentRuntimeConfiguration } from "@/lib/server-env";
+import { getPaymentDisplayConfiguration } from "@/lib/server-env";
 import { getAdminDashboardData } from "@/services/admin/queries";
 import type { AdminFlagSeverity } from "@/types/models";
 
@@ -39,12 +39,15 @@ const severityMeta: Record<AdminFlagSeverity, { label: string; tone: string; bar
 
 export default async function AdminDashboardPage() {
   const data = await getAdminDashboardData();
-  const payment = getPaymentRuntimeConfiguration();
+  const payment = getPaymentDisplayConfiguration();
   const liveRatio = data.totalTracks ? Math.round((data.approvedTracks / data.totalTracks) * 100) : 0;
   const flagSummaryTotal = data.flagSummary.reduce((sum, item) => sum + item.count, 0);
 
   return (
     <div className="space-y-8">
+      {!payment.checkoutAvailable ? <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+        Payments are unavailable. Review deployment configuration: {payment.issueCodes.join(", ")}. Moderation remains available.
+      </div> : null}
       <section className="rounded-lg border border-border bg-card/80 p-6 shadow-panel">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
@@ -92,9 +95,9 @@ export default async function AdminDashboardPage() {
           change={data.pendingReviews ? "Queue requires moderation attention" : "Review queue is clear"}
         />
         <StatCard
-          title={payment.paymentMode === "test" ? "Test orders" : "Orders"}
+          title="Orders"
           value={String(data.totalOrders)}
-          change={`${formatCurrency(data.grossVolume)} in ${payment.paymentMode === "test" ? "sandbox order value — no live revenue" : "processed license value"}`}
+          change={`${formatCurrency(data.grossVolume)} in recorded order value, including pending and test orders; not payout revenue`}
         />
         <StatCard
           title="Open flags"

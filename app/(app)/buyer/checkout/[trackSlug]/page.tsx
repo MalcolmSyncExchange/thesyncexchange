@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { createOrderAction } from "@/services/buyer/actions";
 import { getBuyerTrackBySlug } from "@/services/buyer/queries";
 import { requireSession } from "@/services/auth/session";
-import { getPaymentRuntimeConfiguration } from "@/lib/server-env";
+import { getPaymentDisplayConfiguration } from "@/lib/server-env";
 
 export default async function CheckoutPage(
   props: {
@@ -19,12 +19,17 @@ export default async function CheckoutPage(
   const user = await requireSession("buyer");
   const track = await getBuyerTrackBySlug(params.trackSlug, user.id);
   if (!track) notFound();
-  const payment = getPaymentRuntimeConfiguration();
+  const payment = getPaymentDisplayConfiguration();
   const testPayment = payment.paymentMode === "test";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <h1 className="text-3xl font-semibold">License checkout</h1>
+      {!payment.checkoutAvailable ? (
+        <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm">
+          Checkout is temporarily unavailable. You can review license options, but payment cannot start. Please contact support if this continues.
+        </div>
+      ) : null}
       {testPayment ? (
         <div className="rounded-lg border-2 border-amber-500 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100" role="status">
           <p className="font-bold">TEST MODE — NO REAL PAYMENT</p>
@@ -48,7 +53,7 @@ export default async function CheckoutPage(
                     <p className="font-medium">{option.name}</p>
                     <p className="text-sm text-muted-foreground">{option.terms_summary}</p>
                   </div>
-                  <p className="font-medium">{formatCurrency(option.price_override || option.base_price)}</p>
+                  <p className="font-medium">{formatCurrency(option.price_override ?? option.base_price)}</p>
                 </div>
               </div>
             ))}
@@ -65,7 +70,8 @@ export default async function CheckoutPage(
             <form action={createOrderAction} className="space-y-4" data-testid="buyer-checkout-form">
               <input type="hidden" name="trackId" value={track.id} />
               <input type="hidden" name="trackSlug" value={track.slug} />
-              <div className="space-y-3">
+              <fieldset disabled={!payment.checkoutAvailable} className="space-y-3">
+                <legend className="sr-only">Choose a license</legend>
                 {track.license_options.map((option, index) => (
                   <label
                     key={option.id}
@@ -77,19 +83,20 @@ export default async function CheckoutPage(
                       <p className="text-muted-foreground">{option.terms_summary}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-medium">{formatCurrency(option.price_override || option.base_price)}</span>
+                      <span className="font-medium">{formatCurrency(option.price_override ?? option.base_price)}</span>
                       <input
                         type="radio"
                         name="licenseSelection"
-                        value={`${option.id}|${option.price_override || option.base_price}`}
+                        value={`${option.id}|${option.price_override ?? option.base_price}`}
                         defaultChecked={index === 0}
+                        aria-label={option.name}
                         data-testid={`license-radio-${option.slug || option.id}`}
                       />
                     </div>
                   </label>
                 ))}
-              </div>
-              <Button className="w-full" data-testid="buyer-checkout-submit">
+              </fieldset>
+              <Button disabled={!payment.checkoutAvailable || track.license_options.length === 0} className="w-full" data-testid="buyer-checkout-submit">
                 {testPayment ? "Continue to Test Checkout" : "Continue to Secure Checkout"}
               </Button>
             </form>

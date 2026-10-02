@@ -10,7 +10,10 @@ import {
 const rawSupabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const rawStripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const rawStripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-const rawPaymentMode = process.env.SYNC_EXCHANGE_PAYMENT_MODE;
+// Netlify TOML context values exist at build time. Preserve only the explicit
+// preview setting for Functions; never supply a fallback for production.
+const rawPaymentMode = process.env.SYNC_EXCHANGE_PAYMENT_MODE ??
+  (getDeploymentTarget() === "preview" ? process.env.TSE_BUILD_PREVIEW_PAYMENT_MODE : undefined);
 const rawBillingPortalEnabled = process.env.SYNC_EXCHANGE_BILLING_PORTAL_ENABLED;
 
 export type StripeKeyMode = "test" | "live" | "missing" | "unknown";
@@ -226,6 +229,20 @@ export function assertStripeServerConfiguration(
   if (blockingIssue) {
     throw new Error(blockingIssue.message);
   }
+}
+
+// Read-only pages must remain accessible when payment execution is unavailable.
+// This projection contains no keys; execution still uses the strict validator below.
+export function getPaymentDisplayConfiguration() {
+  const diagnostics = getServerEnvironmentDiagnostics();
+  const checkoutAvailable = diagnostics.errors.length === 0 &&
+    (diagnostics.paymentMode === "test" || diagnostics.paymentMode === "live");
+  return {
+    paymentMode: diagnostics.paymentMode,
+    checkoutAvailable,
+    livePaymentsEnabled: checkoutAvailable && diagnostics.livePaymentsEnabled,
+    issueCodes: diagnostics.errors.map(issue => issue.code)
+  };
 }
 
 export function getPaymentRuntimeConfiguration() {

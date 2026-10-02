@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { CreditCard, Heart, ReceiptText, Search, Settings, Home, LogOut, Menu, Music2, Upload, UserRound, Users, X } from "lucide-react";
 import { BrandLogo } from "@/components/layout/brand-assets";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -50,7 +51,6 @@ function AccountLinks({ pathname, onNavigate, kind }: { pathname: string; onNavi
 
 function WorkspaceShell({ user, children, kind }: { user: SessionUser; children: ReactNode; kind: WorkspaceKind }) {
   const label = kind === "artist" ? "Artist workspace" : "Buyer workspace";
-  const accountHref = kind === "artist" ? "/artist/profile" : "/buyer/settings";
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = user.fullName.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("");
@@ -75,10 +75,29 @@ function WorkspaceShell({ user, children, kind }: { user: SessionUser; children:
         </Dialog.Root>
         <span className={styles.workspaceLabel}>{label}</span>
         <ThemeToggle className={styles.themeToggle} />
-        <Link href={accountHref} className={styles.identity} aria-label={`View profile for ${user.fullName}`}>
-          <span className={styles.avatar} aria-hidden="true">{initials}</span>
-          <span className={styles.name}>{user.fullName}</span>
-        </Link>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger className={styles.identity} aria-label={`Open account menu for ${user.fullName}`}>
+            <span className={styles.avatar} aria-hidden="true">{initials}</span>
+            <span className={styles.name}>{user.fullName}</span>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content align="end" sideOffset={10} collisionPadding={12} className={styles.accountMenu}>
+              <DropdownMenu.Label className={styles.accountMenuLabel}>{label}</DropdownMenu.Label>
+              <DropdownMenu.Item asChild><Link href={`/${kind}/dashboard`}>Dashboard</Link></DropdownMenu.Item>
+              <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/profile" : "/buyer/settings#account-profile"}>Profile</Link></DropdownMenu.Item>
+              <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/payout-settings" : "/buyer/settings"}>{kind === "artist" ? "Payout settings" : "Settings"}</Link></DropdownMenu.Item>
+              <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/catalog" : "/buyer/orders"}>{kind === "artist" ? "Catalog" : "Purchases & orders"}</Link></DropdownMenu.Item>
+              {kind === "buyer" ? <DropdownMenu.Item asChild><Link href="/buyer/settings#account-notifications">Notification preferences</Link></DropdownMenu.Item> : null}
+              <DropdownMenu.Item asChild><Link href="/contact">Help</Link></DropdownMenu.Item>
+              <DropdownMenu.Separator className={styles.accountMenuSeparator} />
+              <form action={logoutAction}>
+                <DropdownMenu.Item asChild onSelect={event => event.preventDefault()}>
+                  <button type="submit"><LogOut aria-hidden="true" size={18} />Log out</button>
+                </DropdownMenu.Item>
+              </form>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
       </header>
       <main id={`${kind}-main`} tabIndex={-1} className={styles.main}>{children}</main>
     </div>

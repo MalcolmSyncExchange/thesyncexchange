@@ -18,8 +18,7 @@ const nextSteps = [
 ];
 
 export function ArtistDashboard({ tracks, summary }: { tracks: ArtistDashboardTrack[]; summary: ArtistDashboardSummary }) {
-  const [selectedId, setSelectedId] = useState(() => getInitialDashboardTrack(tracks)?.id);
-  const active = tracks.find(track => track.id === selectedId) ?? getInitialDashboardTrack(tracks);
+  const active = getInitialDashboardTrack(tracks);
   const state = active ? getArtistDashboardStatus(active.status) : null;
   return (
     <div className={styles.dashboard}>
@@ -87,12 +86,12 @@ export function ArtistDashboard({ tracks, summary }: { tracks: ArtistDashboardTr
         </div>
         <ul className={styles.trackList}>
           {tracks.map(track => <li key={track.id}>
-            <button type="button" aria-pressed={active?.id === track.id} onClick={() => setSelectedId(track.id)} className={cn(styles.trackRow, active?.id === track.id && styles.selected)}>
+            <Link href={`/artist/tracks/${encodeURIComponent(track.slug)}`} aria-label={`View ${track.title}`} className={cn(styles.trackRow, active?.id === track.id && styles.selected)}>
               <Cover track={track} className={styles.rowCover} decorative />
               <span className="min-w-0 flex-1"><span className="block break-words font-medium">{track.title}</span><span className="mt-1 block text-sm text-muted-foreground">{track.duration > 0 ? formatDuration(Math.floor(track.duration)) : "Duration unavailable"}</span></span>
               <StatusBadge status={track.status} />
               <ChevronRight aria-hidden="true" className="hidden h-5 w-5 shrink-0 text-muted-foreground sm:block" />
-            </button>
+            </Link>
           </li>)}
         </ul>
       </section> : null}

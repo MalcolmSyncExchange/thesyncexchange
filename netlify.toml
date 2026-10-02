@@ -1,0 +1,4 @@
+# Nonsecret and scoped to Deploy Previews only. Production remains dashboard-managed.
+# Next.js preserves this explicit build value for the preview Functions runtime.
+[context.deploy-preview.environment]
+SYNC_EXCHANGE_PAYMENT_MODE = "test"

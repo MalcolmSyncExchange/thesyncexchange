@@ -3,6 +3,11 @@
 Baseline: `4ed914912295e8a128e6c9fc9984f7ed7e497181` (PR #27 production release).
 Branch: `codex/purchase-completion-foundation`.
 
+Security-remediation base: reconciled head `da1a983f651f2d98ef625de8b5fe4690a357827e`
+on main `eb372532b05a4b1f55869cf132d69f4c8994c2ca`. The original two Low findings
+remain part of the review history: coercive legacy evidence classification and
+missing reconciliation when first payment arrives during a security hold.
+
 This change adds dormant TEST-only database primitives. It does not connect them
 to checkout, webhooks, confirmation pages, agreement generation, Storage delivery,
 or Buyer/Artist UI. No production migration, payment, upload or deployment occurs.
@@ -105,6 +110,18 @@ for an unchanged logical payment preserve evidence without duplicating jobs or
 receipts. Stale PAID events cannot clear refund, dispute, failure or security holds.
 Administrative hold release is intentionally absent; it needs explicit review.
 
+`order_states.payment_received_event_id` separately records the first reconciled
+PAID fact. When first payment arrives during SECURITY_HOLD, the existing delivery
+state and current lifecycle `event_id` remain unchanged (including prior refund
+evidence). A new revision links the paid fact, appends
+`payment_received_while_held` history and enqueues only `receipt_generation` and
+`transaction_projection`. Neither asset preparation nor activation is queued.
+Repeated identical events, or different event IDs for that same logical payment,
+cannot append another held-payment revision. The order-state row lock serializes
+the decision. A future authorized recovery workflow can use this durable link and
+the retained jobs without manually replaying the original Stripe event; no hold
+clear or recovery UI is introduced here.
+
 ## Lifecycle effects
 
 | State | Entitlement | Receipt/agreement | Seller record |
@@ -141,17 +158,55 @@ Run `npm run test:purchase-foundation`, `npm run test:unit`,
 `npm run test:security-pr2`, `npm run test:artist-baseline`,
 `npm run test:artist-security:gate`, `npm run verify:security-baseline`,
 `npm run typecheck`, `npm run lint`, `npm run build`, and `git diff --check`.
+`npm run test:purchase-concurrency` additionally requires a running local Docker
+engine and cached `postgres:17` image. It creates and removes its own disposable
+container, with network disabled, no host ports and no host volume mounts. Two
+independent PostgreSQL connections must demonstrate lock waiting and exactly-once
+held-payment reconciliation. It never accepts a hosted database URL.
 
 The database rehearsal uses real PostgreSQL execution through PGlite, with local
 Auth/Storage table shims and captured production shape checks. It does not emulate
 the hosted Storage HTTP service, GoTrue, PostgREST schema cache, multiple PostgreSQL
-connections, object bytes or Stripe signatures. Hosted rehearsal is a separate
+connections, object bytes or Stripe signatures. The separate Docker test covers
+local PostgreSQL connection contention only. Hosted rehearsal is a separate
 pre-merge gate, using a disposable security project and synthetic records only.
 
 Legacy dry-run: `node scripts/purchase-completion/legacy-dry-run.mjs <local-export.json>`.
 It reads an explicitly supplied sanitized local export, prints per-order reasons,
 and has no network, credential, SQL-write or backfill path. SAFE_TO_MAP is only a
 manual mapping candidate; every output explicitly denies master entitlement.
+
+The exact sanitized export contract v1 is validated before classification:
+
+- Required `id`: UUID string; no trimming/coercion. Required `status`: exactly
+  pending/paid/fulfilled/refunded. `deployment_environment`: local/preview/production.
+- Required money: `amount_cents` is a positive safe integer; `snapshot_amount` is
+  a nonnegative safe integer. Strings, null, fractions, infinities and NaN are
+  invalid. Both currency fields are exactly USD, matching current checkout.
+- Required literal booleans: has_paid_at, has_payment_intent, has_agreement_path,
+  test_session, snapshot_order_matches, snapshot_buyer_matches,
+  snapshot_track_matches, verified_payment_evidence, frozen_seller_rights,
+  frozen_asset_version. Missing fields and boolean-like strings are invalid.
+- Required `agreement_status`: pending/generated/failed or explicit null for no
+  agreement. Required `payment_classification`: explicit null for unavailable
+  evidence, or a strict object with paymentMode test/live, releaseMode
+  production_beta/production_live/local/preview, and literal livemode and
+  commercialRightsGranted booleans. Mode, release, environment and test-session
+  classifications must agree. Null classification can never produce SAFE_TO_MAP.
+- Optional `created_at` accepts a calendar/time/offset-validated string (ISO or the existing
+  PostgreSQL export format); optional has_legacy_webhook_activity must be boolean.
+  Neither is payment authority. Unknown keys and explicit undefined are rejected.
+- No default evidence, numeric-string compatibility mode or implicit normalization
+  exists. Classification uses the parsed validated snapshot, not the original input.
+
+Malformed rows report INVALID_INPUT, `safeToMap=false`, static field/error codes
+and operationalOutcome=DO_NOT_BACKFILL. Valid-but-ambiguous evidence is reported
+separately. CLI counts include INVALID_INPUT plus the four existing operational
+outcomes; it exits 1 if any row or the whole input is invalid. Rejected values,
+unknown key names, file paths and parser excerpts are not copied into diagnostics.
+Old partial/text-cast exports require explicit evidence repair/re-export, not
+automatic defaults or coercion. Original historical counts must not be carried
+forward as newly validated results.
 
 Before later integration, review the webhook/confirmation coexistence, transaction
 boundaries around Checkout session binding, agreement generation from frozen

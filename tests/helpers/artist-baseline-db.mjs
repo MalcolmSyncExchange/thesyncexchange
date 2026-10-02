@@ -6,12 +6,7 @@ export const snapshot = name => JSON.parse(source(`tests/fixtures/artist-baselin
 export const ids = { a:'11111111-1111-4111-8111-111111111111', b:'22222222-2222-4222-8222-222222222222', buyer:'33333333-3333-4333-8333-333333333333', admin:'44444444-4444-4444-8444-444444444444', draft:'55555555-5555-4555-8555-555555555555', live:'66666666-6666-4666-8666-666666666666', otherTrack:'77777777-7777-4777-8777-777777777777', order:'88888888-8888-4888-8888-888888888888', license:'99999999-9999-4999-8999-999999999999' };
 export const quote = x => `'${String(x).replaceAll("'","''")}'`;
 export const ident = x => `"${String(x).replaceAll('"','""')}"`;
-// No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
-export async function database(target='repository', {seed=true}={}) {
- if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
- const db=new PGlite();
- try {
-  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
+export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls;
    create schema auth; create schema storage;
    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');
    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
@@ -22,7 +17,13 @@ export async function database(target='repository', {seed=true}={}) {
    grant usage on schema public,auth,storage to anon,authenticated,service_role;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
-   select set_config('request.jwt.claim.role','service_role',false);`);
+   select set_config('request.jwt.claim.role','service_role',false);`;
+// No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
+export async function database(target='repository', {seed=true}={}) {
+ if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
+ const db=new PGlite();
+ try {
+  await db.exec(fixtureBootstrapSql);
   for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
    (target==='repository' || (target==='pr27' && x!=='20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
    // Only extension installation is adapted; gen_random_uuid is native in this runtime.

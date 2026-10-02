@@ -124,6 +124,8 @@ create table commerce_private.order_states (
   contract_id uuid primary key references public.order_delivery_contracts(id) on delete restrict,
   state text not null default 'PENDING' check(state in ('PENDING','PAID','FULFILLED','REFUNDED','PARTIALLY_REFUNDED','DISPUTED','PAYMENT_FAILED','SECURITY_HOLD')),
   event_id uuid references commerce_private.payment_events(id) on delete restrict,
+  -- First verified PAID fact is independent of current delivery authorization.
+  payment_received_event_id uuid references commerce_private.payment_events(id) on delete restrict,
   refunded_minor integer not null default 0 check(refunded_minor >= 0),
   revision integer not null default 0 check(revision >= 0),
   updated_at timestamptz not null default now()
@@ -463,7 +465,7 @@ create function commerce_private.record_payment_event(p_contract uuid,p_account 
  p_type text,p_state text,p_amount integer,p_refunded integer,p_currency text,p_hash text,p_occurred timestamptz) returns uuid
 language plpgsql security definer set search_path='' as $$
 declare c public.order_delivery_contracts; o public.orders; s commerce_private.order_states;
- existing commerce_private.payment_events; result uuid; next_state text; next_revision integer;
+ existing commerce_private.payment_events; result uuid; next_state text; next_revision integer; payment_received_while_held boolean;
 begin
  perform commerce_private.assert_enabled();
  select * into strict c from public.order_delivery_contracts where id=p_contract;
@@ -498,12 +500,15 @@ begin
    when s.state='FULFILLED' then 'FULFILLED' else p_state end;
  -- Different Stripe events for the same logical payment do not duplicate jobs,
  -- receipts or projections. Evidence is retained, including late/stale events.
- if next_state=s.state and p_refunded<=s.refunded_minor then return result; end if;
+ payment_received_while_held:=s.state='SECURITY_HOLD' and p_state='PAID' and s.payment_received_event_id is null;
+ if next_state=s.state and p_refunded<=s.refunded_minor and not payment_received_while_held then return result; end if;
  next_revision:=s.revision+1;
  update commerce_private.order_states set state=next_state,event_id=case when next_state=p_state then result else event_id end,
+ payment_received_event_id=case when p_state='PAID' then coalesce(payment_received_event_id,result) else payment_received_event_id end,
  refunded_minor=greatest(refunded_minor,p_refunded),revision=next_revision,updated_at=now() where contract_id=c.id;
  insert into commerce_private.state_history(contract_id,state,reason_code,event_id,revision,refunded_minor)
- values(c.id,next_state,'verified_provider_event',result,next_revision,greatest(s.refunded_minor,p_refunded));
+ values(c.id,next_state,case when payment_received_while_held then 'payment_received_while_held' else 'verified_provider_event' end,
+ result,next_revision,greatest(s.refunded_minor,p_refunded));
  update public.order_asset_entitlements set state=case when next_state='REFUNDED' then 'revoked' else 'suspended' end,
  reason_code=lower(next_state),updated_at=now() where contract_id=c.id and state <> 'revoked' and next_state not in ('PAID','FULFILLED');
  insert into commerce_private.fulfillment_jobs(contract_id,task,revision,event_id)

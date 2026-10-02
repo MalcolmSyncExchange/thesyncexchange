@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {database,ids,quote,asActor,source} from './helpers/artist-baseline-db.mjs';
 import {classifyLegacyOrder} from '../lib/commerce/legacy-classifier.mjs';
+import {legacyRow} from './fixtures/purchase-completion/legacy-row.mjs';
 
 const buyer2='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const order2='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -240,17 +241,75 @@ test('Foundation is disconnected from deployed application; no signed URL/downlo
  assert.doesNotMatch(sql,/createSignedUrl|STRIPE_SECRET|create invoice|alter type public.order_status/i);
 });
 test('Read-only legacy classifier fails closed and distinguishes all four classes',()=>{
- assert.equal(classifyLegacyOrder({status:'pending'}).classification,'DO_NOT_BACKFILL');
- assert.equal(classifyLegacyOrder({status:'fulfilled'}).classification,'INCOMPLETE');
- const paid={status:'fulfilled',has_paid_at:true,has_payment_intent:true,agreement_status:'generated',has_agreement_path:true};
+ assert.equal(classifyLegacyOrder({...legacyRow,status:'pending'}).classification,'DO_NOT_BACKFILL');
+ assert.equal(classifyLegacyOrder({...legacyRow,has_agreement_path:false}).classification,'INCOMPLETE');
+ const paid={...legacyRow,verified_payment_evidence:false};
  assert.equal(classifyLegacyOrder(paid).classification,'AMBIGUOUS');
- const complete={...paid,test_session:true,payment_classification:{paymentMode:'test',commercialRightsGranted:false},snapshot_order_matches:true,
- snapshot_buyer_matches:true,snapshot_track_matches:true,amount_cents:5000,snapshot_amount:'5000',currency:'USD',snapshot_currency:'USD',verified_payment_evidence:true,
- frozen_seller_rights:true,frozen_asset_version:true};
+ const complete={...legacyRow};
  assert.equal(classifyLegacyOrder(complete).classification,'SAFE_TO_MAP');
- assert.equal(classifyLegacyOrder({...complete,snapshot_amount:'1'}).classification,'DO_NOT_BACKFILL');
+ assert.equal(classifyLegacyOrder({...complete,snapshot_amount:1}).classification,'DO_NOT_BACKFILL');
  assert.equal(classifyLegacyOrder(complete).masterEntitlement,'DENIED');
 });
+test('SECURITY_HOLD before first PAID records linked reconciliation without delivery; replays are idempotent',()=>withFixture(async ctx=>{
+ await service(ctx.db,()=>call(ctx.db,`commerce_private.security_hold('${ctx.contract}','review_required')`));
+ const eventId=await event(ctx);
+ const state=await one(ctx.db,`select * from commerce_private.order_states where contract_id='${ctx.contract}'`);
+ assert.equal(state.state,'SECURITY_HOLD');assert.equal(state.payment_received_event_id,eventId);
+ const history=(await ctx.db.query(`select * from commerce_private.state_history where contract_id='${ctx.contract}' and reason_code='payment_received_while_held'`)).rows;
+ assert.equal(history.length,1);assert.equal(history[0].event_id,eventId);assert.equal(history[0].state,'SECURITY_HOLD');
+ const jobs=(await ctx.db.query('select task,event_id from commerce_private.fulfillment_jobs order by task')).rows;
+ assert.deepEqual(jobs,[{task:'receipt_generation',event_id:eventId},{task:'transaction_projection',event_id:eventId}]);
+ assert.equal((await one(ctx.db,'select state from order_asset_entitlements')).state,'suspended');
+ const entitlementId=await entitlement(ctx);
+ assert.equal(await service(ctx.db,()=>call(ctx.db,`commerce_private.can_deliver('${entitlementId}','${ids.buyer}')`)),false);
+ await event(ctx);await event(ctx,{id:'evt_samepayment',type:'checkout.session.async_payment_succeeded'});
+ assert.equal((await one(ctx.db,'select count(*)::int n from commerce_private.fulfillment_jobs')).n,2);
+ assert.equal((await one(ctx.db,`select count(*)::int n from commerce_private.state_history where reason_code='payment_received_while_held'`)).n,1);
+ // Dormant accounting work is executable in the disposable test only, without a hold-clear workflow.
+ await receipt(ctx);await finish(ctx,await claim(ctx,'transaction_projection'));
+ assert.deepEqual(await one(ctx.db,'select payment_state,commercial_rights_granted from order_receipts'),{payment_state:'PAID',commercial_rights_granted:false});
+ assert.equal((await one(ctx.db,'select payment_state from artist_transaction_records')).payment_state,'SECURITY_HOLD');
+ assert.equal((await one(ctx.db,`select state from commerce_private.order_states where contract_id='${ctx.contract}'`)).state,'SECURITY_HOLD');
+},{paid:false}));
+test('PAID then SECURITY_HOLD retains payment fact and existing work without duplicate held reconciliation',()=>withFixture(async ctx=>{
+ const paid=await event(ctx);
+ await service(ctx.db,()=>call(ctx.db,`commerce_private.security_hold('${ctx.contract}','review_required')`));
+ const before=await one(ctx.db,'select count(*)::int n from commerce_private.fulfillment_jobs');
+ await event(ctx);await event(ctx,{id:'evt_repeatpaid'});
+ assert.deepEqual(await one(ctx.db,`select state,payment_received_event_id from commerce_private.order_states where contract_id='${ctx.contract}'`),
+  {state:'SECURITY_HOLD',payment_received_event_id:paid});
+ assert.deepEqual(await one(ctx.db,'select count(*)::int n from commerce_private.fulfillment_jobs'),before);
+ assert.equal((await one(ctx.db,"select count(*)::int n from commerce_private.state_history where reason_code='payment_received_while_held'")).n,0);
+}));
+test('Refund before hold then late PAID preserves refund evidence and appends one separate held payment fact',()=>withFixture(async ctx=>{
+ const refund=await event(ctx,{id:'evt_refunded',state:'REFUNDED',type:'charge.refunded',refund:5000});
+ await service(ctx.db,()=>call(ctx.db,`commerce_private.security_hold('${ctx.contract}','review_required')`));
+ const paid=await event(ctx);
+ assert.deepEqual(await one(ctx.db,`select state,event_id,payment_received_event_id,refunded_minor from commerce_private.order_states where contract_id='${ctx.contract}'`),
+  {state:'SECURITY_HOLD',event_id:refund,payment_received_event_id:paid,refunded_minor:5000});
+ assert.equal((await one(ctx.db,'select state from order_asset_entitlements')).state,'revoked');
+ await event(ctx,{id:'evt_duplicatepaid'});
+ assert.equal((await one(ctx.db,"select count(*)::int n from commerce_private.state_history where reason_code='payment_received_while_held'")).n,1);
+},{paid:false}));
+test('Malformed, unauthorized and non-TEST evidence cannot create held reconciliation',()=>withFixture(async ctx=>{
+ await service(ctx.db,()=>call(ctx.db,`commerce_private.security_hold('${ctx.contract}','review_required')`));
+ for(const overrides of [{session:'cs_live_fake'},{account:'acct_other'},{amount:1},{hash:'bad'}, {type:'unverified_event'}])
+  await assert.rejects(event(ctx,overrides));
+ for(const actor of [ids.buyer,ids.a,ids.admin]) await asActor(ctx.db,actor,()=>assert.rejects(call(ctx.db,
+  `commerce_private.record_payment_event('${ctx.contract}','acct_fixture','evt_forged','cs_test_fixture','pi_fixture',
+   'checkout.session.completed','PAID',5000,0,'USD','${digest}','2026-10-02T00:00:00Z')`),/permission denied/));
+ await assert.rejects(service(ctx.db,()=>call(ctx.db,`commerce_private.freeze_contract('${ids.order}','unknown','acct_fixture')`)),/mismatch/);
+ // Even the migration owner cannot insert live or unsigned evidence into the TEST ledger.
+ const raw=extra=>`insert into commerce_private.payment_events(provider_account,provider_event_id,payment_mode,livemode,contract_id,
+ checkout_session_id,payment_intent_id,event_type,payment_state,amount_minor,currency,evidence_sha256,verification_method,provider_created_at)
+ values('acct_fixture','evt_bad',${extra},'${ctx.contract}','cs_test_fixture','pi_fixture','checkout.session.completed','PAID',5000,'USD','${digest}','stripe_signature',now())`;
+ await assert.rejects(ctx.db.exec(raw("'test',true")),/check constraint/);
+ await assert.rejects(ctx.db.exec(raw("'live',false")),/check constraint/);
+ await assert.rejects(ctx.db.exec(raw("'test',false").replace("'stripe_signature'","'unverified'")),/check constraint/);
+ assert.equal((await one(ctx.db,'select count(*)::int n from commerce_private.payment_events')).n,0);
+ assert.equal((await one(ctx.db,'select count(*)::int n from commerce_private.fulfillment_jobs')).n,0);
+ assert.equal((await one(ctx.db,"select count(*)::int n from commerce_private.state_history where reason_code='payment_received_while_held'")).n,0);
+},{paid:false}));
 test('Payment and contract records are immutable even for the database owner',()=>withFixture(async ctx=>{
  await assert.rejects(ctx.db.exec("update commerce_private.payment_events set amount_minor=1"),/Immutable/);
  await assert.rejects(ctx.db.exec("delete from commerce_private.payment_events"),/Immutable/);

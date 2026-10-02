@@ -6,7 +6,7 @@ import { database, source, root } from '../../tests/helpers/artist-baseline-db.m
 import { compare } from '../artist-baseline/compare.mjs';
 const sha=s=>createHash('sha256').update(s).digest('hex');
 const migrations=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort();
-const manifest={ format:1, baselineCommit:'35062fb', order:migrations.map(file=>({file,sha256:sha(source(`supabase/migrations/${file}`))})), storageBuckets:{avatars:true,'cover-art':true,'track-previews':true,'track-audio':false,agreements:false} };
+const manifest={ format:1, baselineCommit:'35062fb', order:migrations.map(file=>({file,sha256:sha(source(`supabase/migrations/${file}`))})), storageBuckets:{avatars:true,'cover-art':true,'track-previews':true,'track-audio':false,agreements:false,'purchase-assets':false,'order-receipts':false} };
 const manifestPath=new URL('../../docs/security-pr2/migration-manifest.json',import.meta.url);
 if(process.argv.includes('--write-manifest')) writeFileSync(manifestPath,JSON.stringify(manifest,null,2)+'\n');
 else assert.deepEqual(manifest,JSON.parse(readFileSync(manifestPath,'utf8')),'Migration manifest changed: review SQL before regenerating.');
@@ -14,7 +14,8 @@ const db=await database('repository',{seed:false});
 try {
  const canonical=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
  const policies=canonical.policies.filter(p=>p.schema==='storage');
- assert.equal(policies.length,5);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,3);
+ assert.equal(policies.length,6);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ assert.ok(policies.some(p=>p.name==='commerce_private_objects' && p.permissive==='RESTRICTIVE'));
  assert.ok(!canonical.triggers.some(t=>['on_auth_user_created','on_auth_user_updated'].includes(t.name)));
  const {rows:[g]}=await db.query(`select
   has_table_privilege('authenticated','artist_profiles','select') as broad_profile,

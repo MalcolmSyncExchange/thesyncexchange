@@ -1,0 +1,1076 @@
+{
+  "columns": [
+    {
+      "type": "uuid",
+      "table": "generated_licenses",
+      "column": "id",
+      "default": "gen_random_uuid()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "generated_licenses",
+      "column": "order_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "generated_licenses",
+      "column": "buyer_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "generated_licenses",
+      "column": "track_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "generated_licenses",
+      "column": "license_type_id",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "generated_licenses",
+      "column": "agreement_number",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "generated_licenses",
+      "column": "status",
+      "default": "'generated'::text",
+      "nullable": "NO"
+    },
+    {
+      "type": "jsonb",
+      "table": "generated_licenses",
+      "column": "terms_snapshot_json",
+      "default": "'{}'::jsonb",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "generated_licenses",
+      "column": "pdf_storage_path",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "generated_licenses",
+      "column": "pdf_content_type",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "int4",
+      "table": "generated_licenses",
+      "column": "pdf_size_bytes",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "generated_licenses",
+      "column": "html_snapshot",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "generated_licenses",
+      "column": "generation_error",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "generated_licenses",
+      "column": "generated_at",
+      "default": "timezone('utc'::text, now())",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "generated_licenses",
+      "column": "downloaded_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "generated_licenses",
+      "column": "created_at",
+      "default": "timezone('utc'::text, now())",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "generated_licenses",
+      "column": "updated_at",
+      "default": "timezone('utc'::text, now())",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "license_types",
+      "column": "id",
+      "default": "gen_random_uuid()",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "license_types",
+      "column": "name",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "license_types",
+      "column": "slug",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "license_types",
+      "column": "description",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "bool",
+      "table": "license_types",
+      "column": "exclusive",
+      "default": "false",
+      "nullable": "NO"
+    },
+    {
+      "type": "int4",
+      "table": "license_types",
+      "column": "default_price_cents",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "license_types",
+      "column": "terms_summary",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "bool",
+      "table": "license_types",
+      "column": "active",
+      "default": "true",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "license_types",
+      "column": "code",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "license_types",
+      "column": "created_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "license_types",
+      "column": "updated_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "order_activity_log",
+      "column": "id",
+      "default": "gen_random_uuid()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "order_activity_log",
+      "column": "order_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "order_activity_log",
+      "column": "actor_id",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "order_activity_log",
+      "column": "source",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "order_activity_log",
+      "column": "event_type",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "order_activity_log",
+      "column": "message",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "jsonb",
+      "table": "order_activity_log",
+      "column": "metadata",
+      "default": "'{}'::jsonb",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "order_activity_log",
+      "column": "dedupe_key",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "order_activity_log",
+      "column": "created_at",
+      "default": "timezone('utc'::text, now())",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "orders",
+      "column": "id",
+      "default": "gen_random_uuid()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "orders",
+      "column": "buyer_user_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "orders",
+      "column": "track_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "orders",
+      "column": "license_type_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "stripe_checkout_session_id",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "stripe_payment_intent_id",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "int4",
+      "table": "orders",
+      "column": "amount_cents",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "currency",
+      "default": "'USD'::text",
+      "nullable": "NO"
+    },
+    {
+      "type": "order_status",
+      "table": "orders",
+      "column": "status",
+      "default": "'pending'::order_status",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "agreement_url",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "orders",
+      "column": "created_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "orders",
+      "column": "updated_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "orders",
+      "column": "checkout_created_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "orders",
+      "column": "paid_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "orders",
+      "column": "agreement_generated_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "orders",
+      "column": "fulfilled_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "orders",
+      "column": "refunded_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "agreement_path",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "agreement_content_type",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "int4",
+      "table": "orders",
+      "column": "agreement_size_bytes",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "agreement_generation_error",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "last_webhook_event_id",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "last_webhook_event_type",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "orders",
+      "column": "last_webhook_processed_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "orders",
+      "column": "last_webhook_error",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "uuid",
+      "table": "rights_holders",
+      "column": "id",
+      "default": "gen_random_uuid()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "rights_holders",
+      "column": "track_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "rights_holders",
+      "column": "name",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "rights_holders",
+      "column": "email",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "rights_holders",
+      "column": "role_type",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "numeric",
+      "table": "rights_holders",
+      "column": "ownership_percent",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "approval_status",
+      "table": "rights_holders",
+      "column": "approval_status",
+      "default": "'pending'::approval_status",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "rights_holders",
+      "column": "created_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "rights_holders",
+      "column": "updated_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "rights_holders",
+      "column": "user_id",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "uuid",
+      "table": "track_license_options",
+      "column": "id",
+      "default": "gen_random_uuid()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "track_license_options",
+      "column": "track_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "track_license_options",
+      "column": "license_type_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "int4",
+      "table": "track_license_options",
+      "column": "price_cents",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "bool",
+      "table": "track_license_options",
+      "column": "active",
+      "default": "true",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "track_license_options",
+      "column": "created_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "track_license_options",
+      "column": "updated_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "tracks",
+      "column": "id",
+      "default": "gen_random_uuid()",
+      "nullable": "NO"
+    },
+    {
+      "type": "uuid",
+      "table": "tracks",
+      "column": "artist_user_id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "title",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "slug",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "description",
+      "default": "''::text",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "genre",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "subgenre",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "_text",
+      "table": "tracks",
+      "column": "moods",
+      "default": "'{}'::text[]",
+      "nullable": "NO"
+    },
+    {
+      "type": "int4",
+      "table": "tracks",
+      "column": "bpm",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "musical_key",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "int4",
+      "table": "tracks",
+      "column": "duration_seconds",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "bool",
+      "table": "tracks",
+      "column": "instrumental",
+      "default": "false",
+      "nullable": "NO"
+    },
+    {
+      "type": "bool",
+      "table": "tracks",
+      "column": "vocals",
+      "default": "true",
+      "nullable": "NO"
+    },
+    {
+      "type": "bool",
+      "table": "tracks",
+      "column": "explicit",
+      "default": "false",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "lyrics",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "int4",
+      "table": "tracks",
+      "column": "release_year",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "waveform_path",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "audio_file_path",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "cover_art_path",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "track_status",
+      "table": "tracks",
+      "column": "status",
+      "default": "'draft'::track_status",
+      "nullable": "NO"
+    },
+    {
+      "type": "bool",
+      "table": "tracks",
+      "column": "featured",
+      "default": "false",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "tracks",
+      "column": "created_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "tracks",
+      "column": "updated_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "tracks",
+      "column": "preview_file_path",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "jsonb",
+      "table": "tracks",
+      "column": "waveform_data",
+      "default": "'[]'::jsonb",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "tracks",
+      "column": "approved_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "uuid",
+      "table": "tracks",
+      "column": "approved_by",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "uuid",
+      "table": "user_profiles",
+      "column": "id",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "user_profiles",
+      "column": "email",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "user_role",
+      "table": "user_profiles",
+      "column": "role",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "user_profiles",
+      "column": "full_name",
+      "default": null,
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "user_profiles",
+      "column": "avatar_url",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "user_profiles",
+      "column": "created_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "user_profiles",
+      "column": "updated_at",
+      "default": "now()",
+      "nullable": "NO"
+    },
+    {
+      "type": "timestamptz",
+      "table": "user_profiles",
+      "column": "onboarding_started_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "timestamptz",
+      "table": "user_profiles",
+      "column": "onboarding_completed_at",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "text",
+      "table": "user_profiles",
+      "column": "onboarding_step",
+      "default": null,
+      "nullable": "YES"
+    },
+    {
+      "type": "jsonb",
+      "table": "user_profiles",
+      "column": "onboarding_payload",
+      "default": "'{}'::jsonb",
+      "nullable": "NO"
+    },
+    {
+      "type": "text",
+      "table": "user_profiles",
+      "column": "avatar_path",
+      "default": null,
+      "nullable": "YES"
+    }
+  ],
+  "constraints": [
+    {
+      "name": "tracks_approved_by_fkey",
+      "table": "tracks",
+      "definition": "FOREIGN KEY (approved_by) REFERENCES auth.users(id) ON DELETE SET NULL NOT VALID"
+    },
+    {
+      "name": "tracks_artist_user_id_fkey",
+      "table": "tracks",
+      "definition": "FOREIGN KEY (artist_user_id) REFERENCES auth.users(id) ON DELETE CASCADE NOT VALID"
+    },
+    {
+      "name": "tracks_bpm_check",
+      "table": "tracks",
+      "definition": "CHECK (((bpm >= 0) AND (bpm <= 300)))"
+    },
+    {
+      "name": "tracks_duration_seconds_check",
+      "table": "tracks",
+      "definition": "CHECK (((duration_seconds >= 1) AND (duration_seconds <= 3600)))"
+    },
+    {
+      "name": "tracks_pkey",
+      "table": "tracks",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "tracks_release_year_check",
+      "table": "tracks",
+      "definition": "CHECK (((release_year >= 1900) AND (release_year <= 2100)))"
+    },
+    {
+      "name": "tracks_slug_key",
+      "table": "tracks",
+      "definition": "UNIQUE (slug)"
+    },
+    {
+      "name": "tracks_vocal_consistency_check",
+      "table": "tracks",
+      "definition": "CHECK ((NOT (instrumental AND vocals)))"
+    },
+    {
+      "name": "rights_holders_ownership_percent_check",
+      "table": "rights_holders",
+      "definition": "CHECK (((ownership_percent > (0)::numeric) AND (ownership_percent <= (100)::numeric)))"
+    },
+    {
+      "name": "rights_holders_pkey",
+      "table": "rights_holders",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "rights_holders_role_type_check",
+      "table": "rights_holders",
+      "definition": "CHECK ((role_type = ANY (ARRAY['writer'::text, 'producer'::text, 'publisher'::text, 'owner'::text, 'other'::text])))"
+    },
+    {
+      "name": "rights_holders_track_id_fkey",
+      "table": "rights_holders",
+      "definition": "FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "rights_holders_user_id_fkey",
+      "table": "rights_holders",
+      "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL NOT VALID"
+    },
+    {
+      "name": "orders_amount_cents_check",
+      "table": "orders",
+      "definition": "CHECK ((amount_cents >= 0))"
+    },
+    {
+      "name": "orders_buyer_user_id_fkey",
+      "table": "orders",
+      "definition": "FOREIGN KEY (buyer_user_id) REFERENCES auth.users(id) ON DELETE CASCADE NOT VALID"
+    },
+    {
+      "name": "orders_currency_check",
+      "table": "orders",
+      "definition": "CHECK (((char_length(currency) = 3) AND (currency = upper(currency))))"
+    },
+    {
+      "name": "orders_license_type_id_fkey",
+      "table": "orders",
+      "definition": "FOREIGN KEY (license_type_id) REFERENCES license_types(id)"
+    },
+    {
+      "name": "orders_pkey",
+      "table": "orders",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "orders_track_id_fkey",
+      "table": "orders",
+      "definition": "FOREIGN KEY (track_id) REFERENCES tracks(id)"
+    },
+    {
+      "name": "order_activity_log_actor_id_fkey",
+      "table": "order_activity_log",
+      "definition": "FOREIGN KEY (actor_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+    },
+    {
+      "name": "order_activity_log_order_id_fkey",
+      "table": "order_activity_log",
+      "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "order_activity_log_pkey",
+      "table": "order_activity_log",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "order_activity_log_source_check",
+      "table": "order_activity_log",
+      "definition": "CHECK ((source = ANY (ARRAY['system'::text, 'stripe_webhook'::text, 'admin'::text, 'buyer'::text])))"
+    },
+    {
+      "name": "generated_licenses_agreement_number_key",
+      "table": "generated_licenses",
+      "definition": "UNIQUE (agreement_number)"
+    },
+    {
+      "name": "generated_licenses_buyer_id_fkey",
+      "table": "generated_licenses",
+      "definition": "FOREIGN KEY (buyer_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "generated_licenses_license_type_id_fkey",
+      "table": "generated_licenses",
+      "definition": "FOREIGN KEY (license_type_id) REFERENCES license_types(id) ON DELETE SET NULL"
+    },
+    {
+      "name": "generated_licenses_order_id_fkey",
+      "table": "generated_licenses",
+      "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "generated_licenses_order_id_key",
+      "table": "generated_licenses",
+      "definition": "UNIQUE (order_id)"
+    },
+    {
+      "name": "generated_licenses_pkey",
+      "table": "generated_licenses",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "generated_licenses_status_check",
+      "table": "generated_licenses",
+      "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'generated'::text, 'failed'::text])))"
+    },
+    {
+      "name": "generated_licenses_track_id_fkey",
+      "table": "generated_licenses",
+      "definition": "FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE"
+    }
+  ],
+  "migrations": [
+    {
+      "name": "0021_rate_limit_foundation",
+      "version": "20260913180113"
+    },
+    {
+      "name": "reconcile_reviewed_rights_and_storage",
+      "version": "20261001034714"
+    },
+    {
+      "name": "separate_profile_finance_and_buyer_access",
+      "version": "20261001035143"
+    },
+    {
+      "name": "atomic_artist_track_writes",
+      "version": "20261001035345"
+    },
+    {
+      "name": "nonretryable_artist_track_stale_conflict",
+      "version": "20261001035445"
+    },
+    {
+      "name": "preserve_atomic_rights_holder_identity",
+      "version": "20261001035630"
+    },
+    {
+      "name": "secure_buyer_catalog_views",
+      "version": "20261001042359"
+    }
+  ],
+  "buckets": [
+    {
+      "id": "avatars",
+      "public": true,
+      "file_size_limit": 10485760,
+      "allowed_mime_types": [
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+      ]
+    },
+    {
+      "id": "cover-art",
+      "public": true,
+      "file_size_limit": 10485760,
+      "allowed_mime_types": [
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+      ]
+    },
+    {
+      "id": "track-previews",
+      "public": true,
+      "file_size_limit": 26214400,
+      "allowed_mime_types": [
+        "audio/mpeg",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/aiff",
+        "audio/flac",
+        "application/json",
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+      ]
+    },
+    {
+      "id": "track-audio",
+      "public": false,
+      "file_size_limit": 52428800,
+      "allowed_mime_types": [
+        "audio/mpeg",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/aiff",
+        "audio/flac"
+      ]
+    },
+    {
+      "id": "agreements",
+      "public": false,
+      "file_size_limit": 20971520,
+      "allowed_mime_types": [
+        "text/html",
+        "application/pdf"
+      ]
+    }
+  ]
+}

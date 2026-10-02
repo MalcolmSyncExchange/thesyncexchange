@@ -57,7 +57,8 @@ test('profile, finance, buyer and rights boundaries run as real PostgreSQL roles
 test('Storage uses server-authorized mutations, private buckets and all-role referenced-media immutability',()=>fixture(async db=>{
  const path=`${ids.a}/uploads/audio/live.wav`,fresh=`${ids.a}/uploads/audio/fresh.wav`;
  const policies=await read(db,"select policyname,permissive from pg_policies where schemaname='storage'");
- assert.equal(policies.length,5);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,3);
+ assert.equal(policies.length,6);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ assert.ok(policies.some(p=>p.policyname==='commerce_private_objects' && p.permissive==='RESTRICTIVE'));
  for(const [actor,role] of [[ids.a,'authenticated'],[ids.b,'authenticated'],[ids.buyer,'authenticated'],[ids.admin,'authenticated'],[null,'anon']]) await asActor(db,actor,async()=>{
   for(const bucket of ['avatars','cover-art','track-previews','track-audio','agreements']) {
    assert.deepEqual(await read(db,`select * from storage.objects where bucket_id=${quote(bucket)}`),[]);

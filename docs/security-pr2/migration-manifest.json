@@ -109,6 +109,10 @@
     {
       "file": "20261001042359_secure_buyer_catalog_views.sql",
       "sha256": "c1bd8a145198d44d4e3c6f4afab652c87e1afe974cc81722854d9c4152e844ea"
+    },
+    {
+      "file": "20261002045900_purchase_completion_foundation.sql",
+      "sha256": "dab672f34592462acc119ed3e85ecaf9f595a621e44d6ee41c1a98bd95b347f1"
     }
   ],
   "storageBuckets": {
@@ -116,6 +120,8 @@
     "cover-art": true,
     "track-previews": true,
     "track-audio": false,
-    "agreements": false
+    "agreements": false,
+    "purchase-assets": false,
+    "order-receipts": false
   }
 }

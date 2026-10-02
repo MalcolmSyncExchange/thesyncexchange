@@ -6,24 +6,26 @@ export const snapshot = name => JSON.parse(source(`tests/fixtures/artist-baselin
 export const ids = { a:'11111111-1111-4111-8111-111111111111', b:'22222222-2222-4222-8222-222222222222', buyer:'33333333-3333-4333-8333-333333333333', admin:'44444444-4444-4444-8444-444444444444', draft:'55555555-5555-4555-8555-555555555555', live:'66666666-6666-4666-8666-666666666666', otherTrack:'77777777-7777-4777-8777-777777777777', order:'88888888-8888-4888-8888-888888888888', license:'99999999-9999-4999-8999-999999999999' };
 export const quote = x => `'${String(x).replaceAll("'","''")}'`;
 export const ident = x => `"${String(x).replaceAll('"','""')}"`;
-// No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
-export async function database(target='repository', {seed=true}={}) {
- if (!['repository','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
- const db=new PGlite();
- try {
-  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
+export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls;
    create schema auth; create schema storage;
    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');
    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
    create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
-   create table storage.buckets(id text primary key,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
+   create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,version text,owner uuid,owner_id text,unique(bucket_id,name));
    grant usage on schema public,auth,storage to anon,authenticated,service_role;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
-   select set_config('request.jwt.claim.role','service_role',false);`);
-  for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') && (target==='repository' || /^00/.test(x))).sort()) {
+   select set_config('request.jwt.claim.role','service_role',false);`;
+// No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
+export async function database(target='repository', {seed=true}={}) {
+ if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
+ const db=new PGlite();
+ try {
+  await db.exec(fixtureBootstrapSql);
+  for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
+   (target==='repository' || (target==='pr27' && x!=='20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
    // Only extension installation is adapted; gen_random_uuid is native in this runtime.
    const sql=source(`supabase/migrations/${file}`).replace(/create extension if not exists "pgcrypto";/gi,'');
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }

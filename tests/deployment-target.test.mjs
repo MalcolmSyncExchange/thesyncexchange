@@ -73,7 +73,7 @@ function validateStripeEnvironment({ context, secretKey, publishableKey, payment
 
 function buildConfig(variables, phase = "phase-production-build") {
   const environment = { ...process.env };
-  for (const key of ["CONTEXT", "VERCEL_ENV", "NETLIFY", "SITE_ID", "VERCEL", "TSE_BUILD_DEPLOYMENT_TARGET"]) delete environment[key];
+  for (const key of ["CONTEXT", "VERCEL_ENV", "NETLIFY", "SITE_ID", "VERCEL", "TSE_BUILD_DEPLOYMENT_TARGET", "SYNC_EXCHANGE_PAYMENT_MODE", "TSE_BUILD_PREVIEW_PAYMENT_MODE"]) delete environment[key];
   return JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e",
     `const {default: config} = await import("./next.config.mjs"); console.log(JSON.stringify(config(${JSON.stringify(phase)}).env));`
   ], { cwd: root, env: { ...environment, ...variables }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
@@ -99,12 +99,13 @@ test("Vercel production, preview and development remain supported", () => {
   }
 });
 
-test("Next config embeds only a non-secret target, ignoring an externally supplied build stamp", () => {
+test("Next config embeds non-secret target and explicit preview payment mode, ignoring an externally supplied build stamp", () => {
   assert.deepEqual(buildConfig({ CONTEXT: "branch-deploy", TSE_BUILD_DEPLOYMENT_TARGET: "production" }), {
-    TSE_BUILD_DEPLOYMENT_TARGET: "preview"
+    TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: ""
   });
-  assert.deepEqual(buildConfig({ CONTEXT: "production" }), { TSE_BUILD_DEPLOYMENT_TARGET: "production" });
-  assert.deepEqual(buildConfig({}), { TSE_BUILD_DEPLOYMENT_TARGET: "local" });
+  assert.deepEqual(buildConfig({ CONTEXT: "production", SYNC_EXCHANGE_PAYMENT_MODE: "live" }), { TSE_BUILD_DEPLOYMENT_TARGET: "production", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
+  assert.deepEqual(buildConfig({}), { TSE_BUILD_DEPLOYMENT_TARGET: "local", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
+  assert.deepEqual(buildConfig({ CONTEXT: "deploy-preview", SYNC_EXCHANGE_PAYMENT_MODE: "test" }), { TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: "test" });
 });
 
 test("actual application keeps the built preview/production target when runtime CONTEXT disappears", () => {

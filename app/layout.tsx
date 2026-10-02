@@ -11,50 +11,50 @@ export const metadata: Metadata = {
   title: "The Sync Exchange",
   description: "A music licensing marketplace for buyers and artists. Find music, review what is offered, and choose a license for your project.",
   icons: {
-    shortcut: "/favicon.ico",
+    shortcut: "/brand/the-sync-exchange/app/blue-s-v1/favicon.ico",
     icon: [
       {
-        url: "/favicon.ico"
+        url: "/brand/the-sync-exchange/app/blue-s-v1/favicon.ico"
       },
       {
-        url: "/favicon-16x16.png",
+        url: "/brand/the-sync-exchange/app/blue-s-v1/favicon-16x16.png",
         sizes: "16x16",
         type: "image/png"
       },
       {
-        url: "/favicon-32x32.png",
+        url: "/brand/the-sync-exchange/app/blue-s-v1/favicon-32x32.png",
         sizes: "32x32",
         type: "image/png"
       },
       {
-        url: "/favicon-48x48.png",
+        url: "/brand/the-sync-exchange/app/blue-s-v1/favicon-48x48.png",
         sizes: "48x48",
         type: "image/png"
       },
       {
-        url: "/favicon-96x96.png",
+        url: "/brand/the-sync-exchange/app/blue-s-v1/favicon-64x64.png",
+        sizes: "64x64",
+        type: "image/png"
+      },
+      {
+        url: "/brand/the-sync-exchange/app/blue-s-v1/favicon-96x96.png",
         sizes: "96x96",
         type: "image/png"
       },
       {
-        url: "/brand/the-sync-exchange/app/favicon-192x192.png",
+        url: "/brand/the-sync-exchange/app/blue-s-v1/favicon-192x192.png",
         sizes: "192x192",
         type: "image/png"
       },
       {
-        url: "/brand/the-sync-exchange/app/favicon-512x512.png",
+        url: "/brand/the-sync-exchange/app/blue-s-v1/favicon-512x512.png",
         sizes: "512x512",
-        type: "image/png"
-      },
-      {
-        url: "/brand/the-sync-exchange/app/app-icon-1024x1024.png",
-        sizes: "1024x1024",
         type: "image/png"
       }
     ],
     apple: [
       {
-        url: "/apple-touch-icon.png",
+        url: "/brand/the-sync-exchange/app/blue-s-v1/apple-touch-icon-180x180.png",
         sizes: "180x180",
         type: "image/png"
       }

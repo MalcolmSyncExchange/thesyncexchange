@@ -8,7 +8,7 @@ export const quote = x => `'${String(x).replaceAll("'","''")}'`;
 export const ident = x => `"${String(x).replaceAll('"','""')}"`;
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
- if (!['repository','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
+ if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
  const db=new PGlite();
  try {
   await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
@@ -17,13 +17,14 @@ export async function database(target='repository', {seed=true}={}) {
    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
    create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
-   create table storage.buckets(id text primary key,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
+   create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,version text,owner uuid,owner_id text,unique(bucket_id,name));
    grant usage on schema public,auth,storage to anon,authenticated,service_role;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
    select set_config('request.jwt.claim.role','service_role',false);`);
-  for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') && (target==='repository' || /^00/.test(x))).sort()) {
+  for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
+   (target==='repository' || (target==='pr27' && x!=='20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
    // Only extension installation is adapted; gen_random_uuid is native in this runtime.
    const sql=source(`supabase/migrations/${file}`).replace(/create extension if not exists "pgcrypto";/gi,'');
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }

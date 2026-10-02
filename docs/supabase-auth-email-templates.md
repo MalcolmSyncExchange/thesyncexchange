@@ -49,7 +49,7 @@ Before using these templates:
 1. Set **Site URL** in Supabase Auth to your app origin.
 2. Ensure your hosted app serves:
    - `/auth/email-action`
-   - `/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png`
+   - `/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png`
 3. Keep your existing auth callback route live:
    - `/auth/confirm`
 
@@ -93,7 +93,7 @@ Confirm Your Email for The Sync Exchange
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;">
             <tr>
               <td style="padding:0 0 18px 0;text-align:center;">
-                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
+                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
               </td>
             </tr>
             <tr>
@@ -143,7 +143,7 @@ You’re Invited to The Sync Exchange
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;">
             <tr>
               <td style="padding:0 0 18px 0;text-align:center;">
-                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
+                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
               </td>
             </tr>
             <tr>
@@ -193,7 +193,7 @@ Your Secure Sign-In Link
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;">
             <tr>
               <td style="padding:0 0 18px 0;text-align:center;">
-                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
+                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
               </td>
             </tr>
             <tr>
@@ -243,7 +243,7 @@ Confirm Your New Email Address
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;">
             <tr>
               <td style="padding:0 0 18px 0;text-align:center;">
-                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
+                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
               </td>
             </tr>
             <tr>
@@ -294,7 +294,7 @@ Reset Your The Sync Exchange Password
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;">
             <tr>
               <td style="padding:0 0 18px 0;text-align:center;">
-                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
+                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
               </td>
             </tr>
             <tr>
@@ -344,7 +344,7 @@ Confirm This Secure Action
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;">
             <tr>
               <td style="padding:0 0 18px 0;text-align:center;">
-                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
+                <img src="{{ .SiteURL }}/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png" alt="The Sync Exchange" width="196" style="display:inline-block;width:196px;max-width:100%;height:auto;border:0;" />
               </td>
             </tr>
             <tr>

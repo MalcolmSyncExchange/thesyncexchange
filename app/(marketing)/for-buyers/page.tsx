@@ -10,41 +10,31 @@ export default function ForBuyersPage() {
   return (
     <main>
       <PageHero
-        eyebrow="For Buyers"
-        title="Find tracks that are creatively strong and operationally clear."
-        description="The buyer experience is tuned for supervisors, agencies, and producers who need fast, high-trust decision support."
-        actions={
-          <Button asChild>
-            <Link href="/signup/buyer">Create Buyer Account</Link>
-          </Button>
-        }
+        eyebrow="For filmmakers, brands & creators"
+        title="Find music. Understand the offer. License the track."
+        description="Search and preview music. Review the rights information, price, and terms for the license offered. Choose the option that fits your project."
+        actions={<Button asChild><Link href="/discover">Find music</Link></Button>}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <SectionHeader
-          eyebrow="Buyer value"
-          title="Search and licensing built for teams under deadline."
-          description="The product surfaces the signals that matter early so buyers can compare creative fit and operational readiness at the same time."
+          eyebrow="A clear path from search to record"
+          title="Know what you can use."
+          description="Browse by sound, mood, or artist. Compare the offered license options. Before you buy, check that the terms fit your planned use."
         />
         <div className="mt-12">
           <FeatureGrid
-            columns="two"
             items={[
-              { title: "Premium discovery", description: "Search by genre, mood, tempo, vocal profile, explicitness, and license posture." },
-              { title: "Rights confidence", description: "Track detail pages surface available license types and contributor context up front." },
-              { title: "Fast purchasing", description: "Stripe-backed checkout, order lifecycle tracking, and agreement delivery keep the licensing flow operational." },
-              { title: "Institutional polish", description: "Dashboards, saved tracks, and order history support repeat buyers and internal stakeholders." }
+              { title: "1. Find it.", description: "Search by genre, mood, or artist. Listen before you choose a track." },
+              { title: "2. Clear it.", description: "Review the offered license, its rights information, scope, price, and terms." },
+              { title: "3. License it.", description: "After payment and fulfillment, keep your order and license record in your buyer workspace." }
             ]}
           />
         </div>
       </section>
       <CtaBand
-        title="Move from search to shortlist to license with less friction."
-        description="The marketplace is positioned for music supervisors, agencies, brands, and screen teams that value speed with clarity."
-        actions={
-          <Button asChild>
-            <Link href="/signup/buyer">Start as a Buyer</Link>
-          </Button>
-        }
+        title="Start with a listen."
+        description="Open Discover, then sign in when you want to use the live buyer catalog, save a favorite, or move toward a license."
+        actions={<Button asChild><Link href="/discover">Find music</Link></Button>}
       />
     </main>
   );

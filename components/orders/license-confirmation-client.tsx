@@ -160,13 +160,13 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
   return (
     <main className="relative mx-auto max-w-3xl overflow-hidden px-4 py-16">
       <div className="mb-6">
-        <BrandLogo className="w-[170px] sm:w-[196px]" />
+        <BrandLogo className="w-[184px] sm:w-[208px]" />
       </div>
       <Image
         src="/brand/the-sync-exchange/watermark/Watermark.png"
         alt=""
-        width={2400}
-        height={400}
+        width={1024}
+        height={1024}
         aria-hidden="true"
         className="pointer-events-none absolute bottom-10 right-0 -z-10 w-[260px] max-w-[45%] opacity-[0.06]"
       />

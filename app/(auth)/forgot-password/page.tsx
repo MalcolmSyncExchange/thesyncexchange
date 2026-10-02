@@ -11,18 +11,18 @@ export default async function ForgotPasswordPage(
   return (
     <AuthPageShell
       eyebrow="Password recovery"
-      title="Reset account access"
-      description="Send a secure recovery link to the email address associated with the workspace. The reset link will bring the user back into a safe password update flow."
+      title="Reset your password"
+      description="Enter your account email. We’ll send you a safe link to make a new password."
       highlights={[
-        { label: "Secure recovery", value: "Password resets are handled through Supabase email verification." },
-        { label: "Clear next step", value: "The recovery link routes back into a guided password reset screen." },
-        { label: "No dead ends", value: "After the password update, the account returns cleanly to login." }
+        { label: "Check your email", value: "We’ll send a reset link to your account email." },
+        { label: "Make a new password", value: "The link opens a safe password reset page." },
+        { label: "Log in again", value: "After the update, you can return to login." }
       ]}
     >
       <AuthPanel
         eyebrow="Reset password"
-        title="Send recovery instructions"
-        description="Enter the account email and we’ll send a secure reset link."
+        title="Send a reset link"
+        description="Enter your account email."
       >
         <ForgotPasswordForm
           action={forgotPasswordAction}

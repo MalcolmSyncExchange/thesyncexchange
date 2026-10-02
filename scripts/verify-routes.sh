@@ -7,6 +7,8 @@ cd "${ROOT_DIR}"
 
 DEFAULT_EXISTING_URL="${ROUTE_VERIFY_EXISTING_URL:-http://127.0.0.1:3000}"
 REQUIRE_EXISTING_SERVER="${ROUTE_VERIFY_REQUIRE_EXISTING:-0}"
+ALLOW_INCOMPLETE_ENV="${ROUTE_VERIFY_ALLOW_INCOMPLETE_ENV:-0}"
+SKIP_CHECKOUT="${ROUTE_VERIFY_SKIP_CHECKOUT:-0}"
 PORT="${ROUTE_VERIFY_PORT:-3000}"
 HOST="${ROUTE_VERIFY_HOST:-127.0.0.1}"
 BASE_URL="${ROUTE_VERIFY_BASE_URL:-http://${HOST}:${PORT}}"
@@ -64,8 +66,8 @@ wait_for_server() {
 }
 
 request_route() {
-  local path="$1"
-  curl -sS --max-time 12 -D "${HEADER_FILE}" -o "${BODY_FILE}" "${BASE_URL}${path}"
+  local route_path="$1"
+  curl -sS --max-time 12 -D "${HEADER_FILE}" -o "${BODY_FILE}" "${BASE_URL}${route_path}"
 }
 
 status_code() {
@@ -86,18 +88,18 @@ assert_contains() {
 }
 
 verify_page() {
-  local path="$1"
+  local route_path="$1"
   local expected_status="$2"
   shift 2
   local tokens=("$@")
 
-  request_route "${path}"
+  request_route "${route_path}"
 
   local actual_status
   actual_status="$(status_code)"
 
   if [[ "${actual_status}" != "${expected_status}" ]]; then
-    echo "FAIL ${path} -> expected ${expected_status}, got ${actual_status}" >&2
+    echo "FAIL ${route_path} -> expected ${expected_status}, got ${actual_status}" >&2
     echo "--- response headers ---" >&2
     cat "${HEADER_FILE}" >&2
     echo "--- response body ---" >&2
@@ -108,22 +110,22 @@ verify_page() {
   local token
   for token in "${tokens[@]}"; do
     if ! assert_contains "${token}" "${BODY_FILE}"; then
-      echo "FAIL ${path} -> missing body token: ${token}" >&2
+      echo "FAIL ${route_path} -> missing body token: ${token}" >&2
       echo "--- response body ---" >&2
       cat "${BODY_FILE}" >&2
       return 1
     fi
   done
 
-  echo "PASS ${path} -> ${actual_status}"
+  echo "PASS ${route_path} -> ${actual_status}"
 }
 
 verify_redirect() {
-  local path="$1"
+  local route_path="$1"
   local expected_status="$2"
   local expected_location="$3"
 
-  request_route "${path}"
+  request_route "${route_path}"
 
   local actual_status
   actual_status="$(status_code)"
@@ -131,34 +133,34 @@ verify_redirect() {
   actual_location="$(location_header)"
 
   if [[ "${actual_status}" != "${expected_status}" ]]; then
-    echo "FAIL ${path} -> expected ${expected_status}, got ${actual_status}" >&2
+    echo "FAIL ${route_path} -> expected ${expected_status}, got ${actual_status}" >&2
     echo "--- response headers ---" >&2
     cat "${HEADER_FILE}" >&2
     return 1
   fi
 
   if [[ "${actual_location}" != *"${expected_location}"* ]]; then
-    echo "FAIL ${path} -> expected redirect containing ${expected_location}, got ${actual_location:-<none>}" >&2
+    echo "FAIL ${route_path} -> expected redirect containing ${expected_location}, got ${actual_location:-<none>}" >&2
     echo "--- response headers ---" >&2
     cat "${HEADER_FILE}" >&2
     return 1
   fi
 
-  echo "PASS ${path} -> ${actual_status} (${actual_location})"
+  echo "PASS ${route_path} -> ${actual_status} (${actual_location})"
 }
 
 verify_post_json() {
-  local path="$1"
+  local route_path="$1"
   local expected_status="$2"
   local expected_token="$3"
 
-  curl -sS --max-time 20 -X POST -D "${HEADER_FILE}" -o "${BODY_FILE}" "${BASE_URL}${path}"
+  curl -sS --max-time 20 -X POST -D "${HEADER_FILE}" -o "${BODY_FILE}" "${BASE_URL}${route_path}"
 
   local actual_status
   actual_status="$(status_code)"
 
   if [[ "${actual_status}" != "${expected_status}" ]]; then
-    echo "FAIL POST ${path} -> expected ${expected_status}, got ${actual_status}" >&2
+    echo "FAIL POST ${route_path} -> expected ${expected_status}, got ${actual_status}" >&2
     echo "--- response headers ---" >&2
     cat "${HEADER_FILE}" >&2
     echo "--- response body ---" >&2
@@ -167,17 +169,20 @@ verify_post_json() {
   fi
 
   if ! assert_contains "${expected_token}" "${BODY_FILE}"; then
-    echo "FAIL POST ${path} -> missing body token: ${expected_token}" >&2
+    echo "FAIL POST ${route_path} -> missing body token: ${expected_token}" >&2
     echo "--- response body ---" >&2
     cat "${BODY_FILE}" >&2
     return 1
   fi
 
-  echo "PASS POST ${path} -> ${actual_status}"
+  echo "PASS POST ${route_path} -> ${actual_status}"
 }
 
 verify_readiness() {
-  request_route "/api/health/readiness"
+  # Readiness probes several external dependencies and has a longer server-side
+  # budget than ordinary page requests. Give the response enough time to report
+  # its structured healthy/degraded result instead of timing out first.
+  curl -sS --max-time 30 -D "${HEADER_FILE}" -o "${BODY_FILE}" "${BASE_URL}/api/health/readiness"
 
   local actual_status
   actual_status="$(status_code)"
@@ -203,6 +208,30 @@ verify_readiness() {
   echo "PASS /api/health/readiness -> ${actual_status}"
 }
 
+verify_config() {
+  request_route "/api/health/config"
+
+  local actual_status
+  actual_status="$(status_code)"
+  if [[ "${actual_status}" != "200" ]]; then
+    if [[ "${ALLOW_INCOMPLETE_ENV}" != "1" || "${actual_status}" != "500" ]]; then
+      echo "FAIL /api/health/config -> expected 200, got ${actual_status}" >&2
+      cat "${BODY_FILE}" >&2
+      return 1
+    fi
+  fi
+
+  for token in '"missingCore"' '"missingOperational"' '"deploymentTarget"' '"paymentMode"' '"livePaymentsEnabled"'; do
+    if ! assert_contains "${token}" "${BODY_FILE}"; then
+      echo "FAIL /api/health/config -> missing body token: ${token}" >&2
+      cat "${BODY_FILE}" >&2
+      return 1
+    fi
+  done
+
+  echo "PASS /api/health/config -> ${actual_status}"
+}
+
 if ! maybe_use_existing_server; then
   if [[ "${REQUIRE_EXISTING_SERVER}" == "1" ]]; then
     echo "No dev server responded at ${DEFAULT_EXISTING_URL}. Start the app first with 'npm run dev' and rerun this script." >&2
@@ -213,19 +242,27 @@ if ! maybe_use_existing_server; then
   wait_for_server
 fi
 
-verify_page "/" 200 "Music licensing built for speed, trust, and clean execution." "Get Started"
-verify_page "/login" 200 "Welcome back" "Log in"
-verify_page "/signup" 200 "Create your Sync Exchange account" "Get started"
-verify_page "/signup/artist" 200 "Create your artist account" "Sign up as an artist"
-verify_page "/signup/buyer" 200 "Create your buyer account" "Sign up as a buyer"
+verify_page "/" 200 "Find it. Clear it. License it." "Search music"
+verify_page "/discover" 200 "Find music for the work in front of you." "Search music"
+verify_page "/about" 200 "Music licensing has too many disconnected steps."
+verify_page "/faq" 200 "Clear answers before you move forward."
+verify_page "/rights-and-licensing" 200 "Clear it" "The recording and the song are separate."
+verify_page "/login" 200 "Pick up where you left off." "Log in"
+verify_page "/signup" 200 "What do you want to do first?" "Create your account"
+verify_page "/signup/artist" 200 "Put your music in reach." "List music for licensing"
+verify_page "/signup/buyer" 200 "Start finding music." "Find music for a project"
 verify_page "/test-checkout" 200 "Stripe test checkout" "Buy License (\$25)"
 verify_page "/success" 200 "Payment successful"
 verify_redirect "/onboarding" 307 "/login?redirectTo=%2Fonboarding"
 verify_redirect "/onboarding/artist" 307 "/login?redirectTo=%2Fonboarding%2Fartist"
 verify_redirect "/buyer/catalog" 307 "/login?redirectTo=%2Fbuyer%2Fcatalog"
-verify_page "/api/health/config" 200 "\"missingCore\"" "\"missingOperational\""
+verify_config
 verify_readiness
-verify_post_json "/api/create-checkout-session" 200 "\"url\":\"https://checkout.stripe.com"
+if [[ "${SKIP_CHECKOUT}" == "1" ]]; then
+  echo "INFO POST /api/create-checkout-session skipped because no real Stripe test credential was supplied"
+else
+  verify_post_json "/api/create-checkout-session" 200 "\"url\":\"https://checkout.stripe.com"
+fi
 verify_page "/api/orders/test-order/agreement" 401 "\"error\":\"Unauthorized.\""
 
 if (( USE_EXISTING_SERVER == 1 )); then

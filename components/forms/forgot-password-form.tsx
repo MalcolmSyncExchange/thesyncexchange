@@ -49,7 +49,7 @@ export function ForgotPasswordForm({
         />
       </div>
       <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
-        If the account exists and email delivery is configured correctly, the reset email will arrive with a secure link back into the password update flow.
+        If we find the account, we’ll send a safe reset link to that email.
       </div>
       <FormSubmitButton className="w-full" pendingLabel="Sending Instructions...">
         Send Reset Instructions

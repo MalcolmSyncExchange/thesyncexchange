@@ -16,22 +16,22 @@ export default async function SignUpPage(
   return (
     <AuthPageShell
       compact
-      eyebrow="Account creation"
-      title="Your next chapter starts here."
-      description="Find music for your next project. Or bring your own music to the catalog."
+      eyebrow="One person. One account."
+      title="What do you want to do first?"
+      description="Choose a starting point. You can use the same account for other authorized workspaces later."
       highlights={[
-        { label: "Create your account", value: "Start with your name, email and a password." },
-        { label: "Make it your workspace", value: "Set up the details that matter for your music or your projects." },
-        { label: "Pick up where you left off", value: "Your saved tracks and submissions stay together in your account." }
+        { label: "Find music for a project", value: "Start with a buyer workspace and open the protected music catalog." },
+        { label: "List music for licensing", value: "Start with an artist workspace and prepare your public profile and catalog." },
+        { label: "Access stays protected", value: "This choice starts the right setup. It does not grant workspace access." }
       ]}
     >
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
         <AuthSessionNotice user={user} continueHref={continueHref} intent="signup" />
         <AuthConfirmationNotice email={confirmationEmail} returnTo="/signup" action={resendSignupConfirmationAction} />
         <SignupForm
-          title="Get started"
-          description="Choose your path, or decide during setup."
-          helper="After signup, confirm your email if prompted, then complete your profile."
+          title="Create your account"
+          description="Choose what you want to do first."
+          helper="This choice starts the right setup. It does not grant workspace access."
           returnTo="/signup"
           error={searchParams?.error}
           success={searchParams?.success}

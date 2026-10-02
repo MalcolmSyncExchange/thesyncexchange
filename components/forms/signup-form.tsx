@@ -41,7 +41,7 @@ export function SignupForm({
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
           <Input id="password" name="password" type="password" autoComplete="new-password" aria-describedby="password-help" placeholder="Create a secure password" required className="h-11" />
-          <p id="password-help" className="text-sm text-muted-foreground">Use a unique password. Your password manager can create one.</p>
+          <p id="password-help" className="text-sm text-muted-foreground">Use a new password. A password manager can make one for you.</p>
         </div>
 
         <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">{helper}</div>

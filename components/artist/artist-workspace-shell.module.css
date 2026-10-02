@@ -2,7 +2,7 @@
 :global(.dark) .shell { --background: 205 27% 9%; --card: 205 27% 9%; --muted: 209 26% 16%; --muted-foreground: 215 18% 70%; --border: 210 20% 20%; --accent: 190 56% 57%; --primary: 190 56% 57%; }
 .sidebar { width: 272px; flex-shrink: 0; position: sticky; top: 0; height: 100dvh; border-right: 1px solid hsl(var(--border)); padding: 0 18px; display: flex; flex-direction: column; }
 .logo { display: block; flex-shrink: 0; }
-.logo img { width: 272px; max-width: none; margin: -8px -18px -6px; }
+.logo img { width: 208px; margin: 18px auto 20px; }
 .navigation { display: grid; gap: 13px; }
 .navigation a { display: flex; align-items: center; gap: 22px; min-height: 58px; padding: 17px 18px; border-radius: 7px; font-size: 16px; color: hsl(var(--muted-foreground)); transition: background-color .15s, color .15s; }
 .navigation a svg { flex-shrink: 0; }
@@ -30,7 +30,7 @@
 .shell a:focus-visible, .shell button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; }
 @media (max-width: 1150px) {
   .sidebar { width: 210px; padding-inline: 12px; }
-  .logo img { width: 210px; margin: -8px -12px 8px; }
+  .logo img { width: 180px; margin: 18px auto 22px; }
   .navigation a { gap: 12px; padding: 15px 10px; font-size: 14px; }
   .topbar { padding-inline: 24px; }
   .main { padding: 12px 24px 32px; }

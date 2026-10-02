@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "The Sync Exchange",
     short_name: "Sync Exchange",
-    description: "Premium sync licensing marketplace for artists, buyers, and music teams that need speed, trust, and clean rights management.",
+    description: "Find and license music for film, ads, shows, and other creative work. Artists can share tracks and manage license details.",
     id: "/",
     scope: "/",
     start_url: "/",

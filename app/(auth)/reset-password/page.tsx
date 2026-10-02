@@ -67,11 +67,11 @@ export default async function ResetPasswordPage(
     <AuthPageShell
       eyebrow="Password update"
       title="Create a new password"
-      description="Set a new password for the account and return directly to login with the updated credentials."
+      description="Make a new password for your account. Then return to login."
       highlights={[
-        { label: "Protected flow", value: "This screen is intended to be reached from the verified recovery link." },
-        { label: "Immediate handoff", value: "Once the password is updated, the flow returns to login." },
-        { label: "Account continuity", value: "Onboarding and dashboard routing remain intact after sign-in." }
+        { label: "Safe link", value: "Open this page from the reset link in your email." },
+        { label: "One more step", value: "After you save the password, go back to login." },
+        { label: "Your work stays saved", value: "Your account setup and workspace stay the same." }
       ]}
     >
       <AuthPanel

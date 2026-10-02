@@ -15,7 +15,7 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const password = process.env.ARTIST_ONBOARDING_TEST_PASSWORD || process.env.QA_TEST_ACCOUNT_PASSWORD;
 const avatarFixturePath =
   process.env.ARTIST_ONBOARDING_AVATAR_PATH ||
-  path.join(rootDir, "public/brand/the-sync-exchange/app/AppIcon_256.png");
+  path.join(rootDir, "public/brand/the-sync-exchange/app/favicon-192x192.png");
 
 if (!supabaseUrl || !serviceRoleKey) {
   fail("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");

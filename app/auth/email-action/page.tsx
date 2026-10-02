@@ -219,7 +219,7 @@ export default async function AuthEmailActionPage(
     <main className="mx-auto flex min-h-[100svh] w-full max-w-5xl items-center justify-center px-4 py-10">
       <div className="w-full max-w-xl">
         <div className="mb-8 flex justify-center">
-          <BrandLogo className="w-[180px] sm:w-[208px]" priority />
+          <BrandLogo className="w-[184px] sm:w-[208px]" priority />
         </div>
 
         <Card className="border-border/80 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">

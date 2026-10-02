@@ -12,20 +12,78 @@ export function BrandLogo({ className, priority = false, alt = "The Sync Exchang
   return (
     <>
       <Image
-        src="/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png"
+        src="/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png"
         alt={alt}
-        width={2400}
-        height={1200}
+        width={1200}
+        height={400}
         priority={priority}
-        className={cn("block h-auto w-[148px] dark:hidden sm:w-[172px] lg:w-[196px]", className)}
+        className={cn("block h-auto w-[176px] dark:hidden sm:w-[192px] lg:w-[208px]", className)}
       />
       <Image
-        src="/brand/the-sync-exchange/logos/Primary_Logo_Dark_Mode.png"
+        src="/brand/the-sync-exchange/logos/website-header-horizontal-dark-transparent.png"
         alt={alt}
-        width={2400}
-        height={1200}
+        width={1200}
+        height={400}
         priority={priority}
-        className={cn("hidden h-auto w-[148px] dark:block sm:w-[172px] lg:w-[196px]", className)}
+        className={cn("hidden h-auto w-[176px] dark:block sm:w-[192px] lg:w-[208px]", className)}
+      />
+    </>
+  );
+}
+
+export function BrandHeaderLogo({ className, priority = false, alt = "The Sync Exchange" }: BrandAssetProps) {
+  return (
+    <>
+      <picture className="block dark:hidden">
+        <source
+          media="(max-width: 1000px)"
+          srcSet="/brand/the-sync-exchange/logos/website-mobile-header-horizontal-light-transparent.png"
+        />
+        <Image
+          src="/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png"
+          alt={alt}
+          width={1200}
+          height={400}
+          priority={priority}
+          className={cn("block h-auto w-[216px]", className)}
+        />
+      </picture>
+      <picture className="hidden dark:block">
+        <source
+          media="(max-width: 1000px)"
+          srcSet="/brand/the-sync-exchange/logos/website-mobile-header-horizontal-dark-transparent.png"
+        />
+        <Image
+          src="/brand/the-sync-exchange/logos/website-header-horizontal-dark-transparent.png"
+          alt={alt}
+          width={1200}
+          height={400}
+          priority={priority}
+          className={cn("block h-auto w-[216px]", className)}
+        />
+      </picture>
+    </>
+  );
+}
+
+export function BrandFooterLogo({ className, priority = false, alt = "The Sync Exchange" }: BrandAssetProps) {
+  return (
+    <>
+      <Image
+        src="/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png"
+        alt={alt}
+        width={1200}
+        height={400}
+        priority={priority}
+        className={cn("block h-auto w-[216px] dark:hidden", className)}
+      />
+      <Image
+        src="/brand/the-sync-exchange/logos/website-header-horizontal-dark-transparent.png"
+        alt={alt}
+        width={1200}
+        height={400}
+        priority={priority}
+        className={cn("hidden h-auto w-[216px] dark:block", className)}
       />
     </>
   );
@@ -34,7 +92,7 @@ export function BrandLogo({ className, priority = false, alt = "The Sync Exchang
 export function BrandIcon({ className, priority = false, alt = "The Sync Exchange" }: BrandAssetProps) {
   return (
     <Image
-      src="/brand/the-sync-exchange/logos/Icon_Gold.png"
+      src="/brand/the-sync-exchange/logos/website-symbol-transparent.png"
       alt={alt}
       width={1024}
       height={1024}

@@ -1,24 +1,25 @@
 import Link from "next/link";
 
-import { BrandLogo } from "@/components/layout/brand-assets";
+import { BrandFooterLogo } from "@/components/layout/brand-assets";
 
 const footerColumns = [
   {
-    title: "Platform",
+    title: "Product",
     links: [
-      { href: "/how-it-works", label: "How It Works" },
-      { href: "/pricing", label: "Pricing" },
+      { href: "/discover", label: "Discover" },
       { href: "/for-artists", label: "For Artists" },
-      { href: "/for-buyers", label: "For Buyers" }
+      { href: "/for-buyers", label: "For Buyers" },
+      { href: "/how-it-works", label: "How It Works" },
+      { href: "/pricing", label: "Pricing" }
     ]
   },
   {
-    title: "Company",
+    title: "Company & help",
     links: [
       { href: "/about", label: "About" },
-      { href: "/contact", label: "Contact" },
-      { href: "/login", label: "Log In" },
-      { href: "/signup", label: "Create Account" }
+      { href: "/faq", label: "FAQ" },
+      { href: "/contact", label: "Contact & Support" },
+      { href: "/rights-and-licensing", label: "Rights & Licensing" }
     ]
   },
   {
@@ -35,11 +36,11 @@ export function SiteFooter() {
     <footer className="border-t border-border">
       <div className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.2fr,1fr] lg:px-8">
         <div className="space-y-4">
-          <BrandLogo className="w-[176px] sm:w-[196px]" />
+          <BrandFooterLogo className="w-[208px] sm:w-[224px]" />
           <p className="max-w-xl text-sm leading-6 text-muted-foreground">
-            Independent music for films, campaigns and creative projects. A workspace for the artists who make it and the people who bring it to the screen.
+            A music licensing marketplace for buyers, artists, and rightsholders. Find music, review the offer, and choose a license for your project.
           </p>
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Discover. Save. License.</p>
+          <p className="text-xs tracking-[0.2em] text-muted-foreground">Find it. Clear it. License it.</p>
         </div>
         <div className="grid gap-10 sm:grid-cols-3">
           {footerColumns.map((column) => (

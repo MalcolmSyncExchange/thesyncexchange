@@ -81,7 +81,7 @@ export function formatAgreementDate(value: string) {
 }
 
 export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSnapshot) {
-  const brandLogoUrl = "/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png";
+  const brandLogoUrl = "/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png";
   const watermarkUrl = "/brand/the-sync-exchange/watermark/Watermark.png";
   const rightsMarkup = snapshot.track.rightsHolders.length
     ? snapshot.track.rightsHolders

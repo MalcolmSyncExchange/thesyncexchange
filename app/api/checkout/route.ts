@@ -5,6 +5,7 @@ import { assertStripeServerConfiguration, getPaymentActivityMetadata, getPayment
 import { getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { getStoredOrderPricingMismatch, loadTrustedCheckoutDetails } from "@/services/orders/checkout-pricing";
+import { preparePurchaseCompletionCheckout } from "@/services/purchase-completion/server";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -113,6 +114,18 @@ export async function POST(request: Request) {
       message: "Pending order price was reconciled to the trusted license price before checkout.",
       metadata: pricingMismatch
     }).catch(() => undefined);
+  }
+
+  // The immutable delivery contract must be frozen before Stripe creates a
+  // session. Missing/false capability configuration keeps the legacy flow.
+  // An explicitly enabled but invalid adapter fails closed before payment.
+  try {
+    await preparePurchaseCompletionCheckout(orderId);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unable to prepare this TEST checkout." },
+      { status: 503 }
+    );
   }
 
   const session = await createStripeCheckoutSession({

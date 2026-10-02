@@ -57,7 +57,7 @@ function limiter({ rows = [allowedRow], error = null, throws = false, missingCli
   return { helper, calls };
 }
 
-function harness({ role = "buyer", authenticated = true, owner = userId, pricingError = false, limitOptions = {} } = {}) {
+function harness({ role = "buyer", authenticated = true, owner = userId, pricingError = false, prepareError = false, limitOptions = {} } = {}) {
   const events = [];
   const { helper, calls } = limiter(limitOptions);
   const db = {
@@ -109,6 +109,11 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     "@/services/supabase/privileged": { createPrivilegedSupabaseClient: async () => db },
     "@/services/supabase/schema-compat": { isMissingColumnError: () => false, warnSchemaFallbackOnce() {} },
     "@/services/orders/activity": { appendOrderActivityLog: async () => { events.push("activity"); } },
+    "@/services/purchase-completion/server": { preparePurchaseCompletionCheckout: async () => {
+      events.push("prepare");
+      if (prepareError) throw new Error("adapter fail closed");
+      return { enabled: false };
+    } },
     "@/services/orders/checkout-pricing": {
       loadTrustedCheckoutDetails: async () => {
         if (pricingError) throw new Error("Unapproved track or inactive license");
@@ -194,6 +199,15 @@ test("allowed checkout retains trusted prices and ownership in both entry points
   assert.equal((await h.checkout(checkoutRequest())).status, 200);
   await assert.rejects(h.action(orderForm()), e => e.url === "https://example.invalid/checkout");
   assert.equal(h.events.filter(e => e === "stripe").length, 2);
+  assert.deepEqual(h.events.filter(e => e === "prepare" || e === "stripe"), ["prepare", "stripe", "prepare", "stripe"]);
+});
+
+test("both checkout entry points stop before Stripe when Phase 2B preparation fails", async () => {
+  const h = harness({ prepareError: true });
+  assert.equal((await h.checkout(checkoutRequest())).status, 503);
+  await assert.rejects(h.action(orderForm()), error => error.digest === "NEXT_REDIRECT");
+  assert.equal(h.events.filter(event => event === "prepare").length, 2);
+  assert.equal(h.events.filter(event => event === "stripe").length, 0);
 });
 
 test("upload denial prevents signed tokens and prevents even multipart parsing", async () => {

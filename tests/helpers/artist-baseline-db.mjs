@@ -25,7 +25,7 @@ export async function database(target='repository', {seed=true}={}) {
  try {
   await db.exec(fixtureBootstrapSql);
   for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
-   (target==='repository' || (target==='pr27' && x!=='20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
+   (target==='repository' || (target==='pr27' && x<'20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
    // Only extension installation is adapted; gen_random_uuid is native in this runtime.
    const sql=source(`supabase/migrations/${file}`).replace(/create extension if not exists "pgcrypto";/gi,'');
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }

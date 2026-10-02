@@ -9,6 +9,7 @@ import { assertStripeServerConfiguration, getPaymentActivityMetadata, getPayment
 import { canReusePendingOrderForPaymentMode } from "@/lib/payment-mode.mjs";
 import { generateAgreementPlaceholder } from "@/lib/license";
 import { appendOrderActivityLog } from "@/services/orders/activity";
+import { preparePurchaseCompletionCheckout } from "@/services/purchase-completion/server";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
@@ -155,6 +156,12 @@ export async function createOrderAction(formData: FormData) {
         }
       }).catch(() => undefined);
     }
+
+    // The user-facing checkout form is the canonical purchase entry point. If
+    // the Phase 2B adapter is enabled, freeze its trusted delivery contract
+    // before Stripe can create a payment session. Missing/false configuration
+    // preserves the legacy flow; an invalid enabled configuration fails closed.
+    await preparePurchaseCompletionCheckout(orderId);
 
     const session = await createStripeCheckoutSession({
       orderId,

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 import {
   assertStripeObjectMode,
@@ -110,11 +111,12 @@ async function runWebhookRoute(livemode) {
   const stripe = {
     webhooks: {
       constructEvent() {
-        return { id: "evt_test_signed", type: "test.noop", livemode, data: { object: {} } };
+        return { id: "evt_test_signed", type: "test.noop", livemode, created: 1790964000, data: { object: {} } };
       }
     }
   };
   const stubs = {
+    "node:crypto": { createHash },
     "next/cache": { revalidatePath() {} },
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     stripe: {},

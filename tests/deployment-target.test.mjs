@@ -229,6 +229,62 @@ test("matching restricted Stripe modes remain valid in their intended deployment
   assert.equal(testMode.errors.length, 0);
 });
 
+test("Phase 2B payment adapter is TEST-only, server-account bound and defaults OFF", () => {
+  const base = {
+    SUPABASE_SERVICE_ROLE_KEY: "sb_secret_example",
+    STRIPE_SECRET_KEY: "rk_test_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_example",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_example",
+    SYNC_EXCHANGE_PAYMENT_MODE: "test"
+  };
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(loadServerEnv(base, "preview").getPurchaseCompletionAdapterConfiguration())),
+    { enabled: false, requested: false, flagValid: true, accountValid: false, targetValid: true, reason: "disabled" }
+  );
+  const enabled = loadServerEnv({
+    ...base,
+    STRIPE_ACCOUNT_ID: "acct_SyntheticFixture",
+    SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED: "true"
+  }, "preview");
+  assert.equal(enabled.getPurchaseCompletionAdapterConfiguration().enabled, true);
+  assert.equal(enabled.getServerEnvironmentDiagnostics().errors.length, 0);
+
+  const missingAccount = loadServerEnv({
+    ...base,
+    SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED: "true"
+  }, "preview");
+  assert.equal(missingAccount.getPurchaseCompletionAdapterConfiguration().enabled, false);
+  assert.ok(missingAccount.getServerEnvironmentDiagnostics().errors.some(issue => issue.code === "missing_purchase_completion_provider_account"));
+
+  const invalid = loadServerEnv({
+    ...base,
+    STRIPE_ACCOUNT_ID: "acct_SyntheticFixture",
+    SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED: "yes"
+  }, "preview");
+  assert.equal(invalid.getPurchaseCompletionAdapterConfiguration().enabled, false);
+  assert.ok(invalid.getServerEnvironmentDiagnostics().warnings.some(issue => issue.code === "invalid_purchase_completion_adapter_flag"));
+
+  const live = loadServerEnv({
+    ...base,
+    STRIPE_SECRET_KEY: "rk_live_example",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_example",
+    SYNC_EXCHANGE_PAYMENT_MODE: "live",
+    STRIPE_ACCOUNT_ID: "acct_SyntheticFixture",
+    SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED: "true"
+  }, "production");
+  assert.equal(live.getPurchaseCompletionAdapterConfiguration().enabled, false);
+  assert.ok(live.getServerEnvironmentDiagnostics().errors.some(issue => issue.code === "purchase_completion_adapter_requires_test_mode"));
+
+  const productionBeta = loadServerEnv({
+    ...base,
+    STRIPE_ACCOUNT_ID: "acct_SyntheticFixture",
+    SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED: "true"
+  }, "production");
+  assert.equal(productionBeta.getPurchaseCompletionAdapterConfiguration().enabled, false);
+  assert.equal(productionBeta.getPurchaseCompletionAdapterConfiguration().reason, "production_target_prohibited");
+  assert.ok(productionBeta.getServerEnvironmentDiagnostics().errors.some(issue => issue.code === "purchase_completion_adapter_production_prohibited"));
+});
+
 test("environment CLI rejects restricted test keys in production and accepts matching modes", () => {
   const mismatch = validateStripeEnvironment({
     context: "production",

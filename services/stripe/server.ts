@@ -10,6 +10,10 @@ import {
 } from "@/lib/server-env";
 import { appendOrderActivityLog, hasProcessedOrderDedupeKey } from "@/services/orders/activity";
 import { assertStripeSessionMatchesTrustedCheckout, loadTrustedCheckoutDetails } from "@/services/orders/checkout-pricing";
+import {
+  recordVerifiedPurchaseCompletionEvent,
+  type VerifiedStripePaymentEvidence
+} from "@/services/purchase-completion/server";
 import { generateAgreementArtifactForOrder } from "@/services/agreements/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -134,12 +138,14 @@ export async function syncOrderFromStripeSession({
   orderId,
   session,
   webhookEventId,
-  webhookEventType
+  webhookEventType,
+  verifiedEvent
 }: {
   orderId: string;
   session: Stripe.Checkout.Session;
   webhookEventId?: string | null;
   webhookEventType?: string | null;
+  verifiedEvent?: VerifiedStripePaymentEvidence;
 }) {
   const paymentClassification = assertStripeRuntimeObject("Stripe Checkout Session fulfillment", {
     livemode: session.livemode,
@@ -151,6 +157,7 @@ export async function syncOrderFromStripeSession({
   }
 
   if (webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId))) {
+    if (verifiedEvent) await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
     const { data: existingOrder } = await supabase.from("orders").select("*").eq("id", orderId).maybeSingle();
     return existingOrder as Database["public"]["Tables"]["orders"]["Row"] | null;
   }
@@ -204,6 +211,10 @@ export async function syncOrderFromStripeSession({
       last_webhook_processed_at: processedAt,
       last_webhook_error: null
     });
+
+    if (verifiedEvent) {
+      await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
+    }
 
     await appendOrderActivityLog(supabase, {
       orderId,
@@ -275,12 +286,14 @@ export async function markOrderCheckoutSessionPaymentFailed({
   orderId,
   session,
   webhookEventId,
-  webhookEventType
+  webhookEventType,
+  verifiedEvent
 }: {
   orderId: string;
   session: Stripe.Checkout.Session;
   webhookEventId?: string | null;
   webhookEventType?: string | null;
+  verifiedEvent?: VerifiedStripePaymentEvidence;
 }) {
   const paymentClassification = assertStripeRuntimeObject("Stripe failed Checkout Session", {
     livemode: session.livemode,
@@ -292,6 +305,7 @@ export async function markOrderCheckoutSessionPaymentFailed({
   }
 
   if (webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId))) {
+    if (verifiedEvent) await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
     const { data: existingOrder } = await supabase.from("orders").select("id, status").eq("id", orderId).maybeSingle();
     return existingOrder as Pick<Database["public"]["Tables"]["orders"]["Row"], "id" | "status"> | null;
   }
@@ -299,12 +313,25 @@ export async function markOrderCheckoutSessionPaymentFailed({
   const message = `Stripe reported that checkout session ${session.id} failed to complete payment.`;
   const processedAt = new Date().toISOString();
 
-  await persistStripeWebhookFailure(supabase, orderId, {
+  const trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
+  if (!trustedCheckout) throw new Error("Order not found for Stripe payment failure.");
+  assertStripeSessionMatchesTrustedCheckout(trustedCheckout, session);
+  if (session.amount_total !== trustedCheckout.amountCents || String(session.currency || "").toUpperCase() !== trustedCheckout.currency) {
+    throw new Error("Stripe failed-payment amount or currency does not match the trusted checkout.");
+  }
+  const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id || null;
+  if (!paymentIntentId) throw new Error("Stripe failed-payment event is missing its PaymentIntent.");
+
+  await persistStripeSyncState(supabase, orderId, {
+    stripe_checkout_session_id: trustedCheckout.order.stripe_checkout_session_id || session.id,
+    stripe_payment_intent_id: paymentIntentId,
     last_webhook_event_id: webhookEventId || null,
     last_webhook_event_type: webhookEventType || "checkout.session.async_payment_failed",
     last_webhook_processed_at: processedAt,
     last_webhook_error: message
   });
+
+  if (verifiedEvent) await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
 
   await appendOrderActivityLog(supabase, {
     orderId,
@@ -323,25 +350,44 @@ export async function markOrderCheckoutSessionPaymentFailed({
   return data as Pick<Database["public"]["Tables"]["orders"]["Row"], "id" | "status"> | null;
 }
 
-export async function markOrderRefundedByPaymentIntent(
-  paymentIntentId: string,
-  webhookEventId?: string | null,
-  webhookEventType?: string | null
-) {
+export async function markOrderRefundedByPaymentIntent({
+  paymentIntentId,
+  refundedMinor,
+  amountMinor,
+  webhookEventId,
+  webhookEventType,
+  verifiedEvent
+}: {
+  paymentIntentId: string;
+  refundedMinor: number;
+  amountMinor: number;
+  webhookEventId?: string | null;
+  webhookEventType?: string | null;
+  verifiedEvent?: VerifiedStripePaymentEvidence;
+}) {
   const supabase = createAdminSupabaseClient();
   if (!supabase) {
     return null;
   }
 
+  const { data: boundOrder, error: boundOrderError } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  if (boundOrderError || !boundOrder?.id) throw new Error("Refund does not match a known order.");
+
+  if (verifiedEvent) await recordVerifiedPurchaseCompletionEvent(boundOrder.id, verifiedEvent);
+
   if (webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId))) {
-    const { data } = await supabase.from("orders").select("id").eq("stripe_payment_intent_id", paymentIntentId).maybeSingle();
+    const data = boundOrder;
     return data as Pick<Database["public"]["Tables"]["orders"]["Row"], "id"> | null;
   }
 
   const refundedAt = new Date().toISOString();
+  const fullyRefunded = refundedMinor === amountMinor;
   const data = await persistRefundState(supabase, paymentIntentId, {
-    status: "refunded",
-    refunded_at: refundedAt,
+    ...(fullyRefunded ? { status: "refunded" as const, refunded_at: refundedAt } : {}),
     last_webhook_event_id: webhookEventId || null,
     last_webhook_event_type: webhookEventType || "charge.refunded",
     last_webhook_processed_at: refundedAt,
@@ -363,6 +409,39 @@ export async function markOrderRefundedByPaymentIntent(
   }
 
   return data as Pick<Database["public"]["Tables"]["orders"]["Row"], "id"> | null;
+}
+
+export async function recordOrderDisputeByPaymentIntent({
+  paymentIntentId,
+  webhookEventId,
+  webhookEventType,
+  verifiedEvent
+}: {
+  paymentIntentId: string;
+  webhookEventId?: string | null;
+  webhookEventType?: string | null;
+  verifiedEvent: VerifiedStripePaymentEvidence;
+}) {
+  const supabase = createAdminSupabaseClient();
+  if (!supabase) return null;
+  const { data: order, error } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  if (error || !order?.id) throw new Error("Dispute does not match a known order.");
+  await recordVerifiedPurchaseCompletionEvent(order.id, verifiedEvent);
+  if (!(webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId)))) {
+    await appendOrderActivityLog(supabase, {
+      orderId: order.id,
+      source: "stripe_webhook",
+      eventType: webhookEventType || "charge.dispute.created",
+      message: "Stripe reported a payment dispute; delivery remains suspended pending review.",
+      metadata: { paymentIntentId, ...getPaymentActivityMetadata() },
+      dedupeKey: webhookEventId || null
+    }).catch(() => undefined);
+  }
+  return order as Pick<Database["public"]["Tables"]["orders"]["Row"], "id">;
 }
 
 function stripeTimestampToIso(timestamp?: number | null) {

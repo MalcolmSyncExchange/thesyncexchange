@@ -10,9 +10,10 @@ test("public navigation uses the frozen V1 information architecture", async () =
     read("components/layout/site-footer.tsx")
   ]);
 
-  for (const label of ["Discover", "For artists", "For buyers", "How it works"]) {
-    assert.match(header, new RegExp(label, "i"));
+  for (const label of ["Discover", "For Buyers", "For Artists", "How It Works"]) {
+    assert.match(header, new RegExp(`label: "${label}"`));
   }
+  assert.ok(header.indexOf('label: "For Buyers"') < header.indexOf('label: "For Artists"'));
   assert.match(footer, /Find it\. Clear it\. License it\./);
   assert.match(footer, /Rights & Licensing/);
   assert.match(footer, /Contact & Support/);

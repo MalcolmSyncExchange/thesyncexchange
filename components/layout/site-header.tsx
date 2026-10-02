@@ -12,9 +12,9 @@ import styles from "./site-header.module.css";
 
 const links = [
   { href: "/discover", label: "Discover" },
-  { href: "/for-artists", label: "For artists" },
-  { href: "/for-buyers", label: "For buyers" },
-  { href: "/how-it-works", label: "How it works" }
+  { href: "/for-buyers", label: "For Buyers" },
+  { href: "/for-artists", label: "For Artists" },
+  { href: "/how-it-works", label: "How It Works" }
 ];
 
 export function SiteHeader() {

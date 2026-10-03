@@ -194,33 +194,6 @@ export async function persistGeneratedLicenseFailure(
   return data as Database["public"]["Tables"]["generated_licenses"]["Row"];
 }
 
-export async function markGeneratedLicenseDownloaded(supabase: AppSupabaseClient, orderId: string) {
-  const downloadedAt = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("generated_licenses")
-    .update({
-      downloaded_at: downloadedAt
-    })
-    .eq("order_id", orderId)
-    .select("id, downloaded_at")
-    .maybeSingle();
-
-  if (error && (isMissingRelationError(error, "generated_licenses") || isSchemaCacheTableError(error, "generated_licenses"))) {
-    warnSchemaFallbackOnce(
-      "generated-licenses-mark-downloaded",
-      "generated_licenses is not available yet; download tracking will stay disabled until migration 0013 is applied.",
-      error
-    );
-    return null;
-  }
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
 export function isGeneratedLicenseUnavailableError(error: unknown) {
   return isMissingRelationError(error, "generated_licenses") || isSchemaCacheTableError(error, "generated_licenses");
 }

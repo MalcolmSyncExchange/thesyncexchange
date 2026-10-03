@@ -1,10 +1,11 @@
 "use client";
 
+import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
 import Link from "next/link";
 import surface from "@/components/layout/sync-surface.module.css";
 import { FormEvent, useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -633,9 +634,7 @@ export function BuyerSettingsForm({
                         {order.licenseName} · {formatDate(order.createdAt)}
                       </p>
                     </div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={order.agreementUrl}>Download Agreement</Link>
-                    </Button>
+                    <AgreementDownloadForm orderId={order.id} className={buttonVariants({ variant: "outline", size: "sm" })}>Download Agreement</AgreementDownloadForm>
                   </div>
                 ))}
               </div>

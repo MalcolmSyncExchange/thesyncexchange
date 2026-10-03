@@ -45,17 +45,17 @@ function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false
  return{events,mocks};
 }
 const request=()=>new Request('https://fixture.invalid/api/checkout',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({orderId:ids.order})});
-for(const [label,opts,status] of [['anonymous',{user:null},401],['wrong owner',{owner:ids.a},403],['pending own order',{pending:true},409],['authorized buyer',{},307],['platform admin',{role:'admin',owner:ids.a},307]]) test(`agreement download: ${label}`,async()=>{
- const h=harness(opts),{GET}=load('app/api/orders/[orderId]/agreement/route.ts',h.mocks);
- const response=await GET(new Request('https://fixture.invalid'),{params:Promise.resolve({orderId:ids.order})});
+for(const [label,opts,status] of [['anonymous',{user:null},401],['wrong owner',{owner:ids.a},403],['pending own order',{pending:true},409],['authorized buyer',{},303],['platform admin',{role:'admin',owner:ids.a},303]]) test(`agreement download: ${label}`,async()=>{
+ const h=harness(opts),{handleAgreementAccess}=load('services/agreements/access.ts',h.mocks);
+ const response=await handleAgreementAccess(new Request('https://fixture.invalid',{method:'POST',headers:{origin:'https://fixture.invalid'}}),ids.order,true);
  assert.equal(response.status,status);
- assert.equal(h.events.includes('sign'),status===307);
- if(status===307) assert.equal(response.headers.get('cache-control'),'private, no-store, max-age=0');
+ assert.equal(h.events.includes('sign'),status===303);
+ if(status===303) assert.equal(response.headers.get('cache-control'),'private, no-store, max-age=0');
  if(status===401) assert.ok(!h.events.includes('service-client'));
 });
 test('forbidden agreement request denies before privileged or license retrieval',async()=>{
- const h=harness({owner:ids.a}),{GET}=load('app/api/orders/[orderId]/agreement/route.ts',h.mocks);
- assert.equal((await GET(new Request('https://fixture.invalid'),{params:Promise.resolve({orderId:ids.order})})).status,403);
+ const h=harness({owner:ids.a}),{handleAgreementAccess}=load('services/agreements/access.ts',h.mocks);
+ assert.equal((await handleAgreementAccess(new Request('https://fixture.invalid',{method:'POST',headers:{origin:'https://fixture.invalid'}}),ids.order,true)).status,403);
  assert.ok(!h.events.includes('read:license'));assert.ok(!h.events.includes('service-client'));assert.ok(!h.events.includes('sign'));
 });
 for(const [label,opts,status] of [['anonymous',{user:null},401],['artist role',{role:'artist'},403],['foreign order',{owner:ids.a},404],['own order',{},200]]) test(`checkout entry: ${label}`,async()=>{

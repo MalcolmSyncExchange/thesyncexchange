@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
 
 import { RetryAgreementGenerationForm } from "@/components/admin/retry-agreement-generation-form";
 import { OrderStatusForm } from "@/components/admin/order-status-form";
@@ -63,9 +63,9 @@ export default async function AdminOrdersPage() {
                       {order.last_webhook_processed_at ? <span>Webhook {formatDateTime(order.last_webhook_processed_at)}</span> : null}
                     </div>
                     {order.agreement_ready && order.agreement_url ? (
-                      <Link href={order.agreement_url} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
+                      <AgreementDownloadForm orderId={order.id} className="text-sm font-medium text-foreground underline-offset-4 hover:underline">
                         Download License Agreement
-                      </Link>
+                      </AgreementDownloadForm>
                     ) : null}
                   </div>
                   <OrderStatusForm orderId={order.id} status={order.order_status} />

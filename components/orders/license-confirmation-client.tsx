@@ -1,5 +1,6 @@
 "use client";
 
+import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -7,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BrandLogo } from "@/components/layout/brand-assets";
 import { OrderStatusProgress } from "@/components/orders/order-status-progress";
 import { OrderStatusBadge } from "@/components/shared/state-badges";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   LICENSE_CONFIRMATION_POLL_INTERVAL_MS,
@@ -256,9 +257,7 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
               <Link href="/buyer/orders">View Order History</Link>
             </Button>
             {order?.agreement_ready && order?.agreement_url ? (
-              <Button asChild variant="outline">
-                <Link href={order.agreement_url}>{order.test_transaction ? "Download Test Agreement" : "Download License Agreement"}</Link>
-              </Button>
+              <AgreementDownloadForm orderId={order.id} className={buttonVariants({ variant: "outline" })}>{order.test_transaction ? "Download Test Agreement" : "Download License Agreement"}</AgreementDownloadForm>
             ) : null}
           </div>
           {polling ? <p className="text-xs text-muted-foreground">Checking fulfillment status automatically.</p> : null}

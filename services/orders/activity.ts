@@ -11,7 +11,8 @@ export async function appendOrderActivityLog(
     eventType,
     message,
     metadata,
-    dedupeKey
+    dedupeKey,
+    requirePersistence = false
   }: {
     orderId: string;
     actorId?: string | null;
@@ -20,6 +21,7 @@ export async function appendOrderActivityLog(
     message?: string | null;
     metadata?: Record<string, unknown>;
     dedupeKey?: string | null;
+    requirePersistence?: boolean;
   }
 ) {
   const { error } = await supabase.from("order_activity_log").insert({
@@ -32,7 +34,7 @@ export async function appendOrderActivityLog(
     dedupe_key: dedupeKey || null
   });
 
-  if (error && isMissingRelationError(error, "order_activity_log")) {
+  if (error && !requirePersistence && isMissingRelationError(error, "order_activity_log")) {
     warnSchemaFallbackOnce(
       "order-activity-log-write",
       "order_activity_log is not available yet; order activity auditing is degraded until migration 0010 is applied.",

@@ -1,3 +1,4 @@
+import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
 import surface from "@/components/layout/sync-surface.module.css";
 import Link from "next/link";
 
@@ -75,9 +76,9 @@ export default async function BuyerOrdersPage() {
                       View Confirmation
                     </Link>
                     {order.agreement_ready && order.agreement_url ? (
-                      <Link href={order.agreement_url} className="font-medium text-foreground underline-offset-4 hover:underline">
+                      <AgreementDownloadForm orderId={order.id} className="font-medium text-foreground underline-offset-4 hover:underline">
                         {order.test_transaction ? "Download Test Agreement" : "Download License Agreement"}
-                      </Link>
+                      </AgreementDownloadForm>
                     ) : null}
                   </div>
                 </div>

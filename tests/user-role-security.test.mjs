@@ -20,7 +20,7 @@ const tracksActionsSource = readFileSync(new URL("../services/tracks/actions.ts"
 const uploadUrlRouteSource = readFileSync(new URL("../app/api/storage/upload-url/route.ts", import.meta.url), "utf8");
 const uploadRouteSource = readFileSync(new URL("../app/api/storage/upload/route.ts", import.meta.url), "utf8");
 const deleteRouteSource = readFileSync(new URL("../app/api/storage/delete/route.ts", import.meta.url), "utf8");
-const agreementRouteSource = readFileSync(new URL("../app/api/orders/[orderId]/agreement/route.ts", import.meta.url), "utf8");
+const agreementRouteSource = readFileSync(new URL("../services/agreements/access.ts", import.meta.url), "utf8");
 const signupRoleFunction = authActionsSource.match(/function parseSignupRole[\s\S]*?\n}/)?.[0] || "";
 const signupActionFunction = authActionsSource.match(/export async function signupAction[\s\S]*?\nexport async function selectOnboardingRoleAction/)?.[0] || "";
 const ensureAppUserFunction = authActionsSource.match(/async function ensureAppUser[\s\S]*?\nasync function hasCompletedOnboarding/)?.[0] || "";
@@ -92,7 +92,7 @@ test("database persisted role remains the authorization source for admin artist 
   assert.match(uploadUrlRouteSource, /const role = profile\?\.role;/);
   assert.match(uploadRouteSource, /const role = profile\?\.role;/);
   assert.match(deleteRouteSource, /profile\?\.role !== "artist"/);
-  assert.match(agreementRouteSource, /const role = viewerProfile\?\.role;/);
+  assert.match(agreementRouteSource, /const role = profile\?\.role;/);
   assert.match(buyerActionsSource, /const role = persistedProfile\?\.role;/);
   assert.match(buyerQueriesSource, /const viewerRole = viewerProfile\?\.role;/);
 });

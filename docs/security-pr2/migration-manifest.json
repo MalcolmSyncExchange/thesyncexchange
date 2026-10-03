@@ -113,6 +113,10 @@
     {
       "file": "20261002045900_purchase_completion_foundation.sql",
       "sha256": "dab672f34592462acc119ed3e85ecaf9f595a621e44d6ee41c1a98bd95b347f1"
+    },
+    {
+      "file": "20261002201230_purchase_completion_fulfillment_adapters.sql",
+      "sha256": "94a7551f9dd61dc0c4344399f17a779ac2de8b70f2daec95cbac93a2ef637d1c"
     }
   ],
   "storageBuckets": {

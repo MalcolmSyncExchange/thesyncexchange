@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
@@ -15,8 +17,10 @@ import {
   getStripeServerClient,
   markOrderCheckoutSessionPaymentFailed,
   markOrderRefundedByPaymentIntent,
+  recordOrderDisputeByPaymentIntent,
   syncOrderFromStripeSession
 } from "@/services/stripe/server";
+import type { VerifiedStripePaymentEvidence } from "@/services/purchase-completion/server";
 
 export async function POST(request: Request) {
   if (resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE).blocksApplication) {
@@ -77,6 +81,9 @@ export async function POST(request: Request) {
     );
   }
 
+  const evidenceSha256 = createHash("sha256").update(payload).digest("hex");
+  const providerCreatedAt = new Date(event.created * 1000).toISOString();
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -91,11 +98,28 @@ export async function POST(request: Request) {
         });
 
         if (orderId) {
+          const paymentIntentId = stripeIdentity(session.payment_intent);
+          const verifiedEvent = session.payment_status === "paid" && paymentIntentId && session.amount_total && session.currency
+            ? ({
+                providerEventId: event.id,
+                eventType: event.type,
+                paymentState: "PAID",
+                checkoutSessionId: session.id,
+                paymentIntentId,
+                amountMinor: session.amount_total,
+                refundedMinor: 0,
+                currency: session.currency,
+                evidenceSha256,
+                providerCreatedAt,
+                livemode: event.livemode
+              } satisfies VerifiedStripePaymentEvidence)
+            : undefined;
           await syncOrderFromStripeSession({
             orderId,
             session,
             webhookEventId: event.id,
-            webhookEventType: event.type
+            webhookEventType: event.type,
+            verifiedEvent
           });
           revalidateBuyerOrderPaths(orderId);
         }
@@ -112,11 +136,28 @@ export async function POST(request: Request) {
         });
 
         if (orderId) {
+          const paymentIntentId = stripeIdentity(session.payment_intent);
+          if (!paymentIntentId || !session.amount_total || !session.currency) {
+            throw new Error("Stripe failed-payment event is missing trusted payment identifiers.");
+          }
           await markOrderCheckoutSessionPaymentFailed({
             orderId,
             session,
             webhookEventId: event.id,
-            webhookEventType: event.type
+            webhookEventType: event.type,
+            verifiedEvent: {
+              providerEventId: event.id,
+              eventType: event.type,
+              paymentState: "PAYMENT_FAILED",
+              checkoutSessionId: session.id,
+              paymentIntentId,
+              amountMinor: session.amount_total,
+              refundedMinor: 0,
+              currency: session.currency,
+              evidenceSha256,
+              providerCreatedAt,
+              livemode: event.livemode
+            }
           });
           revalidateBuyerOrderPaths(orderId);
         }
@@ -128,13 +169,64 @@ export async function POST(request: Request) {
           typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id || "";
 
         if (paymentIntentId) {
-          const order = await markOrderRefundedByPaymentIntent(paymentIntentId, event.id, event.type);
+          const fullyRefunded = charge.amount_refunded === charge.amount;
+          const order = await markOrderRefundedByPaymentIntent({
+            paymentIntentId,
+            refundedMinor: charge.amount_refunded,
+            amountMinor: charge.amount,
+            webhookEventId: event.id,
+            webhookEventType: event.type,
+            verifiedEvent: {
+              providerEventId: event.id,
+              eventType: event.type,
+              paymentState: fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED",
+              checkoutSessionId: undefined,
+              paymentIntentId,
+              amountMinor: charge.amount,
+              refundedMinor: charge.amount_refunded,
+              currency: charge.currency,
+              evidenceSha256,
+              providerCreatedAt,
+              livemode: event.livemode
+            }
+          });
           reportOperationalEvent("stripe_charge_refunded", "Stripe refund received.", {
             paymentIntentId,
             orderId: order?.id || null
           });
           revalidateBuyerOrderPaths(order?.id);
         }
+        break;
+      }
+      case "charge.dispute.created": {
+        const dispute = event.data.object as Stripe.Dispute;
+        const paymentIntentId = stripeIdentity(dispute.payment_intent);
+        if (!paymentIntentId) {
+          throw new Error("Stripe dispute is missing its bound PaymentIntent.");
+        }
+        const order = await recordOrderDisputeByPaymentIntent({
+          paymentIntentId,
+          webhookEventId: event.id,
+          webhookEventType: event.type,
+          verifiedEvent: {
+            providerEventId: event.id,
+            eventType: event.type,
+            paymentState: "DISPUTED",
+            checkoutSessionId: undefined,
+            paymentIntentId,
+            amountMinor: dispute.amount,
+            refundedMinor: 0,
+            currency: dispute.currency,
+            evidenceSha256,
+            providerCreatedAt,
+            livemode: event.livemode
+          }
+        });
+        reportOperationalEvent("stripe_charge_disputed", "Stripe payment dispute received.", {
+          paymentIntentId,
+          orderId: order?.id || null
+        });
+        revalidateBuyerOrderPaths(order?.id);
         break;
       }
       default:
@@ -154,6 +246,10 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+function stripeIdentity(value: string | { id: string } | null | undefined) {
+  return typeof value === "string" ? value : value?.id || "";
 }
 
 function revalidateBuyerOrderPaths(orderId?: string | null) {

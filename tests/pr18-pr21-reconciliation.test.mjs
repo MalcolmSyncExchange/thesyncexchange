@@ -14,8 +14,12 @@ const files = [
 const before = JSON.parse(source('docs/security-pr2/staging-rollout/catalog-before.json'));
 const inventory = async db => (await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
 
-test('PR21 reconciliation remains intact with the additive purchase foundation; PR18 migrations cannot re-enter', () => {
-  assert.deepEqual(readdirSync(new URL('supabase/migrations/', root)).filter(f => /^2026.*\.sql$/.test(f)).sort(), [...files,'20261002045900_purchase_completion_foundation.sql']);
+test('PR21 reconciliation remains intact with the additive purchase foundation and adapter; PR18 migrations cannot re-enter', () => {
+  assert.deepEqual(readdirSync(new URL('supabase/migrations/', root)).filter(f => /^2026.*\.sql$/.test(f)).sort(), [
+    ...files,
+    '20261002045900_purchase_completion_foundation.sql',
+    '20261002201230_purchase_completion_fulfillment_adapters.sql'
+  ]);
 });
 
 test('captured staging PR18 protections reconcile forward, preserve records, and reject duplicate view remediation without drift', async () => {

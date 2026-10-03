@@ -66,7 +66,9 @@ async function withFixture(run,options) {const ctx=await setup(options);try{awai
 test('capabilities default OFF; no legacy rows generated; original enum unchanged',async()=>{
  const db=await database();try{
  const flags=await one(db,'select * from commerce_private.capabilities');
- assert.deepEqual(Object.values(flags),[true,false,false,false,false,false]);
+ assert.equal(flags.singleton,true);
+ for(const [name,value] of Object.entries(flags).filter(([name])=>name!=='singleton'))
+  assert.equal(value,false,`${name} must default OFF`);
  await assert.rejects(service(db,()=>call(db,`commerce_private.reserve_asset('${ids.live}')`)),/disabled/);
  for(const table of ['order_delivery_contracts','order_asset_entitlements','order_receipts','artist_transaction_records'])
   assert.equal((await one(db,`select count(*)::int as n from public.${table}`)).n,0);

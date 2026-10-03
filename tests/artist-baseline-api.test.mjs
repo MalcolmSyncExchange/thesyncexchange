@@ -39,6 +39,7 @@ function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false
    getPaymentActivityMetadata:()=>({paymentMode:'test',releaseMode:'preview',commercialRightsGranted:false})
   },
   '@/services/security/rate-limit':{consumeRateLimit:async()=>({allowed:true}),rateLimitErrorResponse:()=>null},
+  '@/services/purchase-completion/server':{preparePurchaseCompletionCheckout:async()=>({enabled:false})},
   '@/services/stripe/server':{createStripeCheckoutSession:async()=>{events.push('stripe');return{id:'cs_fixture',url:'https://fixture.invalid/checkout'};}}
  };
  return{events,mocks};

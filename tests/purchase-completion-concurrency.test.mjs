@@ -29,12 +29,13 @@ test('independent PostgreSQL connections serialize held-payment duplicates into 
   await sql([fixtureBootstrapSql,...migrations,...seed].join('\n'));
   const contract=`(select id from public.order_delivery_contracts where order_id='${ids.order}')`;
   await sql(`select set_config('request.jwt.claim.role','service_role',false);
-   update commerce_private.capabilities set foundation_enabled=true,receipt_generation_enabled=true,transaction_projection_enabled=true;
+   update commerce_private.capabilities set foundation_enabled=true,payment_adapter_enabled=true,receipt_generation_enabled=true,transaction_projection_enabled=true;
    insert into orders(id,buyer_user_id,track_id,license_type_id,amount_cents,currency) values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}',5000,'USD');
-   select commerce_private.freeze_contract('${ids.order}','production','acct_fixture');
+   select * from public.prepare_purchase_completion_checkout('${ids.order}','production','acct_fixture');
    update orders set stripe_checkout_session_id='cs_test_fixture',stripe_payment_intent_id='pi_fixture' where id='${ids.order}';
    select commerce_private.security_hold(${contract},'review_required');`);
-  const event=id=>`select commerce_private.record_payment_event(${contract},'acct_fixture','${id}','cs_test_fixture','pi_fixture',
+  const event=id=>`select set_config('request.jwt.claim.role','service_role',false);
+   select public.record_purchase_completion_event('${ids.order}','acct_fixture','${id}','cs_test_fixture','pi_fixture',
    'checkout.session.completed','PAID',5000,0,'USD','${'a'.repeat(64)}','2026-10-02T00:00:00Z');`;
   const first=sql(`set application_name='held-first';begin;set local role service_role;${event('evt_concurrent')}select pg_sleep(2);commit;`);
   await waitFor(async()=>await sql("select count(*) from pg_stat_activity where application_name='held-first' and wait_event='PgSleep'")==='1');

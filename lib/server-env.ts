@@ -10,6 +10,8 @@ import {
 const rawSupabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const rawStripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const rawStripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const rawStripeAccountId = process.env.STRIPE_ACCOUNT_ID;
+const rawPurchaseCompletionAdapterEnabled = process.env.SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED;
 // Netlify TOML context values exist at build time. Preserve only the explicit
 // preview setting for Functions; never supply a fallback for production.
 const rawPaymentMode = process.env.SYNC_EXCHANGE_PAYMENT_MODE ??
@@ -23,6 +25,8 @@ export const serverEnv = {
   supabaseServiceRoleKey: rawSupabaseServiceRoleKey,
   stripeSecretKey: rawStripeSecretKey,
   stripeWebhookSecret: rawStripeWebhookSecret,
+  stripeAccountId: rawStripeAccountId,
+  purchaseCompletionAdapterEnabled: rawPurchaseCompletionAdapterEnabled,
   paymentMode: rawPaymentMode
 };
 
@@ -65,6 +69,43 @@ export function getServerEnvironmentDiagnostics() {
   const stripeSecretKeyMode = getStripeKeyMode(rawStripeSecretKey, "sk");
   const stripePublishableKeyMode = getStripeKeyMode(env.stripePublishableKey, "pk");
   const payment = resolvePaymentConfiguration(rawPaymentMode, deploymentTarget);
+
+  if (
+    rawPurchaseCompletionAdapterEnabled !== undefined &&
+    rawPurchaseCompletionAdapterEnabled !== "" &&
+    rawPurchaseCompletionAdapterEnabled !== "true" &&
+    rawPurchaseCompletionAdapterEnabled !== "false"
+  ) {
+    issues.push({
+      code: "invalid_purchase_completion_adapter_flag",
+      severity: "warning",
+      message: "The Phase 2B payment adapter flag is invalid and has been treated as OFF."
+    });
+  }
+
+  if (rawPurchaseCompletionAdapterEnabled === "true" && !/^acct_[A-Za-z0-9]+$/.test(rawStripeAccountId || "")) {
+    issues.push({
+      code: "missing_purchase_completion_provider_account",
+      severity: "error",
+      message: "The Phase 2B payment adapter requires a valid server-only STRIPE_ACCOUNT_ID."
+    });
+  }
+
+  if (rawPurchaseCompletionAdapterEnabled === "true" && (!payment.valid || payment.paymentMode !== "test")) {
+    issues.push({
+      code: "purchase_completion_adapter_requires_test_mode",
+      severity: "error",
+      message: "The Phase 2B payment adapter is TEST-only and requires explicit test payment mode."
+    });
+  }
+
+  if (rawPurchaseCompletionAdapterEnabled === "true" && deploymentTarget === "production") {
+    issues.push({
+      code: "purchase_completion_adapter_production_prohibited",
+      severity: "error",
+      message: "The Phase 2B payment adapter is not authorized for the production deployment target."
+    });
+  }
 
   if (!payment.valid) {
     issues.push({
@@ -222,7 +263,10 @@ export function assertStripeServerConfiguration(
       "live_payments_outside_production",
       "missing_stripe_secret_key",
       "missing_stripe_publishable_key",
-      "missing_stripe_webhook_secret"
+      "missing_stripe_webhook_secret",
+      "missing_purchase_completion_provider_account",
+      "purchase_completion_adapter_requires_test_mode",
+      "purchase_completion_adapter_production_prohibited"
     ].includes(issue.code)
   );
 
@@ -296,4 +340,37 @@ export function assertStripeRuntimeObject(
 export function getPaymentActivityMetadata() {
   const runtime = getPaymentRuntimeConfiguration();
   return buildPaymentClassification(runtime.paymentMode, runtime.releaseMode);
+}
+
+export function getPurchaseCompletionAdapterConfiguration() {
+  const enabled = rawPurchaseCompletionAdapterEnabled === "true";
+  const flagValid =
+    rawPurchaseCompletionAdapterEnabled === undefined ||
+    rawPurchaseCompletionAdapterEnabled === "" ||
+    rawPurchaseCompletionAdapterEnabled === "false" ||
+    rawPurchaseCompletionAdapterEnabled === "true";
+  const accountValid = Boolean(rawStripeAccountId && /^acct_[A-Za-z0-9]+$/.test(rawStripeAccountId));
+  const deploymentTarget = getDeploymentTarget();
+  const targetValid = deploymentTarget !== "production";
+  const payment = resolvePaymentConfiguration(rawPaymentMode, deploymentTarget);
+
+  return {
+    enabled: enabled && flagValid && accountValid && targetValid && payment.valid && payment.paymentMode === "test",
+    requested: enabled,
+    flagValid,
+    accountValid,
+    targetValid,
+    providerAccount: accountValid ? rawStripeAccountId : undefined,
+    reason: !flagValid
+      ? "invalid_flag"
+      : !enabled
+        ? "disabled"
+      : !accountValid
+          ? "missing_or_invalid_stripe_account"
+          : !targetValid
+            ? "production_target_prohibited"
+          : !payment.valid || payment.paymentMode !== "test"
+            ? "test_payment_mode_required"
+            : "enabled"
+  } as const;
 }

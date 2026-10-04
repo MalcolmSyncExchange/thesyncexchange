@@ -9,8 +9,15 @@ export const ident = x => `"${String(x).replaceAll('"','""')}"`;
 export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls;
    create schema auth; create schema storage;
    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');
+   create table auth.sessions(id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade);
    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
    create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;
+   create function auth.jwt() returns jsonb language sql stable as $$
+     select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''))
+   $$;
+   create function public.digest(value text,algorithm text) returns bytea language sql immutable as $$
+     select decode(repeat(md5(value),2),'hex') where algorithm='sha256'
+   $$;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
    create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,version text,owner uuid,owner_id text,unique(bucket_id,name));
@@ -53,10 +60,10 @@ export async function applyCapturedAuthorization(db,s) {
  for(const g of s.grants.filter(g=>['anon','authenticated','service_role'].includes(g.grantee)&&(g.schema!=='storage'||['objects','buckets'].includes(g.table))))
   await db.exec(`grant ${g.privilege} on ${ident(g.schema)}.${ident(g.table)} to ${ident(g.grantee)}`);
 }
-export async function asActor(db,id,run,role='authenticated') {
+export async function asActor(db,id,run,role='authenticated',sessionId='') {
  if(!['authenticated','anon','service_role'].includes(role)) throw Error('Unknown fixture role');
- await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false)`);
- try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false)"); }
+ await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false); select set_config('request.jwt.claim.session_id',${quote(sessionId)},false)`);
+ try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false); select set_config('request.jwt.claim.session_id','',false)"); }
 }
 export async function seedDatabase(db) {
  for(const [key,role] of [['a','artist'],['b','artist'],['buyer','buyer'],['admin','admin']])

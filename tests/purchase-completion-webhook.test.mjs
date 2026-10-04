@@ -5,8 +5,9 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 
-function loadRoute(event,{signatureValid=true}={}) {
+function loadRoute(event,{signatureValid=true,gateRouter=async()=>({route_code:'ordinary',grant_id:null,order_id:null,grant_state:null})}={}) {
  const calls=[];
+ const gateCalls=[];
  const source=readFileSync(new URL('../app/api/webhooks/stripe/route.ts',import.meta.url),'utf8');
  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const route={exports:{}};
@@ -25,6 +26,12 @@ function loadRoute(event,{signatureValid=true}={}) {
   },
   '@/lib/monitoring':{reportOperationalError(){},reportOperationalEvent(){}},
   '@/lib/maintenance-mode.mjs':{resolveMaintenanceMode:()=>({blocksApplication:false})},
+  '@/services/gate-d/server':{
+   routeGateDWebhook:async input=>{gateCalls.push(['route',input]);return gateRouter(input);},
+   recordGateDVerifiedPayment:async input=>gateCalls.push(['payment',input]),
+   requestGateDRevocation:async(...input)=>gateCalls.push(['revoke',...input]),
+   runGateDAcceptanceJobs:async input=>gateCalls.push(['jobs',input])
+  },
   '@/services/stripe/server':{
    getStripeServerClient:()=>stripe,
    syncOrderFromStripeSession:async input=>calls.push(['paid',input]),
@@ -36,7 +43,7 @@ function loadRoute(event,{signatureValid=true}={}) {
  vm.runInNewContext(compiled,{module:route,exports:route.exports,Response,Request,console,process:{env:{}},require:name=>{
   assert.ok(Object.hasOwn(stubs,name),`Unmocked dependency: ${name}`);return stubs[name];
  }});
- return {POST:route.exports.POST,calls};
+ return {POST:route.exports.POST,calls,gateCalls};
 }
 
 const payload='{"reviewed":"safe fixture"}';
@@ -75,4 +82,45 @@ test('refund and dispute mapping use the stored order session while preserving a
  assert.equal((await send(dispute.POST)).status,200);
  assert.equal(dispute.calls[0][1].verifiedEvent.paymentState,'DISPUTED');
  assert.equal(dispute.calls[0][1].verifiedEvent.checkoutSessionId,undefined);
+});
+
+test('exact bound Session routes only through Gate D, including fulfillment before browser return',async()=>{
+ const orderId='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+ const grantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ const session={id:'cs_test_gatedfixture',client_reference_id:orderId,payment_status:'paid',payment_intent:'pi_gatedfixture',amount_total:5000,currency:'usd'};
+ const h=loadRoute({id:'evt_gatefixture',type:'checkout.session.completed',created:1790964000,livemode:false,data:{object:session}},
+  {gateRouter:async()=>({route_code:'gate_d',grant_id:grantId,order_id:orderId,grant_state:'checkout_bound'})});
+ assert.equal((await send(h.POST)).status,200);
+ assert.equal(h.calls.length,1);
+ assert.equal(h.calls[0][0],'paid');
+ assert.deepEqual(h.gateCalls.map(call=>call[0]),['route','payment','jobs']);
+ assert.equal(h.gateCalls[1][1].grantId,grantId);
+ assert.equal(h.gateCalls[2][1],grantId);
+});
+
+test('unbound Gate D order conflict is retryable and never reaches ordinary fulfillment',async()=>{
+ const orderId='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+ const session={id:'cs_test_unboundfixture',client_reference_id:orderId,payment_status:'paid',payment_intent:'pi_gatefixture',amount_total:5000,currency:'usd'};
+ const h=loadRoute({id:'evt_conflict',type:'checkout.session.completed',created:1790964000,livemode:false,data:{object:session}},
+  {gateRouter:async()=>({route_code:'conflict',grant_id:null,order_id:orderId,grant_state:'reserved'})});
+ assert.equal((await send(h.POST)).status,500);
+ assert.equal(h.calls.length,0);
+ assert.deepEqual(h.gateCalls.map(call=>call[0]),['route']);
+});
+
+test('Gate D failed payment requests revocation and Connect identity reaches the conflict classifier',async()=>{
+ const orderId='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+ const grantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ const session={id:'cs_test_gatedfixture',client_reference_id:orderId,payment_status:'unpaid'};
+ const failed=loadRoute({id:'evt_failed',type:'checkout.session.async_payment_failed',created:1790964000,livemode:false,data:{object:session}},
+  {gateRouter:async()=>({route_code:'gate_d',grant_id:grantId,order_id:orderId,grant_state:'checkout_bound'})});
+ assert.equal((await send(failed.POST)).status,200);
+ assert.deepEqual(failed.gateCalls.map(call=>call[0]),['route','revoke']);
+ assert.equal(failed.calls.length,0);
+
+ const connect=loadRoute({id:'evt_connect',account:'acct_connected',type:'checkout.session.completed',created:1790964000,livemode:false,data:{object:{...session,payment_status:'paid',payment_intent:'pi_gatefixture',amount_total:5000,currency:'usd'}}},
+  {gateRouter:async input=>({route_code:input.connectAccount?'conflict':'ordinary',grant_id:null,order_id:orderId,grant_state:'checkout_bound'})});
+ assert.equal((await send(connect.POST)).status,500);
+ assert.equal(connect.gateCalls[0][1].connectAccount,'acct_connected');
+ assert.equal(connect.calls.length,0);
 });

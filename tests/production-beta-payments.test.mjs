@@ -131,6 +131,12 @@ async function runWebhookRoute(livemode) {
     },
     "@/lib/monitoring": { reportOperationalError() {}, reportOperationalEvent() {} },
     "@/lib/maintenance-mode.mjs": { resolveMaintenanceMode: () => ({ blocksApplication: false }) },
+    "@/services/gate-d/server": {
+      routeGateDWebhook: async () => ({ route_code: "ordinary", grant_id: null, order_id: null, grant_state: null }),
+      recordGateDVerifiedPayment: async () => null,
+      requestGateDRevocation: async () => null,
+      runGateDAcceptanceJobs: async () => null
+    },
     "@/services/stripe/server": {
       getStripeServerClient: () => stripe,
       markOrderCheckoutSessionPaymentFailed: async () => null,

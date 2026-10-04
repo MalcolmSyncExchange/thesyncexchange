@@ -108,7 +108,7 @@ test('unbound Gate D order conflict is retryable and never reaches ordinary fulf
  assert.deepEqual(h.gateCalls.map(call=>call[0]),['route']);
 });
 
-test('Gate D failed payment requests revocation and Connect identity reaches the conflict classifier',async()=>{
+test('Gate D failed payment requests revocation with the verified webhook actor path',async()=>{
  const orderId='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
  const grantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
  const session={id:'cs_test_gatedfixture',client_reference_id:orderId,payment_status:'unpaid'};
@@ -118,9 +118,33 @@ test('Gate D failed payment requests revocation and Connect identity reaches the
  assert.deepEqual(failed.gateCalls.map(call=>call[0]),['route','revoke']);
  assert.equal(failed.calls.length,0);
 
- const connect=loadRoute({id:'evt_connect',account:'acct_connected',type:'checkout.session.completed',created:1790964000,livemode:false,data:{object:{...session,payment_status:'paid',payment_intent:'pi_gatefixture',amount_total:5000,currency:'usd'}}},
-  {gateRouter:async input=>({route_code:input.connectAccount?'conflict':'ordinary',grant_id:null,order_id:orderId,grant_state:'checkout_bound'})});
- assert.equal((await send(connect.POST)).status,500);
- assert.equal(connect.gateCalls[0][1].connectAccount,'acct_connected');
- assert.equal(connect.calls.length,0);
+});
+
+test('every non-null Connect context is rejected before Gate D classification or ordinary fulfillment',async()=>{
+ const orderId='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+ const checkout=id=>({id,client_reference_id:orderId,payment_status:'paid',payment_intent:'pi_fixture',amount_total:5000,currency:'usd'});
+ const cases=[
+  ['exact Gate D Session','checkout.session.completed',checkout('cs_test_gatedfixture')],
+  ['unknown Session','checkout.session.completed',checkout('cs_test_unknownfixture')],
+  ['ordinary order','checkout.session.completed',checkout('cs_test_ordinaryfixture')],
+  ['failed payment','checkout.session.async_payment_failed',{...checkout('cs_test_failedfixture'),payment_status:'unpaid'}],
+  ['refund','charge.refunded',{payment_intent:'pi_fixture',amount:5000,amount_refunded:5000,currency:'usd'}],
+  ['dispute','charge.dispute.created',{payment_intent:'pi_fixture',amount:5000,currency:'usd'}],
+  ['unhandled','customer.created',{id:'cus_fixture'}]
+ ];
+ for(const [label,type,object] of cases) {
+  const h=loadRoute({id:`evt_${type.replaceAll('.','_')}`,account:'acct_connected',type,created:1790964000,livemode:false,data:{object}});
+  assert.equal((await send(h.POST)).status,400,label);
+  assert.equal(h.gateCalls.length,0,label);
+  assert.equal(h.calls.length,0,label);
+ }
+ const malformed=loadRoute({id:'evt_malformed_connect',account:{id:'acct_connected'},type:'checkout.session.completed',created:1790964000,livemode:false,data:{object:checkout('cs_test_fixture')}});
+ assert.equal((await send(malformed.POST)).status,400);
+ assert.equal(malformed.gateCalls.length,0);
+ assert.equal(malformed.calls.length,0);
+
+ const live=loadRoute({id:'evt_live_connect',account:'acct_connected',type:'checkout.session.completed',created:1790964000,livemode:true,data:{object:checkout('cs_live_fixture')}});
+ assert.equal((await send(live.POST)).status,400);
+ assert.equal(live.gateCalls.length,0);
+ assert.equal(live.calls.length,0);
 });

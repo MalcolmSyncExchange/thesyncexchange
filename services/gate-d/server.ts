@@ -11,7 +11,7 @@ import {
   serverEnv
 } from "@/lib/server-env";
 import { gateDReceiptObjectPath, renderGateDReceipt } from "@/lib/gate-d/receipt";
-import { getStripeServerClient, getOrderConfirmationUrl } from "@/services/stripe/server";
+import { getStripeServerClient } from "@/services/stripe/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import type { AppSupabaseClient } from "@/services/supabase/types";
 
@@ -19,7 +19,7 @@ export const GATE_D_QA_BUYER_ID = "8ffc95e8-0e8f-428e-ac26-925d6bc98fcd";
 export const GATE_D_CSRF_COOKIE = "__Host-gate-d-csrf";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type RpcError = { message: string };
+type RpcError = { message: string; code?: string };
 type RpcClient = {
   rpc<T>(name: string, args: Record<string, unknown>): PromiseLike<{ data: T | null; error: RpcError | null }>;
 };
@@ -39,6 +39,7 @@ export type GateDPreparedCheckout = {
   reservation_lease_token: string;
   reservation_lease_epoch: number;
   stripe_idempotency_key: string;
+  stripe_request_spec: string;
   stripe_parameters_sha256: string;
   provider_expires_at: string;
   order_id: string;
@@ -108,12 +109,25 @@ function requireGateDRuntime() {
   return { runtime, providerAccount: serverEnv.stripeAccountId };
 }
 
-export function gateDCanonicalCheckoutParameters(input: {
+type GateDCheckoutFacts = {
   orderId: string;
   amountMinor: number;
   currency: string;
   providerExpiresAt: string;
-}) {
+  trackTitle: string;
+  trackSlug: string;
+  licenseName: string;
+  appUrl: string;
+};
+
+export class GateDCheckoutParameterDriftError extends Error {
+  constructor() {
+    super("Gate D Checkout parameter drift.");
+    this.name = "GateDCheckoutParameterDriftError";
+  }
+}
+
+export function gateDCheckoutRequestSpecification(input: GateDCheckoutFacts): Stripe.Checkout.SessionCreateParams {
   const expires = Math.floor(new Date(input.providerExpiresAt).getTime() / 1000);
   if (
     !UUID.test(input.orderId) ||
@@ -121,23 +135,77 @@ export function gateDCanonicalCheckoutParameters(input: {
     input.amountMinor <= 0 ||
     !/^[A-Z]{3}$/.test(input.currency) ||
     !Number.isSafeInteger(expires) ||
-    expires <= 0
+    expires <= 0 ||
+    !input.trackTitle ||
+    !input.licenseName ||
+    !/^[A-Za-z0-9_-]{1,200}$/.test(input.trackSlug) ||
+    !/^https:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/.test(input.appUrl)
   ) {
     throw new Error("Invalid Gate D Checkout parameter source.");
   }
-  return (
-    `gate-d-v1|mode=payment|payment_method_types=card|order=${input.orderId}` +
-    `|amount=${input.amountMinor}|currency=${input.currency.toLowerCase()}|expires=${expires}`
-  );
+  return {
+    cancel_url: `${input.appUrl}/buyer/checkout/${input.trackSlug}?error=Gate%20D%20TEST%20checkout%20was%20canceled.`,
+    client_reference_id: input.orderId,
+    expires_at: expires,
+    line_items: [{
+      price_data: {
+        currency: input.currency.toLowerCase(),
+        product_data: {
+          description: "The Sync Exchange production-beta TEST acceptance checkout.",
+          name: `${input.trackTitle} - ${input.licenseName}`
+        },
+        unit_amount: input.amountMinor
+      },
+      quantity: 1
+    }],
+    mode: "payment",
+    payment_method_types: ["card"],
+    success_url: `${input.appUrl}/license-confirmation/${input.orderId}?session_id={CHECKOUT_SESSION_ID}`
+  };
 }
 
-export function gateDCheckoutParameterDigest(input: {
-  orderId: string;
-  amountMinor: number;
-  currency: string;
-  providerExpiresAt: string;
-}) {
-  return createHash("sha256").update(gateDCanonicalCheckoutParameters(input)).digest("hex");
+export function gateDCanonicalCheckoutParameters(request: Stripe.Checkout.SessionCreateParams) {
+  return stableJson(request);
+}
+
+export function gateDCheckoutParameterDigest(request: Stripe.Checkout.SessionCreateParams) {
+  return createHash("sha256").update(gateDCanonicalCheckoutParameters(request)).digest("hex");
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (typeof value === "object") {
+    const source = value as Record<string, unknown>;
+    return `{${Object.keys(source).filter((key) => source[key] !== undefined).sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(source[key])}`).join(",")}}`;
+  }
+  throw new Error("Gate D Checkout specification contains an unsupported value.");
+}
+
+function checkoutFacts(prepared: GateDPreparedCheckout): GateDCheckoutFacts {
+  return {
+    orderId: prepared.order_id,
+    amountMinor: prepared.amount_minor,
+    currency: prepared.currency,
+    providerExpiresAt: prepared.provider_expires_at,
+    trackTitle: prepared.track_title,
+    trackSlug: prepared.track_slug,
+    licenseName: prepared.license_name,
+    appUrl: env.appUrl
+  };
+}
+
+function verifyCheckoutSpecification(prepared: GateDPreparedCheckout) {
+  const request = gateDCheckoutRequestSpecification(checkoutFacts(prepared));
+  const canonical = gateDCanonicalCheckoutParameters(request);
+  const digest = gateDCheckoutParameterDigest(request);
+  if (!safeEqual(canonical, prepared.stripe_request_spec) || !safeEqual(digest, prepared.stripe_parameters_sha256)) {
+    throw new GateDCheckoutParameterDriftError();
+  }
+  return request;
 }
 
 export async function reserveGateDAcceptance(authClient: AppSupabaseClient, orderId: string) {
@@ -157,52 +225,24 @@ export async function prepareGateDCheckout(reservation: GateDReservation) {
   const { data, error } = await rpc(client).rpc<GateDPreparedCheckout[]>("gate_d_prepare_checkout", {
     p_grant_id: reservation.grant_id,
     p_attempt_id: reservation.attempt_id,
-    p_expected_lease_epoch: reservation.lease_epoch
+    p_expected_lease_epoch: reservation.lease_epoch,
+    p_app_url: env.appUrl
   });
   if (error) throw new Error(`Gate D checkout preparation failed: ${error.message}`);
   const prepared = data?.[0];
   if (!prepared) throw new Error("Gate D checkout preparation returned no trusted parameters.");
-  const digest = gateDCheckoutParameterDigest({
-    orderId: prepared.order_id,
-    amountMinor: prepared.amount_minor,
-    currency: prepared.currency,
-    providerExpiresAt: prepared.provider_expires_at
-  });
-  if (!safeEqual(digest, prepared.stripe_parameters_sha256)) {
-    throw new Error("Gate D Checkout parameter digest mismatch.");
-  }
+  verifyCheckoutSpecification(prepared);
   return prepared;
 }
 
 export async function createGateDStripeCheckout(prepared: GateDPreparedCheckout) {
   requireGateDRuntime();
+  const request = verifyCheckoutSpecification(prepared);
   const stripe = getStripeServerClient();
   if (!stripe) throw new Error("Stripe TEST client is unavailable.");
   const expiresAt = Math.floor(new Date(prepared.provider_expires_at).getTime() / 1000);
   const session = await stripe.checkout.sessions.create(
-    {
-      mode: "payment",
-      payment_method_types: ["card"],
-      client_reference_id: prepared.order_id,
-      expires_at: expiresAt,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: prepared.currency.toLowerCase(),
-            unit_amount: prepared.amount_minor,
-            product_data: {
-              name: `${prepared.track_title} - ${prepared.license_name}`,
-              description: "The Sync Exchange production-beta TEST acceptance checkout."
-            }
-          }
-        }
-      ],
-      success_url: `${getOrderConfirmationUrl(prepared.order_id)}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${env.appUrl}/buyer/checkout/${encodeURIComponent(prepared.track_slug)}?error=${encodeURIComponent(
-        "Gate D TEST checkout was canceled."
-      )}`
-    },
+    request,
     { idempotencyKey: prepared.stripe_idempotency_key }
   );
   if (
@@ -413,7 +453,7 @@ async function runReceiptJob(grantId: string) {
     throw new Error(`Gate D receipt snapshot failed: ${error?.message || "no snapshot"}`);
   }
   if (snapshot.object_path !== gateDReceiptObjectPath(grantId)) {
-    await finishJob(grantId, job, false, "receipt_path_mismatch");
+    await applyReceiptHold(grantId, "receipt_business_fact_mismatch");
     throw new Error("Gate D receipt path mismatch.");
   }
   const artifact = renderGateDReceipt({
@@ -434,9 +474,13 @@ async function runReceiptJob(grantId: string) {
   if (upload.error) adopted = true;
 
   const readback = await client.storage.from("order-receipts").download(snapshot.object_path);
-  if (readback.error || !readback.data) {
-    await applyReceiptHold(grantId, "receipt_readback_failed");
-    throw new Error("Gate D receipt readback failed.");
+  if (readback.error) {
+    await failReceiptJobRetryably(grantId, job, "receipt_readback_retryable");
+    throw new Error("Gate D receipt readback transport failed.");
+  }
+  if (!readback.data) {
+    await applyReceiptHold(grantId, "receipt_readback_evidence_missing");
+    throw new Error("Gate D receipt readback evidence is missing.");
   }
   const readbackBytes = Buffer.from(await readback.data.arrayBuffer());
   const readbackHash = createHash("sha256").update(readbackBytes).digest("hex");
@@ -459,11 +503,31 @@ async function runReceiptJob(grantId: string) {
     p_mime_type: artifact.mimeType,
     p_adopted: adopted
   });
-  if (sealed.error || !sealed.data?.[0]?.object_id || !sealed.data[0].object_version) {
-    await applyReceiptHold(grantId, "receipt_seal_failed");
-    throw new Error(`Gate D receipt seal failed: ${sealed.error?.message || "no Storage identity"}`);
+  if (sealed.error) {
+    if (isReceiptIntegrityError(sealed.error)) {
+      await applyReceiptHold(grantId, "receipt_seal_integrity_conflict");
+    } else {
+      await failReceiptJobRetryably(grantId, job, "receipt_seal_retryable");
+    }
+    throw new Error(`Gate D receipt seal failed: ${sealed.error.message}`);
+  }
+  if (!sealed.data?.[0]?.object_id || !sealed.data[0].object_version) {
+    await applyReceiptHold(grantId, "receipt_storage_identity_missing");
+    throw new Error("Gate D receipt seal returned no Storage identity.");
   }
   await finishJob(grantId, job, true);
+}
+
+function isReceiptIntegrityError(error: RpcError) {
+  return ["22023","23514","42501","P0002"].includes(error.code || "");
+}
+
+async function failReceiptJobRetryably(grantId: string, job: GateDJob, errorCode: string) {
+  try {
+    await finishJob(grantId, job, false, errorCode);
+  } catch {
+    // The lease remains reclaimable if the database is also unavailable here.
+  }
 }
 
 async function applyReceiptHold(grantId: string, reason: string) {

@@ -18,7 +18,7 @@ Both tables have RLS enabled with no permissive policies. Direct grants are expl
 | RPC | Grantee | Purpose |
 |---|---|---|
 | `gate_d_reserve_acceptance(uuid)` | `authenticated` | exact QA Buyer reservation; browser supplies order only |
-| `gate_d_prepare_checkout(uuid,uuid,bigint)` | `service_role` | revalidate trusted facts; freeze contract, pending entitlement, expiry and digest |
+| `gate_d_prepare_checkout(uuid,uuid,bigint,text)` | `service_role` | revalidate trusted facts; freeze contract, pending entitlement, expiry and complete Checkout request specification/digest |
 | `gate_d_bind_checkout(uuid,uuid,uuid,bigint,text,text,timestamptz)` | `service_role` | atomically bind exact TEST Session |
 | `gate_d_record_checkout_failure(uuid,uuid,uuid,bigint,text,boolean)` | `service_role` | retry or reconciliation evidence |
 | `gate_d_route_webhook(text,uuid,text,boolean,text)` | `service_role` | Session-only positive routing and negative order conflict |
@@ -45,15 +45,15 @@ Reservation first requires `auth.role()='authenticated'`, then exact `auth.uid()
 | Forged role or identity | canonical profile role plus `auth.uid`, `auth.role`, and live `auth.sessions` binding |
 | Browser obtains worker secret | authenticated RPC never returns lease token |
 | Two workers or stale retry race | grant row locks, epoch/token fences, true two-connection test |
-| Stripe retry parameter drift | immutable canonical digest checked before dispatch |
+| Stripe retry parameter drift | immutable complete request specification plus SHA-256 checked before Stripe client acquisition/dispatch |
 | Duplicate Checkout | immutable attempt/idempotency key; exact same-key recovery |
 | Unbound event falls into ordinary flow | retained-order negative conflict guard returns retryable failure |
-| Connect event accepted | direct configured account required; `event.account` must be absent |
+| Connect event accepted | global post-signature/mode guard plus database classifier reject every non-null `event.account` before routing/lookups |
 | Live payment accepted | existing runtime assertion plus Gate D TEST-only checks and `livemode=false` |
 | Confused deputy RPC arguments | every RPC locks grant plus independently matches order/job/event/contract/session facts |
 | Receipt overwrite or substitution | fixed path, private bucket, no upsert, readback hash/bytes/MIME, DB object ID/version seal, immutability trigger |
 | Premature delivery | pending entitlement, activation never claimable, no signed URL, capabilities OFF, `can_deliver=false` |
-| Late payment lost or fulfilled | immutable evidence retained, security hold, entitlement suspension, no reopen/consume |
+| Late payment lost, conflated, or fulfilled | complete immutable tuple comparison; exact replay only; distinct evidence audit/hold; no reopen/consume |
 | Audit secret leakage | closed scalar columns; no token, key, digest, metadata, or unrestricted JSON |
 
 ## Non-delivery proof

@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import {
   bindGateDCheckout,
   createGateDStripeCheckout,
+  GateDCheckoutParameterDriftError,
   GATE_D_CSRF_COOKIE,
   GATE_D_QA_BUYER_ID,
   prepareGateDCheckout,
@@ -99,8 +100,13 @@ export async function POST(request: Request) {
   let session;
   try {
     session = await createGateDStripeCheckout(prepared);
-  } catch {
-    await recordGateDCheckoutFailure(prepared,"provider_timeout",false).catch(() => undefined);
+  } catch (error) {
+    const parameterDrift = error instanceof GateDCheckoutParameterDriftError;
+    await recordGateDCheckoutFailure(
+      prepared,
+      parameterDrift ? "parameter_drift" : "provider_timeout",
+      false
+    ).catch(() => undefined);
     return rotatedResponse({ error: "Acceptance checkout provider request is awaiting safe retry." },503);
   }
 

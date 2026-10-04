@@ -89,10 +89,10 @@ test('two PostgreSQL connections serialize one reservation, recover one attempt,
     assert.equal(Number(current[2]),Number(stale[2])+1);
     await assert.rejects(sql(`set role service_role; select set_config('request.jwt.claim.role','service_role',false);
       select * from public.gate_d_prepare_checkout(
-      '${grantId}','${stale[1]}',${stale[2]});`),/Stale Gate D reservation epoch/);
+      '${grantId}','${stale[1]}',${stale[2]},'https://example.invalid');`),/Stale Gate D reservation epoch/);
     const currentPrepared=(await sql(`set role service_role; select set_config('request.jwt.claim.role','service_role',false);
       select reservation_lease_token||'|'||stripe_parameters_sha256||'|'||provider_expires_at
-      from public.gate_d_prepare_checkout('${grantId}','${current[1]}',${current[2]});`)).split('\n').at(-1).split('|');
+      from public.gate_d_prepare_checkout('${grantId}','${current[1]}',${current[2]},'https://example.invalid');`)).split('\n').at(-1).split('|');
     await assert.rejects(sql(`set role service_role; select set_config('request.jwt.claim.role','service_role',false);
       select public.gate_d_bind_checkout('${grantId}','${current[1]}','${stale[0]}',${current[2]},
         '${currentPrepared[1]}','cs_test_stalelease','${currentPrepared[2]}');`),/Stale or mismatched Gate D checkout binding/);

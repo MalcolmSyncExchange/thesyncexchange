@@ -27,7 +27,7 @@ $$;
 revoke all on function public.gate_d_reserve_acceptance(uuid)
 from public,anon,authenticated,service_role;
 
-revoke all on function public.gate_d_prepare_checkout(uuid,uuid,bigint),
+revoke all on function public.gate_d_prepare_checkout(uuid,uuid,bigint,text),
   public.gate_d_bind_checkout(uuid,uuid,uuid,bigint,text,text,timestamptz),
   public.gate_d_record_checkout_failure(uuid,uuid,uuid,bigint,text,boolean),
   public.gate_d_route_webhook(text,uuid,text,boolean,text),
@@ -56,7 +56,7 @@ drop function public.gate_d_record_verified_payment(uuid,text,text,text,text,int
 drop function public.gate_d_route_webhook(text,uuid,text,boolean,text);
 drop function public.gate_d_record_checkout_failure(uuid,uuid,uuid,bigint,text,boolean);
 drop function public.gate_d_bind_checkout(uuid,uuid,uuid,bigint,text,text,timestamptz);
-drop function public.gate_d_prepare_checkout(uuid,uuid,bigint);
+drop function public.gate_d_prepare_checkout(uuid,uuid,bigint,text);
 drop function public.gate_d_reserve_acceptance(uuid);
 
 drop function commerce_private.gate_d_apply_hold_core(uuid,text,text);

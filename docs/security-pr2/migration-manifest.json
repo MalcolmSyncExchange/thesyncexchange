@@ -117,6 +117,14 @@
     {
       "file": "20261002201230_purchase_completion_fulfillment_adapters.sql",
       "sha256": "94a7551f9dd61dc0c4344399f17a779ac2de8b70f2daec95cbac93a2ef637d1c"
+    },
+    {
+      "file": "20261004023232_gate_d_acceptance_schema.sql",
+      "sha256": "4f4517421e83b1a02f6227753b7e4f7c70118042b696a1b6adbe157310a2ac81"
+    },
+    {
+      "file": "20261004023241_gate_d_acceptance_functions.sql",
+      "sha256": "4d8ed789f5d938028fe86eacfaab14f424e3354761a5d3fe2a5761d1a3802dfc"
     }
   ],
   "storageBuckets": {

@@ -25,6 +25,18 @@ test('Gate D receipt is bounded, deterministic, escaped, TEST-classified and not
   assert.match(text,/TEST - NOT A TAX INVOICE/g);
   assert.doesNotMatch(text,/<script>/);
   assert.ok(text.includes("QA \\(Track\\) \\\\ title"));
+  assert.doesNotMatch(text,/\/(?:JS|JavaScript|OpenAction|URI|Launch|EmbeddedFile)\b/);
+  assert.doesNotMatch(text,/https?:\/\//i);
+  assert.match(text,/\/Type \/Pages \/Count 1\b/);
+
+  const offsets=[...text.matchAll(/(\d{10}) 00000 n/g)].map(match=>Number(match[1]));
+  assert.equal(offsets.length,5);
+  offsets.forEach((offset,index)=>assert.equal(text.slice(offset,offset+7),`${index+1} 0 obj`));
+  const stream=text.match(/<< \/Length (\d+) >>\nstream\n([\s\S]*?)\nendstream/);
+  assert.ok(stream);
+  assert.equal(Buffer.byteLength(stream[2],'utf8'),Number(stream[1]));
+  const xref=Number(text.match(/startxref\n(\d+)\n%%EOF$/)[1]);
+  assert.equal(text.slice(xref,xref+4),'xref');
 });
 
 test('Gate D receipt path cannot be influenced by Buyer or track text',()=>{

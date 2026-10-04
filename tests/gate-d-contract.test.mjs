@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+
+import {fixtureBootstrapSql} from './helpers/artist-baseline-db.mjs';
 
 const root=new URL('../',import.meta.url);
 const read=path=>readFileSync(new URL(path,root),'utf8');
@@ -60,4 +63,40 @@ test('production adapter prohibition and hidden/unlinked acceptance entry point 
     .filter(path=>/\.(?:ts|tsx|js|jsx|mjs)$/.test(path) && path!=='api/gate-d/checkout/route.ts')
     .some(path=>read(`app/${path}`).includes('/api/gate-d/checkout'));
   assert.equal(linked,false);
+});
+
+test('D1 remediation contracts freeze the full Stripe request and reject Connect globally',()=>{
+  const gateServer=read('services/gate-d/server.ts');
+  const webhook=read('app/api/webhooks/stripe/route.ts');
+  for(const field of ['cancel_url','client_reference_id','expires_at','line_items','currency','product_data',
+    'description','name','unit_amount','quantity','mode','payment_method_types','success_url']) {
+    assert.match(gateServer,new RegExp(`\\b${field}\\b`),field);
+  }
+  assert.match(schema,/stripe_request_spec text/);
+  assert.match(schema,/stripe_request_spec is null.*stripe_parameters_sha256 is null/);
+  assert.match(functions,/stripe_request_spec = canonical_parameters/);
+  assert.match(functions,/g\.stripe_request_spec is distinct from canonical_parameters/);
+  assert.ok(webhook.indexOf('event.account != null')<webhook.indexOf('switch (event.type)'));
+  assert.ok(functions.indexOf('if p_connect_account is not null')<functions.indexOf('where ag.checkout_session_id = p_checkout_session_id'));
+  assert.match(functions,/existing\.provider_event_id = p_provider_event_id[\s\S]*existing\.evidence_sha256 = p_evidence_sha256[\s\S]*existing\.provider_created_at = p_provider_created_at/);
+  assert.match(schema,/database_system.*authenticated_buyer.*stripe_webhook.*service_worker.*operator.*reconciliation/);
+});
+
+test('zero-data A then B installs, B without A fails atomically, and forward recovery succeeds',async()=>{
+  const db=new PGlite();
+  try {
+    await db.exec(fixtureBootstrapSql);
+    const prior=readdirSync(new URL('supabase/migrations/',root)).filter(file=>file.endsWith('.sql') && file<'20261004023232_gate_d_acceptance_schema.sql').sort();
+    for(const file of prior)await db.exec(read(`supabase/migrations/${file}`).replace(/create extension if not exists "pgcrypto";/gi,''));
+    await assert.rejects(db.exec(functions),/Gate D schema migration is missing/);
+    await db.exec('rollback');
+    assert.equal((await db.query(`select to_regclass('commerce_private.acceptance_grants') is null absent`)).rows[0].absent,true);
+    await db.exec(schema);
+    await db.exec(functions);
+    assert.deepEqual((await db.query(`select
+      (select count(*)::int from commerce_private.acceptance_grants) grants,
+      (select count(*)::int from commerce_private.acceptance_grant_audit) audits,
+      to_regprocedure('public.gate_d_prepare_checkout(uuid,uuid,bigint,text)') is not null prepared`)).rows[0],
+      {grants:0,audits:0,prepared:true});
+  } finally { await db.close(); }
 });

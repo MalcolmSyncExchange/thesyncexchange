@@ -70,6 +70,8 @@ create table commerce_private.acceptance_grants (
   reservation_lease_until timestamptz,
   stripe_idempotency_key text unique
     check (stripe_idempotency_key is null or stripe_idempotency_key ~ '^[A-Za-z0-9:_-]{16,240}$'),
+  stripe_request_spec text
+    check (stripe_request_spec is null or length(stripe_request_spec) between 1 and 16384),
   stripe_parameters_sha256 text
     check (stripe_parameters_sha256 is null or stripe_parameters_sha256 ~ '^[a-f0-9]{64}$'),
   checkout_session_id text unique
@@ -115,6 +117,7 @@ create table commerce_private.acceptance_grants (
   check (expires_at = created_at + interval '60 minutes'),
   check ((attempt_id is null) = (buyer_session_id is null)),
   check ((attempt_id is null) = (stripe_idempotency_key is null)),
+  check ((stripe_request_spec is null) = (stripe_parameters_sha256 is null)),
   check ((reservation_lease_token is null) = (reservation_lease_until is null)),
   check ((attempt_id is null and reservation_lease_epoch = 0)
       or (attempt_id is not null and reservation_lease_epoch >= 1)),
@@ -166,13 +169,14 @@ create table commerce_private.acceptance_grant_audit (
   event_type text not null check (event_type in (
     'grant_created','grant_reserved','reservation_recovered','checkout_creation_requested','checkout_bound',
     'checkout_binding_failed','payment_verified','terminal_payment_preserved','webhook_replayed',
+    'payment_evidence_conflict',
     'webhook_conflict_rejected','jobs_created','job_started','job_completed','job_failed',
     'receipt_object_adopted','checkout_session_expired','revocation_requested',
     'provider_reconciliation_started','provider_reconciliation_completed','security_hold_applied',
     'grant_validation_failed','acceptance_invariant_failed','reconciliation_required',
     'acceptance_completed','grant_consumed','grant_expired','grant_revoked'
   )),
-  actor_class text not null check (actor_class in ('database_owner','authenticated_buyer','service_worker','stripe_webhook','operator')),
+  actor_class text not null check (actor_class in ('database_system','authenticated_buyer','stripe_webhook','service_worker','operator','reconciliation')),
   actor_user_id uuid references auth.users(id) on delete restrict,
   old_state text check (old_state is null or old_state in ('available','reserved','checkout_bound','revocation_requested','paid_verified','consumed','expired','revoked')),
   new_state text check (new_state is null or new_state in ('available','reserved','checkout_bound','revocation_requested','paid_verified','consumed','expired','revoked')),
@@ -224,6 +228,7 @@ begin
   if (old.buyer_session_id is not null and new.buyer_session_id is distinct from old.buyer_session_id)
      or (old.attempt_id is not null and new.attempt_id is distinct from old.attempt_id)
      or (old.stripe_idempotency_key is not null and new.stripe_idempotency_key is distinct from old.stripe_idempotency_key)
+     or (old.stripe_request_spec is not null and new.stripe_request_spec is distinct from old.stripe_request_spec)
      or (old.stripe_parameters_sha256 is not null and new.stripe_parameters_sha256 is distinct from old.stripe_parameters_sha256)
      or (old.checkout_session_id is not null and new.checkout_session_id is distinct from old.checkout_session_id)
      or (old.payment_intent_id is not null and new.payment_intent_id is distinct from old.payment_intent_id)
@@ -284,7 +289,7 @@ begin
   insert into commerce_private.acceptance_grant_audit(
     grant_id,sequence,event_type,actor_class,old_state,new_state,order_id,safe_result_code
   ) values (
-    new.id,1,'grant_created','database_owner',null,'available',new.order_id,'created'
+    new.id,1,'grant_created','database_system',null,'available',new.order_id,'created'
   );
   return new;
 end

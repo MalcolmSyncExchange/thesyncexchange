@@ -87,6 +87,13 @@ export async function POST(request: Request) {
     );
   }
 
+  if (event.account != null) {
+    return NextResponse.json(
+      { received: false, error: "Stripe Connect webhook events are not accepted." },
+      { status: 400 }
+    );
+  }
+
   const evidenceSha256 = createHash("sha256").update(payload).digest("hex");
   const providerCreatedAt = new Date(event.created * 1000).toISOString();
 

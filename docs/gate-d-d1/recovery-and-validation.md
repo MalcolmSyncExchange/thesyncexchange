@@ -12,20 +12,23 @@ After a later authorized execution, never drop evidence to roll back. Disable/re
 
 Final pre-commit results on 2026-10-03:
 
-- `npm run test:gate-d`: PASS, 31/31.
+- `npm run test:gate-d`: PASS, 43/43.
 - `npm run test:gate-d-concurrency`: PASS, 1/1 on PostgreSQL 17 with two connections.
-- `npm run test:unit`: PASS, 385/385.
+- `npm run test:unit`: PASS, 397/397.
 - `npm run typecheck`: PASS.
 - `npm run lint`: PASS with zero errors and one pre-existing React Compiler warning in `components/forms/submit-music-form.tsx`.
 - `npm run build`: PASS; only the existing Next.js middleware convention deprecation warning.
 - `git diff --check`: PASS.
 - Fresh disposable migration application: PASS repeatedly through the PGlite suites and once through PostgreSQL 17.
+- Zero-data A-then-B migration: PASS; B without A fails atomically; rollback followed by A-then-B recovers successfully.
+- Canonical security baseline: PASS for 31 hashed migrations and the role, column, RPC, and Storage assertions.
+- Fresh post-patch bypass review: PASS with no actionable finding. A non-blocking future coverage improvement is an end-to-end SQL-to-application serialization check using hostile Unicode/control-edge titles.
 - Exact changed-file secret-pattern scan: PASS, no matching key/token material.
 
 Migration hashes:
 
-- `20261004023232_gate_d_acceptance_schema.sql`: `9a9083644e544c9344ee56b37a9dccb9bd9415428137d859434a72a570f977b8`
-- `20261004023241_gate_d_acceptance_functions.sql`: `4e32e9bdf157f87d86e09f7625a0e339458d9e5f3829b7d96ab3cc8160391ca9`
+- `20261004023232_gate_d_acceptance_schema.sql`: `4f4517421e83b1a02f6227753b7e4f7c70118042b696a1b6adbe157310a2ac81`
+- `20261004023241_gate_d_acceptance_functions.sql`: `4d8ed789f5d938028fe86eacfaab14f424e3354761a5d3fe2a5761d1a3802dfc`
 
 No command in this package accepts or uses a hosted Supabase URL. The concurrency test starts an already-cached `postgres:17` image with `--network none`, no host port, no credentials, no volume mount, and removes it afterward.
 
@@ -37,12 +40,13 @@ No command in this package accepts or uses a hosted Supabase URL. The concurrenc
 | exact ACL/RLS/EXECUTE | `gate-d-acceptance.test.mjs` |
 | missing/malformed/deleted/mismatched/new session | `gate-d-acceptance.test.mjs` |
 | global single grant and immutable attempt/lease recovery | `gate-d-acceptance.test.mjs`, `gate-d-concurrency.test.mjs` |
-| stale worker and confused deputy denial | both database suites |
-| digest drift, timeout, same key, binding failure | `gate-d-application.test.mjs` |
-| Session-only webhook, conflict, ordinary path, Connect/live rejection | `purchase-completion-webhook.test.mjs`, database suite |
+| stale worker and confused deputy denial | both database suites and static join-contract assertions |
+| complete request-spec drift, timeout, same key, binding failure | `gate-d-application.test.mjs`, `gate-d-contract.test.mjs` |
+| Session-only webhook, full terminal tuple, conflict, ordinary path, global Connect/live rejection | `purchase-completion-webhook.test.mjs`, database suite |
 | exactly four jobs and activation unclaimable | `gate-d-acceptance.test.mjs` |
-| receipt bounds/path/adoption/mismatch hold | `gate-d-receipt.test.mjs`, `gate-d-application.test.mjs` |
+| deterministic passive PDF and receipt retry/adoption/integrity holds | `gate-d-receipt.test.mjs`, `gate-d-application.test.mjs` |
 | pending entitlement and `can_deliver=false` | `gate-d-acceptance.test.mjs` |
 | terminal payment preservation | `gate-d-acceptance.test.mjs` |
-| final invariant/incomplete rejection/idempotent consume | `gate-d-acceptance.test.mjs` |
+| each of 23 final invariants, incomplete rejection, and idempotent consume | `gate-d-acceptance.test.mjs` |
+| closed audit actor attribution | `gate-d-acceptance.test.mjs`, `gate-d-contract.test.mjs` |
 | ordinary checkout/agreements/roles/health regression | repository `test:unit`, typecheck, lint, build |

@@ -58,12 +58,13 @@ begin
   if p_event not in (
     'grant_created','grant_reserved','reservation_recovered','checkout_creation_requested','checkout_bound',
     'checkout_binding_failed','payment_verified','terminal_payment_preserved','webhook_replayed',
+    'payment_evidence_conflict',
     'webhook_conflict_rejected','jobs_created','job_started','job_completed','job_failed',
     'receipt_object_adopted','checkout_session_expired','revocation_requested',
     'provider_reconciliation_started','provider_reconciliation_completed','security_hold_applied',
     'grant_validation_failed','acceptance_invariant_failed','reconciliation_required',
     'acceptance_completed','grant_consumed','grant_expired','grant_revoked'
-  ) or p_actor not in ('database_owner','authenticated_buyer','service_worker','stripe_webhook','operator')
+  ) or p_actor not in ('database_system','authenticated_buyer','stripe_webhook','service_worker','operator','reconciliation')
      or (p_result is not null and p_result !~ '^[a-z0-9_]{1,80}$') then
     raise exception 'Invalid Gate D audit input' using errcode = '22023';
   end if;
@@ -89,7 +90,8 @@ create function commerce_private.gate_d_apply_hold_core(
 language plpgsql security definer set search_path = '' as $$
 declare g commerce_private.acceptance_grants; next_revision integer;
 begin
-  if p_reason !~ '^[a-z0-9_]{1,80}$' or p_actor not in ('service_worker','stripe_webhook','operator') then
+  if p_reason !~ '^[a-z0-9_]{1,80}$'
+     or p_actor not in ('stripe_webhook','service_worker','operator','reconciliation') then
     raise exception 'Invalid Gate D hold input' using errcode = '22023';
   end if;
   select * into strict g from commerce_private.acceptance_grants where id = p_grant for update;
@@ -291,7 +293,8 @@ $$;
 create function public.gate_d_prepare_checkout(
   p_grant_id uuid,
   p_attempt_id uuid,
-  p_expected_lease_epoch bigint
+  p_expected_lease_epoch bigint,
+  p_app_url text
 )
 returns table(
   grant_id uuid,
@@ -299,6 +302,7 @@ returns table(
   reservation_lease_token uuid,
   reservation_lease_epoch bigint,
   stripe_idempotency_key text,
+  stripe_request_spec text,
   stripe_parameters_sha256 text,
   provider_expires_at timestamptz,
   order_id uuid,
@@ -322,6 +326,10 @@ declare
 begin
   perform commerce_private.require_service_role();
   perform commerce_private.gate_d_require_capabilities_off();
+  if p_app_url is null or length(p_app_url) > 512
+     or p_app_url !~ '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$' then
+    raise exception 'Invalid Gate D application URL' using errcode = '22023';
+  end if;
 
   select * into strict g from commerce_private.acceptance_grants
   where id = p_grant_id for update;
@@ -433,13 +441,28 @@ begin
   if g.provider_expires_at > g.expires_at then
     raise exception 'Gate D provider expiry exceeds grant lifetime' using errcode = '23514';
   end if;
+  if t.slug !~ '^[A-Za-z0-9_-]{1,200}$' then
+    raise exception 'Gate D track slug is not URL-safe' using errcode = '23514';
+  end if;
   canonical_parameters :=
-    'gate-d-v1|mode=payment|payment_method_types=card|order=' || g.order_id::text ||
-    '|amount=' || g.amount_minor::text || '|currency=' || lower(g.currency) ||
-    '|expires=' || extract(epoch from g.provider_expires_at)::bigint::text;
+    '{"cancel_url":' || to_jsonb(
+      p_app_url || '/buyer/checkout/' || t.slug ||
+      '?error=Gate%20D%20TEST%20checkout%20was%20canceled.'
+    )::text ||
+    ',"client_reference_id":' || to_jsonb(g.order_id::text)::text ||
+    ',"expires_at":' || extract(epoch from g.provider_expires_at)::bigint::text ||
+    ',"line_items":[{"price_data":{"currency":' || to_jsonb(lower(g.currency))::text ||
+    ',"product_data":{"description":' ||
+      to_jsonb('The Sync Exchange production-beta TEST acceptance checkout.'::text)::text ||
+    ',"name":' || to_jsonb(t.title || ' - ' || l.name)::text ||
+    '},"unit_amount":' || g.amount_minor::text || '},"quantity":1}]' ||
+    ',"mode":"payment","payment_method_types":["card"],"success_url":' ||
+      to_jsonb(p_app_url || '/license-confirmation/' || g.order_id::text ||
+        '?session_id={CHECKOUT_SESSION_ID}')::text || '}';
   if g.stripe_parameters_sha256 is null then
     g.stripe_parameters_sha256 := encode(public.digest(canonical_parameters,'sha256'),'hex');
-  elsif g.stripe_parameters_sha256 is distinct from encode(public.digest(canonical_parameters,'sha256'),'hex') then
+  elsif g.stripe_request_spec is distinct from canonical_parameters
+     or g.stripe_parameters_sha256 is distinct from encode(public.digest(canonical_parameters,'sha256'),'hex') then
     raise exception 'Gate D Stripe parameter digest mismatch' using errcode = '23514';
   end if;
 
@@ -447,6 +470,7 @@ begin
   set delivery_contract_id = resolved_contract,
       entitlement_id = resolved_entitlement,
       provider_expires_at = g.provider_expires_at,
+      stripe_request_spec = canonical_parameters,
       stripe_parameters_sha256 = g.stripe_parameters_sha256,
       checkout_creation_requested_at = coalesce(checkout_creation_requested_at,now())
   where id = g.id;
@@ -459,7 +483,8 @@ begin
   select * into strict g from commerce_private.acceptance_grants where id = g.id;
 
   return query select g.id,g.attempt_id,g.reservation_lease_token,g.reservation_lease_epoch,
-    g.stripe_idempotency_key,g.stripe_parameters_sha256,g.provider_expires_at,g.order_id,
+    g.stripe_idempotency_key,g.stripe_request_spec,g.stripe_parameters_sha256,
+    g.provider_expires_at,g.order_id,
     g.amount_minor,g.currency,t.title,t.slug,l.name;
 end
 $$;
@@ -493,6 +518,7 @@ begin
      or g.reservation_lease_token is distinct from p_lease_token
      or g.reservation_lease_epoch is distinct from p_lease_epoch
      or g.reservation_lease_until <= now()
+     or g.stripe_request_spec is null
      or g.stripe_parameters_sha256 is distinct from p_parameter_sha256
      or g.provider_expires_at is distinct from p_provider_expires_at
      or g.delivery_contract_id is null or g.entitlement_id is null then
@@ -581,6 +607,9 @@ declare g commerce_private.acceptance_grants;
 begin
   perform commerce_private.require_service_role();
   perform commerce_private.gate_d_require_capabilities_off();
+  if p_connect_account is not null then
+    raise exception 'Gate D rejects Stripe Connect webhook context' using errcode = '42501';
+  end if;
   if p_checkout_session_id is null
      or p_checkout_session_id !~ '^cs_test_[A-Za-z0-9]{1,240}$'
      or length(p_checkout_session_id) > 255
@@ -591,8 +620,7 @@ begin
   select * into g from commerce_private.acceptance_grants as ag
   where ag.checkout_session_id = p_checkout_session_id for update;
   if found then
-    if p_livemode or p_connect_account is not null
-       or g.provider_account is distinct from p_provider_account
+    if p_livemode or g.provider_account is distinct from p_provider_account
        or g.payment_mode <> 'test' then
       perform commerce_private.gate_d_append_audit(
         g.id,'webhook_conflict_rejected','stripe_webhook',null,g.state,g.state,
@@ -660,19 +688,38 @@ begin
     raise exception 'Gate D payment/grant mismatch' using errcode = '42501';
   end if;
 
-  if g.state in ('paid_verified','consumed') then
+  if g.verified_payment_event_id is not null then
     select * into existing from commerce_private.payment_events where id = g.verified_payment_event_id;
-    if found and existing.checkout_session_id = p_checkout_session_id
+    if found and existing.provider = 'stripe'
+       and existing.provider_account = g.provider_account
+       and existing.provider_event_id = p_provider_event_id
+       and existing.payment_mode = 'test'
+       and not existing.livemode
+       and existing.contract_id = g.delivery_contract_id
+       and existing.checkout_session_id = p_checkout_session_id
        and existing.payment_intent_id = p_payment_intent_id
+       and existing.event_type = p_event_type
+       and existing.payment_state = 'PAID'
        and existing.amount_minor = p_amount_minor
-       and existing.currency = upper(p_currency) then
+       and existing.refunded_minor = 0
+       and existing.currency = upper(p_currency)
+       and existing.evidence_sha256 = p_evidence_sha256
+       and existing.verification_method = 'stripe_signature'
+       and existing.provider_created_at = p_provider_created_at then
       perform commerce_private.gate_d_append_audit(
         g.id,'webhook_replayed','stripe_webhook',null,g.state,g.state,
         p_checkout_session_id,existing.id,null,'idempotent_replay'
       );
       return existing.id;
     end if;
-    raise exception 'Conflicting Gate D payment replay' using errcode = '23514';
+    if g.security_hold_state = 'none' then
+      perform commerce_private.gate_d_apply_hold_core(g.id,'payment_evidence_conflict','stripe_webhook');
+    end if;
+    perform commerce_private.gate_d_append_audit(
+      g.id,'payment_evidence_conflict','stripe_webhook',null,g.state,g.state,
+      p_checkout_session_id,g.verified_payment_event_id,null,'different_provider_event_tuple'
+    );
+    return g.verified_payment_event_id;
   end if;
 
   select * into strict o from public.orders where id = g.order_id for share;
@@ -813,13 +860,19 @@ create function public.gate_d_request_revocation(
   p_reason text
 ) returns text
 language plpgsql security definer set search_path = '' as $$
-declare g commerce_private.acceptance_grants;
+declare g commerce_private.acceptance_grants; audit_actor text;
 begin
   perform commerce_private.require_service_role();
   perform commerce_private.gate_d_require_capabilities_off();
   if p_reason not in ('operator_requested','payment_failed','provider_uncertain','checkout_abandoned') then
     raise exception 'Invalid Gate D revocation reason' using errcode = '22023';
   end if;
+  audit_actor := case p_reason
+    when 'payment_failed' then 'stripe_webhook'
+    when 'operator_requested' then 'operator'
+    when 'provider_uncertain' then 'reconciliation'
+    else 'service_worker'
+  end;
   select * into strict g from commerce_private.acceptance_grants where id = p_grant_id for update;
   if g.state = 'revocation_requested' then return 'revocation_requested'; end if;
   if g.state not in ('reserved','checkout_bound') then
@@ -830,7 +883,7 @@ begin
       reservation_lease_token = null,reservation_lease_until = null,safe_error_code = p_reason
   where id = g.id;
   perform commerce_private.gate_d_append_audit(
-    g.id,'revocation_requested','operator',null,g.state,'revocation_requested',
+    g.id,'revocation_requested',audit_actor,null,g.state,'revocation_requested',
     g.checkout_session_id,g.verified_payment_event_id,null,p_reason
   );
   return 'revocation_requested';
@@ -861,7 +914,7 @@ begin
     raise exception 'Unbound Gate D Session requires binding recovery, not reconciliation' using errcode = '42501';
   end if;
   perform commerce_private.gate_d_append_audit(
-    g.id,'provider_reconciliation_started','operator',null,g.state,g.state,
+    g.id,'provider_reconciliation_started','reconciliation',null,g.state,g.state,
     g.checkout_session_id,g.verified_payment_event_id,null,p_result
   );
   if p_result = 'paid' then
@@ -870,7 +923,7 @@ begin
         provider_reconciliation_result = 'paid',provider_reconciled_at = now()
     where id = g.id;
     perform commerce_private.gate_d_append_audit(
-      g.id,'reconciliation_required','operator',null,g.state,g.state,
+      g.id,'reconciliation_required','reconciliation',null,g.state,g.state,
       g.checkout_session_id,g.verified_payment_event_id,null,'verified_payment_required'
     );
     return 'verified_payment_required';
@@ -881,7 +934,7 @@ begin
         provider_reconciliation_result = 'session_absent',provider_reconciled_at = now()
     where id = g.id;
     perform commerce_private.gate_d_append_audit(
-      g.id,'reconciliation_required','operator',null,g.state,g.state,
+      g.id,'reconciliation_required','reconciliation',null,g.state,g.state,
       null,null,null,'session_absence_requires_review'
     );
     return 'reconciliation_required';
@@ -897,12 +950,12 @@ begin
       safe_error_code = p_result
   where id = g.id;
   perform commerce_private.gate_d_append_audit(
-    g.id,'provider_reconciliation_completed','operator',null,g.state,target_state,
+    g.id,'provider_reconciliation_completed','reconciliation',null,g.state,target_state,
     g.checkout_session_id,null,null,p_result
   );
   perform commerce_private.gate_d_append_audit(
     g.id,case when target_state = 'revoked' then 'grant_revoked' else 'grant_expired' end,
-    'operator',null,target_state,target_state,g.checkout_session_id,null,null,p_result
+    'reconciliation',null,target_state,target_state,g.checkout_session_id,null,null,p_result
   );
   return target_state;
 end
@@ -1401,7 +1454,7 @@ revoke all on function public.gate_d_reserve_acceptance(uuid)
 from public,anon,authenticated,service_role;
 grant execute on function public.gate_d_reserve_acceptance(uuid) to authenticated;
 
-revoke all on function public.gate_d_prepare_checkout(uuid,uuid,bigint),
+revoke all on function public.gate_d_prepare_checkout(uuid,uuid,bigint,text),
   public.gate_d_bind_checkout(uuid,uuid,uuid,bigint,text,text,timestamptz),
   public.gate_d_record_checkout_failure(uuid,uuid,uuid,bigint,text,boolean),
   public.gate_d_route_webhook(text,uuid,text,boolean,text),
@@ -1417,7 +1470,7 @@ revoke all on function public.gate_d_prepare_checkout(uuid,uuid,bigint),
   public.gate_d_consume_acceptance(uuid)
 from public,anon,authenticated,service_role;
 
-grant execute on function public.gate_d_prepare_checkout(uuid,uuid,bigint),
+grant execute on function public.gate_d_prepare_checkout(uuid,uuid,bigint,text),
   public.gate_d_bind_checkout(uuid,uuid,uuid,bigint,text,text,timestamptz),
   public.gate_d_record_checkout_failure(uuid,uuid,uuid,bigint,text,boolean),
   public.gate_d_route_webhook(text,uuid,text,boolean,text),

@@ -9,8 +9,12 @@ export const ident = x => `"${String(x).replaceAll('"','""')}"`;
 export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls;
    create schema auth; create schema storage;
    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');
+   create table auth.sessions(id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade);
    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
    create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;
+   create function auth.jwt() returns jsonb language sql stable as $$
+     select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''))
+   $$;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
    create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,version text,owner uuid,owner_id text,unique(bucket_id,name));
@@ -18,16 +22,23 @@ export const fixtureBootstrapSql = `create role anon; create role authenticated;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
    select set_config('request.jwt.claim.role','service_role',false);`;
+export const pgliteDigestFixtureSql = `create schema fixture_support;
+   create function fixture_support.digest(value text,algorithm text) returns bytea language sql immutable as $$
+     select decode(repeat(md5(value),2),'hex') where algorithm='sha256'
+   $$;`;
+export const adaptMigrationForPGlite = sql => sql
+  .replace(/create extension if not exists "pgcrypto";/gi,'')
+  .replace(/\bpublic\.digest\s*\(/gi,'fixture_support.digest(');
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
  const db=new PGlite();
  try {
-  await db.exec(fixtureBootstrapSql);
+  await db.exec(`${fixtureBootstrapSql}\n${pgliteDigestFixtureSql}`);
   for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
    (target==='repository' || (target==='pr27' && x<'20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
-   // Only extension installation is adapted; gen_random_uuid is native in this runtime.
-   const sql=source(`supabase/migrations/${file}`).replace(/create extension if not exists "pgcrypto";/gi,'');
+   // PGlite has no pgcrypto. Its isolated shim must never shadow the production public.digest function.
+   const sql=adaptMigrationForPGlite(source(`supabase/migrations/${file}`));
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }
   }
   if(['production','staging'].includes(target)) await applyCapturedAuthorization(db,snapshot(target));
@@ -53,10 +64,10 @@ export async function applyCapturedAuthorization(db,s) {
  for(const g of s.grants.filter(g=>['anon','authenticated','service_role'].includes(g.grantee)&&(g.schema!=='storage'||['objects','buckets'].includes(g.table))))
   await db.exec(`grant ${g.privilege} on ${ident(g.schema)}.${ident(g.table)} to ${ident(g.grantee)}`);
 }
-export async function asActor(db,id,run,role='authenticated') {
+export async function asActor(db,id,run,role='authenticated',sessionId='') {
  if(!['authenticated','anon','service_role'].includes(role)) throw Error('Unknown fixture role');
- await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false)`);
- try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false)"); }
+ await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false); select set_config('request.jwt.claim.session_id',${quote(sessionId)},false)`);
+ try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false); select set_config('request.jwt.claim.session_id','',false)"); }
 }
 export async function seedDatabase(db) {
  for(const [key,role] of [['a','artist'],['b','artist'],['buyer','buyer'],['admin','admin']])

@@ -14,6 +14,12 @@ import {
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 import {
+  recordGateDVerifiedPayment,
+  requestGateDRevocation,
+  routeGateDWebhook,
+  runGateDAcceptanceJobs
+} from "@/services/gate-d/server";
+import {
   getStripeServerClient,
   markOrderCheckoutSessionPaymentFailed,
   markOrderRefundedByPaymentIntent,
@@ -81,6 +87,13 @@ export async function POST(request: Request) {
     );
   }
 
+  if (event.account != null) {
+    return NextResponse.json(
+      { received: false, error: "Stripe Connect webhook events are not accepted." },
+      { status: 400 }
+    );
+  }
+
   const evidenceSha256 = createHash("sha256").update(payload).digest("hex");
   const providerCreatedAt = new Date(event.created * 1000).toISOString();
 
@@ -90,6 +103,48 @@ export async function POST(request: Request) {
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.client_reference_id || session.metadata?.orderId;
+        const gateDRoute = await routeGateDWebhook({
+          checkoutSessionId: session.id,
+          orderHint: isUuid(orderId) ? orderId! : null,
+          livemode: event.livemode,
+          connectAccount: event.account || null
+        });
+        if (gateDRoute.route_code === "conflict") {
+          throw new Error("Gate D webhook binding conflict requires reconciliation.");
+        }
+        if (gateDRoute.route_code === "gate_d") {
+          const paymentIntentId = stripeIdentity(session.payment_intent);
+          if (
+            !gateDRoute.grant_id ||
+            !gateDRoute.order_id ||
+            session.payment_status !== "paid" ||
+            !paymentIntentId ||
+            !session.amount_total ||
+            !session.currency
+          ) {
+            throw new Error("Gate D paid webhook is missing trusted payment evidence.");
+          }
+          await syncOrderFromStripeSession({
+            orderId: gateDRoute.order_id,
+            session,
+            webhookEventId: event.id,
+            webhookEventType: event.type
+          });
+          await recordGateDVerifiedPayment({
+            grantId: gateDRoute.grant_id,
+            providerEventId: event.id,
+            eventType: event.type,
+            checkoutSessionId: session.id,
+            paymentIntentId,
+            amountMinor: session.amount_total,
+            currency: session.currency,
+            evidenceSha256,
+            providerCreatedAt
+          });
+          await runGateDAcceptanceJobs(gateDRoute.grant_id);
+          revalidateBuyerOrderPaths(gateDRoute.order_id);
+          break;
+        }
 
         reportOperationalEvent("stripe_checkout_session_completed", "Stripe checkout completion received.", {
           sessionId: session.id,
@@ -128,6 +183,20 @@ export async function POST(request: Request) {
       case "checkout.session.async_payment_failed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const orderId = session.client_reference_id || session.metadata?.orderId;
+        const gateDRoute = await routeGateDWebhook({
+          checkoutSessionId: session.id,
+          orderHint: isUuid(orderId) ? orderId! : null,
+          livemode: event.livemode,
+          connectAccount: event.account || null
+        });
+        if (gateDRoute.route_code === "conflict") {
+          throw new Error("Gate D failed-payment webhook binding conflict requires reconciliation.");
+        }
+        if (gateDRoute.route_code === "gate_d") {
+          if (!gateDRoute.grant_id) throw new Error("Gate D failed-payment route is incomplete.");
+          await requestGateDRevocation(gateDRoute.grant_id,"payment_failed");
+          break;
+        }
 
         reportOperationalEvent("stripe_checkout_session_async_payment_failed", "Stripe reported an asynchronous payment failure.", {
           sessionId: session.id,
@@ -250,6 +319,10 @@ export async function POST(request: Request) {
 
 function stripeIdentity(value: string | { id: string } | null | undefined) {
   return typeof value === "string" ? value : value?.id || "";
+}
+
+function isUuid(value: string | null | undefined): value is string {
+  return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
 }
 
 function revalidateBuyerOrderPaths(orderId?: string | null) {

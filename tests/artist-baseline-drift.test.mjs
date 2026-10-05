@@ -1,11 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readdirSync} from 'node:fs';
-import {database,snapshot,source,root} from './helpers/artist-baseline-db.mjs';
+import {adaptMigrationForPGlite,database,fixtureBootstrapSql,pgliteDigestFixtureSql,snapshot,source,root} from './helpers/artist-baseline-db.mjs';
 import {compare} from '../scripts/artist-baseline/compare.mjs';
+test('lightweight digest shim is isolated from the production public schema',()=>{
+ const migration=source('supabase/migrations/20261004023241_gate_d_acceptance_functions.sql');
+ assert.doesNotMatch(fixtureBootstrapSql,/public\.digest/i);
+ assert.doesNotMatch(pgliteDigestFixtureSql,/public\.digest/i);
+ assert.match(pgliteDigestFixtureSql,/fixture_support\.digest/i);
+ assert.match(migration,/public\.digest/i);
+ assert.doesNotMatch(adaptMigrationForPGlite(migration),/public\.digest/i);
+ assert.match(adaptMigrationForPGlite(migration),/fixture_support\.digest/i);
+});
 test('replayed repository domain schema matches captured production, without implying complete migration history',async()=>{
  const db=await database('historical-repository',{seed:false});
  try {
+  assert.deepEqual((await db.query(`select
+    to_regprocedure('public.digest(text,text)') is not null public_digest,
+    to_regprocedure('fixture_support.digest(text,text)') is not null fixture_digest`)).rows[0],
+    {public_digest:false,fixture_digest:true});
   const repo=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
   const diff=compare(repo,snapshot('production'));
   for(const [category,d] of Object.entries(diff)) assert.deepEqual(d,{onlyLeft:[],onlyRight:[],changed:[]},category);

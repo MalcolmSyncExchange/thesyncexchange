@@ -18,7 +18,9 @@ test('PR21 reconciliation remains intact with the additive purchase foundation a
   assert.deepEqual(readdirSync(new URL('supabase/migrations/', root)).filter(f => /^2026.*\.sql$/.test(f)).sort(), [
     ...files,
     '20261002045900_purchase_completion_foundation.sql',
-    '20261002201230_purchase_completion_fulfillment_adapters.sql'
+    '20261002201230_purchase_completion_fulfillment_adapters.sql',
+    '20261004023232_gate_d_acceptance_schema.sql',
+    '20261004023241_gate_d_acceptance_functions.sql'
   ]);
 });
 

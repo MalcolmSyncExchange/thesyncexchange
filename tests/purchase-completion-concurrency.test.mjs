@@ -27,6 +27,7 @@ test('independent PostgreSQL connections serialize held-payment duplicates into 
   const seed=[];await seedDatabase({exec:async statement=>seed.push(statement+';')});
   const migrations=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort().map(f=>source(`supabase/migrations/${f}`));
   await sql([fixtureBootstrapSql,...migrations,...seed].join('\n'));
+  assert.equal(await sql("select count(*) from pg_extension where extname='pgcrypto'"),'1');
   const contract=`(select id from public.order_delivery_contracts where order_id='${ids.order}')`;
   await sql(`select set_config('request.jwt.claim.role','service_role',false);
    update commerce_private.capabilities set foundation_enabled=true,payment_adapter_enabled=true,receipt_generation_enabled=true,transaction_projection_enabled=true;

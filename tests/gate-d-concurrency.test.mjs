@@ -35,9 +35,9 @@ test('two PostgreSQL connections serialize one reservation, recover one attempt,
     await waitFor(async()=>{try{await docker(['exec',name,'pg_isready','-h','127.0.0.1','-U','postgres']);return true;}catch{return false;}});
 
     const seed=[];await seedDatabase({exec:async statement=>seed.push(statement+';')});
-    const bootstrap=fixtureBootstrapSql.replace(/\s*create function public\.digest\(value text,algorithm text\)[\s\S]*?\$\$;\n\s*(?=create function storage\.foldername)/,'\n   ');
     const migrations=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort().map(f=>source(`supabase/migrations/${f}`));
-    await sql([bootstrap,...migrations,...seed].join('\n'));
+    await sql([fixtureBootstrapSql,...migrations,...seed].join('\n'));
+    assert.equal(await sql("select count(*) from pg_extension where extname='pgcrypto'"),'1');
     await sql(`
       select set_config('request.jwt.claim.role','service_role',false);
       insert into auth.users(id,email) values('${qaBuyer}','qa-buyer@thesyncexchange.com');

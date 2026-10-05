@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 
-import {fixtureBootstrapSql} from './helpers/artist-baseline-db.mjs';
+import {adaptMigrationForPGlite,fixtureBootstrapSql,pgliteDigestFixtureSql} from './helpers/artist-baseline-db.mjs';
 
 const root=new URL('../',import.meta.url);
 const read=path=>readFileSync(new URL(path,root),'utf8');
@@ -85,14 +85,15 @@ test('D1 remediation contracts freeze the full Stripe request and reject Connect
 test('zero-data A then B installs, B without A fails atomically, and forward recovery succeeds',async()=>{
   const db=new PGlite();
   try {
-    await db.exec(fixtureBootstrapSql);
+    await db.exec(`${fixtureBootstrapSql}\n${pgliteDigestFixtureSql}`);
     const prior=readdirSync(new URL('supabase/migrations/',root)).filter(file=>file.endsWith('.sql') && file<'20261004023232_gate_d_acceptance_schema.sql').sort();
-    for(const file of prior)await db.exec(read(`supabase/migrations/${file}`).replace(/create extension if not exists "pgcrypto";/gi,''));
-    await assert.rejects(db.exec(functions),/Gate D schema migration is missing/);
+    for(const file of prior)await db.exec(adaptMigrationForPGlite(read(`supabase/migrations/${file}`)));
+    const pgliteFunctions=adaptMigrationForPGlite(functions);
+    await assert.rejects(db.exec(pgliteFunctions),/Gate D schema migration is missing/);
     await db.exec('rollback');
     assert.equal((await db.query(`select to_regclass('commerce_private.acceptance_grants') is null absent`)).rows[0].absent,true);
     await db.exec(schema);
-    await db.exec(functions);
+    await db.exec(pgliteFunctions);
     assert.deepEqual((await db.query(`select
       (select count(*)::int from commerce_private.acceptance_grants) grants,
       (select count(*)::int from commerce_private.acceptance_grant_audit) audits,

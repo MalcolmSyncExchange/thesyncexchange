@@ -15,9 +15,6 @@ export const fixtureBootstrapSql = `create role anon; create role authenticated;
    create function auth.jwt() returns jsonb language sql stable as $$
      select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''))
    $$;
-   create function public.digest(value text,algorithm text) returns bytea language sql immutable as $$
-     select decode(repeat(md5(value),2),'hex') where algorithm='sha256'
-   $$;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
    create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,version text,owner uuid,owner_id text,unique(bucket_id,name));
@@ -25,16 +22,23 @@ export const fixtureBootstrapSql = `create role anon; create role authenticated;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
    select set_config('request.jwt.claim.role','service_role',false);`;
+export const pgliteDigestFixtureSql = `create schema fixture_support;
+   create function fixture_support.digest(value text,algorithm text) returns bytea language sql immutable as $$
+     select decode(repeat(md5(value),2),'hex') where algorithm='sha256'
+   $$;`;
+export const adaptMigrationForPGlite = sql => sql
+  .replace(/create extension if not exists "pgcrypto";/gi,'')
+  .replace(/\bpublic\.digest\s*\(/gi,'fixture_support.digest(');
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
  const db=new PGlite();
  try {
-  await db.exec(fixtureBootstrapSql);
+  await db.exec(`${fixtureBootstrapSql}\n${pgliteDigestFixtureSql}`);
   for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
    (target==='repository' || (target==='pr27' && x<'20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
-   // Only extension installation is adapted; gen_random_uuid is native in this runtime.
-   const sql=source(`supabase/migrations/${file}`).replace(/create extension if not exists "pgcrypto";/gi,'');
+   // PGlite has no pgcrypto. Its isolated shim must never shadow the production public.digest function.
+   const sql=adaptMigrationForPGlite(source(`supabase/migrations/${file}`));
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }
   }
   if(['production','staging'].includes(target)) await applyCapturedAuthorization(db,snapshot(target));

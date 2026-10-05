@@ -7,7 +7,7 @@ The historical [PR #18 reconciliation checkpoint](staging-rollout/reconciliation
 ## Evidence and repository integrity
 
 - Approved historical baseline: `35062fb`, based on deployed `4e47997`.
-- Current expected effects: ordered 26-file [migration manifest](migration-manifest.json). The historical 21 SQL files remain byte-for-byte unchanged; five forward migrations define PR 2.
+- Current expected effects: ordered 31-file [migration manifest](migration-manifest.json). The historical 21 SQL files remain byte-for-byte unchanged; ten forward migrations extend the reviewed security and purchase-completion contracts.
 - [Read-only inventory](../../scripts/artist-baseline/inventory.sql) captures tables/columns/constraints/indexes/views/functions/triggers/policies/grants/buckets/ledger, not customer rows.
 - [Preflight](../../scripts/security-pr2/preflight.mjs) replays canonical SQL in an isolated in-memory PostgreSQL instance. It does not open a network connection.
 

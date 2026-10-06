@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { source, ids } from './helpers/artist-baseline-db.mjs';
+import { isBuyerCatalogEligible } from '../lib/buyer-catalog-eligibility.ts';
 const require=createRequire(import.meta.url);
 function load(path,mocks={}) {
  const loadedModule={exports:{}};
@@ -86,7 +87,8 @@ test('actual serialized buyer catalog excludes injected private metadata while p
  const {getBuyerCatalogTracks}=load('services/buyer/queries.ts',{
   '@/lib/env':{hasSupabaseEnv:true,env:{demoMode:false}},'@/lib/storage':{getPublicStorageUrl:()=>null,storageBuckets:{}},
   '@/services/supabase/privileged':{createPrivilegedSupabaseClient:async()=>client},
-  '@/services/auth/authorization':authorization
+      '@/services/auth/authorization':authorization,
+      '@/lib/buyer-catalog-eligibility':{isBuyerCatalogEligible}
  });
  const tracks=await getBuyerCatalogTracks(ids.buyer);assert.equal(tracks.length,1);
  assert.ok(events.some(e=>e.table==='buyer_catalog_public'&&e.fields.includes('artist_id')));

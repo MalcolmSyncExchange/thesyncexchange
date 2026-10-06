@@ -79,7 +79,7 @@ export const tracks: Track[] = Array.from({ length: 20 }, (_, index) => {
     lyrics: base[10] ? "Sample lyric excerpt reserved for lyric review and placement notes." : null,
     release_year: base[12],
     waveform_preview_url: null,
-    audio_file_url: "/demo/audio-preview.mp3",
+    audio_file_url: "/demo/audio-preview.wav",
     cover_art_url: `https://images.unsplash.com/photo-${index % 2 === 0 ? "1493225457124-a3eb161ffa5f" : "1511379938547-c1f69419868d"}?auto=format&fit=crop&w=1200&q=80`,
     status: index < 15 ? "approved" : index < 18 ? "pending_review" : "draft",
     featured: index < 4,

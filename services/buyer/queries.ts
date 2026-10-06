@@ -1,5 +1,6 @@
 import { requireAccountScope } from "@/services/auth/authorization";
 import { toBuyerTrack } from "@/services/buyer/contract";
+import { isBuyerCatalogEligible } from "@/lib/buyer-catalog-eligibility";
 import { favorites as demoFavorites, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { reportOperationalError } from "@/lib/monitoring";
@@ -18,7 +19,13 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Buyer
     const favoriteTrackIds = new Set(
       demoFavorites.filter((favorite) => !buyerUserId || favorite.buyer_user_id === buyerUserId).map((favorite) => favorite.track_id)
     );
-    return demoTracks.filter((track) => track.status === "approved").map((track) => toBuyerTrack(track, favoriteTrackIds.has(track.id)));
+    return demoTracks.filter((track) => track.status === "approved")
+      .map((track) => ({ ...toBuyerTrack(track, favoriteTrackIds.has(track.id)), audio_file_url: track.audio_file_url || null }))
+      .filter((track) => isBuyerCatalogEligible({
+        status: track.status,
+        previewAvailable: Boolean(track.audio_file_url),
+        activeLicenseCount: track.license_options.filter(option => option.active !== false).length
+      }));
   }
 
   const { supabase } = await requireAccountScope("buyer", buyerUserId);
@@ -56,10 +63,14 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Buyer
   const favoritesByTrackId = buyerUserId ? await getFavoriteTrackIdSet(buyerUserId) : new Set<string>();
 
   return normalizedTrackRows
+    .filter((row) => isBuyerCatalogEligible({
+      status: "approved",
+      previewAvailable: Boolean(row.preview_file_path),
+      activeLicenseCount: (row.track_license_options || []).filter((option: any) => option.active !== false && option.license_types?.active !== false).length
+    }))
     .map((row) =>
       mapTrack(row, row.artist_name || "Artist", rightsHoldersByTrackId.get(row.id) || [], favoritesByTrackId.has(row.id))
-    )
-    .filter((track) => Boolean(track.preview_file_path) && track.license_options.length > 0);
+    );
 }
 
 export async function getBuyerTrackBySlug(slug: string, buyerUserId?: string) {

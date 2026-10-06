@@ -1,5 +1,5 @@
 import { artistProfiles, tracks as demoTracks } from "@/lib/demo-data";
-import { env, hasSupabaseEnv } from "@/lib/env";
+import { shouldUseDemoData } from "@/lib/env";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { reportOperationalError } from "@/lib/monitoring";
 import { getDemoArtistProfile } from "@/services/auth/demo-store";
@@ -102,7 +102,7 @@ const trackIndexRelations = `
 `;
 
 export async function getArtistWorkspaceData(userId: string): Promise<ArtistWorkspaceData> {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const profile = (await getDemoArtistProfile(userId)) || artistProfiles.find((item) => item.user_id === userId) || null;
     return {
       profile: profile ? mapArtistProfile(profile) : null,
@@ -132,7 +132,7 @@ export async function getArtistCatalogPage(userId: string, input: ArtistCatalogI
   const status = parseArtistCatalogStatus(input.status);
   const requestedPage = parseArtistCatalogPage(input.page);
 
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const profile = (await getDemoArtistProfile(userId)) || artistProfiles.find(item => item.user_id === userId) || null;
     const artistName = profile?.artist_name || "Artist";
     const tracks = demoTracks
@@ -207,7 +207,7 @@ export async function getArtistTrackBySlug(userId: string, slug: string) {
 }
 
 async function getAuthorizedArtistTrack(userId: string, slug: string, includePreview: boolean) {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const profile = (await getDemoArtistProfile(userId)) || artistProfiles.find(item => item.user_id === userId) || null;
     const track = demoTracks.find(item => item.artist_user_id === userId && item.slug === slug) || null;
     return track ? prepareDemoTrack(track, profile?.artist_name || track.artist_name, includePreview) : null;

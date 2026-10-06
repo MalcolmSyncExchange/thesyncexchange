@@ -13,7 +13,7 @@ function context({role='artist',id=ids.a,authError=null,roleError=null,records={
   from(table){let fields,filters=[];const result=()=>{events.push({table,fields,filters});return{data:records[table]??[],error:null};};const q={select:v=>{fields=v;return q;},eq:(k,v)=>{filters.push([k,v]);return q;},order:()=>q,in:()=>q,maybeSingle:async()=>({...result(),data:records[table]||null}),then:resolve=>Promise.resolve(result()).then(resolve)};return q;}
  };
  const mocks={
-  '@/lib/env':{hasSupabaseEnv:true,env:{demoMode:false}},
+  '@/lib/env':{hasSupabaseEnv:true,env:{demoMode:false},shouldUseDemoData:()=>false},
   '@/services/supabase/server':{createServerSupabaseClient:async()=>client},
   '@/services/supabase/privileged':{createPrivilegedSupabaseClient:async()=>{events.push('privileged');return client;}},
   '@/services/auth/user-profiles':{selectUserProfileCompat:async()=>{events.push('role');return{data:{role},error:roleError};}},

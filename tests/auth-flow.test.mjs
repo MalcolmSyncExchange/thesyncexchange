@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { resolveDemoMode } from "../lib/env.ts";
 import {
@@ -40,6 +42,44 @@ test("common false-like demo mode values do not enable demo mode", () => {
   for (const value of [undefined, "", "false", "False", "FALSE", "0", "off", "no"]) {
     assert.equal(resolveDemoMode(value), false, `${String(value)} should not enable demo mode`);
   }
+});
+
+test("demo data requires an explicit local mode; missing hosted config fails closed", () => {
+  for (const [target, demoFlag, configured, expected] of [
+    ["local", "true", false, { demoMode: true, shouldUseDemoData: true }],
+    ["local", "false", false, { demoMode: false, error: "Application data is unavailable because Supabase is not configured." }],
+    ["preview", "true", false, { demoMode: false, error: "Application data is unavailable because Supabase is not configured." }],
+    ["production", "true", false, { demoMode: false, error: "Application data is unavailable because Supabase is not configured." }],
+    ["preview", "true", true, { demoMode: false, shouldUseDemoData: false }],
+    ["production", "true", true, { demoMode: false, shouldUseDemoData: false }]
+  ]) {
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+      import { env, shouldUseDemoData } from './lib/env.ts';
+      try { console.log(JSON.stringify({ demoMode: env.demoMode, shouldUseDemoData: shouldUseDemoData() })); }
+      catch (error) { console.log(JSON.stringify({ demoMode: env.demoMode, error: error.message })); }
+    `], {
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CONTEXT: target === "preview" ? "deploy-preview" : target === "production" ? "production" : "dev",
+        NETLIFY: "true",
+        VERCEL_ENV: "",
+        TSE_BUILD_DEPLOYMENT_TARGET: "",
+        SYNC_EXCHANGE_DEMO_MODE: demoFlag,
+        NEXT_PUBLIC_SUPABASE_URL: configured ? "https://example.supabase.co" : "",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: configured ? "synthetic-anon-key" : ""
+      }
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout.trim()), expected);
+  }
+});
+
+test("a hosted demo flag cannot replace a configured real backend", () => {
+  assert.equal(resolveDemoMode("true", "production"), false);
+  assert.equal(resolveDemoMode("true", "preview"), false);
+  assert.equal(resolveDemoMode("true", "local"), true);
 });
 
 test("login email is normalized before authentication", () => {

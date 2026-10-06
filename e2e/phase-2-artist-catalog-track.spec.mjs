@@ -141,6 +141,46 @@ test("mobile player and touch controls remain usable", async ({ browser }) => {
   await context.close();
 });
 
+for (const scenario of [
+  { label: "desktop-dark", width: 1440, height: 900, theme: "dark" },
+  { label: "desktop-light", width: 1440, height: 900, theme: "light" },
+  { label: "mobile-dark", width: 390, height: 844, theme: "dark" },
+  { label: "mobile-light", width: 390, height: 844, theme: "light" }
+]) {
+  test(`preview failure is visible and safely retryable at ${scenario.label}`, async ({ browser }) => {
+    const context = await browser.newContext({
+      viewport: { width: scenario.width, height: scenario.height },
+      colorScheme: scenario.theme
+    });
+    await context.addInitScript(theme => window.localStorage.setItem("theme", theme), scenario.theme);
+    await addArtistSession(context);
+    let requests = 0;
+    await context.route("**/demo/audio-preview.wav", route => {
+      requests += 1;
+      return requests === 1 ? route.abort() : route.continue();
+    });
+
+    const page = await context.newPage();
+    await page.goto("/artist/catalog");
+    await page.getByRole("button", { name: /Play Buyer preview/ }).first().click();
+    const player = page.getByTestId("persistent-preview-player");
+    await expect(player.getByText("Midnight Run")).toBeVisible();
+    const failure = player.getByRole("alert");
+    await expect(failure).toBeVisible();
+    await expect(failure).toContainText("Buyer preview unavailable");
+    await expect(failure).not.toContainText("demo/audio-preview.wav");
+    const retry = failure.getByRole("button", { name: "Retry" });
+    await expect(retry).toBeVisible();
+    await page.screenshot({ path: path.join(outputDir, `player-failure-${scenario.label}.png`) });
+
+    await retry.click();
+    await expect.poll(() => requests).toBeGreaterThanOrEqual(2);
+    await expect(failure).toHaveCount(0);
+    await assertNoHorizontalOverflow(page);
+    await context.close();
+  });
+}
+
 test("Artist A, Buyer, and anonymous users cannot cross Artist boundaries", async ({ browser }) => {
   const artistContext = await browser.newContext();
   await addArtistSession(artistContext);

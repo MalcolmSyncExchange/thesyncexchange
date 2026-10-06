@@ -70,3 +70,14 @@ test("local visual QA uses the preview-only fixture and never the Full Master fi
   assert.match(demoData, /\/demo\/audio-preview\.wav/);
   assert.doesNotMatch(demoData, /fixtures\/full-track|full-track\.wav/);
 });
+
+test("the public demo preview is audible synthetic PCM rather than the zero-frame test fixture", async () => {
+  const audio = await readFile(new URL("../public/demo/audio-preview.wav", import.meta.url));
+  assert.equal(audio.toString("ascii", 0, 4), "RIFF");
+  assert.equal(audio.toString("ascii", 8, 12), "WAVE");
+  assert.equal(audio.readUInt16LE(22), 1);
+  assert.equal(audio.readUInt32LE(24), 22050);
+  assert.equal(audio.readUInt16LE(34), 16);
+  assert.ok(audio.length > 100_000, "the runtime demo should contain several seconds of samples");
+  assert.ok(audio.subarray(44).some(byte => byte !== 0), "the runtime demo should contain audible samples");
+});

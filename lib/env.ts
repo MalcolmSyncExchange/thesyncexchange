@@ -13,8 +13,8 @@ function normalizeOptionalEnv(value: string | undefined) {
   return trimmed || undefined;
 }
 
-export function resolveDemoMode(value: string | undefined) {
-  return value === "true";
+export function resolveDemoMode(value: string | undefined, deploymentTarget: DeploymentTarget = getDeploymentTarget()) {
+  return value === "true" && deploymentTarget === "local";
 }
 
 export type { DeploymentTarget };
@@ -40,6 +40,12 @@ export const env = {
 };
 
 export const hasSupabaseEnv = Boolean(rawSupabaseUrl && rawSupabaseAnonKey);
+
+export function shouldUseDemoData() {
+  if (env.demoMode) return true;
+  if (!hasSupabaseEnv) throw new Error("Application data is unavailable because Supabase is not configured.");
+  return false;
+}
 
 export function isLocalhostHost(hostname: string) {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "::1";

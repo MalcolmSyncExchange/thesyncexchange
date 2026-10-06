@@ -56,6 +56,7 @@ interface PreviewAudioContextValue {
 }
 
 const PreviewAudioContext = createContext<PreviewAudioContextValue | null>(null);
+const previewFailureMessage = "Buyer preview unavailable. Try again or choose another track.";
 
 export function usePreviewAudio() {
   const value = useContext(PreviewAudioContext);
@@ -87,6 +88,7 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current;
     if (!audio || !track.previewUrl) return;
     const requestToken = ++requestRef.current;
+    const retryingFailedPreview = activeIdRef.current === track.id && Boolean(error);
     setError("");
 
     if (activeIdRef.current === track.id && !audio.paused) {
@@ -102,6 +104,9 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
       setActive(track);
       setTime(0);
       setDuration(track.durationSeconds || 0);
+    } else if (retryingFailedPreview) {
+      // A preview fetch is safe to retry; this reloads only the current public preview.
+      audio.load();
     }
 
     setLoading(true);
@@ -111,10 +116,10 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
       if (requestToken === requestRef.current) {
         setPlaying(false);
         setLoading(false);
-        setError("This Buyer preview could not play. Try again or choose another track.");
+        setError(previewFailureMessage);
       }
     }
-  }, []);
+  }, [error]);
 
   const close = useCallback(() => {
     ++requestRef.current;
@@ -165,7 +170,7 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
 
   return (
     <PreviewAudioContext.Provider value={value}>
-      <div className={active ? styles.contentWithPlayer : undefined}>{children}</div>
+      <div className={active ? styles.contentWithPlayer : undefined} data-player-error={Boolean(active && error)}>{children}</div>
       <audio
         ref={audioRef}
         preload="metadata"
@@ -183,7 +188,7 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
         onError={() => {
           setPlaying(false);
           setLoading(false);
-          if (activeIdRef.current) setError("Buyer preview unavailable. Try again or choose another track.");
+          if (activeIdRef.current) setError(previewFailureMessage);
         }}
       />
       {active ? <PersistentPreviewPlayer /> : null}
@@ -236,7 +241,7 @@ function PersistentPreviewPlayer() {
   );
 
   return (
-    <section className={styles.player} aria-label="Buyer preview player" data-testid="persistent-preview-player">
+    <section className={styles.player} aria-label="Buyer preview player" data-testid="persistent-preview-player" data-error={Boolean(error)}>
       <div className={styles.inner}>
         <div className={styles.identity}>
           <div className={styles.artwork}>
@@ -275,7 +280,13 @@ function PersistentPreviewPlayer() {
           </label>
         </div>
         <Button type="button" variant="ghost" className={styles.iconButton} aria-label="Close Buyer preview player" onClick={close}><X aria-hidden="true" /></Button>
-        <div className={styles.playerStatus} aria-live="polite">{error || (loading ? "Loading Buyer preview" : playing ? `Playing ${active.title}` : `Paused ${active.title}`)}</div>
+        {error ? (
+          <div className={styles.errorNotice} role="alert">
+            <span>{error}</span>
+            <Button type="button" variant="outline" className={styles.retryButton} onClick={() => void toggle(active)}>Retry</Button>
+          </div>
+        ) : null}
+        <div className={styles.playerStatus} aria-live="polite">{error ? "" : loading ? "Loading Buyer preview" : playing ? `Playing ${active.title}` : `Paused ${active.title}`}</div>
       </div>
     </section>
   );

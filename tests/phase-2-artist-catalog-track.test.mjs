@@ -28,6 +28,14 @@ test("artist and buyer query layers share the canonical eligibility function", a
   assert.doesNotMatch(buyerQuery, /Boolean\(track\.preview_file_path\)\s*&&\s*track\.license_options\.length/);
 });
 
+test("catalog and related demo records are never selected merely because Supabase config is missing", async () => {
+  for (const path of ["services/artist/queries.ts", "services/buyer/queries.ts", "services/admin/queries.ts", "services/artist/finance.ts", "services/auth/onboarding.ts"]) {
+    const source = await readFile(new URL(`../${path}`, import.meta.url), "utf8");
+    assert.match(source, /shouldUseDemoData\(\)/, `${path} must use the explicit mode guard`);
+    assert.doesNotMatch(source, /if\s*\(!hasSupabaseEnv\s*\|\|\s*env\.demoMode\)/, `${path} must not treat missing config as demo mode`);
+  }
+});
+
 test("artist track lookup is owner scoped and no longer signs Full Master audio", async () => {
   const source = await readFile(new URL("../services/artist/queries.ts", import.meta.url), "utf8");
   assert.match(source, /\.eq\("artist_user_id", userId\)\.eq\("slug", slug\)\.maybeSingle\(\)/);

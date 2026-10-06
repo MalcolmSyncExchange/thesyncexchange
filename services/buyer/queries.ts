@@ -2,7 +2,7 @@ import { requireAccountScope } from "@/services/auth/authorization";
 import { toBuyerTrack } from "@/services/buyer/contract";
 import { isBuyerCatalogEligible } from "@/lib/buyer-catalog-eligibility";
 import { favorites as demoFavorites, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
-import { env, hasSupabaseEnv } from "@/lib/env";
+import { env, shouldUseDemoData } from "@/lib/env";
 import { reportOperationalError } from "@/lib/monitoring";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { hasAgreementBeenGenerated, hasExtendedOrderMetadata } from "@/lib/orders";
@@ -15,7 +15,7 @@ import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { LicenseType, Order, BuyerRightsCredit, BuyerTrack, Track, TrackStatus } from "@/types/models";
 
 export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<BuyerTrack[]> {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const favoriteTrackIds = new Set(
       demoFavorites.filter((favorite) => !buyerUserId || favorite.buyer_user_id === buyerUserId).map((favorite) => favorite.track_id)
     );
@@ -76,7 +76,7 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Buyer
 export async function getBuyerTrackBySlug(slug: string, buyerUserId?: string) {
   const tracks = await getBuyerCatalogTracks(buyerUserId);
   const track = tracks.find((item) => item.slug === slug) || null;
-  if (!track || !hasSupabaseEnv || env.demoMode) {
+  if (!track || env.demoMode) {
     return track;
   }
 
@@ -84,7 +84,7 @@ export async function getBuyerTrackBySlug(slug: string, buyerUserId?: string) {
 }
 
 export async function getBuyerFavorites(buyerUserId: string) {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const favoriteTrackIds = new Set(demoFavorites.filter((favorite) => favorite.buyer_user_id === buyerUserId).map((favorite) => favorite.track_id));
     return demoTracks
       .filter((track) => favoriteTrackIds.has(track.id) && track.status === "approved")
@@ -96,7 +96,7 @@ export async function getBuyerFavorites(buyerUserId: string) {
 }
 
 export async function getBuyerOrders(buyerUserId: string) {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return demoOrders
       .filter((order) => order.buyer_user_id === buyerUserId)
       .map((order) => enrichOrder(order, demoTracks.find((track) => track.id === order.track_id) || null, demoLicenseTypes.find((license) => license.id === order.license_type_id) || null));
@@ -161,7 +161,7 @@ export async function getBuyerDashboardData(buyerUserId: string) {
 }
 
 export async function getOrderById(orderId: string) {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const order = demoOrders.find((item) => item.id === orderId);
     if (!order) return null;
     return enrichOrder(order, demoTracks.find((track) => track.id === order.track_id) || null, demoLicenseTypes.find((license) => license.id === order.license_type_id) || null);
@@ -206,7 +206,7 @@ export async function getOrderById(orderId: string) {
 }
 
 async function getFavoriteTrackIdSet(buyerUserId: string) {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return new Set(demoFavorites.filter((favorite) => favorite.buyer_user_id === buyerUserId).map((favorite) => favorite.track_id));
   }
 

@@ -6,7 +6,7 @@ import {
   removePurchaseFixture,
 } from "../tests/helpers/purchase-ui-fixture.mjs";
 const baseURL = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
-const output = "/private/tmp/sync-slice2-evidence";
+const output = process.env.E2E_PURCHASE_OUTPUT || "/private/tmp/sync-slice2-evidence";
 const fixtures = process.env.E2E_PURCHASE_FIXTURES === "true";
 test.beforeAll(async () => {
   await fs.mkdir(output, { recursive: true });
@@ -39,6 +39,27 @@ async function overflow(page) {
     ),
   ).toBeTruthy();
 }
+async function accessibility(page, name) {
+  await page.addScriptTag({ path: "node_modules/axe-core/axe.min.js" });
+  const audit = await page.evaluate(async () => await window.axe.run("[data-purchase-workspace]", {
+    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
+  }));
+  await fs.writeFile(path.join(output, `axe-${name}.json`), JSON.stringify(audit, null, 2));
+  expect(audit.violations).toEqual([]);
+}
+// Badge text must fit on one line, including historical agreement phrases.
+async function intactBadges(page) {
+  const badges = await page.locator("[data-purchase-workspace] .rounded-full").evaluateAll(elements => elements.map(el => {
+    const text = el.querySelector("span");
+    const style = getComputedStyle(el);
+    return { whiteSpace: style.whiteSpace, fits: el.scrollWidth <= el.clientWidth, textHeight: text?.getBoundingClientRect().height || 0, lineHeight: parseFloat(getComputedStyle(text || el).lineHeight) };
+  }));
+  for (const badge of badges) {
+    expect(badge.whiteSpace).toBe("nowrap");
+    expect(badge.fits).toBeTruthy();
+    expect(badge.textHeight).toBeLessThanOrEqual(badge.lineHeight + 1);
+  }
+}
 for (const width of [1440, 1024, 390, 320])
   for (const theme of ["dark", "light"])
     test(`purchase workspace ${width} ${theme}`, async ({ browser }) => {
@@ -57,6 +78,8 @@ for (const width of [1440, 1024, 390, 320])
         page.getByRole("heading", { name: "My Purchases", exact: true }),
       ).toBeVisible();
       await overflow(page);
+      await accessibility(page, `purchases-${width}-${theme}`);
+      await expect(page.getByText("Whole-library readiness totals are not yet available.", { exact: true })).toHaveCount(0);
       await page.screenshot({
         path: path.join(output, `purchases-${width}-${theme}.png`),
         fullPage: true,
@@ -72,18 +95,12 @@ for (const width of [1440, 1024, 390, 320])
         page.getByRole("button", { name: "View Agreement" }),
       ).toBeDisabled();
       await overflow(page);
-      await page.addScriptTag({ path: "node_modules/axe-core/axe.min.js" });
-      const audit = await page.evaluate(
-        async () =>
-          await window.axe.run("[data-purchase-workspace]", {
-            runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
-          }),
-      );
-      await fs.writeFile(
-        path.join(output, `axe-${width}-${theme}.json`),
-        JSON.stringify(audit, null, 2),
-      );
-      expect(audit.violations).toEqual([]);
+      await intactBadges(page);
+      await expect(page.getByText("No purchase receipt delivery is available. Billing invoices are separate.", { exact: true })).toHaveCount(1);
+      const disabledStyle = await page.getByRole("button", { name: "Download Receipt" }).evaluate(el => ({ opacity: getComputedStyle(el).opacity, background: getComputedStyle(el).backgroundColor }));
+      expect(disabledStyle.opacity).toBe("1");
+      expect(disabledStyle.background).not.toBe("rgb(57, 200, 218)");
+      await accessibility(page, `detail-${width}-${theme}`);
       await page.screenshot({
         path: path.join(output, `detail-${width}-${theme}.png`),
         fullPage: true,
@@ -120,6 +137,8 @@ for (const width of [1440, 1024, 390, 320])
               page.getByRole("heading", { name: "Purchase details" }),
             ).toBeVisible();
           await overflow(page);
+          await intactBadges(page);
+          if (["ready", "refunded"].includes(state)) await accessibility(page, `${state}-${width}-${theme}`);
           await page.screenshot({
             path: path.join(output, `fixture-${state}-${width}-${theme}.png`),
             fullPage: true,

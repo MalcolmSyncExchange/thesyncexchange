@@ -65,35 +65,6 @@
   outline: 2px solid #39c8da;
   outline-offset: 3px;
 }
-.counters {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border: 1px solid hsl(var(--border));
-  border-radius: 9px;
-  overflow: hidden;
-  background: hsl(var(--card));
-  margin-bottom: 8px;
-}
-.counters > div {
-  padding: 18px;
-  border-left: 1px solid hsl(var(--border));
-}
-.counters > div:first-child {
-  border-left: 0;
-}
-.counters strong,
-.counters span {
-  display: block;
-}
-.counters strong {
-  font-size: 17px;
-  font-weight: 600;
-}
-.counters span {
-  font-size: 12px;
-  color: hsl(var(--muted-foreground));
-  margin-top: 5px;
-}
 .muted {
   font-size: 12px !important;
   color: hsl(var(--muted-foreground));
@@ -104,7 +75,7 @@
   display: flex;
   align-items: end;
   gap: 12px;
-  margin-top: 24px;
+  margin-top: 0;
   flex-wrap: wrap;
 }
 .toolbar label {
@@ -153,10 +124,10 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: hsl(var(--muted-foreground));
-  padding: 14px 10px;
+  padding: 14px 12px;
 }
 .desktop td {
-  padding: 18px 10px;
+  padding: 16px 12px;
   border-top: 1px solid hsl(var(--border));
   vertical-align: middle;
 }
@@ -296,8 +267,8 @@
 .terms {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 24px;
+  gap: 12px;
+  margin-top: 20px;
 }
 .cardFacts dt,
 .terms dt,
@@ -366,7 +337,7 @@
   grid-template-columns: 28px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 18px 0;
+  padding: 10px 0;
   border-bottom: 1px solid hsl(var(--border));
 }
 .file strong {
@@ -429,14 +400,15 @@
     border: 1px solid hsl(var(--border));
     background: hsl(var(--card));
     border-radius: 9px;
-    padding: 18px;
+    padding: 16px;
     min-width: 0;
   }
   .purchaseCard .cardFacts {
-    margin: 18px 0;
+    margin: 12px 0;
+    gap: 6px;
   }
   .open {
-    margin-top: 14px;
+    margin-top: 10px;
     width: 100%;
     border: 1px solid hsl(var(--border));
   }
@@ -468,15 +440,6 @@
   .header h1 {
     font-size: 33px;
   }
-  .counters {
-    grid-template-columns: 1fr 1fr;
-  }
-  .counters > div:nth-child(3) {
-    border-left: 0;
-  }
-  .counters > div:nth-child(n + 3) {
-    border-top: 1px solid hsl(var(--border));
-  }
   .toolbar {
     align-items: stretch;
   }
@@ -506,7 +469,7 @@
     display: grid;
     grid-template-columns: 85px minmax(0, 1fr);
     gap: 10px;
-    padding-top: 9px;
+    padding-top: 6px;
     border-top: 1px solid hsl(var(--border));
   }
   .actions {
@@ -518,16 +481,79 @@
     width: 100%;
   }
   .file {
-    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    gap: 8px;
   }
   .file button {
-    grid-column: 1/-1;
-    width: 100%;
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+  .file > svg {
+    width: 20px;
   }
   .section h2 {
     font-size: 20px;
   }
   .primary {
     width: 100%;
+  }
+}
+
+/* Keep compact status phrases intact without forcing the adjacent copy wide. */
+.workspace :global(.rounded-full) {
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  max-width: 100%;
+}
+.section > :global(.flex.min-h-16) {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.section > :global(.flex.min-h-16) > div {
+  flex: 1 1 110px;
+}
+.desktop tbody tr {
+  transition: background-color 150ms ease;
+}
+.desktop tbody tr:hover,
+.desktop tbody tr:focus-within {
+  background: hsl(var(--muted) / 0.45);
+}
+.desktop .identity a {
+  line-height: 1.45;
+}
+.workspace button:disabled {
+  opacity: 1;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+  border-color: hsl(var(--border));
+  cursor: not-allowed;
+  box-shadow: none;
+}
+@media (max-width: 700px) {
+  .purchaseCard .artwork {
+    width: 48px;
+    height: 48px;
+    flex-basis: 48px;
+  }
+  .purchaseCard .identity {
+    gap: 10px;
+  }
+  .purchaseCard .identity p {
+    margin-top: 2px;
+  }
+  .purchaseCard .cardFacts dt {
+    margin-bottom: 0;
+  }
+  .section .cardFacts,
+  .section .terms {
+    gap: 10px;
+    margin-top: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desktop tbody tr {
+    transition: none;
   }
 }

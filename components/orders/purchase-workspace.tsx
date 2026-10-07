@@ -142,19 +142,6 @@ export function PurchaseLibrary({ data }: { data: PurchasePage }) {
           <Search aria-hidden="true" /> Find music
         </Link>
       </header>
-      <div className={styles.counters}>
-        {["Purchases", "Ready now", "Processing", "Need attention"].map(
-          (label) => (
-            <div key={label}>
-              <strong>Unavailable</strong>
-              <span>{label}</span>
-            </div>
-          ),
-        )}
-      </div>
-      <p className={styles.muted}>
-        Whole-library readiness totals are not yet available.
-      </p>
       <form className={styles.toolbar} action="/buyer/orders">
         <label>
           Search by exact order reference
@@ -420,7 +407,6 @@ export function PurchaseDetail({ purchase: p }: { purchase: Purchase }) {
             <StatusRow
               label="Purchase receipt"
               value={p.receipt.label}
-              detail={p.receipt.detail}
             />
             <Button
               variant="outline"
@@ -436,7 +422,9 @@ export function PurchaseDetail({ purchase: p }: { purchase: Purchase }) {
           <section className={styles.section}>
             <p className={styles.eyebrow}>Included delivery</p>
             <h2>Included files</h2>
-            <p>{p.files.detail}</p>
+            <p id="files-delivery-reason">
+              {p.files.detail} Inclusion of optional versions is not recorded.
+            </p>
             {[
               "Full Master",
               "Instrumental",
@@ -444,21 +432,16 @@ export function PurchaseDetail({ purchase: p }: { purchase: Purchase }) {
               "Acapella",
               "Stems",
               "Alternate versions",
-            ].map((name, i) => (
+            ].map((name) => (
               <div className={styles.file} key={name}>
                 <FileAudio aria-hidden="true" />
                 <div>
                   <strong>{name}</strong>
-                  <p id={`file-reason-${i}`}>
-                    {name === "Full Master"
-                      ? "Purchased-file delivery is not yet available."
-                      : "Purchase inclusion is not recorded for this file type."}
-                  </p>
                 </div>
                 <Button
                   variant="outline"
                   disabled
-                  aria-describedby={`file-reason-${i}`}
+                  aria-describedby="files-delivery-reason"
                 >
                   Unavailable
                 </Button>

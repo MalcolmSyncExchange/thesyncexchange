@@ -135,14 +135,13 @@ export function presentPurchase(
         : "unknown";
   const refunded = order.status === "refunded";
   const paid = ["paid", "fulfilled", "refunded"].includes(order.status);
-  const ready = Boolean(
+  const issued = Boolean(
     matched?.status === "generated" &&
       date(matched.generated_at) &&
-      matched.pdf_storage_path &&
       !matched.generation_error &&
-      !order.agreement_generation_error &&
-      paid,
+      !order.agreement_generation_error,
   );
+  const ready = Boolean(issued && matched?.pdf_storage_path && paid);
   const failed = Boolean(
     matched?.status === "failed" ||
       matched?.generation_error ||
@@ -173,22 +172,36 @@ export function presentPurchase(
           matched ? "authoritative" : "unknown",
           matched?.status === "pending" ? "info" : "neutral",
         );
+  const processing = !failed && matched?.status === "pending";
   const license = status(
-    matched?.status === "generated" ? "issued" : "pending",
-    matched?.status === "generated" ? "Issued record" : "Pending",
+    issued ? "issued" : failed ? "failed" : processing ? "pending" : "unknown",
+    issued
+      ? "Issued record"
+      : failed
+        ? "Generation failed"
+        : processing
+          ? "Processing"
+          : "Unavailable",
     mode === "test"
       ? "Test transaction — no commercial rights."
       : refunded
         ? "Refund status alone does not determine current license validity."
-        : "The generated purchase-time agreement is the authoritative record when available.",
-    matched ? "authoritative" : "unknown",
+        : issued
+          ? "The generated purchase-time agreement is the authoritative issued record."
+          : failed
+            ? "License generation failed. Contact support for help with the issued record."
+            : processing
+              ? "License generation is processing. An issued record is not yet available."
+              : "Issued license evidence is unavailable. Processing is not established.",
+    issued || failed || processing ? "authoritative" : "unknown",
+    failed ? "warning" : processing ? "info" : "neutral",
   );
   const activity: Purchase["activity"] = [];
   for (const [label, at] of [
     ["Order created", order.created_at],
     ["Checkout created", order.checkout_created_at],
     ["Payment recorded", order.paid_at],
-    ["Agreement generated", matched?.generated_at],
+    ["Agreement generated", issued ? matched?.generated_at : null],
     ["Refund recorded", order.refunded_at],
   ])
     if (date(at)) activity.push({ label: label as string, at: at as string });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import { PGlite } from "@electric-sql/pglite";
 import { presentPurchase, REFUND_BANNER } from "../lib/purchases/contract.ts";
 import {
   parsePurchaseOptions,
@@ -417,4 +418,259 @@ test("UI uses POST form and disabled receipt/files with no new delivery or comme
     ui,
     /track-audio|purchase-assets|stripe_checkout_session_id|terms_snapshot_json/,
   );
+});
+
+test("pagination preserves PostgREST microseconds and database ordering across every page", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(
+      "CREATE TABLE purchases(id uuid PRIMARY KEY, buyer text, created_at timestamptz NOT NULL);",
+    );
+    const rows = Array.from({ length: 9 }, (_, i) => ({
+      id: `11111111-1111-4111-8111-${String(i).padStart(12, "0")}`,
+      at:
+        i >= 6
+          ? "2026-10-01T12:00:00.123456+00:00"
+          : "2026-10-01T12:00:00.123400+00:00",
+    }));
+    for (const r of rows)
+      await db.query("INSERT INTO purchases VALUES ($1,$2,$3)", [
+        r.id,
+        "buyer-a",
+        r.at,
+      ]);
+    await db.query("INSERT INTO purchases VALUES ($1,$2,$3)", [
+      id,
+      "buyer-b",
+      "2026-10-01T12:00:00.123455+00:00",
+    ]);
+    const expected = (
+      await db.query(
+        "SELECT id FROM purchases WHERE buyer='buyer-a' ORDER BY created_at DESC,id DESC",
+      )
+    ).rows.map((r) => r.id);
+    for (const size of [1, 2, 4]) {
+      const seen = [];
+      let cursor = null;
+      for (let page = 0; page < 12; page++) {
+        // PostgreSQL JSON timestamp text is the precision-preserving PostgREST representation.
+        const result = await db.query(
+          "SELECT id,to_json(created_at)#>>'{}' AS created_at FROM purchases WHERE buyer=$1 AND ($2::timestamptz IS NULL OR created_at<$2::timestamptz OR (created_at=$2::timestamptz AND id<$3::uuid)) ORDER BY created_at DESC,id DESC LIMIT $4",
+          ["buyer-a", cursor?.createdAt || null, cursor?.id || null, size],
+        );
+        if (!result.rows.length) break;
+        seen.push(...result.rows.map((r) => r.id));
+        const last = result.rows.at(-1);
+        cursor = parsePurchaseOptions({ cursor: purchaseCursor(last) }).cursor;
+        assert.equal(cursor.createdAt, last.created_at);
+        assert.match(cursor.createdAt, /\.123(?:456|4)(?:\+00:00|Z)$/);
+      }
+      assert.deepEqual(seen, expected);
+      assert.equal(new Set(seen).size, rows.length);
+    }
+  } finally {
+    await db.close();
+  }
+});
+
+test("cursor rejects impossible calendars, offsets, types and query fragments without precision loss", () => {
+  for (const createdAt of [
+    "2026-02-29T12:00:00.123456Z",
+    "2026-04-31T12:00:00Z",
+    "2026-10-01T24:00:00Z",
+    "2026-10-01T12:60:00Z",
+    "2026-10-01T12:00:60Z",
+    "2026-10-01T12:00:00.1234567Z",
+    "2026-10-01T12:00:00+16:00",
+    "2026-10-01T12:00:00+00:60",
+    "2026-10-01T12:00:00Z,or(id.neq.x)",
+    "2026-10-01T12:00:00Z\n",
+    null,
+    [],
+  ]) {
+    assert.throws(() =>
+      parsePurchaseOptions({
+        cursor: Buffer.from(JSON.stringify({ id, createdAt })).toString(
+          "base64url",
+        ),
+      }),
+    );
+  }
+  for (const createdAt of [
+    "2024-02-29T12:00:00.123456Z",
+    "2026-10-01T12:00:00.123400+00:00",
+    "2026-10-01T12:00:00.1-07:00",
+  ]) {
+    assert.equal(
+      parsePurchaseOptions({
+        cursor: purchaseCursor({ id, created_at: createdAt }),
+      }).cursor.createdAt,
+      createdAt,
+    );
+  }
+  assert.throws(() =>
+    parsePurchaseOptions({
+      cursor: Buffer.from(
+        JSON.stringify({ id: [id], createdAt: base.created_at }),
+      ).toString("base64url"),
+    }),
+  );
+  assert.throws(() => parsePurchaseOptions({ cursor: "!!!" }));
+  assert.throws(() =>
+    parsePurchaseOptions({
+      cursor: Buffer.from(
+        JSON.stringify({ id: id + "\n", createdAt: base.created_at }),
+      ).toString("base64url"),
+    }),
+  );
+});
+
+test("forged future/past cursors remain bounded and owned; filters/search independently intersect the cutoff", async () => {
+  const rows = [
+    base,
+    {
+      ...base,
+      id: "22222222-2222-4222-8222-222222222222",
+      status: "refunded",
+      created_at: "2026-09-01T00:00:00.000Z",
+    },
+    {
+      ...base,
+      id: "33333333-3333-4333-8333-333333333333",
+      buyer_user_id: "buyer-b",
+    },
+  ];
+  const { api, state } = harness({ rows });
+  const future = purchaseCursor({
+    id,
+    created_at: "2099-01-01T00:00:00.123456Z",
+  });
+  const past = purchaseCursor({ id, created_at: "1900-01-01T00:00:00Z" });
+  assert.equal(
+    (await api.getBuyerPurchasePage({ cursor: future, size: "9999" })).items
+      .length,
+    2,
+  );
+  assert.equal(
+    (await api.getBuyerPurchasePage({ cursor: past })).items.length,
+    0,
+  );
+  assert.ok(state.limits.every((n) => n <= 51));
+  const cutoff = purchaseCursor(base);
+  const changedFilter = await api.getBuyerPurchasePage({
+    cursor: cutoff,
+    filter: "refunded",
+  });
+  assert.deepEqual(
+    changedFilter.items.map((p) => p.id),
+    [rows[1].id],
+  );
+  assert.equal(
+    (await api.getBuyerPurchasePage({ cursor: cutoff, query: id })).items
+      .length,
+    0,
+  );
+  assert.equal((await api.getBuyerPurchasePage({ query: id })).items.length, 1);
+  assert.equal(
+    (await api.getBuyerPurchasePage({ cursor: future, query: rows[2].id }))
+      .items.length,
+    0,
+  );
+});
+
+test("license readiness distinguishes issued, authoritative processing, failure and unavailable evidence", () => {
+  for (const [facts, code, label, evidence] of [
+    [license(), "issued", "Issued record", "authoritative"],
+    [
+      license({
+        status: "pending",
+        generated_at: null,
+        pdf_storage_path: null,
+      }),
+      "pending",
+      "Processing",
+      "authoritative",
+    ],
+    [
+      license({ status: "failed", generation_error: "PRIVATE_FAILURE" }),
+      "failed",
+      "Generation failed",
+      "authoritative",
+    ],
+    [null, "unknown", "Unavailable", "unknown"],
+    [license({ status: "unrecognized" }), "unknown", "Unavailable", "unknown"],
+    [license({ generated_at: "invalid" }), "unknown", "Unavailable", "unknown"],
+    [license({ buyer_id: "foreign" }), "unknown", "Unavailable", "unknown"],
+    [
+      license({ generation_error: "PRIVATE_FAILURE" }),
+      "failed",
+      "Generation failed",
+      "authoritative",
+    ],
+  ]) {
+    // Unclassified terms exercise visible explanations rather than TEST-only explanation.
+    const p = presentPurchase(
+      base,
+      facts && { ...facts, terms_snapshot_json: {} },
+    );
+    assert.equal(p.license.code, code);
+    assert.equal(p.license.label, label);
+    assert.equal(p.license.evidence, evidence);
+    assert.match(
+      p.license.detail,
+      code === "issued"
+        ? /authoritative issued record/
+        : code === "pending"
+          ? /generation is processing/
+          : code === "failed"
+            ? /generation failed/
+            : /Processing is not established/,
+    );
+    assert.ok(!JSON.stringify(p).includes("PRIVATE_FAILURE"));
+  }
+  const refunded = presentPurchase({ ...base, status: "refunded" }, license());
+  assert.equal(refunded.license.label, "Issued record");
+  assert.equal(refunded.agreement.label, "Issued agreement · Historical copy");
+  assert.match(refunded.license.detail, /no commercial rights/);
+  assert.equal(refunded.paymentMode, "test");
+});
+
+test("activity records successful issuance only; failed timestamps and hostile events never fabricate history", () => {
+  const event = (p) =>
+    p.activity.filter((e) => e.label === "Agreement generated");
+  assert.equal(event(presentPurchase(base, license())).length, 1);
+  for (const facts of [
+    null,
+    license({ status: "failed", generation_error: "PRIVATE_STACK" }),
+    license({ status: "pending" }),
+    license({ status: "unknown" }),
+    license({ generated_at: "invalid" }),
+    license({ generation_error: "PRIVATE_STACK" }),
+    license({ buyer_id: "foreign" }),
+  ]) {
+    const p = presentPurchase(
+      {
+        ...base,
+        order_activity_log: [
+          { type: "unknown", metadata: { secret: "HOSTILE_PROVIDER" } },
+          { type: "agreement_generated", metadata: { stack: "PRIVATE_STACK" } },
+        ],
+      },
+      facts,
+    );
+    assert.equal(event(p).length, 0);
+    assert.ok(!JSON.stringify(p).includes("HOSTILE_PROVIDER"));
+    assert.ok(!JSON.stringify(p).includes("PRIVATE_STACK"));
+  }
+  // Current persisted state after retry succeeds; no invented attempt history.
+  const retried = presentPurchase(
+    base,
+    license({
+      generated_at: "2026-10-03T00:00:00.000Z",
+      generation_error: null,
+    }),
+  );
+  assert.deepEqual(event(retried), [
+    { label: "Agreement generated", at: "2026-10-03T00:00:00.000Z" },
+  ]);
 });

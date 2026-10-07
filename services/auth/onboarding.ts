@@ -1,7 +1,7 @@
 import { getArtistFinance } from "@/services/artist/finance";
 import { artistProfileColumns } from "@/services/artist/profile-contract";
 import { buyerOnboardingSteps, artistOnboardingSteps, getArtistStepIndex, getBuyerStepIndex } from "@/lib/validation/onboarding";
-import { env, hasSupabaseEnv } from "@/lib/env";
+import { shouldUseDemoData } from "@/lib/env";
 import { getDemoArtistProfile, getDemoBuyerProfile } from "@/services/auth/demo-store";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { ArtistOnboardingStep, BuyerOnboardingStep, SessionUser } from "@/types/models";
@@ -120,7 +120,7 @@ function sanitizeBuyerStep(step?: string | null): BuyerOnboardingStep {
 }
 
 async function getArtistProfile(userId: string) {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return getDemoArtistProfile(userId);
   }
 
@@ -130,7 +130,7 @@ async function getArtistProfile(userId: string) {
 }
 
 async function getBuyerProfile(userId: string) {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return getDemoBuyerProfile(userId);
   }
 

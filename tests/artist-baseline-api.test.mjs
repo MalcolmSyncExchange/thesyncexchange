@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { source, ids } from './helpers/artist-baseline-db.mjs';
+import { isBuyerCatalogEligible } from '../lib/buyer-catalog-eligibility.ts';
 const require=createRequire(import.meta.url);
 function load(path,mocks={}) {
  const loadedModule={exports:{}};
@@ -23,7 +24,7 @@ function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false
  const mocks={
   'next/server':{NextResponse:{json:(x,o)=>Response.json(x,o),redirect:x=>new Response(null,{status:307,headers:{location:x}})}},
   'next/cache':{revalidatePath:()=>events.push('revalidate')},'next/headers':{cookies:async()=>({get:()=>null})},
-  '@/lib/env':{hasSupabaseEnv:true,env:{demoMode:false}},
+  '@/lib/env':{hasSupabaseEnv:true,env:{demoMode:false},shouldUseDemoData:()=>false},
   '@/services/supabase/server':{createServerSupabaseClient:async()=>client},
   '@/services/supabase/admin':{createAdminSupabaseClient:()=>{events.push('service-client');return client;}},
   '@/services/supabase/privileged':{createPrivilegedSupabaseClient:async()=>{events.push('service-client');return client;}},
@@ -84,9 +85,10 @@ test('actual serialized buyer catalog excludes injected private metadata while p
  };
  const authorization=load('services/auth/authorization.ts',authMocks);
  const {getBuyerCatalogTracks}=load('services/buyer/queries.ts',{
-  '@/lib/env':{hasSupabaseEnv:true,env:{demoMode:false}},'@/lib/storage':{getPublicStorageUrl:()=>null,storageBuckets:{}},
+  '@/lib/env':{hasSupabaseEnv:true,env:{demoMode:false},shouldUseDemoData:()=>false},'@/lib/storage':{getPublicStorageUrl:()=>null,storageBuckets:{}},
   '@/services/supabase/privileged':{createPrivilegedSupabaseClient:async()=>client},
-  '@/services/auth/authorization':authorization
+      '@/services/auth/authorization':authorization,
+      '@/lib/buyer-catalog-eligibility':{isBuyerCatalogEligible}
  });
  const tracks=await getBuyerCatalogTracks(ids.buyer);assert.equal(tracks.length,1);
  assert.ok(events.some(e=>e.table==='buyer_catalog_public'&&e.fields.includes('artist_id')));

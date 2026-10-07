@@ -1,10 +1,10 @@
-import { env, hasSupabaseEnv } from "@/lib/env";
+import { shouldUseDemoData } from "@/lib/env";
 import { getDemoArtistProfile } from "@/services/auth/demo-store";
 import { requireAccountScope } from "@/services/auth/authorization";
 import type { ArtistFinance } from "@/types/models";
 
 export async function getArtistFinance(userId: string): Promise<ArtistFinance> {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const profile = await getDemoArtistProfile(userId);
     return { payout_email: profile?.payout_email || null, legal_entity: null };
   }

@@ -1,6 +1,6 @@
 import { requireAccountScope } from "@/services/auth/authorization";
 import { adminFlags as demoFlags, demoUsers, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
-import { env, hasSupabaseEnv } from "@/lib/env";
+import { env, hasSupabaseEnv, shouldUseDemoData } from "@/lib/env";
 import { hasAgreementBeenGenerated } from "@/lib/orders";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { listGeneratedLicensesByOrderIds } from "@/services/generated-licenses/server";
@@ -44,7 +44,7 @@ interface AdminRecentOrder {
 }
 
 export async function getAdminDashboardData() {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const pendingTracks = buildDemoReviewQueue();
     const recentOrders = demoOrders.slice(0, 5).map((order) => ({
       id: order.id,
@@ -139,7 +139,7 @@ export async function getAdminDashboardData() {
 }
 
 export async function getAdminReviewQueue() {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return buildDemoReviewQueue();
   }
 
@@ -167,7 +167,7 @@ export async function getAdminReviewQueue() {
 }
 
 export async function getAdminTracks() {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return demoTracks.map((track) => ({
       id: track.id,
       title: track.title,
@@ -194,7 +194,7 @@ export async function getAdminTracks() {
 }
 
 export async function getAdminTrackById(trackId: string) {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const track = demoTracks.find((item) => item.id === trackId) || null;
     if (!track) return null;
     return {
@@ -273,7 +273,7 @@ export async function getAdminTrackById(trackId: string) {
 }
 
 export async function getAdminAnalytics() {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     const totalOrders = demoOrders.length;
     const grossVolume = demoOrders.reduce((sum, order) => sum + order.amount_paid, 0);
     const approvedTracks = demoTracks.filter((track) => track.status === "approved").length;
@@ -304,7 +304,7 @@ export async function getAdminAnalytics() {
 }
 
 export async function getAdminComplianceFlags() {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return demoFlags.map((flag) => ({
       ...flag,
       severity: (flag.severity || "medium") as AdminFlagSeverity,
@@ -346,7 +346,7 @@ export async function getAdminComplianceFlags() {
 }
 
 export async function getAdminOrders() {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return demoOrders.map((order) => ({
       ...order,
       buyer_name: demoUsers.find((user) => user.id === order.buyer_user_id)?.full_name || "Buyer",
@@ -549,7 +549,7 @@ export async function getAdminOrders() {
 }
 
 export async function getAdminUsers() {
-  if (!hasSupabaseEnv || env.demoMode) {
+  if (shouldUseDemoData()) {
     return demoUsers;
   }
 

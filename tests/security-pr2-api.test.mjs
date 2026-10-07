@@ -73,5 +73,7 @@ test('failed agreements expose an actionable safe status without raw diagnostic 
  const rows=await load('services/buyer/queries.ts',h.mocks).getBuyerOrders(ids.buyer);
  assert.equal(rows[0].agreement_failed,true);assert.equal(rows[0].agreement_ready,false);
  assert.ok(!JSON.stringify(rows).includes('secret database/path diagnostic'));
- for(const f of ['components/orders/license-confirmation-client.tsx','app/(app)/buyer/orders/page.tsx']) {assert.match(source(f),/agreement_failed/);assert.doesNotMatch(source(f),/agreement_generation_error/);}
+ assert.match(source('components/orders/license-confirmation-client.tsx'),/agreement_failed/);
+ assert.match(source('components/orders/purchase-workspace.tsx'),/p\.agreement\.detail/);
+ assert.doesNotMatch(source('components/orders/purchase-workspace.tsx'),/agreement_generation_error/);
 });

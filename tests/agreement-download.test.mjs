@@ -54,7 +54,7 @@ test('storage/audit failures fail closed without leaking diagnostics',async()=>{
   }
 });
 test('all agreement entry points use explicit forms, including settings and Admin',()=>{
-  for(const path of ['app/(app)/buyer/orders/page.tsx','app/(app)/admin/orders/page.tsx','components/orders/license-confirmation-client.tsx','components/buyer/buyer-settings-form.tsx']) {
+  for(const path of ['components/orders/purchase-workspace.tsx','app/(app)/admin/orders/page.tsx','components/orders/license-confirmation-client.tsx','components/buyer/buyer-settings-form.tsx']) {
     const s=readFileSync(new URL('../'+path,import.meta.url),'utf8');assert.match(s,/AgreementDownloadForm/);assert.doesNotMatch(s,/<Link href=\{order\.agreement/);
   }
   const form=readFileSync(new URL('../components/orders/agreement-download-form.tsx',import.meta.url),'utf8');assert.match(form,/method="post"/);assert.match(form,/type="submit"/);

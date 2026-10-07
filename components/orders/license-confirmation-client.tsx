@@ -254,8 +254,9 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
           </div>
           <div className="flex flex-wrap gap-3">
             <Button asChild>
-              <Link href="/buyer/orders">View Order History</Link>
+              <Link href="/buyer/orders">My Purchases</Link>
             </Button>
+            {order ? <Link href={`/buyer/orders/${encodeURIComponent(order.id)}`} className={buttonVariants({ variant: "outline" })}>View Purchase</Link> : null}
             {order?.agreement_ready && order?.agreement_url ? (
               <AgreementDownloadForm orderId={order.id} className={buttonVariants({ variant: "outline" })}>{order.test_transaction ? "Download Test Agreement" : "Download License Agreement"}</AgreementDownloadForm>
             ) : null}

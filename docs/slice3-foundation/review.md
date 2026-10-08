@@ -3,7 +3,8 @@
 Baseline main `69ed3fe6dd5e8b0c1642d0835e4e3f4075e796f0`, tree
 `124442516c6af419ba31b6ce1d8f3495d08ed41a`. Branch
 `codex/phase-2-slice-3-media-foundation`. Production remains at the previously verified
-published source `e8abfb5253a6d23c515fe8cc8f76670f62281628`; no hosted changes occurred.
+published source `e8abfb5253a6d23c515fe8cc8f76670f62281628`. Gate 1 was subsequently
+installed dormant on security staging; this Gate 2 remediation performs no hosted mutation.
 The final commit/tree are recorded in the authoring report, avoiding a self-referential hash.
 
 ## Installation compatibility candidate
@@ -11,7 +12,8 @@ The final commit/tree are recorded in the authoring report, avoiding a self-refe
 The package at HEAD `c4c8366d275e3f416aa55fa6bd260c4079c217f1` is SUPERSEDED for
 installation compatibility. Its exact-HEAD security evidence is preserved; it does not
 carry forward over this executable change. `source-manifest.json` retains the old hashes
-and registers the new candidate and separately hashed Gate 2 SQL. No hosted install occurs.
+and registers the database package and separately hashed Gate 2 SQL. Gate 1 is installed dormant;
+Gate 2 has never been executed on hosted Storage.
 
 Gate 1: ordinary database A/B/C, all capabilities OFF. Gate 2: separately authorized private
 Storage configuration and `storage-protection.sql`. Gate 3: separately authorized broker,
@@ -259,16 +261,13 @@ Stop on identity/hash/ledger drift, collision, dependency/lock/error, nonzero ro
 flags or unexpected fingerprint/advisor change. Never blindly retry an ambiguous outcome.
 Keep successfully installed additive schema dormant and reconcile forward; no deletion.
 
-Gate 2 still requires an independently verified Supabase-supported Storage-owner execution
-mechanism. Current SQL postgres cannot CREATE POLICY on storage.objects. No undocumented
-API is assumed and no owner transfer/SET-role grant is proposed. Fresh CREATE TRIGGER is
-covered by postgres's TRIGGER grant, but idempotent DROP/CREATE and the cohesive policy
-setup belong to the provider-owner gate. The setup SQL itself rejects non-owner authority
-and non-FALSE media capabilities. Test owner setup locally; hosted mechanism proof remains
-required. Buckets are created separately through the supported Storage API, private with
-reviewed limits. Do not enable any capability before sealing/TUS/privacy tests and separate
-authorization. Decoder/output fencing, requester authorization/Discover eligibility,
-read-through/Admin adapters and isolated hosted TUS/version semantics remain later gates.
+Gate 2 authority: the earlier raw-owner-only assumption is superseded by captured provider
+configuration. The reviewed non-migration setup accepts exact non-superuser postgres through
+registered supautils policy/drop-trigger grants for storage.objects plus native TRIGGER and
+pinned Migration C routines. No ownership transfer, owner SET ROLE or broader installer grant.
+Buckets remain separately configured through supported Storage management. Global 50 MB
+Free-plan ceiling remains an independent blocker to the approved 250,000,000-byte Master.
+No hosted setup/limit/billing/worker/UI change is authorized.
 
 Source references: Supabase database functions owner/privilege guidance; PostgreSQL 17
 createrole_self_grant and CREATE POLICY owner requirements. No hosted changes, provisioning,
@@ -292,3 +291,53 @@ fixture upload, new UI, purchase delivery, payment or Gate D behavior is introdu
 - Fresh exact-HEAD security review is required after commit. Old zero findings do not
   carry forward. Only after an acceptable fresh review may staging be re-preflighted
   read-only; no installation or other hosted change is authorized.
+
+## Gate 2 supported-authority source remediation
+
+Previous HEAD f3b8c45450230bfd74e44665144773bdce540fdf and Gate 2 hash
+abaa16088c324ca872c42067946da0a6df59d7afd667c1729d96d57225dcc29f are superseded
+ONLY for this non-migration setup artifact. All 34 migration bytes and the installed A/B/C
+hashes remain identical. No fourth migration, application code or processing implementation.
+
+Authority measurement is entirely pg_catalog-based; no operator-supplied claim parameters.
+Provider grant JSON is parsed as json (not jsonb) to detect duplicate role keys before
+conversion can discard ambiguity. Both settings must be registered string/SIGHUP values
+from configuration file, not pending restart. Exact actor/table entries are required.
+The three Migration C function definitions are SHA-256 pinned, owned by postgres, fixed
+empty search_path and exact non-grantable ACLs. Setup is transactional and refuses replay
+of a same-named modified policy or trigger, retaining unrelated six policies/five triggers.
+
+Local validation requires genuine supautils, not a superuser bypass: build official
+supabase/supautils commit df32bd65e4d13212bf812ee966a51132d034bc17 (3.4.4) using PG17
+PGXS. In a DISPOSABLE cluster only, set dynamic_library_path to that build directory,
+session_preload_libraries='supautils', policy_grants and drop_trigger_grants to the JSON
+{"postgres":["storage.objects"]}, and the provider superuser to the disposable bootstrap
+administrator. Use dedicated Unix socket /private/tmp, port 55440, no TCP listener. No
+installation in Homebrew's shared library directory or hosted configuration is needed.
+The fixture postgres stays NOSUPER, outside Storage owner membership. No new config-read
+privilege is granted. The real suite runs the entire unmodified Gate 2 artifact; separate
+transactional parser fixtures inject negative settings without changing provider config.
+PGlite tests exercise policy behavior only, explicitly excluding provider-hook emulation.
+
+Future authorized setup order: verify exact source/setup hash and installed A/B/C; project
+identity/health/dormancy and unchanged legacy policies/triggers; independently establish
+global ceiling ≥250,000,000 bytes. Execute policy/guard setup as measured postgres in one
+transaction; verify +5 policies/+1 trigger, unchanged existing definitions/owners/ACLs,
+no data/capability/ledger mutation. Configure three PRIVATE buckets separately via supported
+Storage API with reviewed limits; reconcile bucket privacy/limits and zero object mutation.
+No blind replay on changed target identities or ambiguity. Stop before all hosted steps
+while the global ceiling is 50 MB; do not lower product limits or alter billing here.
+
+Expected future Gate 2 delta: +5 Storage policies, +1 Storage trigger, +3 private buckets
+in separately reviewed API step; zero ledger entries, foundation lifecycle rows, objects,
+existing-track mutations, commerce mutations or activated capabilities. Worker/TUS/UI remain
+independent later gates. Exact-HEAD focused security review and a read-only staging recheck
+follow the local source commit; historical security results do not carry forward.
+
+Remediation local results: 20/20 foundation tests PASS (including independent-session
+concurrency and three added authority/replay groups; 31 negative cases inside those groups).
+Unit 443/443, PR2/security 65/65, Artist baseline 72/72 and Artist gate 5/5 PASS. Canonical
+34-migration verification and new separate setup hash PASS. Typecheck and isolated webpack
+production build PASS. Lint zero errors with the existing form line-173 React Hook Form
+warning. git diff --check PASS. Supautils locally built from the pinned official source;
+no hosted policy, trigger, bucket, data, capability, billing or configuration change.

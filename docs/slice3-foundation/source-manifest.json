@@ -17,7 +17,7 @@
       "sha256": "58129847813b6878980c78e86efbcd74fb46d0d40716a10d949c7804bcfd6897"
     }
   ],
-  "packageStatus": "authoritative installation-compatibility candidate",
+  "packageStatus": "installed dormant database foundation; supported-authority Gate 2 source candidate",
   "supersededPackage": {
     "head": "c4c8366d275e3f416aa55fa6bd260c4079c217f1",
     "tree": "69ccbaf78dda7870ab7aa3f774acdc3058a97770",
@@ -39,9 +39,14 @@
   },
   "storageSetup": {
     "file": "docs/slice3-foundation/storage-protection.sql",
-    "sha256": "abaa16088c324ca872c42067946da0a6df59d7afd667c1729d96d57225dcc29f",
+    "sha256": "e8f4ccdf1534be988a6df1cb1d5d6fbefee565e3f98e13d478bcefc01f157972",
     "gate": 2,
-    "ordinaryMigration": false
+    "ordinaryMigration": false,
+    "superseded": {
+      "head": "f3b8c45450230bfd74e44665144773bdce540fdf",
+      "sha256": "abaa16088c324ca872c42067946da0a6df59d7afd667c1729d96d57225dcc29f",
+      "reason": "raw-owner assertion superseded by measured supported supautils authority"
+    }
   },
   "expectedDatabaseLedgerDelta": 3
 }

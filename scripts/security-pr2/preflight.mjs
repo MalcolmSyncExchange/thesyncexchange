@@ -21,7 +21,7 @@ try {
  const setup=source('docs/slice3-foundation/storage-protection.sql');
  assert.equal([...setup.matchAll(/create policy /g)].length,5);
  assert.equal([...setup.matchAll(/as restrictive/g)].length,4);
- assert.ok(setup.includes('Storage-owner authority required'));
+ assert.ok(setup.includes('Gate 2 requires exact non-superuser postgres actor'));
  const mediaManifest=JSON.parse(source('docs/slice3-foundation/source-manifest.json'));
  assert.equal(mediaManifest.storageSetup.sha256,sha(setup),'Separate Storage setup hash drift');
  assert.ok(policies.some(p=>p.name==='commerce_private_objects' && p.permissive==='RESTRICTIVE'));

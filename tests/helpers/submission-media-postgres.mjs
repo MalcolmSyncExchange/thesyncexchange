@@ -24,7 +24,7 @@ export async function fixture({apply=true,seed=true,storage=true}={}) {
   const r=await psql(name,`select coalesce(json_agg(q),'[]') from (${sql}) q`);return {rows:JSON.parse(r.out)};
  },scalar:async sql=>(await psql(name,sql)).out,
  install:sql=>psql(name,sql,{user:'postgres'}),
- setup:()=>psql(name,'set role supabase_storage_admin;'+source(storageSetup)),
+ setup:()=>psql(name,source(storageSetup),{user:'postgres'}),
  close:()=>psql('postgres',`drop database ${name} with (force)`)};
  try {
   const bootstrap=fixtureBootstrapSql.replace(/create role (anon|authenticated|service_role|supabase_storage_admin)( bypassrls)?;/g,(_,role,extra)=>`do $$ begin if not exists(select 1 from pg_roles where rolname='${role}') then create role ${role}${extra||''}; end if; end $$;`);

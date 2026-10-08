@@ -44,7 +44,7 @@ test('DTO projection excludes private identity and source delivery; old UI/sourc
  assert.match(read('components/forms/submit-music-form.tsx'),/export/);
 });
 
-test('ordinary migration boundary: no internal ownership/grants or Storage DDL; separately hashed owner setup',()=>{
+test('ordinary migration boundary: no internal ownership/grants or Storage DDL; separately hashed supported-authority setup',()=>{
  const setup=read('docs/slice3-foundation/storage-protection.sql');
  for(const s of sql) {
   assert.doesNotMatch(s,/grant .* on schema .*\b(auth|storage|extensions)\b|create policy .* on storage\.objects|create trigger .* on storage\.objects|drop trigger .* on storage\.objects/i);
@@ -53,7 +53,7 @@ test('ordinary migration boundary: no internal ownership/grants or Storage DDL; 
  assert.match(sql[0],/m\.member='postgres'::regrole and m\.admin_option and not m\.inherit_option and not m\.set_option/);
  assert.match(sql[0],/m\.member='submission_media_broker'::regrole/);
  assert.match(sql[1],/extensions\.digest\(/);assert.match(sql[1],/Required pgcrypto extensions\.digest/);
- assert.match(setup,/Storage-owner authority required/);assert.match(setup,/create trigger guard_submission_media_object/);
+ assert.match(setup,/Gate 2 requires exact non-superuser postgres actor/); assert.match(setup,/supautils.policy_grants/); assert.match(setup,/supautils.drop_trigger_grants/);assert.match(setup,/create trigger guard_submission_media_object/);
  assert.equal([...setup.matchAll(/create policy /g)].length,5);
  assert.match(sql[2],/grant execute on function submission_media\.guard_storage_object\(\),submission_media\.storage_setup_ready\(\) to supabase_storage_admin/);
 });

@@ -58,7 +58,9 @@ test('Storage uses server-authorized mutations, private buckets and all-role ref
  const path=`${ids.a}/uploads/audio/live.wav`,fresh=`${ids.a}/uploads/audio/fresh.wav`;
  const before=await read(db,"select policyname,permissive from pg_policies where schemaname='storage'");
  assert.equal(before.filter(p=>p.policyname.startsWith('submission_media_')).length,0);
- await db.exec(source('docs/slice3-foundation/storage-protection.sql'));
+ // PGlite cannot load supautils. This tests the unchanged policy/guard behavior
+ // only; the mandatory real-PG17 suite executes the complete authority-gated file.
+ await db.exec('begin;'+source('docs/slice3-foundation/storage-protection.sql').split('-- END READ-ONLY AUTHORITY ASSERTION')[1]);
  const policies=await read(db,"select policyname,permissive from pg_policies where schemaname='storage'");
  assert.equal(policies.filter(p=>!p.policyname.startsWith('submission_media_')).length,6);
  assert.equal(policies.filter(p=>p.policyname.startsWith('submission_media_')).length,5);assert.equal(policies.filter(p=>!p.policyname.startsWith('submission_media_') && p.permissive==='RESTRICTIVE').length,4);

@@ -206,7 +206,7 @@ test('Supabase-shaped PG17: every ordinary migration uses non-superuser postgres
   assert.equal(await db.scalar(`select pg_has_role('${role}','submission_media_broker','${privilege}')`),'f');
  for(const t of ['submissions','assets','operations','jobs','master_reviews','events']) assert.equal(await db.scalar(`select count(*) from submission_media.${t}`),'0');
  assert.equal(await db.scalar('select reservations_enabled or worker_enabled or activation_enabled or foundation_reads_enabled from submission_media.capabilities'),'f');
- const setupDenied=await psql(db.name,source(storageSetup),{user:'postgres',allowFailure:true});assert.notEqual(setupDenied.code,0);assert.match(setupDenied.err,/Storage-owner authority required/);
+ const setupDenied=await psql(db.name,source(storageSetup),{user:'slice3_fixture_admin',allowFailure:true});assert.notEqual(setupDenied.code,0);assert.match(setupDenied.err,/exact non-superuser postgres actor/);
  await db.setup();
  assert.equal(await db.scalar("select count(*) from pg_policies where schemaname='storage' and policyname like 'submission_media_%'"),'5');
  assert.equal(await db.scalar("select count(*) from pg_trigger where tgname='guard_submission_media_object'"),'1');
@@ -228,3 +228,74 @@ test('installation rejects wrong installer, digest location/absence and unexpect
  await db.install(source('supabase/migrations/'+foundation[1]));
  await db.install(source('supabase/migrations/'+foundation[2]));
 },{apply:false,seed:false,storage:false}));
+
+test('Gate 2 real provider: non-owner install/replay preserves six policies and five triggers',()=>run(async db=>{
+ const legacyCount=Number(await db.scalar("select count(*) from pg_trigger where tgrelid='storage.objects'::regclass and not tgisinternal"));
+ await db.exec('create function storage.gate2_fixture_noop() returns trigger language plpgsql as $$begin return new; end$$;'+
+  Array.from({length:5-legacyCount},(_,i)=>'create trigger provider_fixture_'+i+' before update on storage.objects for each row execute function storage.gate2_fixture_noop();').join('\n'));
+ const baselineSql="select jsonb_build_object('policies',(select jsonb_agg(to_jsonb(p) order by policyname) from pg_policies p where schemaname='storage' and policyname not in ('submission_media_private_reads','submission_media_bound_insert','submission_media_upload_insert','submission_media_no_update','submission_media_no_delete')),'triggers',(select jsonb_agg(pg_get_triggerdef(oid) order by tgname) from pg_trigger where tgrelid='storage.objects'::regclass and not tgisinternal and tgname <> 'guard_submission_media_object'))";
+ const before=await db.scalar(baselineSql);await db.setup();await db.setup();assert.equal(await db.scalar(baselineSql),before);
+ assert.equal(await db.scalar("select count(*) from pg_policies where schemaname='storage'"),'11');
+ assert.equal(await db.scalar("select count(*) from pg_trigger where tgrelid='storage.objects'::regclass and not tgisinternal"),'6');
+ assert.equal(await db.scalar("select pg_get_userbyid(relowner) from pg_class where oid='storage.objects'::regclass"),'supabase_storage_admin');
+ assert.equal((await db.install("select pg_has_role(current_user,'supabase_storage_admin','SET')")).out,'f');
+ for(const [sql,error] of [
+  ['alter policy submission_media_private_reads on storage.objects using (true);',/existing policy is not the reviewed/],
+  ['drop trigger guard_submission_media_object on storage.objects; create trigger guard_submission_media_object before update on storage.objects for each row execute function submission_media.guard_storage_object();',/existing guard is not the reviewed/]
+ ]) {const r=await psql(db.name,'begin;'+sql+source(storageSetup).replace(/^begin;$/m,''),{user:'postgres',allowFailure:true});assert.notEqual(r.code,0);assert.match(r.err,error);}
+ await db.setup();assert.equal(await db.scalar(baselineSql),before);
+},{seed:false,storage:false}));
+
+test('Gate 2 strict provider parsing rejects malformed, ambiguous, missing and forged settings',()=>run(async db=>{
+ const assertion=source(storageSetup).split('-- BEGIN READ-ONLY AUTHORITY ASSERTION')[1].split('-- END READ-ONLY AUTHORITY ASSERTION')[0];
+ // Parser adapter only. Real provider test above executes the UNMODIFIED whole file.
+ // Test fixture injection never substitutes for the production pg_settings gate.
+ const adapted=assertion.replaceAll('pg_catalog.pg_settings','public.gate2_fixture_settings');
+ await db.exec("create table public.gate2_fixture_settings as select name,setting,context,vartype,source,pending_restart from pg_settings where name in ('supautils.policy_grants','supautils.drop_trigger_grants'); grant select,update,delete on public.gate2_fixture_settings to postgres");
+ assert.equal((await db.install('begin transaction read only;'+assertion+'commit;')).code,0);
+ assert.equal((await db.install('begin transaction read only;'+adapted+'commit;')).code,0);
+ const mutations=[
+  ['delete from public.gate2_fixture_settings',/missing registered/],
+  ["delete from public.gate2_fixture_settings where name='supautils.policy_grants'",/missing registered/],
+  ["delete from public.gate2_fixture_settings where name='supautils.drop_trigger_grants'",/missing registered/],
+  ["update public.gate2_fixture_settings set setting='{'",/malformed provider/],
+  ["update public.gate2_fixture_settings set setting='[]'",/malformed provider grant object/],
+  ["update public.gate2_fixture_settings set setting='null'",/malformed provider grant object/],
+  ["update public.gate2_fixture_settings set setting='{}'",/missing exact/],
+  ["update public.gate2_fixture_settings set setting='{\"postgres\":[\"storage.buckets\"]}'",/missing exact/],
+  ["update public.gate2_fixture_settings set setting='{\"authenticated\":[\"storage.objects\"]}'",/missing exact/],
+  ["update public.gate2_fixture_settings set setting='{\"postgres\":[\"storage.objects\"],\"postgres\":[\"storage.buckets\"]}'",/ambiguous provider role/],
+  ["update public.gate2_fixture_settings set setting='{\"postgres\":[\"storage.objects\",\"storage.objects\"]}'",/ambiguous provider table/],
+  ["update public.gate2_fixture_settings set setting='{\"postgres\":{\"storage.objects\":true}}'",/malformed provider role/],
+  ["update public.gate2_fixture_settings set setting='{\"postgres\":[null]}'",/malformed provider table/],
+  ["update public.gate2_fixture_settings set setting='{\"postgres\":[\"storage.objects; DROP TABLE x\"]}'",/malformed provider table/],
+  ["update public.gate2_fixture_settings set context='user',source='session'",/registered provider grants/],
+  ["update public.gate2_fixture_settings set source='database'",/registered provider grants/],
+  ["update public.gate2_fixture_settings set pending_restart=true",/registered provider grants/]
+ ];
+ for(const [sql,error] of mutations){const r=await psql(db.name,'begin;'+sql+';'+adapted,{user:'postgres',allowFailure:true});assert.notEqual(r.code,0);assert.match(r.err,error,sql);}
+},{seed:false,storage:false}));
+
+test('Gate 2 catalog negatives: trigger authority, owner, superuser, pinned function and dormancy',()=>run(async db=>{
+ const assertion=source(storageSetup).split('-- BEGIN READ-ONLY AUTHORITY ASSERTION')[1].split('-- END READ-ONLY AUTHORITY ASSERTION')[0];
+ for(const [sql,error] of [
+  ['revoke trigger on storage.objects from postgres',/native trigger/],
+  ['alter table storage.objects owner to postgres',/owner\/role graph/],
+  ['alter table storage.objects owner to slice3_fixture_admin',/owner\/role graph/],
+  ['alter role postgres superuser',/non-superuser postgres actor/],
+  ['drop function submission_media.guard_storage_object()',/function identity\/definition/],
+  ['alter function submission_media.guard_storage_object() owner to slice3_fixture_admin',/function identity\/definition/],
+  ["create or replace function submission_media.guard_storage_object() returns trigger language plpgsql security definer set search_path='' as $$begin return new; end$$",/function identity\/definition/],
+  ['grant execute on function submission_media.guard_storage_object() to authenticated',/function grants/],
+  ['revoke execute on function submission_media.guard_storage_object() from supabase_storage_admin',/function grants/],
+  ['update submission_media.capabilities set worker_enabled=true',/all media capabilities OFF/]
+ ]) {
+  // Fixture administrator changes catalog inside a rollback-only transaction;
+  // the assertion sees exact postgres current AND session identity.
+  const r=await psql(db.name,'begin;'+sql+';set session authorization postgres;'+assertion,{allowFailure:true});
+  assert.notEqual(r.code,0);assert.match(r.err,error,sql);
+ }
+ const wrong=await psql(db.name,'begin;set session authorization authenticated;'+assertion,{allowFailure:true});assert.match(wrong.err,/non-superuser postgres actor/);
+ const admin=await psql(db.name,assertion,{allowFailure:true});assert.match(admin.err,/non-superuser postgres actor/);
+ assert.equal((await db.install('begin transaction read only;'+assertion+'commit;')).code,0);
+},{seed:false,storage:false}));

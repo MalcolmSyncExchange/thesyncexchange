@@ -33,14 +33,19 @@ new asset after quota/expiry handling; superseded/failed objects are retained.
 
 Migration C defines three database-side routines only, with no Storage DDL.
 `storage-protection.sql` is a separately hashed Gate 2 setup artifact, outside the ordinary
-migration ledger. It requires independently verified Storage-owner authority. The current
-postgres SQL operator cannot create policies; neither a supported management endpoint nor
-provider-owner execution is assumed until separately proven/authorized. Do not grant
-postgres broader roles or transfer provider-owned objects to work around that boundary.
-Initial trigger creation has a TRIGGER grant, but replay/drop requires ownership, so guard
-attachment stays with the cohesive provider setup. The provider receives only schema USAGE
-and execute on guard/dormancy routines. Buckets remain separate Storage API configuration.
-The setup SQL It adds an authenticated INSERT grant by
+migration ledger. It requires exact non-superuser postgres current/session identity,
+unchanged supabase_storage_admin ownership (no owner inheritance/SET path), genuine
+registered SIGHUP supautils settings from provider configuration, and exact postgres →
+storage.objects grants in BOTH policy_grants and drop_trigger_grants. Native TRIGGER,
+schema USAGE, all-FALSE capabilities and exact Migration C function definitions/owners/
+complete EXECUTE ACLs are also required. No additional installer privilege is proposed.
+The JSON shape is an object of unique role names → arrays of unique schema.table strings;
+malformed shapes, duplicate keys/tables, wildcard/quoted/injected identifiers, missing
+exact grants and USERSET/session placeholders fail closed. Registered settings prove the
+library loaded; no SQL CREATE EXTENSION record is assumed for session-preloaded supautils.
+The five exact policy definitions and single exact trigger are validated before controlled
+DROP/CREATE replay. Unrelated policies/triggers remain untouched. Buckets remain separate
+supported Storage API configuration; no SQL bucket creation. This source adds an INSERT
 policy for exact reservations, restrictive denial of raw pending reads, and denies
 client update/delete. The trigger also protects privileged Storage writes: only the
 exact live reservation can create an object; object ID, version, destination, ownership,

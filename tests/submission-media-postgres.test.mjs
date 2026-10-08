@@ -31,7 +31,7 @@ test('exact grants, definer owner/search_path, canonical Artist/Admin and cross-
   await denied(db,actorSql(ids.a,`update submission_media.${t} set ${t==='capabilities'?'worker_enabled=true':t==='events'?"details='{}'":'id=id'}`));
  }
  const f=(await db.query("select n.nspname,p.proname,p.prosecdef,p.proconfig,pg_get_userbyid(p.proowner) as owner,p.oid::regprocedure::text as sig from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='submission_media' or (n.nspname='public' and p.proname like 'media\\_%' escape '\\')")).rows;
- assert.equal(f.length,38);for(const x of f){assert.equal(x.prosecdef,true);assert.deepEqual(x.proconfig,['search_path=""']);assert.equal(x.owner,'postgres');for(const role of ['anon','service_role']) assert.equal(await db.scalar(`select has_function_privilege('${role}',${quote(x.sig)},'execute')`),'f');}
+ assert.equal(f.length,41);for(const x of f){assert.equal(x.prosecdef,true);assert.deepEqual(x.proconfig,['search_path=""']);assert.equal(x.owner,'postgres');for(const role of ['anon','service_role']) assert.equal(await db.scalar(`select has_function_privilege('${role}',${quote(x.sig)},'execute')`),'f');}
  await denied(db,actorSql(ids.a,'select submission_media.claim_job()'));
  await denied(db,actorSql(ids.a,`select media_read_operation('${key()}')`));
  const dto=await actor(db,ids.a,call('media_read_submission',[s]));assert.equal(dto.submission_id,s);assert.doesNotMatch(JSON.stringify(dto),/bucket|path|lease|token|sha256|storage_object/);

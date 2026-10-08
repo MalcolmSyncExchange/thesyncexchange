@@ -1,0 +1,55 @@
+{
+  "worker": {
+    "passed": 16,
+    "failed": 0,
+    "sha256": "dd7361a9ad8e6cdaa530782f9c5cc33dd615755136b28b40e7872c750db2c738"
+  },
+  "foundation": {
+    "passed": 20,
+    "failed": 0,
+    "sha256": "68662653eb0758bdd902282cf14deb0de3999844912a321663939b3e176c7abf"
+  },
+  "unit": {
+    "passed": 443,
+    "failed": 0,
+    "sha256": "fd4875bdc7932e957be9a663609167724dcf0113c5bf62fd94b92743b1b24c6d"
+  },
+  "artistBaseline": {
+    "passed": 72,
+    "failed": 0,
+    "sha256": "cbcdc8b947ca097df1e16ece8167bbef11edfdfef59cb62db0d87e81232d5efa"
+  },
+  "artistSecurity": {
+    "passed": 5,
+    "failed": 0,
+    "sha256": "20e6ddf0d28a180e06028c24448a8844c4656045e86fc26428dc337107e32b16"
+  },
+  "pr2": {
+    "passed": 65,
+    "failed": 0,
+    "sha256": "d2ad11462b5403bf944e1ed4c076074b5f1e92bacc9035607d7714e02b43332b"
+  },
+  "container": {
+    "passed": 6,
+    "failed": 0,
+    "sha256": "223ca3ddaee094e5e6c35d2de652bc6290ceebe4ed50fdfb053f9d521b59e31f"
+  },
+  "linuxResourceFixture": {
+    "fixture_bytes": 172800044,
+    "parser_peak_rss_bytes": 12697600,
+    "node_peak_rss_bytes": 166293504,
+    "waveform_bytes": 360512
+  },
+  "typecheck": "PASS",
+  "lint": "PASS; one existing React Hook Form compiler warning",
+  "build": "PASS; inert local placeholder configuration",
+  "migrationCount": 35,
+  "migrationHash": "62da6eac9a058e42aec76022872b680601c91fd62730f7306b6539a5c0809a57",
+  "hostedActivity": "NONE",
+  "limitations": [
+    "Linux arm64 container tested; amd64 production build not tested",
+    "No hosted broker Storage adapter/identity transport connected",
+    "Cloud Run Landlock/seccomp support requires a fail-closed preflight",
+    "Apt package snapshot lock and independent FFmpeg release signature verification remain release work"
+  ]
+}

@@ -5,7 +5,7 @@ import { fixtureBootstrapSql, seedDatabase, ids, quote } from './artist-baseline
 export { ids, quote };
 export const root = new URL('../../', import.meta.url);
 export const migrations = readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql')).sort();
-export const foundation = migrations.filter(x=>x.includes('slice3_submission_media'));
+export const foundation = migrations.filter(x=>x.includes('slice3_submission_media')||x.includes('slice3_media_worker_fenced_io'));
 export const source = p=>readFileSync(new URL(p,root),'utf8');
 // No DSN/environment option: only the disposable local Unix socket is accepted.
 // PG environment is cleared so .pgpass/PGSERVICE cannot redirect this harness.
@@ -86,7 +86,13 @@ export async function upload(db,asset,{version='v1'}={}) {
  return broker(db,`select submission_media.observe_upload('${asset}')`);
 }
 export const masterResult=(seconds=120)=>({sha256:'a'.repeat(64),actual_bytes:100,container:'wav',codec:'pcm_s24le',frames:seconds*48000,duration_us:seconds*1000000,sample_rate:48000,channels:2,bit_depth:24,build_digest:'sha256:'+'b'.repeat(64)});
-export async function complete(db,job,result) {return broker(db,`select submission_media.complete_job('${job.job_id}',${job.lease_epoch},'${job.lease_token}',${quote(JSON.stringify(result))}::jsonb)`);}
+export async function complete(db,job,result) {
+ if(['waveform_generation','preview_generation'].includes(job.job_type)&&result.sha256) {
+  const obj=JSON.parse(await db.scalar(`select jsonb_build_object('id',o.id,'version',o.version) from storage.objects o join submission_media.assets a on a.bucket=o.bucket_id and a.object_path=o.name where a.id='${job.asset_id}'`));
+  await broker(db,`select submission_media.record_worker_output('${job.job_id}',${job.lease_epoch},'${job.lease_token}','${obj.id}',${quote(obj.version)},${quote(result.sha256)},${result.actual_bytes}); select null::jsonb`);
+ }
+ return broker(db,`select submission_media.complete_job('${job.job_id}',${job.lease_epoch},'${job.lease_token}',${quote(JSON.stringify(result))}::jsonb)`);
+}
 export async function validateMaster(db,s,seconds=120) {
  const a=await reserve(db,s);await upload(db,a.asset_id);const j=await broker(db,'select submission_media.claim_job()');await complete(db,j,masterResult(seconds));
  const w=await broker(db,'select submission_media.claim_job()');

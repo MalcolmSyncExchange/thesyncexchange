@@ -2,7 +2,7 @@
   "baselineMain": "69ed3fe6dd5e8b0c1642d0835e4e3f4075e796f0",
   "baselineTree": "124442516c6af419ba31b6ce1d8f3495d08ed41a",
   "previousMigrationCount": 31,
-  "migrationCount": 34,
+  "migrationCount": 35,
   "migrations": [
     {
       "file": "20261008091022_slice3_submission_media_schema.sql",
@@ -48,5 +48,12 @@
       "reason": "raw-owner assertion superseded by measured supported supautils authority"
     }
   },
-  "expectedDatabaseLedgerDelta": 3
+  "expectedDatabaseLedgerDelta": 3,
+  "workerCandidate": {
+    "baselineHead": "bd22a92deac18aef10a629f1c50cb3f1d9623d2e",
+    "file": "20261008231329_slice3_media_worker_fenced_io.sql",
+    "sha256": "62da6eac9a058e42aec76022872b680601c91fd62730f7306b6539a5c0809a57",
+    "status": "SOURCE ONLY; not installed",
+    "expectedAdditionalLedgerDelta": 1
+  }
 }

@@ -137,6 +137,10 @@
     {
       "file": "20261008091024_slice3_submission_media_storage.sql",
       "sha256": "58129847813b6878980c78e86efbcd74fb46d0d40716a10d949c7804bcfd6897"
+    },
+    {
+      "file": "20261008231329_slice3_media_worker_fenced_io.sql",
+      "sha256": "62da6eac9a058e42aec76022872b680601c91fd62730f7306b6539a5c0809a57"
     }
   ],
   "storageBuckets": {

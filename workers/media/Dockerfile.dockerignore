@@ -1,0 +1,13 @@
+*
+!workers/
+!workers/media/
+!workers/media/**
+!contracts/
+!contracts/submission-media/
+!contracts/submission-media/**
+!tests/
+!tests/media-worker-media.test.mjs
+!tests/media-worker/
+!tests/media-worker/fixtures.mjs
+!tests/media-worker/webp-fixtures.json
+!tests/media-worker/mp3-fixture.json

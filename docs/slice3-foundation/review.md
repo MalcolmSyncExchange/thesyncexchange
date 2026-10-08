@@ -139,7 +139,7 @@ requires track already pending_review/approved, preserving final submission sepa
 ## Dormant installation delta and recovery
 
 A: one new schema, two NOLOGIN roles, seven tables, constraints/indexes/FORCE RLS, executor
-ACLs/policies and exactly one FALSE capability row. B: purpose-specific functions and five
+ACLs/policies and exactly one FALSE capability row. B: purpose-specific functions and four
 private lifecycle triggers plus unmanaged-no-op public track trigger. C: seven new Storage
 policies + one object guard; zero buckets. Three executor policies on profiles/tracks are
 internal-role only; authenticated grants are function-only except safe schema usage.

@@ -1,7 +1,13 @@
 -- Slice 3 B. Private helpers + purpose-specific RPCs. No generic state setter.
 begin;
--- Function ownership is a NOLOGIN, NOBYPASSRLS executor, not a service key.
-grant create on schema submission_media,public to submission_media_executor;
+-- Definers use the verified existing postgres owner; caller checks remain mandatory.
+do $$ begin
+  if current_user <> 'postgres' then raise exception 'Verified postgres installer required' using errcode='55000'; end if;
+  if pg_catalog.to_regprocedure('extensions.digest(text,text)') is null or not exists
+    (select 1 from pg_catalog.pg_extension e join pg_catalog.pg_namespace n on n.oid=e.extnamespace where e.extname='pgcrypto' and n.nspname='extensions') then
+    raise exception 'Required pgcrypto extensions.digest(text,text) is absent' using errcode='55000';
+  end if;
+end $$;
 
 create or replace function submission_media.require_actor(p_role text) returns uuid
 language plpgsql security definer set search_path = '' as $$
@@ -32,7 +38,7 @@ end $$;
 
 create or replace function submission_media.begin_operation(p_submission uuid,p_action text,p_key uuid,p_request jsonb) returns submission_media.operations
 language plpgsql security definer set search_path = '' as $$
-declare o submission_media.operations; h bytea := public.digest(p_request::text,'sha256'); begin
+declare o submission_media.operations; h bytea := extensions.digest(p_request::text,'sha256'); begin
   if p_key is null or auth.uid() is null then raise exception 'Invalid operation' using errcode='22023'; end if;
   insert into submission_media.operations(submission_id,actor_id,action,idempotency_key,request_hash)
   values(p_submission,auth.uid(),p_action,p_key,h) on conflict(actor_id,action,idempotency_key) do nothing;
@@ -84,7 +90,7 @@ end $$;
 
 create or replace function submission_media.package_hash(p_master uuid,p_preview uuid) returns bytea
 language sql stable security definer set search_path = '' as $$
- select public.digest(jsonb_build_array(m.id,encode(m.sha256,'hex'),m.storage_object_id,m.storage_version,m.validator_version,
+ select extensions.digest(jsonb_build_array(m.id,encode(m.sha256,'hex'),m.storage_object_id,m.storage_version,m.validator_version,
    p.id,encode(p.sha256,'hex'),p.storage_object_id,p.storage_version,p.source_asset_id,p.start_sample,p.end_sample,p.generation_profile,p.accepted_by,p.accepted_at)::text,'sha256')
  from submission_media.assets m join submission_media.assets p on p.source_asset_id=m.id and p.submission_id=m.submission_id
  where m.id=p_master and p.id=p_preview and m.kind='source_master' and p.kind='buyer_preview' and
@@ -574,11 +580,13 @@ end $$;
 drop trigger if exists guard_managed_track_media on public.tracks;
 create trigger guard_managed_track_media before update on public.tracks for each row execute function submission_media.guard_managed_track();
 
--- Own all implementation routines with a constrained, non-login executor.
+-- Pin the supported postgres owner and revoke all generic execution.
 do $$ declare f record; begin
   for f in select p.oid::regprocedure as signature from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace
     where n.nspname='submission_media' or (n.nspname='public' and p.proname like 'media\_%' escape '\') loop
-    execute format('alter function %s owner to submission_media_executor',f.signature);
+    if (select proowner from pg_catalog.pg_proc where oid=f.signature::oid) <> 'postgres'::regrole then
+      raise exception 'Unexpected media function owner' using errcode='55000';
+    end if;
     execute format('revoke all on function %s from public,anon,authenticated,service_role,submission_media_broker',f.signature);
   end loop;
 end $$;
@@ -592,5 +600,5 @@ grant execute on function public.media_create_submission(uuid,uuid),public.media
  public.media_read_submission(uuid),public.media_read_operation(uuid),public.media_admin_review_state(uuid) to authenticated;
 grant execute on function submission_media.upload_destination(uuid),submission_media.observe_upload(uuid),submission_media.claim_job(),
  submission_media.heartbeat_job(uuid,bigint,uuid),submission_media.complete_job(uuid,bigint,uuid,jsonb,text),submission_media.buyer_media(uuid) to submission_media_broker;
-revoke create on schema submission_media,public from submission_media_executor;
+
 commit;

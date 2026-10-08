@@ -43,3 +43,17 @@ test('DTO projection excludes private identity and source delivery; old UI/sourc
  assert.doesNotMatch(buyer,/jsonb_build_object\('source|audio_file_path|signed/);
  assert.match(read('components/forms/submit-music-form.tsx'),/export/);
 });
+
+test('ordinary migration boundary: no internal ownership/grants or Storage DDL; separately hashed owner setup',()=>{
+ const setup=read('docs/slice3-foundation/storage-protection.sql');
+ for(const s of sql) {
+  assert.doesNotMatch(s,/grant .* on schema .*\b(auth|storage|extensions)\b|create policy .* on storage\.objects|create trigger .* on storage\.objects|drop trigger .* on storage\.objects/i);
+  assert.doesNotMatch(s,/create role submission_media_executor|owner to submission_media_executor|public\.digest\(/);
+ }
+ assert.match(sql[0],/m\.member='postgres'::regrole and m\.admin_option and not m\.inherit_option and not m\.set_option/);
+ assert.match(sql[0],/m\.member='submission_media_broker'::regrole/);
+ assert.match(sql[1],/extensions\.digest\(/);assert.match(sql[1],/Required pgcrypto extensions\.digest/);
+ assert.match(setup,/Storage-owner authority required/);assert.match(setup,/create trigger guard_submission_media_object/);
+ assert.equal([...setup.matchAll(/create policy /g)].length,5);
+ assert.match(sql[2],/grant execute on function submission_media\.guard_storage_object\(\),submission_media\.storage_setup_ready\(\) to supabase_storage_admin/);
+});

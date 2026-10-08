@@ -31,7 +31,16 @@ TUS-local upload handles may expire, in which case inspect the exact object firs
 mint a new arbitrary destination from client arguments. Missing uploads can reserve a
 new asset after quota/expiry handling; superseded/failed objects are retained.
 
-Migration C creates policies/triggers only. It adds an authenticated INSERT grant by
+Migration C defines three database-side routines only, with no Storage DDL.
+`storage-protection.sql` is a separately hashed Gate 2 setup artifact, outside the ordinary
+migration ledger. It requires independently verified Storage-owner authority. The current
+postgres SQL operator cannot create policies; neither a supported management endpoint nor
+provider-owner execution is assumed until separately proven/authorized. Do not grant
+postgres broader roles or transfer provider-owned objects to work around that boundary.
+Initial trigger creation has a TRIGGER grant, but replay/drop requires ownership, so guard
+attachment stays with the cohesive provider setup. The provider receives only schema USAGE
+and execute on guard/dormancy routines. Buckets remain separate Storage API configuration.
+The setup SQL It adds an authenticated INSERT grant by
 policy for exact reservations, restrictive denial of raw pending reads, and denies
 client update/delete. The trigger also protects privileged Storage writes: only the
 exact live reservation can create an object; object ID, version, destination, ownership,

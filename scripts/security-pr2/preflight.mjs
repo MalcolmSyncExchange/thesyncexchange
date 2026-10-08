@@ -17,7 +17,13 @@ try {
  const legacyPolicies=policies.filter(p=>!p.name.startsWith('submission_media_'));
  assert.equal(legacyPolicies.length,6);assert.equal(legacyPolicies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
  const mediaPolicies=policies.filter(p=>p.name.startsWith('submission_media_'));
- assert.equal(mediaPolicies.length,7);assert.equal(mediaPolicies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ assert.equal(mediaPolicies.length,0,'Ordinary database install must not configure provider-owned Storage');
+ const setup=source('docs/slice3-foundation/storage-protection.sql');
+ assert.equal([...setup.matchAll(/create policy /g)].length,5);
+ assert.equal([...setup.matchAll(/as restrictive/g)].length,4);
+ assert.ok(setup.includes('Storage-owner authority required'));
+ const mediaManifest=JSON.parse(source('docs/slice3-foundation/source-manifest.json'));
+ assert.equal(mediaManifest.storageSetup.sha256,sha(setup),'Separate Storage setup hash drift');
  assert.ok(policies.some(p=>p.name==='commerce_private_objects' && p.permissive==='RESTRICTIVE'));
  assert.ok(!canonical.triggers.some(t=>['on_auth_user_created','on_auth_user_updated'].includes(t.name)));
  const {rows:[g]}=await db.query(`select

@@ -6,6 +6,17 @@ Baseline main `69ed3fe6dd5e8b0c1642d0835e4e3f4075e796f0`, tree
 published source `e8abfb5253a6d23c515fe8cc8f76670f62281628`; no hosted changes occurred.
 The final commit/tree are recorded in the authoring report, avoiding a self-referential hash.
 
+## Installation compatibility candidate
+
+The package at HEAD `c4c8366d275e3f416aa55fa6bd260c4079c217f1` is SUPERSEDED for
+installation compatibility. Its exact-HEAD security evidence is preserved; it does not
+carry forward over this executable change. `source-manifest.json` retains the old hashes
+and registers the new candidate and separately hashed Gate 2 SQL. No hosted install occurs.
+
+Gate 1: ordinary database A/B/C, all capabilities OFF. Gate 2: separately authorized private
+Storage configuration and `storage-protection.sql`. Gate 3: separately authorized broker,
+TUS/worker/decoder/delivery integration. UI requires the later foundations; it is not built.
+
 ## Source boundary
 
 Three additive migrations, seven private lifecycle tables, worker profile/types only,
@@ -61,11 +72,25 @@ succeeded/failed back async states. Claim admission serialized briefly, processi
 ## RPC and ACL matrix
 
 All implementation routines: SECURITY DEFINER, empty search_path, fully qualified objects,
-NOLOGIN NOBYPASSRLS executor owner; PUBLIC/anon/service_role execute revoked. Helper routines
-have no external grants. Every table ENABLE + FORCE RLS; direct anon/authenticated/service
-role/broker table access revoked. Executor-only policies with explicit ACLs; no DELETE.
-Event UPDATE denied even executor, and trigger denies UPDATE/DELETE even privileged calls.
-Capabilities executor read-only. Existing API roles do not inherit executor or broker.
+owned by the existing verified `postgres` installer. This uses Supabase's supported owner
+pattern and its existing Auth/Storage privileges, without granting new internal-schema
+access or expanding installer authority. These definers can bypass RLS: canonical actor,
+ownership and lifecycle checks in every external RPC remain mandatory, and are tested.
+PUBLIC/anon/service_role execute is revoked. Private helpers have no application grants.
+Every table ENABLE + FORCE RLS, owner-only policies, direct API/service/broker ACLs revoked.
+Immutable asset/event triggers still reject prohibited writes even by the database owner.
+The trusted database operator retains schema/capability administration; no flag mutation
+RPC exists. No custom executor or additional policies/grants on profiles/tracks are created.
+
+Only `submission_media_broker` remains custom: NOLOGIN, NOINHERIT, NOBYPASSRLS, no
+CREATE/replication authority, schema USAGE and exactly six narrow RPC grants; no tables,
+Auth/Storage or commerce authority. PG17's non-superuser creation records implicit ADMIN
+membership for `postgres`, granted by the bootstrap superuser. The creator cannot revoke
+that grant. The assertion permits only that edge, with SET/INHERIT both FALSE, or no edge;
+rejects all outgoing broker memberships and other inbound edges; explicitly checks that
+anon/authenticated/service_role cannot SET/inherit it. The administrative edge adds no
+runtime power to `postgres`, which already owns the RPCs. It is not a worker credential.
+No new login/membership is provisioned; any future runtime broker setup is Gate 3.
 
 | Caller/grant | Routines | Checks/mutation |
 |---|---|---|
@@ -85,8 +110,9 @@ Capabilities executor read-only. Existing API roles do not inherit executor or b
 Helpers/trigger functions: require_actor, require_capability, lock_owned, begin_operation,
 finish_operation, append_event, bump, check_region, package_hash, guard_asset, guard_review,
 guard_submission, guard_event, supersede, asset_dto, guard_managed_track,
-storage_insert_allowed and guard_storage_object. Only storage_insert_allowed additionally
-granted to authenticated for the exact-reservation policy; its safe boolean is not a read API.
+storage_insert_allowed, guard_storage_object and storage_setup_ready. Only storage_insert_allowed additionally
+granted to authenticated for the exact-reservation policy; its safe boolean is not a read API. The provider Storage owner receives only private-schema
+USAGE and EXECUTE on the trigger routine/dormancy predicate, never lifecycle tables.
 
 No generic update/set-state RPC. RPCs consolidate Master/Artwork reservation and
 Preview/Artwork acceptance into strict purpose allowlists. All Artist mutations lock owned
@@ -138,11 +164,17 @@ requires track already pending_review/approved, preserving final submission sepa
 
 ## Dormant installation delta and recovery
 
-A: one new schema, two NOLOGIN roles, seven tables, constraints/indexes/FORCE RLS, executor
-ACLs/policies and exactly one FALSE capability row. B: purpose-specific functions and four
-private lifecycle triggers plus unmanaged-no-op public track trigger. C: seven new Storage
-policies + one object guard; zero buckets. Three executor policies on profiles/tracks are
-internal-role only; authenticated grants are function-only except safe schema usage.
+A: one new schema, one NOLOGIN broker role, seven tables, constraints/14 explicit indexes,
+FORCE RLS, owner-only policies and exactly one FALSE capability row. B: 35 purpose-specific
+functions and four private lifecycle triggers plus unmanaged-no-op public track trigger.
+C: three database-side Storage routines; NO Storage policy/trigger attachment/buckets.
+38 functions in Gate 1 total, 13 public authenticated RPCs and six private broker RPCs.
+No existing Auth/Storage schema or table ACL changes, provider ownership changes or new
+public profiles/tracks policies. New provider grants touch only the new private schema.
+Gate 1 migration ledger delta remains +3 (captured staging 19 -> 22), repository count 34.
+Gate 2 SQL retains four restrictive client protections, one exact-reservation INSERT
+policy and the privileged object guard. The two old executor SELECT policies are removed
+because the executor no longer exists; trusted postgres already observes exact objects.
 
 Expected zero submissions/assets/operations/jobs/reviews/events; zero Storage objects or
 bucket mutation; zero existing-track or commerce mutation; zero worker execution. No timer,
@@ -158,9 +190,12 @@ current app health and confirmed false capabilities.
 ## Review and validation
 
 Use `npm run test:submission-media` against disposable local PostgreSQL 17, not a hosted
-DSN. Harness only connects Unix socket `/private/tmp`, port 55439, clears PG environment;
+DSN. Harness only connects Unix socket `/private/tmp`, port 55440, clears PG environment;
 creates/drops uniquely named disposable databases, replays all migrations and synthetic
-fixtures. Start a dedicated local cluster using initdb/pg_ctl; stop it after tests. No
+fixtures. Use a dedicated cluster with bootstrap superuser `slice3_fixture_admin`; Slice 3 migration
+installation/replay connects as actual non-superuser `postgres` with CREATEROLE. Auth and
+Storage schema/object owners are separate provider roles, auth grant option is absent,
+public.digest is absent and pgcrypto resides in extensions. Stop the cluster after tests. No
 hosted option exists. Tests include replay/order/dormancy, ACL/search_path/RLS, forged IDs,
 reservation sealing, READY evidence, exact provenance, short cues, activation/review,
 append-only audit, legacy compatibility and real independent-session concurrency.
@@ -180,7 +215,7 @@ reviewed-rights migrations overlap existing reconciled protections; do not reint
 those historical bundles. Both overlap manifest/package/test inventories; future merge
 must reconcile additively. No PR/branch content is overwritten here.
 
-## Local authoring results
+## Historical package validation (superseded installation candidate)
 
 - Real PostgreSQL 17.11: 10 lifecycle/concurrency groups passed; four source/profile tests
   passed (`npm run test:submission-media`: 14 total). Full repository replay, B-before-A
@@ -203,8 +238,57 @@ admission uses an owner advisory lock before row locks. Worker admission permits
 job/Artist and serializes only the short claim transaction. Superseded retained Storage grows
 with editing: future GC separate; no destructive cleanup exists in this branch.
 
-The role owner/membership and Storage schema permissions available to the future hosted
-migration operator must be verified before installation. Local tests use a disposable
-superuser operator and do not establish hosted operator ACL parity. No hosted preflight was
-run. Future application, signing broker, worker/parser, Admin adapter and isolated-platform
-TUS tests remain explicit dependencies before activation.
+## Candidate installation procedure and remaining gates
+
+Required existing installer is postgres (non-superuser, CREATEROLE), with supported
+existing Auth USAGE and Storage SELECT/REFERENCES authority, but no Auth grant option or
+Storage owner/SET-role requirement. B explicitly checks pgcrypto in extensions and exact
+extensions.digest(text,text). No extension is relocated/created by these migrations.
+
+Before separately authorized Gate 1 dispatch, independently verify staging project ID,
+health, reviewed HEAD, migration/setup hashes, exact ledger, schema/function/role absence,
+operator/dependency ACLs, no writers/locks and existing business/media fingerprints.
+Apply A, verify seven FORCE-RLS tables, strict broker graph, singleton FALSE flags and six
+empty lifecycle tables. Apply B, verify 35 fixed-path functions/grants and five triggers.
+Apply C, verify three private routines and narrow provider grants, with no Storage DDL.
+Reconcile ledger +3, all flags FALSE, zero new lifecycle rows/jobs/events/media, existing
+Auth/Storage ACLs/owners/policies/triggers/buckets/object fingerprints unchanged and track,
+rights, commerce and Gate D fingerprints unchanged. Advisor delta: only the expected 13
+public authenticated-definer notices; no unexpected ERROR or privilege WARN. No worker.
+Stop on identity/hash/ledger drift, collision, dependency/lock/error, nonzero rows, enabled
+flags or unexpected fingerprint/advisor change. Never blindly retry an ambiguous outcome.
+Keep successfully installed additive schema dormant and reconcile forward; no deletion.
+
+Gate 2 still requires an independently verified Supabase-supported Storage-owner execution
+mechanism. Current SQL postgres cannot CREATE POLICY on storage.objects. No undocumented
+API is assumed and no owner transfer/SET-role grant is proposed. Fresh CREATE TRIGGER is
+covered by postgres's TRIGGER grant, but idempotent DROP/CREATE and the cohesive policy
+setup belong to the provider-owner gate. The setup SQL itself rejects non-owner authority
+and non-FALSE media capabilities. Test owner setup locally; hosted mechanism proof remains
+required. Buckets are created separately through the supported Storage API, private with
+reviewed limits. Do not enable any capability before sealing/TUS/privacy tests and separate
+authorization. Decoder/output fencing, requester authorization/Discover eligibility,
+read-through/Admin adapters and isolated hosted TUS/version semantics remain later gates.
+
+Source references: Supabase database functions owner/privilege guidance; PostgreSQL 17
+createrole_self_grant and CREATE POLICY owner requirements. No hosted changes, provisioning,
+fixture upload, new UI, purchase delivery, payment or Gate D behavior is introduced.
+
+## Installation-compatibility candidate local validation
+
+- PostgreSQL 17.11: 17 foundation tests PASS, including all prior lifecycle/concurrency
+  groups plus actual non-superuser postgres installation/replay, unavailable Auth grant,
+  provider Storage ownership, extensions-only digest, strict PG17 broker graph, unsupported
+  ordinary Storage setup rejection and provider-owner setup. No hosted validation.
+- Unit 443, Artist baseline 72, Artist security gate 5, PR2/security 65: PASS. These include
+  discovery, Slice 1 media/player, Slice 2 purchases, deletion and moderation regressions.
+- 34 canonical migration hashes and separate Gate 2 setup hash verified. Lint: zero errors,
+  one existing React Hook Form warning. No dependency/UI/application source changes.
+- Default npm build/Turbopack stalled at compilation and was stopped (exit 130) after
+  verifying the process belongs to this isolated worktree. npx next build --webpack PASS,
+  including all routes. No deployment/Next/Netlify configuration was changed.
+- Initial concurrent typecheck/build collided on generated .next files; final typecheck
+  after build PASS. The final authoring report records the exact commit/tree.
+- Fresh exact-HEAD security review is required after commit. Old zero findings do not
+  carry forward. Only after an acceptable fresh review may staging be re-preflighted
+  read-only; no installation or other hosted change is authorized.

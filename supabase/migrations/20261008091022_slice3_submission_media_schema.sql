@@ -2,22 +2,37 @@
 begin;
 create schema if not exists submission_media;
 revoke all on schema submission_media from public, anon, authenticated, service_role;
+-- The existing trusted Supabase postgres installer owns definers. No new auth grants.
+-- Only the worker broker remains custom: RPC-only, never an application service key.
 do $$ begin
-  if not exists (select 1 from pg_catalog.pg_roles where rolname = 'submission_media_executor') then
-    create role submission_media_executor nologin noinherit;
+  if current_user <> 'postgres' then
+    raise exception 'Media foundation requires the verified postgres installer' using errcode='55000';
   end if;
-  if not exists (select 1 from pg_catalog.pg_roles where rolname = 'submission_media_broker') then
-    create role submission_media_broker nologin noinherit;
+  if exists(select 1 from pg_catalog.pg_roles where rolname='submission_media_executor') then
+    raise exception 'Superseded executor role collision: review before installation' using errcode='55000';
+  end if;
+  if not exists(select 1 from pg_catalog.pg_roles where rolname='submission_media_broker') then
+    create role submission_media_broker nologin noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls;
+  end if;
+  -- PG17 records implicit creator ADMIN membership with a bootstrap-superuser
+  -- grantor. The creator cannot revoke that grant. Permit ONLY this administrative
+  -- postgres edge, with neither SET nor INHERIT. postgres already owns these RPCs;
+  -- this is not an API/worker runtime privilege or an installer privilege expansion.
+  if exists(select 1 from pg_catalog.pg_roles where rolname='submission_media_broker' and
+    (rolsuper or rolcanlogin or rolbypassrls or rolcreaterole or rolcreatedb or rolinherit or rolreplication)) or exists
+    (select 1 from pg_catalog.pg_auth_members m join pg_catalog.pg_roles g on g.oid=m.grantor where
+      m.member='submission_media_broker'::regrole or
+      (m.roleid='submission_media_broker'::regrole and not
+        (m.member='postgres'::regrole and m.admin_option and not m.inherit_option and not m.set_option and g.rolsuper))) or
+    pg_catalog.pg_has_role('anon','submission_media_broker','USAGE') or
+    pg_catalog.pg_has_role('anon','submission_media_broker','SET') or
+    pg_catalog.pg_has_role('authenticated','submission_media_broker','USAGE') or
+    pg_catalog.pg_has_role('authenticated','submission_media_broker','SET') or
+    pg_catalog.pg_has_role('service_role','submission_media_broker','USAGE') or
+    pg_catalog.pg_has_role('service_role','submission_media_broker','SET') then
+    raise exception 'Media broker role collision: separately review existing authority' using errcode='55000';
   end if;
 end $$;
-do $$ begin
-  if exists(select 1 from pg_catalog.pg_roles where rolname in ('submission_media_executor','submission_media_broker') and (rolsuper or rolcanlogin or rolbypassrls or rolcreaterole or rolcreatedb or rolinherit)) or exists
-    (select 1 from pg_catalog.pg_auth_members m join pg_catalog.pg_roles r on r.oid=m.roleid where r.rolname in ('submission_media_executor','submission_media_broker')) then
-    raise exception 'Media role collision: separately review existing authority' using errcode='55000';
-  end if;
-end $$;
--- Neither role is granted to an API role. Login provisioning is a separate review.
-grant usage on schema submission_media, public, auth, storage to submission_media_executor;
 grant usage on schema submission_media to submission_media_broker;
 alter default privileges in schema submission_media revoke all on tables from public, anon, authenticated, service_role;
 alter default privileges in schema submission_media revoke execute on functions from public;
@@ -258,25 +273,10 @@ do $$ declare t text; begin
     execute format('alter table submission_media.%I enable row level security',t);
     execute format('alter table submission_media.%I force row level security',t);
     execute format('revoke all on submission_media.%I from public,anon,authenticated,service_role,submission_media_broker',t);
-    execute format('grant select,insert,update on submission_media.%I to submission_media_executor',t);
-    execute format('drop policy if exists executor_only on submission_media.%I',t);
-    execute format('create policy executor_only on submission_media.%I to submission_media_executor using (true) with check (true)',t);
+    execute format('drop policy if exists owner_only on submission_media.%I',t);
+    execute format('create policy owner_only on submission_media.%I to postgres using (true) with check (true)',t);
   end loop;
 end $$;
-revoke update on submission_media.events from submission_media_executor;
-revoke insert,update on submission_media.capabilities from submission_media_executor;
-grant usage,select on all sequences in schema submission_media to submission_media_executor;
-grant select on public.user_profiles,public.tracks,storage.objects to submission_media_executor;
-grant update(status) on public.tracks to submission_media_executor;
--- Internal executor has canonical-identity reads and only the track access needed by
--- these narrow functions; no API role inherits it. Dormant rows grant no extra reads.
-drop policy if exists submission_media_executor_profiles on public.user_profiles;
-create policy submission_media_executor_profiles on public.user_profiles for select to submission_media_executor using (id=auth.uid());
-drop policy if exists submission_media_executor_tracks on public.tracks;
-create policy submission_media_executor_tracks on public.tracks for select to submission_media_executor
- using (artist_user_id=auth.uid() or public.is_admin() or exists(select 1 from submission_media.submissions where track_id=tracks.id));
-drop policy if exists submission_media_executor_review on public.tracks;
-create policy submission_media_executor_review on public.tracks for update to submission_media_executor
- using (artist_user_id=auth.uid() or public.is_admin()) with check (public.is_admin());
-
+-- postgres already has the supported Auth/Storage authority. No existing table or
+-- internal schema grants are changed. All API/broker authority is function-only.
 commit;

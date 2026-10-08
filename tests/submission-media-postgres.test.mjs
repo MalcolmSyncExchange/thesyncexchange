@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fixture,psql,actorSql,actor,broker,ids,quote,foundation,source,key,enabled,submission,reserve,upload,complete,masterResult,validateMaster,preview,review,revision,call} from './helpers/submission-media-postgres.mjs';
+import {fixture,psql,actorSql,actor,broker,ids,quote,foundation,source,storageSetup,key,enabled,submission,reserve,upload,complete,masterResult,validateMaster,preview,review,revision,call} from './helpers/submission-media-postgres.mjs';
 const denied=async(db,sql,match=/denied|permission|row-level|Managed|Invalid|Unsupported|immutable|constraint|mismatch|required|read-only|disabled|STALE|expired|limit|state|Preview|Master|retained|audit|lease/i)=>assert.rejects(db.exec(sql),match);
 async function run(fn,options) {const db=await fixture(options);try{await fn(db);}finally{await db.close();}}
 
 test('A/B/C full real PostgreSQL replay; B before A fails; duplicate replay is safe and dormant',()=>run(async db=>{
  const before=await db.scalar('select row_to_json(c) from submission_media.capabilities c');
- for(const m of foundation) await db.exec(source('supabase/migrations/'+m));
+ for(const m of foundation) await db.install(source('supabase/migrations/'+m));
  assert.equal(await db.scalar('select row_to_json(c) from submission_media.capabilities c'),before);
  for(const t of ['submissions','assets','operations','jobs','master_reviews','events']) assert.equal(await db.scalar(`select count(*) from submission_media.${t}`),'0');
- const empty=await fixture({apply:false,seed:false});try{await assert.rejects(empty.exec(source('supabase/migrations/'+foundation[1])),/schema .* does not exist/);}finally{await empty.close();}
+ const empty=await fixture({apply:false,seed:false});try{await assert.rejects(empty.install(source('supabase/migrations/'+foundation[1])),/schema .* does not exist/);}finally{await empty.close();}
  const r=await db.query("select c.relname,c.relrowsecurity,c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='submission_media' and c.relkind='r'");assert.equal(r.rows.length,7);assert.ok(r.rows.every(x=>x.relrowsecurity&&x.relforcerowsecurity));
  await denied(db,actorSql(ids.a,call('media_create_submission',[key(),null])),/disabled/);
  // Flags off: legacy writes/reviews/discovery retain original behavior, no worker work.
@@ -25,12 +25,13 @@ test('exact grants, definer owner/search_path, canonical Artist/Admin and cross-
  await db.exec(`update auth.users set raw_user_meta_data='{"role":"artist"}' where id='${ids.buyer}'`);
  await denied(db,actorSql(ids.buyer,call('media_create_submission',[key(),null])));
  for(const t of ['submissions','assets','operations','jobs','master_reviews','events','capabilities']) {
-  assert.equal(await db.scalar(`select has_table_privilege('authenticated','submission_media.${t}','select')`),'f');
+  for(const role of ['anon','authenticated','service_role','submission_media_broker'])
+   assert.equal(await db.scalar(`select has_table_privilege('${role}','submission_media.${t}','select')`),'f');
   assert.equal(await db.scalar(`select has_table_privilege('submission_media_broker','submission_media.${t}','update')`),'f');
   await denied(db,actorSql(ids.a,`update submission_media.${t} set ${t==='capabilities'?'worker_enabled=true':t==='events'?"details='{}'":'id=id'}`));
  }
  const f=(await db.query("select n.nspname,p.proname,p.prosecdef,p.proconfig,pg_get_userbyid(p.proowner) as owner,p.oid::regprocedure::text as sig from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='submission_media' or (n.nspname='public' and p.proname like 'media\\_%' escape '\\')")).rows;
- assert.ok(f.length>20);for(const x of f){assert.equal(x.prosecdef,true);assert.deepEqual(x.proconfig,['search_path=""']);assert.equal(x.owner,'submission_media_executor');assert.equal(await db.scalar(`select has_function_privilege('anon',${quote(x.sig)},'execute')`),'f');}
+ assert.equal(f.length,38);for(const x of f){assert.equal(x.prosecdef,true);assert.deepEqual(x.proconfig,['search_path=""']);assert.equal(x.owner,'postgres');for(const role of ['anon','service_role']) assert.equal(await db.scalar(`select has_function_privilege('${role}',${quote(x.sig)},'execute')`),'f');}
  await denied(db,actorSql(ids.a,'select submission_media.claim_job()'));
  await denied(db,actorSql(ids.a,`select media_read_operation('${key()}')`));
  const dto=await actor(db,ids.a,call('media_read_submission',[s]));assert.equal(dto.submission_id,s);assert.doesNotMatch(JSON.stringify(dto),/bucket|path|lease|token|sha256|storage_object/);
@@ -173,3 +174,57 @@ test('duplicate new submissions and concurrent Admin/artwork edits remain serial
  // Current source and preview remain coherent whichever revision wins.
  assert.equal(await db.scalar(`select current_master_id from submission_media.submissions where id='${s}'`),await db.scalar(`select source_asset_id from submission_media.assets where id=(select current_preview_id from submission_media.submissions where id='${s}')`));
 }));
+
+test('Supabase-shaped PG17: every ordinary migration uses non-superuser postgres; Auth/Storage ACLs unchanged',()=>run(async db=>{
+ const baseline=await db.scalar(`select jsonb_build_object('auth_acl',(select nspacl from pg_namespace where nspname='auth'),
+  'storage_acl',(select nspacl from pg_namespace where nspname='storage'),
+  'storage_table_acl',(select relacl from pg_class where oid='storage.objects'::regclass),
+  'storage_owner',(select relowner from pg_class where oid='storage.objects'::regclass),
+  'policies',(select jsonb_agg(to_jsonb(p) order by policyname) from pg_policies p where schemaname='storage'),
+  'triggers',(select jsonb_agg(pg_get_triggerdef(oid) order by tgname) from pg_trigger where tgrelid='storage.objects'::regclass and not tgisinternal),
+  'objects',(select jsonb_agg(to_jsonb(o) order by id) from storage.objects o))`);
+ const authority=JSON.parse((await db.install(`select jsonb_build_object('superuser',(select rolsuper from pg_roles where rolname=current_user),
+  'createrole',(select rolcreaterole from pg_roles where rolname=current_user),'installer',current_user,
+  'auth_grant',has_schema_privilege(current_user,'auth','USAGE WITH GRANT OPTION'),
+  'storage_owner',pg_has_role(current_user,(select relowner from pg_class where oid='storage.objects'::regclass),'USAGE'),
+  'storage_set',pg_has_role(current_user,'supabase_storage_admin','SET'),
+  'digest',to_regprocedure('extensions.digest(text,text)') is not null,'public_digest',to_regprocedure('public.digest(text,text)') is not null)`)).out);
+ assert.deepEqual(authority,{superuser:false,createrole:true,installer:'postgres',auth_grant:false,storage_owner:false,storage_set:false,digest:true,public_digest:false});
+ for(const m of foundation) await db.install(source('supabase/migrations/'+m));
+ const after=await db.scalar(`select jsonb_build_object('auth_acl',(select nspacl from pg_namespace where nspname='auth'),
+  'storage_acl',(select nspacl from pg_namespace where nspname='storage'),
+  'storage_table_acl',(select relacl from pg_class where oid='storage.objects'::regclass),
+  'storage_owner',(select relowner from pg_class where oid='storage.objects'::regclass),
+  'policies',(select jsonb_agg(to_jsonb(p) order by policyname) from pg_policies p where schemaname='storage'),
+  'triggers',(select jsonb_agg(pg_get_triggerdef(oid) order by tgname) from pg_trigger where tgrelid='storage.objects'::regclass and not tgisinternal),
+  'objects',(select jsonb_agg(to_jsonb(o) order by id) from storage.objects o))`);
+ assert.equal(after,baseline);
+ assert.equal(await db.scalar("select count(*) from pg_roles where rolname='submission_media_executor'"),'0');
+ const graph=(await db.query("select pg_get_userbyid(member) as member,admin_option,inherit_option,set_option from pg_auth_members where roleid='submission_media_broker'::regrole")).rows;
+ assert.ok(graph.length<=1);if(graph.length) assert.deepEqual(graph,[{member:'postgres',admin_option:true,inherit_option:false,set_option:false}]);
+ for(const role of ['postgres','anon','authenticated','service_role']) for(const privilege of ['SET','USAGE'])
+  assert.equal(await db.scalar(`select pg_has_role('${role}','submission_media_broker','${privilege}')`),'f');
+ for(const t of ['submissions','assets','operations','jobs','master_reviews','events']) assert.equal(await db.scalar(`select count(*) from submission_media.${t}`),'0');
+ assert.equal(await db.scalar('select reservations_enabled or worker_enabled or activation_enabled or foundation_reads_enabled from submission_media.capabilities'),'f');
+ const setupDenied=await psql(db.name,source(storageSetup),{user:'postgres',allowFailure:true});assert.notEqual(setupDenied.code,0);assert.match(setupDenied.err,/Storage-owner authority required/);
+ await db.setup();
+ assert.equal(await db.scalar("select count(*) from pg_policies where schemaname='storage' and policyname like 'submission_media_%'"),'5');
+ assert.equal(await db.scalar("select count(*) from pg_trigger where tgname='guard_submission_media_object'"),'1');
+ await db.exec('update submission_media.capabilities set worker_enabled=true');await assert.rejects(db.setup(),/all media capabilities OFF/);
+},{apply:false,seed:false,storage:false}));
+
+test('installation rejects wrong installer, digest location/absence and unexpected broker role graph',()=>run(async db=>{
+ await assert.rejects(db.exec(source('supabase/migrations/'+foundation[0])),/verified postgres installer/i);
+ await db.install(source('supabase/migrations/'+foundation[0]));
+ await db.exec('alter extension pgcrypto set schema public');
+ await assert.rejects(db.install(source('supabase/migrations/'+foundation[1])),/Required pgcrypto extensions.digest/);
+ assert.equal(await db.scalar("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='submission_media'"),'0');
+ await db.exec('alter extension pgcrypto set schema extensions');
+ await db.exec('grant submission_media_broker to authenticated');
+ try {await assert.rejects(db.install(source('supabase/migrations/'+foundation[0])),/broker role collision/);} finally {await db.exec('revoke submission_media_broker from authenticated');}
+ await db.exec('grant submission_media_broker to postgres with set true, inherit false');
+ try {await assert.rejects(db.install(source('supabase/migrations/'+foundation[0])),/broker role collision/);} finally {await db.exec('revoke submission_media_broker from postgres');}
+ await db.install(source('supabase/migrations/'+foundation[0]));
+ await db.install(source('supabase/migrations/'+foundation[1]));
+ await db.install(source('supabase/migrations/'+foundation[2]));
+},{apply:false,seed:false,storage:false}));

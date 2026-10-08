@@ -6,7 +6,7 @@ export const snapshot = name => JSON.parse(source(`tests/fixtures/artist-baselin
 export const ids = { a:'11111111-1111-4111-8111-111111111111', b:'22222222-2222-4222-8222-222222222222', buyer:'33333333-3333-4333-8333-333333333333', admin:'44444444-4444-4444-8444-444444444444', draft:'55555555-5555-4555-8555-555555555555', live:'66666666-6666-4666-8666-666666666666', otherTrack:'77777777-7777-4777-8777-777777777777', order:'88888888-8888-4888-8888-888888888888', license:'99999999-9999-4999-8999-999999999999' };
 export const quote = x => `'${String(x).replaceAll("'","''")}'`;
 export const ident = x => `"${String(x).replaceAll('"','""')}"`;
-export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls;
+export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls; create role supabase_storage_admin;
    create schema auth; create schema storage;
    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');
    create table auth.sessions(id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade);
@@ -28,7 +28,10 @@ export const pgliteDigestFixtureSql = `create schema fixture_support;
    $$;`;
 export const adaptMigrationForPGlite = sql => sql
   .replace(/create extension if not exists "pgcrypto";/gi,'')
-  .replace(/\bpublic\.digest\s*\(/gi,'fixture_support.digest(');
+  // Isolated PGlite lacks pgcrypto. Real PostgreSQL tests exercise this precondition.
+  .replace(/pg_catalog\.to_regprocedure\('extensions\.digest\(text,text\)'\) is null or not exists\s*\(select 1 from pg_catalog\.pg_extension e join pg_catalog\.pg_namespace n on n\.oid=e\.extnamespace where e\.extname='pgcrypto' and n\.nspname='extensions'\)/g,
+    "pg_catalog.to_regprocedure('fixture_support.digest(text,text)') is null")
+  .replace(/\b(?:public|extensions)\.digest\s*\(/gi,'fixture_support.digest(');
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');

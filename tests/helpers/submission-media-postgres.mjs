@@ -9,23 +9,63 @@ export const foundation = migrations.filter(x=>x.includes('slice3_submission_med
 export const source = p=>readFileSync(new URL(p,root),'utf8');
 // No DSN/environment option: only the disposable local Unix socket is accepted.
 // PG environment is cleared so .pgpass/PGSERVICE cannot redirect this harness.
-export function psql(db,sql,{allowFailure=false}={}) {
+export function psql(db,sql,{allowFailure=false,user='slice3_fixture_admin'}={}) {
  return new Promise((resolve,reject)=>{
-  const child=spawn('psql',['-X','-q','-A','-t','-P','null=null','-h','/private/tmp','-p','55439','-U','postgres','-d',db,'-v','ON_ERROR_STOP=1'],{env:{PATH:process.env.PATH,LC_ALL:'C'},stdio:['pipe','pipe','pipe']});
+  const child=spawn('psql',['-X','-q','-A','-t','-P','null=null','-h','/private/tmp','-p','55440','-U',user,'-d',db,'-v','ON_ERROR_STOP=1'],{env:{PATH:process.env.PATH,LC_ALL:'C'},stdio:['pipe','pipe','pipe']});
   let out='',err='';child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',reject);
   child.on('close',code=>code&&!allowFailure?reject(Error(err.trim())):resolve({code,out:out.trim(),err:err.trim()}));child.stdin.end(sql);
  });
 }
-export async function fixture({apply=true,seed=true}={}) {
+export const storageSetup='docs/slice3-foundation/storage-protection.sql';
+export async function fixture({apply=true,seed=true,storage=true}={}) {
  const name='slice3_test_'+randomUUID().replaceAll('-','');
- await psql('postgres',`create database ${name}`);
+ await psql('postgres',`do $$ begin if not exists(select 1 from pg_roles where rolname='postgres') then create role postgres login nosuperuser createdb createrole bypassrls; end if; end $$; create database ${name} owner postgres`);
  const db={name,exec:async sql=>psql(name,"select set_config('request.jwt.claim.role','service_role',false);"+sql),query:async sql=>{
   const r=await psql(name,`select coalesce(json_agg(q),'[]') from (${sql}) q`);return {rows:JSON.parse(r.out)};
- },scalar:async sql=>(await psql(name,sql)).out,close:()=>psql('postgres',`drop database ${name} with (force)`)};
+ },scalar:async sql=>(await psql(name,sql)).out,
+ install:sql=>psql(name,sql,{user:'postgres'}),
+ setup:()=>psql(name,'set role supabase_storage_admin;'+source(storageSetup)),
+ close:()=>psql('postgres',`drop database ${name} with (force)`)};
  try {
-  const bootstrap=fixtureBootstrapSql.replace(/create role (anon|authenticated|service_role)( bypassrls)?;/g,(_,role,extra)=>`do $$ begin if not exists(select 1 from pg_roles where rolname='${role}') then create role ${role}${extra||''}; end if; end $$;`);
-  await db.exec(bootstrap);
-  for(const m of migrations.filter(x=>apply||!foundation.includes(x))) await db.exec(source('supabase/migrations/'+m));
+  const bootstrap=fixtureBootstrapSql.replace(/create role (anon|authenticated|service_role|supabase_storage_admin)( bypassrls)?;/g,(_,role,extra)=>`do $$ begin if not exists(select 1 from pg_roles where rolname='${role}') then create role ${role}${extra||''}; end if; end $$;`);
+  await db.install(bootstrap);
+  for(const m of migrations.filter(x=>!foundation.includes(x))) await db.install(source('supabase/migrations/'+m));
+  // Supabase-shaped installation: legacy bootstrap/replay uses postgres, then the
+  // disposable admin models provider ownership. ALL Slice 3 operations use the
+  // real non-superuser postgres login. Auth/Storage owners remain unrelated roles.
+  await db.exec(`
+   do $$ begin if not exists(select 1 from pg_roles where rolname='supabase_auth_admin') then create role supabase_auth_admin nologin; end if; end $$;
+   create schema extensions;
+   alter extension pgcrypto set schema extensions;
+   grant usage on schema extensions to postgres;
+   alter schema public owner to postgres;
+   do $$ declare r record; begin
+    for r in select n.nspname,c.relname,c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','security_private','commerce_private','rate_limit_private') and c.relkind in ('r','p','v','S') loop
+      execute format('alter %s %I.%I owner to postgres',case when r.relkind='v' then 'view' when r.relkind='S' then 'sequence' else 'table' end,r.nspname,r.relname);
+    end loop;
+    for r in select p.oid::regprocedure as signature from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','security_private','commerce_private','rate_limit_private') loop
+      execute format('alter function %s owner to postgres',r.signature);
+    end loop;
+   end $$;
+   alter schema auth owner to supabase_auth_admin;
+   alter table auth.users owner to supabase_auth_admin;
+   alter table auth.sessions owner to supabase_auth_admin;
+   alter function auth.uid() owner to supabase_auth_admin;
+   alter function auth.role() owner to supabase_auth_admin;
+   alter function auth.jwt() owner to supabase_auth_admin;
+   alter schema storage owner to supabase_storage_admin;
+   alter table storage.objects owner to supabase_storage_admin;
+   alter table storage.buckets owner to supabase_storage_admin;
+   grant usage on schema auth to postgres;
+   grant usage on schema storage to postgres with grant option;
+   grant all on storage.objects,storage.buckets to postgres with grant option;
+   revoke all on schema auth from public;
+   revoke all on schema storage from public;
+   alter role postgres nosuperuser createdb createrole bypassrls;
+   alter role postgres set createrole_self_grant='';
+  `);
+  if(apply) for(const m of foundation) await db.install(source('supabase/migrations/'+m));
+  if(apply&&storage) await db.setup();
   if(seed) await seedDatabase(db);
   return db;
  } catch(e) {await db.close();throw e;}

@@ -25,7 +25,7 @@ const buyerNavigation = [
   { href: "/buyer/dashboard", label: "Overview", icon: Home },
   { href: "/buyer/catalog", label: "Discover music", icon: Search },
   { href: "/buyer/favorites", label: "Saved tracks", icon: Heart },
-  { href: "/buyer/orders", label: "Licenses & orders", icon: ReceiptText },
+  { href: "/buyer/orders", label: "My Purchases", icon: ReceiptText },
   { href: "/buyer/settings", label: "Account settings", icon: Settings }
 ];
 type WorkspaceKind = "artist" | "buyer";
@@ -86,7 +86,7 @@ function WorkspaceShell({ user, children, kind }: { user: SessionUser; children:
               <DropdownMenu.Item asChild><Link href={`/${kind}/dashboard`}>Dashboard</Link></DropdownMenu.Item>
               <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/profile" : "/buyer/settings#account-profile"}>Profile</Link></DropdownMenu.Item>
               <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/payout-settings" : "/buyer/settings"}>{kind === "artist" ? "Payout settings" : "Settings"}</Link></DropdownMenu.Item>
-              <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/catalog" : "/buyer/orders"}>{kind === "artist" ? "Catalog" : "Purchases & orders"}</Link></DropdownMenu.Item>
+              <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/catalog" : "/buyer/orders"}>{kind === "artist" ? "Catalog" : "My Purchases"}</Link></DropdownMenu.Item>
               {kind === "buyer" ? <DropdownMenu.Item asChild><Link href="/buyer/settings#account-notifications">Notification preferences</Link></DropdownMenu.Item> : null}
               <DropdownMenu.Item asChild><Link href="/contact">Help</Link></DropdownMenu.Item>
               <DropdownMenu.Separator className={styles.accountMenuSeparator} />

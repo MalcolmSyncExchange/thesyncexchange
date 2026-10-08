@@ -14,7 +14,10 @@ const db=await database('repository',{seed:false});
 try {
  const canonical=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
  const policies=canonical.policies.filter(p=>p.schema==='storage');
- assert.equal(policies.length,6);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ const legacyPolicies=policies.filter(p=>!p.name.startsWith('submission_media_'));
+ assert.equal(legacyPolicies.length,6);assert.equal(legacyPolicies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ const mediaPolicies=policies.filter(p=>p.name.startsWith('submission_media_'));
+ assert.equal(mediaPolicies.length,7);assert.equal(mediaPolicies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
  assert.ok(policies.some(p=>p.name==='commerce_private_objects' && p.permissive==='RESTRICTIVE'));
  assert.ok(!canonical.triggers.some(t=>['on_auth_user_created','on_auth_user_updated'].includes(t.name)));
  const {rows:[g]}=await db.query(`select

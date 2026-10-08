@@ -125,6 +125,18 @@
     {
       "file": "20261004023241_gate_d_acceptance_functions.sql",
       "sha256": "4d8ed789f5d938028fe86eacfaab14f424e3354761a5d3fe2a5761d1a3802dfc"
+    },
+    {
+      "file": "20261008091022_slice3_submission_media_schema.sql",
+      "sha256": "a3fa50ab0c1dd2e87bad39581494f41f2098357b8c260d40cfcef5b3933492d8"
+    },
+    {
+      "file": "20261008091023_slice3_submission_media_functions.sql",
+      "sha256": "014ab3f0de5f26d31a15ea9e03a4a016b1a5c32577e3420281d881ff4b0bcba5"
+    },
+    {
+      "file": "20261008091024_slice3_submission_media_storage.sql",
+      "sha256": "04a473e748382104676cb0cdcd06bdc148c78b9fa36ddadd1f3d91ea425796cb"
     }
   ],
   "storageBuckets": {

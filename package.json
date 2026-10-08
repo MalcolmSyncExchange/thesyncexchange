@@ -40,7 +40,8 @@
     "test:agreements": "node --test tests/agreement-download.test.mjs",
     "test:gate-d": "node --test --experimental-strip-types tests/gate-d-acceptance.test.mjs tests/gate-d-application.test.mjs tests/gate-d-contract.test.mjs tests/gate-d-receipt.test.mjs tests/purchase-completion-webhook.test.mjs",
     "test:gate-d-concurrency": "node --test tests/gate-d-concurrency.test.mjs",
-    "test:purchases": "node --test --experimental-strip-types tests/buyer-purchases.test.mjs"
+    "test:purchases": "node --test --experimental-strip-types tests/buyer-purchases.test.mjs",
+    "test:submission-media": "node --test --experimental-strip-types tests/submission-media-contract.test.mjs tests/submission-media-postgres.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

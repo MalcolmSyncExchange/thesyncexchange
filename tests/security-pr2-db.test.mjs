@@ -57,7 +57,9 @@ test('profile, finance, buyer and rights boundaries run as real PostgreSQL roles
 test('Storage uses server-authorized mutations, private buckets and all-role referenced-media immutability',()=>fixture(async db=>{
  const path=`${ids.a}/uploads/audio/live.wav`,fresh=`${ids.a}/uploads/audio/fresh.wav`;
  const policies=await read(db,"select policyname,permissive from pg_policies where schemaname='storage'");
- assert.equal(policies.length,6);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ assert.equal(policies.filter(p=>!p.policyname.startsWith('submission_media_')).length,6);
+ assert.equal(policies.filter(p=>p.policyname.startsWith('submission_media_')).length,7);assert.equal(policies.filter(p=>!p.policyname.startsWith('submission_media_') && p.permissive==='RESTRICTIVE').length,4);
+ assert.equal(policies.filter(p=>p.policyname.startsWith('submission_media_') && p.permissive==='RESTRICTIVE').length,4);
  assert.ok(policies.some(p=>p.policyname==='commerce_private_objects' && p.permissive==='RESTRICTIVE'));
  for(const [actor,role] of [[ids.a,'authenticated'],[ids.b,'authenticated'],[ids.buyer,'authenticated'],[ids.admin,'authenticated'],[null,'anon']]) await asActor(db,actor,async()=>{
   for(const bucket of ['avatars','cover-art','track-previews','track-audio','agreements']) {

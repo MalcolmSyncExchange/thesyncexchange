@@ -1,0 +1,21 @@
+import { notFound } from "next/navigation";
+import { ArtistCatalogView } from "@/components/artist/catalog/artist-catalog-view";
+import { ArtistTrackDetail } from "@/components/artist/tracks/artist-track-detail";
+import { ArtistWorkspaceShell } from "@/components/artist/artist-workspace-shell";
+import { PreviewAudioProvider } from "@/components/audio/preview-audio-provider";
+import { env } from "@/lib/env";
+import { sliceBCatalogData, sliceBTrack } from "@/tests/fixtures/visual-slice-b-data";
+
+// Installed temporarily only by the explicit localhost, development-mode test helper.
+export default async function Fixture({ searchParams }: { searchParams: Promise<{ view?: string; state?: string }> }) {
+  if (!env.demoMode || process.env.NODE_ENV !== "development") notFound();
+  const { view, state } = await searchParams;
+  const artist = { id: "fictional-artist", email: "fictional@example.test", role: "artist" as const, fullName: "Maya Sol" };
+  const content = view === "catalog" ? <ArtistCatalogView data={sliceBCatalogData("populated")} />
+    : view === "empty" ? <ArtistCatalogView data={sliceBCatalogData("empty")} />
+    : view === "filtered-empty" ? <ArtistCatalogView data={sliceBCatalogData("filtered-empty")} />
+    : view === "detail" ? <ArtistTrackDetail track={sliceBTrack(state || "approved")} />
+    : null;
+  if (!content) notFound();
+  return <ArtistWorkspaceShell user={artist}><PreviewAudioProvider>{content}</PreviewAudioProvider></ArtistWorkspaceShell>;
+}

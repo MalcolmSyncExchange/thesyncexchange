@@ -1,0 +1,22 @@
+import { notFound } from "next/navigation";
+import { ArtistDashboard } from "@/components/artist/artist-dashboard";
+import { ArtistCatalogView } from "@/components/artist/catalog/artist-catalog-view";
+import { ArtistWorkspaceShell, BuyerWorkspaceShell } from "@/components/artist/artist-workspace-shell";
+import { BuyerDiscoveryProvider } from "@/components/audio/buyer-discovery-provider";
+import { BuyerCatalogBrowser } from "@/components/catalog/buyer-catalog-browser";
+import { PurchaseLibrary } from "@/components/orders/purchase-workspace";
+import surface from "@/components/layout/sync-surface.module.css";
+import { env } from "@/lib/env";
+
+// Copied to an App Router route only by the explicit localhost test helper.
+export default async function Fixture({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  if (!env.demoMode || process.env.NODE_ENV !== "development") notFound();
+  const { view } = await searchParams;
+  const artist = { id: "local-artist", email: "artist@example.test", role: "artist" as const, fullName: "Artist" };
+  const buyer = { id: "local-buyer", email: "buyer@example.test", role: "buyer" as const, fullName: "Buyer" };
+  if (view === "artist-overview") return <ArtistWorkspaceShell user={artist}><ArtistDashboard tracks={[]} summary={{ total: 0, drafts: 0, inReview: 0, live: 0, rejected: 0, archived: 0 }} /></ArtistWorkspaceShell>;
+  if (view === "artist-catalog") return <ArtistWorkspaceShell user={artist}><ArtistCatalogView data={{ items: [], page: 1, pageSize: 12, total: 0, pageCount: 1, query: "", status: "all", counts: { total: 0, discoverable: 0, inReview: 0, drafts: 0, needsAttention: 0 } }} /></ArtistWorkspaceShell>;
+  if (view === "buyer-discovery") return <BuyerWorkspaceShell user={buyer}><BuyerDiscoveryProvider><div className="space-y-6"><div><p className={surface.eyebrow}>Music discovery</p><h1 className={surface.heading}>Find your next sound.</h1><p className={surface.description}>Listen, explore and save music for your next project.</p></div><BuyerCatalogBrowser tracks={[]} basePath="/buyer/catalog" /></div></BuyerDiscoveryProvider></BuyerWorkspaceShell>;
+  if (view === "buyer-purchases") return <BuyerWorkspaceShell user={buyer}><BuyerDiscoveryProvider><PurchaseLibrary data={{ items: [], nextCursor: null, query: "", filter: "all", pageSize: 25 }} /></BuyerDiscoveryProvider></BuyerWorkspaceShell>;
+  notFound();
+}

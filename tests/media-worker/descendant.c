@@ -6,8 +6,16 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <sys/socket.h>
 int main(int argc,char **argv) {
   if(argc!=4)return 64;
+  if(!strcmp(argv[1],"isolation")) {
+    if(socket(AF_INET,SOCK_STREAM,0)!=-1||errno!=EPERM)return 72;
+    if(open("/etc/passwd",O_RDONLY)!=-1||errno!=EACCES)return 73;
+    if(setsid()!=-1||errno!=EPERM)return 74;
+    if(setpgid(0,0)!=-1||errno!=EPERM)return 75;
+    return 0;
+  }
   if(!strcmp(argv[1],"readonly")) {
     int f=open(argv[2],O_WRONLY);
     if(f!=-1){write(f,"MUTATED",7);close(f);return 70;}

@@ -18,3 +18,7 @@
 !services/media-broker/
 !services/media-broker/common.mjs
 !services/media-broker/auth.mjs
+
+!services/media-broker/runtime-rootfs.py
+
+!tests/media-worker/resource.mjs

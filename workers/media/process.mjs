@@ -5,7 +5,7 @@ import { MediaError, limits } from './errors.mjs';
 const launcher = fileURLToPath(new URL('sandbox.py', import.meta.url));
 export const FFMPEG_VERSION = '9.0.2';
 export class MediaTools {
-  constructor(toolDir, python = '/usr/bin/python3') { this.toolDir = toolDir; this.python = python; this.peakParserRss=0; }
+  constructor(toolDir, python = '/usr/bin/python3') { this.toolDir = toolDir; this.python = python; this.peakParserRss=0; this.parserCpuMicros=0; }
   async run(tool, args, { signal, onData, maxBytes = limits.probeBytes, fileLimit = 4_000_000, timeout = limits.processMs, readOnly = false } = {}) {
     if(signal?.aborted)throw new MediaError('worker_lease_expired');
     return new Promise((resolve, reject) => {
@@ -31,7 +31,7 @@ export class MediaTools {
       // Exit occurs even if descendants keep pipes open. End all mutation
       // capability before close resolves and output validation starts.
       child.on('exit',kill);
-      child.on('close', code => { kill();clearTimeout(timer);signal?.removeEventListener('abort',abort);try{const rss=JSON.parse(stats).peak_rss_bytes;if(Number.isSafeInteger(rss)&&rss>0)this.peakParserRss=Math.max(this.peakParserRss,rss);}catch{/* unavailable on killed process */}if (failure || code !== 0) reject(failure || new MediaError('audio_unreadable')); else resolve(Buffer.concat(chunks)); });
+      child.on('close', code => { kill();clearTimeout(timer);signal?.removeEventListener('abort',abort);try{const measured=JSON.parse(stats),rss=measured.peak_rss_bytes;for(const key of ['cpu_user_us','cpu_system_us'])if(Number.isSafeInteger(measured[key])&&measured[key]>=0)this.parserCpuMicros+=measured[key];if(Number.isSafeInteger(rss)&&rss>0)this.peakParserRss=Math.max(this.peakParserRss,rss);}catch{/* unavailable on killed process */}if (failure || code !== 0) reject(failure || new MediaError('audio_unreadable')); else resolve(Buffer.concat(chunks)); });
     });
   }
   async verify() {

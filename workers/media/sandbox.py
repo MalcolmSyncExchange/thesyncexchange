@@ -68,5 +68,5 @@ pid = os.fork()
 if pid == 0:
     os.execve(base + '/' + tool, [tool] + sys.argv[3:], {'PATH':'/usr/bin:/bin', 'LC_ALL':'C', 'HOME':'/nonexistent'})
 _, status, usage = os.wait4(pid, 0)
-os.write(3, json.dumps({'peak_rss_bytes':int(usage.ru_maxrss * (1024 if sys.platform == 'linux' else 1))}).encode())
+os.write(3, json.dumps({'peak_rss_bytes':int(usage.ru_maxrss * (1024 if sys.platform == 'linux' else 1)), 'cpu_user_us':int(usage.ru_utime*1000000), 'cpu_system_us':int(usage.ru_stime*1000000)}).encode())
 sys.exit(os.waitstatus_to_exitcode(status) if sys.version_info >= (3,9) else (status >> 8))

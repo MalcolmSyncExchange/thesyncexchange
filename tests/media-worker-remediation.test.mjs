@@ -51,7 +51,7 @@ test('output identity: symlink, hardlink, directory, FIFO, traversal and outside
   const path=join(scratch,'output');await symlink(outside,path);await assert.rejects(hashFile(path,4e6),/validation_failed/);
   await unlink(path);await link(outside,path);await assert.rejects(hashFile(path,4e6),/validation_failed/);await unlink(path);
   await mkdir(path);await assert.rejects(hashFile(path,4e6),/validation_failed/);await rm(path,{recursive:true});
-  execFileSync('mkfifo',[path]);await assert.rejects(hashFile(path,4e6),/validation_failed/);await unlink(path);
+  execFileSync('/usr/bin/python3',['-c','import os,sys;os.mkfifo(sys.argv[1])',path]);await assert.rejects(hashFile(path,4e6),/validation_failed/);await unlink(path);
   await assert.rejects(openRegular(outside,scratch,4e6),/validation_failed/);
   await assert.rejects(openRegular(scratch+'/../outside',scratch,4e6),/validation_failed/);
   assert.equal(await readFile(outside,'utf8'),'dummy-marker');
@@ -82,6 +82,7 @@ test('parser process groups: descendants cannot keep writing after success, fail
   if(!toolDir){t.skip('native descendant fixture is exercised in the Linux container');return;}
   await fixture(async d=>{
     const tools=new MediaTools(toolDir);
+    await tools.run('ffmpeg',['isolation',join(d,'unused1'),join(d,'unused2')],{readOnly:true,maxBytes:0});
     const readonly=join(d,'readonly');await writeFile(readonly,'unchanged');
     await tools.run('ffmpeg',['readonly',readonly,join(d,'unused')],{readOnly:true,maxBytes:0});
     assert.equal(await readFile(readonly,'utf8'),'unchanged');

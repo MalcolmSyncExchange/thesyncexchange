@@ -32,7 +32,7 @@ test('two dispatchers: same correlation returns one permit, one invoke; global s
 }));
 test('expired permit / stale lease cannot claim another queued job or complete',()=>setup(async(db,pool)=>{
  const j=await queued(db),other=await queued(db),p=await permit(pool,j);
- await db.exec(`update submission_media.execution_permits set created_at=clock_timestamp()-interval '16 minutes',expires_at=clock_timestamp()-interval '1 minute' where id='${p}'`);await assert.rejects(rpc(pool,'claim_targeted_job',[p,execution]));
+ await db.exec(`update submission_media.execution_permits set created_at=statement_timestamp()-interval '16 minutes',expires_at=statement_timestamp()-interval '1 minute' where id='${p}'`);await assert.rejects(rpc(pool,'claim_targeted_job',[p,execution]));
  const fresh=await rpc(pool,'create_execution_permit',args(j));await rpc(pool,'request_execution',[fresh.permit_id,'123456789']);await rpc(pool,'bind_execution',[fresh.permit_id,'123456789',execution+'-2']);const c=await rpc(pool,'claim_targeted_job',[fresh.permit_id,execution+'-2']);
  await db.exec(`update submission_media.jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${j.id}'`);
  await assert.rejects(rpc(pool,'resolve_execution_lease',[fresh.permit_id,execution+'-2',j.id,c.lease_epoch,c.lease_token]));await assert.rejects(rpc(pool,'complete_execution',[fresh.permit_id,execution+'-2',j.id,c.lease_epoch,c.lease_token,masterResult(),null]));assert.equal(await db.scalar(`select attempt from submission_media.jobs where id='${other.id}'`),'0');

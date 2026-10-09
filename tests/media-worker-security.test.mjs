@@ -12,7 +12,7 @@ test('source boundaries: no commerce, service keys, shell, URL fetching or activ
  for(const f of files){const s=await read(f);assert.doesNotMatch(s,/SUPABASE_SERVICE_ROLE|STRIPE|process\.env\.(?!MEDIA_TOOL)|shell:\s*true|execSync|fetch\(|media_accept|media_decide|media_request_master_review/);}
  const sql=await read('supabase/migrations/20261008231329_slice3_media_worker_fenced_io.sql');
  assert.match(sql,/security definer set search_path=''/);assert.match(sql,/for update/);assert.match(sql,/lease_token<>p_token/);assert.match(sql,/lease_expires_at<=clock_timestamp/);assert.match(sql,/from public,anon,authenticated,service_role/);assert.doesNotMatch(sql,/create policy|create trigger .* on storage|insert into|update public|commerce_private|gate_d/);
- const docker=await read('workers/media/Dockerfile');assert.match(docker,/USER 1000:1000/);assert.match(docker,/sha256:173f/);assert.doesNotMatch(docker,/COPY \.|ARG .*KEY|ENV .*KEY/);assert.match(docker,/FROM scratch/);assert.match(docker,/VALIDSIG FCF986/);
+ const docker=await read('workers/media/Dockerfile');assert.match(docker,/USER 1000:1000/);assert.match(docker,/node:26\.11\.1-trixie-slim@sha256:193fe51b64e77981119c98c2002c9e32a70e2f006fb4d25068ce0558998917f0/);assert.doesNotMatch(docker,/COPY \.|ARG .*KEY|ENV .*KEY/);assert.match(docker,/FROM scratch/);assert.match(docker,/VALIDSIG FCF986/);
  const sandbox=await read('workers/media/sandbox.py');assert.match(sandbox,/RLIMIT_AS/);assert.match(sandbox,/RLIMIT_FSIZE/);assert.match(sandbox,/seccomp/);assert.match(sandbox,/os\.execve/);
 });
 test('output capability binds tuple/profile/destination, expires, is one-use and rechecks lease at write',async()=>{

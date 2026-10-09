@@ -11,6 +11,7 @@ os.chown(root/'work',1000,1000); os.chmod(root/'work',0o700)
 files = set()
 def copy(path):
     p=pathlib.Path(path); real=p.resolve(strict=True)
+    if real.stat().st_mode & 0o6000: raise RuntimeError('Setuid/setgid runtime file forbidden')
     target=root/str(real).lstrip('/'); target.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy2(real,target); files.add(str(real))
     alias=root/str(p).lstrip('/')

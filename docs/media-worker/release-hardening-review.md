@@ -1,3 +1,7 @@
+# Historical release-hardening assessment — superseded
+
+This Node24 candidate report is retained as prior evidence. The authoritative remediation source review is `release-runtime-remediation.md`; exact candidate results are in the separately sealed release evidence record. Do not use the historical approval or scan totals below for the new runtime.
+
 # Media release hardening candidate
 
 Source-only continuation of `039eb12444ac260dc563f50996f46d0871af0319`. No hosted migration, account, Storage, worker, job, capability, image push or deployment is authorized or executed. The earlier deployment review's image figures are historical baseline evidence; this document supersedes its container/runtime candidate assessment only.

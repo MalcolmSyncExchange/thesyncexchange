@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { leaseOf } from './broker.mjs';
@@ -11,7 +11,7 @@ export async function runOne(broker,tools,buildDigest,log=()=>{}) {
   const l=leaseOf(claimed),controller=new AbortController();let leaseLost=false, heartbeatRunning=false;
   const heartbeat=setInterval(async()=>{if(heartbeatRunning)return;heartbeatRunning=true;try{await broker.heartbeat(l);}catch{leaseLost=true;controller.abort();}finally{heartbeatRunning=false;}},30000);
   const deadline=setTimeout(()=>controller.abort(),540000);
-  const directory=await mkdtemp(join(tmpdir(),'tse-media-'));const input=join(directory,'input'),output=join(directory,'output');
+  const directory=await realpath(await mkdtemp(join(tmpdir(),'tse-media-')));const input=join(directory,'input'),output=join(directory,'output');
   try {
     const job=await broker.read(l,input,controller.signal);
     if(job.asset_id!==claimed.asset_id||job.job_type!==claimed.job_type||job.profile!==profiles[job.job_type]||job.profile!==claimed.profile)throw new MediaError('worker_lease_expired');
@@ -28,7 +28,7 @@ export async function runOne(broker,tools,buildDigest,log=()=>{}) {
       default:throw new MediaError('worker_lease_expired');
     }
     if(leaseLost)throw new MediaError('worker_lease_expired');
-    if(job.source) {const c=await broker.authorizeOutput(l);await broker.writeOutput(l,c,output,controller.signal);}
+    if(job.source) {const c=await broker.authorizeOutput(l);await broker.writeOutput(l,c,result,controller.signal);}
     const outcome=await broker.complete(l,{...result,build_digest:buildDigest});
     log({job_id:job.job_id,asset_id:job.asset_id,profile:job.profile,state:'completed'});return outcome;
   } catch(error) {

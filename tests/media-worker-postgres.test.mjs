@@ -10,6 +10,7 @@ import { MediaTools } from '../workers/media/process.mjs';
 import { runOne } from '../workers/media/worker.mjs';
 import { tone } from './media-worker/fixtures.mjs';
 import { waveform,hashFile } from '../workers/media/media.mjs';
+import { verifyOutput } from '../workers/media/files.mjs';
 const digest='sha256:'+'b'.repeat(64);
 const tools=new MediaTools(process.env.MEDIA_TOOL_DIR||'/private/tmp/slice3-media-tools/bin');
 async function setup(body) {
@@ -50,15 +51,15 @@ test('real PostgreSQL fencing: takeover denies old output/read/complete, new lea
  const old=await c.mediaBroker.claim(),l=leaseOf(old),cap=await c.mediaBroker.authorizeOutput(l);
  await c.db.exec(`update submission_media.jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${old.job_id}'`);
  const next=await c.mediaBroker.claim();assert.equal(next.lease_epoch,old.lease_epoch+1);
- const output=join(c.dir,'out');await writeFile(output,'synthetic-local-output');
- await assert.rejects(c.mediaBroker.writeOutput(l,cap,output),/worker_lease_expired/);
+ const output=join(c.dir,'out');await writeFile(output,'synthetic-local-output');const proof=await verifyOutput(output,2e6,undefined,async()=>({}));
+ await assert.rejects(c.mediaBroker.writeOutput(l,cap,proof),/worker_lease_expired/);
  await assert.rejects(c.mediaBroker.read(l,join(c.dir,'old-read')),/worker_lease_expired/);
  await assert.rejects(c.mediaBroker.complete(l,masterResult()),/worker_lease_expired/);
  assert.equal(c.objects.destinations.size,0);
  const fresh=leaseOf(next);await c.mediaBroker.heartbeat(fresh);const newCap=await c.mediaBroker.authorizeOutput(fresh);
- await c.mediaBroker.writeOutput(fresh,newCap,output);assert.equal(c.objects.destinations.size,1);
- await assert.rejects(c.mediaBroker.writeOutput(fresh,newCap,output),/worker_lease_expired/);
- const replay=await c.mediaBroker.writeOutput(fresh,await c.mediaBroker.authorizeOutput(fresh),output);assert.equal(replay.object_id,c.objects.destinations.values().next().value);assert.equal(c.objects.destinations.size,1);
+ await c.mediaBroker.writeOutput(fresh,newCap,proof);assert.equal(c.objects.destinations.size,1);
+ await assert.rejects(c.mediaBroker.writeOutput(fresh,newCap,proof),/worker_lease_expired/);
+ const replay=await c.mediaBroker.writeOutput(fresh,await c.mediaBroker.authorizeOutput(fresh),proof);assert.equal(replay.object_id,c.objects.destinations.values().next().value);assert.equal(c.objects.destinations.size,1);
 }));
 test('real PostgreSQL: output commit holds lease lock; concurrent takeover cannot race destination creation',()=>setup(async c=>{
  const s=await submission(c.db),path=join(c.dir,'tone');await tone(path,{seconds:2});await input(c,s,path);await runOne(c.mediaBroker,tools,digest);const job=await c.mediaBroker.claim(),l=leaseOf(job);
@@ -98,10 +99,10 @@ test('real PostgreSQL: broker restart and lease takeover recover exact durable o
  const s=await submission(c.db),path=join(c.dir,'tone');await tone(path,{seconds:2});await input(c,s,path);await runOne(c.mediaBroker,tools,digest);
  const job=await c.mediaBroker.claim(),l=leaseOf(job),local=join(c.dir,'input'),output=join(c.dir,'out');
  const facts=await c.mediaBroker.read(l,local);const result=await waveform(tools,local,facts.source,facts.source,output);
- const first=await c.mediaBroker.writeOutput(l,await c.mediaBroker.authorizeOutput(l),output);
+ const first=await c.mediaBroker.writeOutput(l,await c.mediaBroker.authorizeOutput(l),result);
  const restarted=new MediaBroker(c.authority,c.objects);
  await c.db.exec(`update submission_media.jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${job.job_id}'`);
  const next=await restarted.claim(),fresh=leaseOf(next);await assert.rejects(restarted.complete(l,{...result,build_digest:digest}),/worker_lease_expired/);
- const recovered=await restarted.writeOutput(fresh,await restarted.authorizeOutput(fresh),output);assert.equal(recovered.object_id,first.object_id);assert.equal(c.objects.destinations.size,1);
+ const recovered=await restarted.writeOutput(fresh,await restarted.authorizeOutput(fresh),result);assert.equal(recovered.object_id,first.object_id);assert.equal(c.objects.destinations.size,1);
  await restarted.complete(fresh,{...result,build_digest:digest});assert.equal(await c.db.scalar(`select state from submission_media.jobs where id='${job.job_id}'`),'succeeded');
 }));

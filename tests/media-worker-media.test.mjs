@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm, open } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, open, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MediaTools } from '../workers/media/process.mjs';
 import { validateSource,validateArtwork,waveform,preview,region,hashFile } from '../workers/media/media.mjs';
 import { tone,png } from './media-worker/fixtures.mjs';
 const tools=new MediaTools(process.env.MEDIA_TOOL_DIR||'/private/tmp/slice3-media-tools/bin');
-async function run(body){const dir=await mkdtemp(join(tmpdir(),'media-test-'));try{await tools.verify();await body(dir);}finally{await rm(dir,{recursive:true,force:true});}}
+async function run(body){const dir=await realpath(await mkdtemp(join(tmpdir(),'media-test-')));try{await tools.verify();await body(dir);}finally{await rm(dir,{recursive:true,force:true});}}
 const identity=s=>({asset_id:'11111111-1111-4111-8111-111111111111',object_id:'22222222-2222-4222-8222-222222222222',version:'version-1',sha256:s.sha256});
 test('source: WAV AIFF FLAC complete decoding, hashes, mono/stereo, rate/duration bounds and corrupt inputs',()=>run(async d=>{
  const wav=join(d,'source.wav');await tone(wav);const original=await validateSource(tools,wav);assert.equal(original.frames,30*44100);assert.equal(original.bit_depth,16);assert.equal(original.sha256,(await hashFile(wav,250e6)).sha256);

@@ -4,6 +4,7 @@ import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { MediaBroker } from '../workers/media/broker.mjs';
 import { safeError,MediaError } from '../workers/media/errors.mjs';
+import { verifyOutput } from '../workers/media/files.mjs';
 import { MediaTools } from '../workers/media/process.mjs';
 const root=new URL('../',import.meta.url),read=p=>readFile(new URL(p,root),'utf8');
 test('source boundaries: no commerce, service keys, shell, URL fetching or activation',async()=>{
@@ -19,11 +20,11 @@ test('output capability binds tuple/profile/destination, expires, is one-use and
  let live=true,writes=0,rechecks=0;
  const authority={async withLease(lease,fn){if(!live||lease.lease_epoch!==l.lease_epoch)throw new MediaError('worker_lease_expired');return fn({...job},async()=>{rechecks++;if(!live)throw new MediaError('worker_lease_expired');},async()=>{});}};
  const storage={async createExact(_job,_path,facts){writes++;return {bytes:facts.actual_bytes,sha256:facts.sha256};}};
- const b=new MediaBroker(authority,storage),d=await mkdtemp('/private/tmp/cap-test-'),p=d+'/output';await writeFile(p,'x');
+ const b=new MediaBroker(authority,storage),d=await mkdtemp('/private/tmp/cap-test-'),p=d+'/output';await writeFile(p,'x');const proof=await verifyOutput(p,4e6,undefined,async()=>({}));
  try {
-  const c=await b.authorizeOutput(l);live=false;await assert.rejects(b.writeOutput(l,c,p));assert.equal(writes,0);live=true;
-  const wrong=await b.authorizeOutput(l);job.path='substituted';await assert.rejects(b.writeOutput(l,wrong,p));assert.equal(writes,0);job.path='trusted-only';
-  const exact=await b.authorizeOutput(l);await b.writeOutput(l,exact,p);assert.equal(writes,1);assert.equal(rechecks,2);await assert.rejects(b.writeOutput(l,exact,p));
+  const c=await b.authorizeOutput(l);live=false;await assert.rejects(b.writeOutput(l,c,proof));assert.equal(writes,0);live=true;
+  const wrong=await b.authorizeOutput(l);job.path='substituted';await assert.rejects(b.writeOutput(l,wrong,proof));assert.equal(writes,0);job.path='trusted-only';
+  const exact=await b.authorizeOutput(l);await b.writeOutput(l,exact,proof);assert.equal(writes,1);assert.equal(rechecks,2);await assert.rejects(b.writeOutput(l,exact,proof));
   await assert.rejects(b.authorizeOutput({...l,path:'../escape'}));await assert.rejects(b.authorizeOutput({...l,bucket:'foreign'}));
  }finally{await rm(d,{recursive:true,force:true});}
 });

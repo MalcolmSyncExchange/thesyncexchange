@@ -10,7 +10,7 @@ resource.setrlimit(resource.RLIMIT_NOFILE, (32, 32))
 resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 if sys.platform == 'linux':
     resource.setrlimit(resource.RLIMIT_AS, (805_306_368, 805_306_368))
-    # Linux seccomp: deny creation of network sockets. Architecture is build-pinned.
+    # Linux seccomp: deny sockets and process-group escape. Architecture is build-pinned.
     import ctypes, platform
     machine = platform.machine()
     network_calls = {'x86_64': [41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,288], 'aarch64': list(range(198,213)) + [242]}.get(machine)
@@ -24,7 +24,8 @@ if sys.platform == 'linux':
     entries = [Filter(0x20,0,0,4), Filter(0x15,1,0,architecture), Filter(0x06,0,0,0x80000000), Filter(0x20,0,0,0)]
     # Reject the alternate x32 syscall ABI as well as incompatible architectures.
     entries += [Filter(0x45,0,1,0x40000000), Filter(0x06,0,0,0x00050001)]
-    for number in network_calls:
+    group_escape = {'x86_64':[109,112], 'aarch64':[154,157]}[machine]
+    for number in network_calls + group_escape:
         entries += [Filter(0x15,0,1,number), Filter(0x06,0,0,0x00050001)]
     entries += [Filter(0x06,0,0,0x7fff0000)]
     filters = (Filter * len(entries))(*entries)
@@ -48,7 +49,7 @@ if sys.platform == 'linux':
         sys.exit(64)
     read = (1 << 0) | (1 << 2) | (1 << 3)
     work = os.environ['MEDIA_WORK_DIR']
-    for path, access in [(os.environ['MEDIA_TOOL_DIR'],read),('/lib',read),('/usr/lib',read),('/etc/ld.so.cache',1 << 2),(work,handled)]:
+    for path, access in [(os.environ['MEDIA_TOOL_DIR'],read),('/lib',read),('/usr/lib',read),('/etc/ld.so.cache',1 << 2),(work,read if os.environ.get('MEDIA_READ_ONLY') == '1' else handled & ~((1 << 12) | (1 << 13)))]:
         if not os.path.exists(path):
             continue
         parent = os.open(path,os.O_PATH | os.O_CLOEXEC)

@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import { open, stat, mkdir, chmod } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { hashFile } from './media.mjs';
+import { readBounded, withVerifiedOutput } from './files.mjs';
 import { deny, MediaError } from './errors.mjs';
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 function lease(value) {
@@ -60,17 +61,18 @@ export class MediaBroker {
       const capability=randomUUID();this.#outputs.set(capability,{lease:l,job,expires:Date.now()+30000});return capability;
     });
   }
-  async writeOutput(l,capability,path,signal) {
+  async writeOutput(l,capability,output,signal) {
     lease(l);const c=this.#outputs.get(capability);this.#outputs.delete(capability);
     if(!c||c.expires<Date.now()||c.lease.job_id!==l.job_id||c.lease.lease_epoch!==l.lease_epoch||c.lease.lease_token!==l.lease_token)deny();
-    const facts=await hashFile(path,c.job.max_bytes);
+    return withVerifiedOutput(output,c.job.max_bytes,signal,async(file,facts)=>{
     // Staging bytes grants no authority. The row lock and live expiry are checked
     // immediately before create; independent recheck follows object observation.
     return this.authority.withLease(l,async(job,recheck,record)=>{
       if(job.asset_id!==c.job.asset_id||job.profile!==c.job.profile||job.bucket!==c.job.bucket||job.path!==c.job.path)deny();
-      await recheck();const identity=job.output?await this.storage.inspectExact(job.output):await this.storage.createExact(job,path,facts,signal);
+      await recheck();const identity=job.output?await this.storage.inspectExact(job.output):await this.storage.createExact(job,file,facts,signal);
       if(identity.sha256!==facts.sha256||identity.bytes!==facts.actual_bytes)throw new MediaError('checksum_mismatch');
-      await recheck();await record(identity);return identity;
+      await file.assertStable();await recheck();await record(identity);return identity;
+    });
     });
   }
   async complete(l,result) {
@@ -103,12 +105,18 @@ export class LocalObjects {
     if(!uuid.test(identity.object_id)||!identity.version)deny();const path=this.objects.get(identity.object_id)?.path||this.root+'/'+identity.object_id;
     const facts=await hashFile(path,4e6);if(facts.sha256!==identity.sha256||facts.actual_bytes!==Number(identity.bytes))deny();return {...identity,bytes:facts.actual_bytes};
   }
-  async createExact(job,path,facts,signal) {
+  async createExact(job,file,facts,signal) {
     if(signal?.aborted)deny();const dest=job.bucket+'/'+job.path;
     if(this.destinations.has(dest))deny();
     await mkdir(this.root,{recursive:true,mode:0o700});const object_id=randomUUID(),version=randomUUID(),output=this.root+'/'+object_id;
     // Broker-owned copy avoids trusting a mutable worker file after hashing it.
-    const f=await open(output,'wx',0o600);try{await pipeline(createReadStream(path),f.createWriteStream(),{signal});}finally{await f.close();}
+    const f=await open(output,'wx',0o600);
+    try {
+      let position=0;const copied=await readBounded(file,job.max_bytes,signal,async chunk=>{
+        let offset=0;while(offset<chunk.length){const n=await f.write(chunk,offset,chunk.length-offset,position);offset+=n.bytesWritten;position+=n.bytesWritten;}
+      });
+      if(copied.sha256!==facts.sha256||copied.actual_bytes!==facts.actual_bytes)throw new MediaError('checksum_mismatch');
+    }finally{await f.close();}
     const observed=await hashFile(output,job.max_bytes);if(observed.sha256!==facts.sha256||observed.actual_bytes!==facts.actual_bytes)throw new MediaError('checksum_mismatch');
     await chmod(output,0o400);const identity={object_id,version,bytes:observed.actual_bytes,sha256:observed.sha256};
     // A failed/uncertain metadata observation retains a private, unreferenced blob.

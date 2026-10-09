@@ -11,3 +11,6 @@
 !tests/media-worker/fixtures.mjs
 !tests/media-worker/webp-fixtures.json
 !tests/media-worker/mp3-fixture.json
+
+!tests/media-worker-remediation.test.mjs
+!tests/media-worker/descendant.c

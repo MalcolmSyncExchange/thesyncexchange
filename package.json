@@ -42,7 +42,7 @@
     "test:gate-d-concurrency": "node --test tests/gate-d-concurrency.test.mjs",
     "test:purchases": "node --test --experimental-strip-types tests/buyer-purchases.test.mjs",
     "test:submission-media": "node --test --experimental-strip-types tests/submission-media-contract.test.mjs tests/submission-media-postgres.test.mjs",
-    "test:media-worker": "node --test --experimental-strip-types tests/media-worker-media.test.mjs tests/media-worker-postgres.test.mjs tests/media-worker-security.test.mjs"
+    "test:media-worker": "node --test --experimental-strip-types tests/media-worker-media.test.mjs tests/media-worker-postgres.test.mjs tests/media-worker-security.test.mjs tests/media-worker-remediation.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

@@ -1,48 +1,56 @@
 {
   "worker": {
-    "passed": 16,
+    "passed": 22,
     "failed": 0,
-    "sha256": "dd7361a9ad8e6cdaa530782f9c5cc33dd615755136b28b40e7872c750db2c738"
+    "skipped": 1,
+    "sha256": "1dcb797245eef816bec3bcd13829367c2982210cdac99a98e40fd12ad6ce045b",
+    "skipReason": "native descendant fixture tested on Linux container, not macOS"
   },
   "foundation": {
     "passed": 20,
     "failed": 0,
-    "sha256": "68662653eb0758bdd902282cf14deb0de3999844912a321663939b3e176c7abf"
+    "skipped": 0,
+    "sha256": "e90cc88f715c1793343047f8caff3dc761653da0f3ff746eb150cb55bbdf7d37"
   },
   "unit": {
     "passed": 443,
     "failed": 0,
-    "sha256": "fd4875bdc7932e957be9a663609167724dcf0113c5bf62fd94b92743b1b24c6d"
+    "skipped": 0,
+    "sha256": "93e448feecf569b8205bd9ab8332ae800cf3ddd648eba703b6f1ece93a2c3c94"
   },
   "artistBaseline": {
     "passed": 72,
     "failed": 0,
-    "sha256": "cbcdc8b947ca097df1e16ece8167bbef11edfdfef59cb62db0d87e81232d5efa"
+    "skipped": 0,
+    "sha256": "ca918920cdedb87bff9ee1fd6e96263526cb09ddc81a323f5afe65fd8fa1599d"
   },
   "artistSecurity": {
     "passed": 5,
     "failed": 0,
-    "sha256": "20e6ddf0d28a180e06028c24448a8844c4656045e86fc26428dc337107e32b16"
+    "skipped": 0,
+    "sha256": "d5ae683575a108df221a8f483acd2f6ec20402e65c6c15377e1c34c32dccc017"
   },
   "pr2": {
     "passed": 65,
     "failed": 0,
-    "sha256": "d2ad11462b5403bf944e1ed4c076074b5f1e92bacc9035607d7714e02b43332b"
+    "skipped": 0,
+    "sha256": "bf76a05ca224b48f8aee1fe2e384ac5be6cf41b9b7cc5cea534305338bded81f"
   },
   "container": {
-    "passed": 6,
+    "passed": 13,
     "failed": 0,
-    "sha256": "223ca3ddaee094e5e6c35d2de652bc6290ceebe4ed50fdfb053f9d521b59e31f"
+    "skipped": 0,
+    "sha256": "3d332325a5bd9dcf484179f39b4c2efd4e30ccfedb0f079b1d0f1dd36b7b9ffe"
   },
   "linuxResourceFixture": {
     "fixture_bytes": 172800044,
-    "parser_peak_rss_bytes": 12697600,
-    "node_peak_rss_bytes": 166293504,
+    "parser_peak_rss_bytes": 12763136,
+    "node_peak_rss_bytes": 167153664,
     "waveform_bytes": 360512
   },
   "typecheck": "PASS",
   "lint": "PASS; one existing React Hook Form compiler warning",
-  "build": "PASS; inert local placeholder configuration",
+  "build": "PASS; inert local placeholders; stalled sandboxed compiler stopped and successful local-permission retry",
   "migrationCount": 35,
   "migrationHash": "62da6eac9a058e42aec76022872b680601c91fd62730f7306b6539a5c0809a57",
   "hostedActivity": "NONE",
@@ -51,5 +59,21 @@
     "No hosted broker Storage adapter/identity transport connected",
     "Cloud Run Landlock/seccomp support requires a fail-closed preflight",
     "Apt package snapshot lock and independent FFmpeg release signature verification remain release work"
-  ]
+  ],
+  "discovery": {
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0,
+    "sha256": "75305f62a113a75b4e24effb6cd5bc54369f461af105ac2aceb79a9b0a85a443"
+  },
+  "targetedRegression": {
+    "passed": 61,
+    "failed": 0,
+    "skipped": 0,
+    "sha256": "e1ae0a747c7c9ec9591b01974e8acfa8d5612f7ccb018562f7c8807a8a6b2a04"
+  },
+  "remediationBaseline": "1cf1071309c3dfc8191e25bc15be1d705f5c92f6",
+  "structuralHeaderLimit": 4096,
+  "migrationManifest": "35/35 PASS; unchanged",
+  "diffCheck": "PASS"
 }

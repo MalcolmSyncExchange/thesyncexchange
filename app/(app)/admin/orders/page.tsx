@@ -17,7 +17,7 @@ export default async function AdminOrdersPage() {
       <div className="space-y-4">
         {orders.length ? (
           orders.map((order: any) => (
-            <Card key={order.id}>
+            <Card key={order.id} id={`order-${order.id}`} className="scroll-mt-24">
               <CardContent className="space-y-5 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>

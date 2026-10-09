@@ -1,0 +1,40 @@
+import { notFound } from "next/navigation";
+import { AdminShell } from "@/components/admin-v2/admin-shell";
+import { AdminActionCenter, AdminOverview } from "@/components/admin-v2/operations-view";
+import { buildAdminOperationsSnapshot, type AdminOperationsInput } from "@/lib/admin-v2/operations";
+import { env } from "@/lib/env";
+import AdminLoading from "@/app/(app)/admin/loading";
+
+// Copied into an App Router route only by the explicit localhost test helper.
+export default async function Fixture({ searchParams }: { searchParams: Promise<{ view?: string; state?: string }> }) {
+  if (!env.demoMode || process.env.NODE_ENV !== "development") notFound();
+  const { view, state } = await searchParams;
+  const base: AdminOperationsInput = {
+    checkedAt: "2026-10-09T12:00:00.000Z",
+    counts: { users: 3, tracks: 0, pendingTracks: 0, orders: 0, openFlags: 0, orderExceptions: 0 },
+    pendingTracks: [], openFlags: [], orderExceptions: []
+  };
+  if (state === "populated") {
+    base.counts = { users: 112, tracks: 30, pendingTracks: 2, orders: 14, openFlags: 1, orderExceptions: 1 };
+    base.pendingTracks = [
+      { id: "track-fixture-a", title: "Blue Hour", created_at: "2026-10-08T08:15:00Z" },
+      { id: "track-fixture-b", title: "A Long Fictional Track Name for Responsive Review", created_at: "2026-10-08T10:10:00Z" }
+    ];
+    base.openFlags = [{ id: "flag-fixture-a", track_id: "track-fixture-a", flag_type: "rights_review", severity: "critical", created_at: "2026-10-08T09:30:00Z", track_title: "Blue Hour" }];
+    base.orderExceptions = [{ id: "order-fixture-a", status: "paid", created_at: "2026-10-08T11:00:00Z", agreement_generation_error: true, agreement_generated_at: null }];
+  }
+  if (state === "partial") {
+    base.counts.openFlags = null;
+    base.openFlags = null;
+    base.pendingTracks = [{ id: "track-fixture-a", title: "Blue Hour", created_at: "2026-10-08T08:15:00Z" }];
+    base.counts.pendingTracks = 1;
+  }
+  if (state === "error") {
+    base.counts = { users: null, tracks: null, pendingTracks: null, orders: null, openFlags: null, orderExceptions: null };
+    base.pendingTracks = null; base.openFlags = null; base.orderExceptions = null;
+  }
+  const snapshot = buildAdminOperationsSnapshot(base);
+  const user = { id: "fictional-admin", email: "admin@example.test", role: "admin" as const, fullName: "Fictional Admin" };
+  if (state === "loading") return <AdminShell user={user}><AdminLoading /></AdminShell>;
+  return <AdminShell user={user}>{view === "actions" ? <AdminActionCenter snapshot={snapshot} /> : <AdminOverview snapshot={snapshot} />}</AdminShell>;
+}

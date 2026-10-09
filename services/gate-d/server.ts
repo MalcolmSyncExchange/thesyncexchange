@@ -343,18 +343,21 @@ export async function routeGateDWebhook(input: {
       grant_state: null
     } satisfies GateDWebhookRoute;
   }
-  const { providerAccount } = requireGateDRuntime();
   const client = requireAdminClient();
   const { data, error } = await rpc(client).rpc<GateDWebhookRoute[]>("gate_d_route_webhook", {
     p_checkout_session_id: input.checkoutSessionId,
     p_order_hint: input.orderHint,
-    p_provider_account: providerAccount,
+    // Classification must still detect retained Gate D bindings when its
+    // execution configuration is absent. SQL rejects a bound account mismatch;
+    // an unbound ordinary TEST session does not require Gate D configuration.
+    p_provider_account: serverEnv.stripeAccountId || null,
     p_livemode: input.livemode,
     p_connect_account: input.connectAccount || null
   });
   if (error) throw new Error(`Gate D webhook routing failed: ${error.message}`);
   const route = data?.[0];
   if (!route) throw new Error("Gate D webhook routing returned no classification.");
+  if (route.route_code === "gate_d") requireGateDRuntime();
   return route;
 }
 

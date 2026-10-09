@@ -261,6 +261,17 @@ test('prepare and bind derive trusted facts, retain capabilities OFF, and route 
   const ordinary=await service(db,()=>one(db,`select * from public.gate_d_route_webhook(
     'cs_test_ordinaryfixture',null,'acct_gatefixture',false,null)`));
   assert.equal(ordinary.route_code,'ordinary');
+  const ordinaryWithoutAccount=await service(db,()=>one(db,`select * from public.gate_d_route_webhook(
+    'cs_test_ordinaryfixture',null,null,false,null)`));
+  assert.equal(ordinaryWithoutAccount.route_code,'ordinary');
+  for(const account of ['null',"'acct_wrong'"]) {
+    const boundMismatch=await service(db,()=>one(db,`select * from public.gate_d_route_webhook(
+      'cs_test_gatedfixture','${gateOrder}',${account},false,null)`));
+    assert.equal(boundMismatch.route_code,'conflict');
+    const retainedOrder=await service(db,()=>one(db,`select * from public.gate_d_route_webhook(
+      'cs_test_unknownfixture','${gateOrder}',${account},false,null)`));
+    assert.equal(retainedOrder.route_code,'conflict');
+  }
   await assert.rejects(service(db,()=>one(db,`select * from public.gate_d_route_webhook(
     'cs_test_gatedfixture','${gateOrder}','acct_gatefixture',false,'acct_connected')`)),/rejects Stripe Connect/);
   await assert.rejects(service(db,()=>one(db,`select * from public.gate_d_route_webhook(

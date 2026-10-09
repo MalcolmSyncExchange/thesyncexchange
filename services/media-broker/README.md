@@ -1,0 +1,13 @@
+# Staging-only deployment broker
+
+Source only. Ordinary development exits closed; remote mode requires exact staging config and a nominated execution permit. No hosted installation/deployment/activation is authorized by these files.
+
+The broker verifies Google RS256 issuer, exact audience, expiry, numeric service-account subject and verified email. Cloud Run IAM protects ingress; both HTTP identity layers use dedicated worker/dispatcher identities. No browser role is accepted. The broker resolves destinations inside PostgreSQL; worker requests contain IDs and fenced lease tuples only. Inputs stream with backpressure, count/hash checks and post-stream object recheck. Derivatives are bounded in private scratch, independently hashed, copied create-only and observed under a live lease row lock. Ambiguous private objects remain retained. Completion replay uses the exact canonical result hash.
+
+The separately installed DB login has eleven explicit RPC grants and no membership in the legacy broker role. It has no direct table/Auth/Storage privilege or zero-argument queue claim. Broker source has a fixed RPC allowlist; it never accepts SQL. Secret Manager versions are exact, staging-only, broker-only, memory-only. No credentials go to worker or parser children.
+
+POST endpoints: `/dispatch`, `/bind`, `/status` (dispatcher); `/claim`, `/resolve`, `/heartbeat`, `/input`, `/output`, `/complete` (worker). JSON ≤8192 bytes; evidence ≤4096 bytes; input ≤250,000,000; Preview output ≤4,000,000; waveform ≤2,000,000. Four concurrent requests, 120-second application timeout, 125-second request timeout, 130-second Cloud Run service timeout. No redirects, arbitrary paths, overwrite/delete endpoint or raw error serialization.
+
+Manual dispatcher source calls one nominated permit only. The durable request transition authorizes one invocation; uncertain invocation is reconciled from exact execution overrides, never invoked again blindly. A failure between request persistence and invocation can strand a permit until expiry; an operator must reconcile before a new operation. Worker claim retries the same bound permit briefly while dispatcher records execution identity. One active staging permit globally prevents queue draining.
+
+DB Secret JSON allowlist: host/user/database/port/password, optional public root CA PEM `ca` (≤16384 bytes, no private key). Exact staging direct DB host, role and database are required; TLS always verifies server identity. Future setup must supply the project's approved root CA if the system trust store cannot validate its server chain. Never use rejectUnauthorized:false.

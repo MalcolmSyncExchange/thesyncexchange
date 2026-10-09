@@ -5,7 +5,7 @@ import { fixtureBootstrapSql, seedDatabase, ids, quote } from './artist-baseline
 export { ids, quote };
 export const root = new URL('../../', import.meta.url);
 export const migrations = readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql')).sort();
-export const foundation = migrations.filter(x=>x.includes('slice3_submission_media')||x.includes('slice3_media_worker_fenced_io'));
+export const foundation = migrations.filter(x=>x.includes('slice3_submission_media')||x.includes('slice3_media_worker_fenced_io')||x.includes('slice3_media_execution_permits'));
 export const source = p=>readFileSync(new URL(p,root),'utf8');
 // No DSN/environment option: only the disposable local Unix socket is accepted.
 // PG environment is cleared so .pgpass/PGSERVICE cannot redirect this harness.

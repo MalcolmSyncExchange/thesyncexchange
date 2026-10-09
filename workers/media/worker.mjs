@@ -5,14 +5,16 @@ import { leaseOf } from './broker.mjs';
 import { validateSource, validateArtwork, waveform, preview, region } from './media.mjs';
 import { safeError, MediaError } from './errors.mjs';
 const profiles={source_validation:'source-validator-v1',legacy_source_verification:'source-validator-v1',artwork_validation:'artwork-validator-v1',waveform_generation:'waveform-minmax-v1',preview_generation:'preview-aac-lc-v1'};
-export async function runOne(broker,tools,buildDigest,log=()=>{}) {
+export async function runOne(broker,tools,buildDigest,log=()=>{},signal) {
   if(!/^sha256:[a-f0-9]{64}$/.test(buildDigest))throw new MediaError('temporary_system_error');
-  await tools.verify();const claimed=await broker.claim();if(!claimed)return {state:'idle'};
+  signal?.throwIfAborted();await tools.verify();signal?.throwIfAborted();const claimed=await broker.claim();if(!claimed)return {state:'idle'};
   const l=leaseOf(claimed),controller=new AbortController();let leaseLost=false, heartbeatRunning=false;
+  const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
   const heartbeat=setInterval(async()=>{if(heartbeatRunning)return;heartbeatRunning=true;try{await broker.heartbeat(l);}catch{leaseLost=true;controller.abort();}finally{heartbeatRunning=false;}},30000);
   const deadline=setTimeout(()=>controller.abort(),540000);
-  const directory=await realpath(await mkdtemp(join(tmpdir(),'tse-media-')));const input=join(directory,'input'),output=join(directory,'output');
+  let directory;
   try {
+    directory=await realpath(await mkdtemp(join(tmpdir(),'tse-media-')));const input=join(directory,'input'),output=join(directory,'output');
     const job=await broker.read(l,input,controller.signal);
     if(job.asset_id!==claimed.asset_id||job.job_type!==claimed.job_type||job.profile!==profiles[job.job_type]||job.profile!==claimed.profile)throw new MediaError('worker_lease_expired');
     let result;
@@ -34,5 +36,5 @@ export async function runOne(broker,tools,buildDigest,log=()=>{}) {
   } catch(error) {
     const safe=safeError(error);if(!leaseLost&&safe.code!=='worker_lease_expired')await broker.fail(l,safe.code==='validation_failed'?'audio_unreadable':safe.code);
     log({job_id:l.job_id,state:'failed',code:safe.code});throw safe;
-  } finally {clearInterval(heartbeat);clearTimeout(deadline);controller.abort();await rm(directory,{recursive:true,force:true});}
+  } finally {signal?.removeEventListener('abort',cancel);clearInterval(heartbeat);clearTimeout(deadline);controller.abort();if(directory)await rm(directory,{recursive:true,force:true});}
 }

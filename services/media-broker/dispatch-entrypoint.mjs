@@ -1,0 +1,7 @@
+// Separately authorized manual invocation only. No scheduler or queue draining.
+import {readFile} from 'node:fs/promises';
+import {stagingConfig,requireValue,boundedJson,logEvent} from './common.mjs';
+import {identityToken} from './auth.mjs';
+import {Dispatcher,CloudRunControl} from './dispatcher.mjs';
+export async function manualDispatch(config,nomination,fetcher=fetch){stagingConfig(config);requireValue(config.MEDIA_DISPATCH_CONFIRM==='security-staging-manual','TARGET_MISMATCH');const transport=async(path,value)=>{const token=await identityToken(config.BROKER_AUDIENCE,fetcher);const r=await fetcher(config.BROKER_URL+path,{method:'POST',headers:{Authorization:'Bearer '+token,'X-Serverless-Authorization':'Bearer '+token,'content-type':'application/json'},body:JSON.stringify(value),redirect:'error',signal:AbortSignal.timeout(15000)});requireValue(r.ok,'TEMPORARY_SYSTEM_ERROR');return boundedJson(r,16384);};return new Dispatcher(transport,new CloudRunControl(config,fetcher)).dispatch(nomination);}
+if(process.argv[1]===new URL(import.meta.url).pathname){try{requireValue(process.env.MEDIA_DISPATCH_CONFIRM==='security-staging-manual','TARGET_MISMATCH');const b=await readFile(process.argv[2]);requireValue(b.length<=8192,'PERMIT_INVALID');const result=await manualDispatch(process.env,JSON.parse(b));logEvent(x=>process.stdout.write(JSON.stringify(x)+'\n'),{job_id:result.job_id,permit_id:result.permit_id,execution_id:result.execution_name,stage:result.state});}catch{process.stderr.write('DISPATCH_FAILED\n');process.exitCode=1;}}

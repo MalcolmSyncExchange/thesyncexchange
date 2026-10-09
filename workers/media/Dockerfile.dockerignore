@@ -14,3 +14,7 @@
 
 !tests/media-worker-remediation.test.mjs
 !tests/media-worker/descendant.c
+!services/
+!services/media-broker/
+!services/media-broker/common.mjs
+!services/media-broker/auth.mjs

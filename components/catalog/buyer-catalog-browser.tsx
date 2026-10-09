@@ -1,11 +1,12 @@
 "use client";
 
 import styles from "@/components/buyer/buyer-workspace.module.css";
-import { LayoutGrid, Rows3, SlidersHorizontal, X } from "lucide-react";
+import { LayoutGrid, Music2, Rows3, SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FirstUseState } from "@/components/ui/first-use-state";
 import { useBuyerDiscovery } from "@/components/audio/buyer-discovery-provider";
 import { filterCatalog, defaultCatalogFilters, type CatalogFilters } from "@/lib/catalog-discovery";
 import type { BuyerTrack } from "@/types/models";
@@ -35,6 +36,14 @@ export function BuyerCatalogBrowser({ tracks, basePath, interests }: { tracks: B
   const suggestions = fields.slice(0, 2).flatMap(field => field.options.filter(([value]) =>
     (field.key === "genre" ? interests?.genres : interests?.moods)?.some(interest => interest.toLowerCase() === value.toLowerCase())
   ).map(([value]) => ({ key: field.key, value })));
+  if (tracks.length === 0) {
+    return <FirstUseState
+      icon={Music2}
+      eyebrow="Music discovery · no tracks available"
+      title="New music is on its way."
+      description="There are no tracks ready to browse yet. When eligible music is available, you can search, listen to previews, and review license options here."
+    />;
+  }
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3">
@@ -85,9 +94,9 @@ export function BuyerCatalogBrowser({ tracks, basePath, interests }: { tracks: B
       {filteredTracks.length ? <div className={filters.layout === "grid" ? "grid gap-5 md:grid-cols-2 xl:grid-cols-3" : styles.trackList}>
         {filteredTracks.map(track => <BuyerTrackCard key={track.id} track={track} href={`${basePath}/${track.slug}`} layout={filters.layout} licenseType={filters.licenseType} />)}
       </div> : <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
-        <h3 className="text-lg font-semibold">{tracks.length ? "No tracks match your search" : "New music is on its way"}</h3>
-        <p className="my-3 text-sm text-muted-foreground">{tracks.length ? "Try a different mood, widen your budget, or start again." : "Approved tracks will appear here when they are available."}</p>
-        {tracks.length ? <Button type="button" variant="outline" onClick={() => setFilters(current => ({ ...defaultCatalogFilters, layout: current.layout }))}>Reset search and filters</Button> : null}
+        <h3 className="text-lg font-semibold">No tracks match your search</h3>
+        <p className="my-3 text-sm text-muted-foreground">Try a different mood, widen your budget, or start again.</p>
+        <Button type="button" variant="outline" onClick={() => setFilters(current => ({ ...defaultCatalogFilters, layout: current.layout }))}>Reset search and filters</Button>
       </div>}
     </div>
   );

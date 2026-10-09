@@ -73,6 +73,7 @@ function WorkspaceShell({ user, children, kind }: { user: SessionUser; children:
             <AccountLinks pathname={pathname} onNavigate={closeMenu} kind={kind} />
           </Dialog.Content>
         </Dialog.Root>
+        <Link href="/" className={styles.mobileBrand} aria-label="The Sync Exchange home"><BrandLogo priority alt="" /></Link>
         <span className={styles.workspaceLabel}>{label}</span>
         <ThemeToggle className={styles.themeToggle} />
         <DropdownMenu.Root>

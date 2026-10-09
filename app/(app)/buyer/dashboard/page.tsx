@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowRight, ChevronRight, Music2 } from "lucide-react";
 import { BuyerSearch } from "@/components/buyer/buyer-search";
 import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
+import { FirstUseState } from "@/components/ui/first-use-state";
+import { Button } from "@/components/ui/button";
 import { getBuyerDashboardData } from "@/services/buyer/queries";
 import { requireSession } from "@/services/auth/session";
 import surface from "@/components/layout/sync-surface.module.css";
@@ -11,9 +13,22 @@ import styles from "@/components/buyer/buyer-workspace.module.css";
 export default async function BuyerDashboardPage() {
   const user = await requireSession("buyer");
   const { favorites, orders, featuredTracks, catalogCount } = await getBuyerDashboardData(user.id);
+  const firstUse = catalogCount === 0 && favorites.length === 0 && orders.length === 0;
   return <div className={styles.dashboard}>
-    <header><p className={surface.eyebrow}>Buyer overview</p><h1 className={surface.heading}>Your next project starts here.</h1><p className={surface.description}>Find a sound that fits. Pick up a shortlist. Bring your next idea to life.</p><BuyerSearch /></header>
-    <div className={styles.metrics}>
+    <header><p className={surface.eyebrow}>Buyer overview</p><h1 className={surface.heading}>Your next project starts here.</h1><p className={surface.description}>{firstUse ? "Your music search and purchase records have a home here." : "Find a sound that fits. Pick up a shortlist. Bring your next idea to life."}</p>{!firstUse ? <BuyerSearch /> : null}</header>
+    {firstUse ? <FirstUseState
+      icon={Music2}
+      eyebrow="Your workspace · first visit"
+      title="A place to find and keep your music."
+      description="There are no tracks ready to browse yet. When music is available, you can preview it, compare license options, and save tracks you like. Your purchases will live here too."
+      action={<Button asChild className="min-h-11"><Link href="/buyer/catalog">Open discovery<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link></Button>}
+      secondaryAction={<Link href="/how-it-works">How licensing works</Link>}
+      steps={[
+        { title: "Find music", description: "Search and listen when tracks become available." },
+        { title: "Save a shortlist", description: "Keep tracks you want to compare." },
+        { title: "Keep your records", description: "Completed purchases appear in My Purchases." }
+      ]}
+    /> : <><div className={styles.metrics}>
       {[["Saved tracks", favorites.length, "/buyer/favorites"],["Orders placed",orders.length,"/buyer/orders"],["Tracks to explore",catalogCount,"/buyer/catalog"]].map(([label,count,href])=><Link href={String(href)} key={label}><dl><dt>{label}</dt><dd>{count}</dd></dl></Link>)}
     </div>
     <div className={styles.columns}>
@@ -24,6 +39,6 @@ export default async function BuyerDashboardPage() {
         {favorites.length ? favorites.slice(0,3).map(track=><Link href={`/buyer/catalog/${track.slug}`} key={track.id} className={styles.savedRow}><span className={styles.cover}>{track.cover_art_url ? <Image src={track.cover_art_url} alt="" fill sizes="48px" className="object-cover" /> : <Music2 aria-hidden="true" size={22} />}</span><div><strong>{track.title}</strong><p>{track.artist_name}</p></div><ChevronRight aria-hidden="true" size={18} /></Link>) : <div className={styles.empty}><h3>Keep the good ones close.</h3><p>Save tracks while you browse to build your first shortlist.</p><Link href="/buyer/catalog" className={surface.link}>Discover music<ArrowRight aria-hidden="true" size={16} /></Link></div>}
         <div className={styles.help}><h3>Ready to use a track?</h3><p>Open its details to compare license options for your project. After purchase, return to your orders for your license agreement.</p><Link href="/buyer/orders" className={surface.link}>Licenses & orders<ArrowRight aria-hidden="true" size={16} /></Link></div>
       </aside>
-    </div>
+    </div></>}
   </div>;
 }

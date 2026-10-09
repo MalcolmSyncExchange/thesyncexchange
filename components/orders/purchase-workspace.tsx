@@ -5,11 +5,13 @@ import {
   ChevronRight,
   Download,
   FileAudio,
+  ReceiptText,
   Search,
 } from "lucide-react";
 import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
 import { DomainStatus, StatusRow } from "@/components/ui/domain-status";
 import { Button } from "@/components/ui/button";
+import { FirstUseState } from "@/components/ui/first-use-state";
 import {
   REFUND_BANNER,
   type Purchase,
@@ -121,6 +123,7 @@ function Fields({
 }
 export function PurchaseLibrary({ data }: { data: PurchasePage }) {
   const filtered = Boolean(data.query || data.filter !== "all");
+  const firstUse = !data.items.length && !filtered && !data.nextCursor;
   const next = new URLSearchParams({
     cursor: data.nextCursor || "",
     query: data.query,
@@ -133,16 +136,13 @@ export function PurchaseLibrary({ data }: { data: PurchasePage }) {
         <div>
           <p className={styles.eyebrow}>Buyer library</p>
           <h1>My Purchases</h1>
-          <p>
-            See what you licensed, what you paid, and which records and included
-            files are ready.
-          </p>
+          <p>{firstUse ? "Your purchase records will appear here when you have them." : "See what you licensed, what you paid, and which records and included files are ready."}</p>
         </div>
-        <Link className={styles.primary} href="/buyer/catalog">
+        {!firstUse ? <Link className={styles.primary} href="/buyer/catalog">
           <Search aria-hidden="true" /> Find music
-        </Link>
+        </Link> : null}
       </header>
-      <form className={styles.toolbar} action="/buyer/orders">
+      {!firstUse ? <form className={styles.toolbar} action="/buyer/orders">
         <label>
           Search by exact order reference
           <input
@@ -163,11 +163,11 @@ export function PurchaseLibrary({ data }: { data: PurchasePage }) {
         </label>
         <button type="submit">Apply</button>
         {filtered && <Link href="/buyer/orders">Clear filters</Link>}
-      </form>
-      <p className={styles.muted}>
+      </form> : null}
+      {!firstUse ? <p className={styles.muted}>
         Track and artist search is not yet available. Payment filters do not
         describe receipt or file readiness.
-      </p>
+      </p> : null}
       {!data.items.length ? (
         <PurchaseEmpty filtered={filtered} />
       ) : (
@@ -235,7 +235,7 @@ export function PurchaseLibrary({ data }: { data: PurchasePage }) {
           </div>
         </>
       )}
-      <nav aria-label="Purchase pages" className={styles.pagination}>
+      {!firstUse ? <nav aria-label="Purchase pages" className={styles.pagination}>
         {data.nextCursor && (
           <Link href={`/buyer/orders?${next}`}>
             Next purchases <ChevronRight aria-hidden="true" />
@@ -244,23 +244,26 @@ export function PurchaseLibrary({ data }: { data: PurchasePage }) {
         {filtered || data.nextCursor ? (
           <Link href="/buyer/orders">First page</Link>
         ) : null}
-      </nav>
+      </nav> : null}
     </div>
   );
 }
 export function PurchaseEmpty({ filtered = false }: { filtered?: boolean }) {
-  return (
+  return filtered ? (
     <section className={styles.empty}>
-      <h2>{filtered ? "No purchases match this view" : "No purchases yet"}</h2>
-      <p>
-        {filtered
-          ? "Check the order reference or clear your payment filter."
-          : "Your purchased license records will appear here."}
-      </p>
-      <Link href={filtered ? "/buyer/orders" : "/buyer/catalog"}>
-        {filtered ? "Clear filters" : "Discover music"}
-      </Link>
+      <h2>No purchases match this view</h2>
+      <p>Check the order reference or clear your payment filter.</p>
+      <Link href="/buyer/orders">Clear filters</Link>
     </section>
+  ) : (
+    <FirstUseState
+      icon={ReceiptText}
+      eyebrow="Buyer library · 0 purchases"
+      title="Your purchases will live here."
+      description="After a completed purchase, return here for its order details and any available agreement. Receipt and included-file availability are shown separately when supported."
+      action={<Link className={styles.primary} href="/buyer/catalog"><Search aria-hidden="true" />Discover music</Link>}
+      compact
+    />
   );
 }
 export function PurchaseDetail({ purchase: p }: { purchase: Purchase }) {

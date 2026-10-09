@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, CheckCircle2, ChevronRight, Circle, CircleDot, Music2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DataState } from "@/components/ui/data-state";
+import { FirstUseState } from "@/components/ui/first-use-state";
 import { cn, formatDuration } from "@/lib/utils";
 import { getArtistDashboardStatus, getInitialDashboardTrack, type ArtistDashboardTrack, type ArtistDashboardSummary } from "@/lib/artist-dashboard";
 
@@ -20,20 +22,21 @@ const nextSteps = [
 export function ArtistDashboard({ tracks, summary }: { tracks: ArtistDashboardTrack[]; summary: ArtistDashboardSummary }) {
   const active = getInitialDashboardTrack(tracks);
   const state = active ? getArtistDashboardStatus(active.status) : null;
+  const firstUse = summary.total === 0 && tracks.length === 0;
   return (
     <div className={styles.dashboard}>
       <header className={styles.intro}>
         <p className={styles.eyebrow}>Artist dashboard</p>
-        <h1 className={styles.title}>Your next release starts here.</h1>
-        <p className={styles.subtitle}>Continue a draft or check where your music stands.</p>
+        <h1 className={styles.title}>{firstUse ? "Your music has a place here." : "Your next release starts here."}</h1>
+        <p className={styles.subtitle}>{firstUse ? "Start with a track. Build your catalog as your music moves through review." : "Continue a draft or check where your music stands."}</p>
       </header>
 
-      <section aria-label="Account catalog overview" className="space-y-3">
+      {!firstUse ? <section aria-label="Account catalog overview" className="space-y-3">
         <dl className={styles.summary}>
           {[["Total tracks", summary.total], ["Drafts", summary.drafts], ["In review", summary.inReview], ["Live", summary.live]].map(([label, count]) => <div key={label} className={styles.stat}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-2 text-3xl font-semibold tabular-nums">{count}</dd></div>)}
         </dl>
         {summary.rejected || summary.archived ? <p className="text-sm text-muted-foreground">Also in your catalog: {summary.rejected} rejected · {summary.archived} archived.</p> : null}
-      </section>
+      </section> : null}
 
       {active && state ? (
         <section aria-label="Selected submission" className={styles.journey}>
@@ -70,13 +73,27 @@ export function ArtistDashboard({ tracks, summary }: { tracks: ArtistDashboardTr
             </ol>
           </aside>
         </section>
+      ) : firstUse ? (
+        <FirstUseState
+          icon={Music2}
+          eyebrow="Catalog · 0 tracks added"
+          title="Start with your first track."
+          description="Add music and its details in Submit Music. You can save a draft before sending it to our team for review."
+          action={<Button asChild className="min-h-11"><Link href="/artist/submit">Submit music<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link></Button>}
+          secondaryAction={<Link href="/artist/profile">View your artist profile</Link>}
+          steps={[
+            { title: "Add a track", description: "Start a submission and save your work as a draft." },
+            { title: "Send for review", description: "Complete the required details, then submit when ready." },
+            { title: "Reach buyers", description: "Approved, eligible tracks can appear in discovery." }
+          ]}
+        />
       ) : (
-        <section className="flex flex-col items-start gap-4 rounded-lg border border-border bg-card p-6 sm:p-10">
-          <Music2 aria-hidden="true" className="h-10 w-10 text-accent" />
-          <h2 className="text-2xl font-semibold">Your first track starts here.</h2>
-          <p className="text-muted-foreground">Save a draft, add the details, then submit it for review.</p>
-          <Button asChild className="min-h-11"><Link href="/artist/submit">Create a draft<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link></Button>
-        </section>
+        <DataState
+          icon={Music2}
+          title="No recent submission to show"
+          description="Your catalog has tracks, but none are available in this overview right now. Open My catalog to see all of them."
+          action={<Button asChild variant="outline"><Link href="/artist/catalog">Open My catalog<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link></Button>}
+        />
       )}
 
       {tracks.length ? <section aria-labelledby="recent-submissions-title" className={styles.submissions}>
@@ -95,11 +112,11 @@ export function ArtistDashboard({ tracks, summary }: { tracks: ArtistDashboardTr
           </li>)}
         </ul>
       </section> : null}
-      <div className="flex flex-wrap gap-3 border-t border-border pt-5">
-        {tracks.length ? <Button asChild variant="outline" className="min-h-11"><Link href="/artist/submit">Submit music<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link></Button> : null}
+      {!firstUse ? <div className="flex flex-wrap gap-3 border-t border-border pt-5">
+        <Button asChild variant="outline" className="min-h-11"><Link href="/artist/submit">Submit music<ArrowRight aria-hidden="true" className="h-4 w-4" /></Link></Button>
         <Link href="/artist/rights-holders" className="inline-flex min-h-11 items-center px-3 text-sm underline-offset-4 hover:underline">Manage rights holders</Link>
         <Link href="/artist/payout-settings" className="inline-flex min-h-11 items-center px-3 text-sm underline-offset-4 hover:underline">Payout settings</Link>
-      </div>
+      </div> : null}
     </div>
   );
 }

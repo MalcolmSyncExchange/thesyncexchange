@@ -154,10 +154,16 @@ for (const width of [1440, 1024, 390, 320])
             page.getByRole("heading", {
               name:
                 state === "empty"
-                  ? "No purchases yet"
+                  ? "Your purchases will live here."
                   : "No purchases match this view",
             }),
           ).toBeVisible();
+          if (state === "empty") {
+            await expect(page.locator("[data-purchase-workspace]").getByRole("link", { name: "Discover music" })).toBeVisible();
+            await expect(page.getByLabel("Search by exact order reference")).toHaveCount(0);
+          } else {
+            await expect(page.getByLabel("Search by exact order reference")).toBeVisible();
+          }
           await overflow(page);
           await page.screenshot({
             path: path.join(output, `fixture-${state}-${width}-${theme}.png`),

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, FileAudio, Music2, Plus, Search, ShieldAlert
 import { PreviewAudioButton } from "@/components/audio/preview-audio-provider";
 import { Button } from "@/components/ui/button";
 import { DataState } from "@/components/ui/data-state";
+import { FirstUseState } from "@/components/ui/first-use-state";
 import { DomainStatus } from "@/components/ui/domain-status";
 import { cn } from "@/lib/utils";
 import type { ArtistCatalogPageData, ArtistCatalogStatusFilter } from "@/services/artist/catalog-contract";
@@ -18,25 +19,26 @@ const filters: Array<{ value: ArtistCatalogStatusFilter; label: string }> = [
 ];
 
 export function ArtistCatalogView({ data }: { data: ArtistCatalogPageData }) {
+  const firstUse = data.counts.total === 0 && !data.query && data.status === "all";
   return (
     <div className={styles.page} data-testid="artist-catalog">
       <header className={styles.header}>
         <div>
           <p className={styles.eyebrow}>Artist catalog</p>
           <h1>Your music, organized.</h1>
-          <p>Review each track’s Buyer visibility, assets, rights records, and active license options.</p>
+          <p>{firstUse ? "This is where your tracks and their review status will live." : "Review each track’s Buyer visibility, assets, rights records, and active license options."}</p>
         </div>
-        <Button asChild size="lg"><Link href="/artist/submit"><Plus aria-hidden="true" className="h-4 w-4" />Add track</Link></Button>
+        {!firstUse ? <Button asChild size="lg"><Link href="/artist/submit"><Plus aria-hidden="true" className="h-4 w-4" />Add track</Link></Button> : null}
       </header>
 
-      <dl className={styles.summary} aria-label="Catalog summary">
+      {!firstUse ? <dl className={styles.summary} aria-label="Catalog summary">
         <SummaryItem label="Tracks" value={data.counts.total} />
         <SummaryItem label="Discoverable" value={data.counts.discoverable} />
         <SummaryItem label="In review" value={data.counts.inReview} />
         <SummaryItem label="Drafts" value={data.counts.drafts} />
-      </dl>
+      </dl> : null}
 
-      <div className={styles.toolbar}>
+      {!firstUse ? <div className={styles.toolbar}>
         <form action="/artist/catalog" className={styles.search} role="search">
           <label htmlFor="artist-catalog-search" className="sr-only">Search your catalog</label>
           <Search aria-hidden="true" className="h-4 w-4" />
@@ -50,9 +52,20 @@ export function ArtistCatalogView({ data }: { data: ArtistCatalogPageData }) {
             return <Link key={filter.value} href={href} aria-current={data.status === filter.value ? "page" : undefined}>{filter.label}</Link>;
           })}
         </nav>
-      </div>
+      </div> : null}
 
-      {data.items.length ? (
+      {firstUse ? <FirstUseState
+        icon={Music2}
+        eyebrow="My catalog · 0 tracks"
+        title="Your catalog starts with one track."
+        description="Add your music here. Drafts stay private while you work; submission sends a track for review."
+        action={<Button asChild size="lg"><Link href="/artist/submit"><Plus aria-hidden="true" className="h-4 w-4" />Add your first track</Link></Button>}
+        steps={[
+          { title: "Start a draft", description: "Enter the track details you have now." },
+          { title: "Complete the submission", description: "Add the required information before review." },
+          { title: "Follow its status", description: "Return here to see where the track stands." }
+        ]}
+      /> : data.items.length ? (
         <div className={styles.table} role="table" aria-label="Artist catalog">
           <div className={styles.tableHead} role="row">
             <span role="columnheader">Track</span>
@@ -104,9 +117,9 @@ export function ArtistCatalogView({ data }: { data: ArtistCatalogPageData }) {
       ) : (
         <DataState
           icon={data.counts.total ? Search : ShieldAlert}
-          title={data.counts.total ? "No tracks match this view" : "Your catalog is ready for its first track"}
-          description={data.counts.total ? "Try a different title or clear the current status filter." : "Add a track when you are ready. Drafts stay private until you submit them for review."}
-          action={data.counts.total ? <Button asChild variant="outline"><Link href="/artist/catalog">Clear search and filters</Link></Button> : <Button asChild><Link href="/artist/submit">Add your first track</Link></Button>}
+          title="No tracks match this view"
+          description={data.counts.total ? "Try a different title or clear the current status filter." : "Clear this search or filter to start your catalog."}
+          action={<Button asChild variant="outline"><Link href="/artist/catalog">Clear search and filters</Link></Button>}
         />
       )}
 

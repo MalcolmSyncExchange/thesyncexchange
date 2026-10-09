@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { PreviewAudioButton } from "@/components/audio/preview-audio-provider";
+import { ArtistTrackStatus } from "@/components/artist/tracks/artist-track-status";
 import { Button } from "@/components/ui/button";
 import { DataState } from "@/components/ui/data-state";
 import { DomainStatus, StatusRow } from "@/components/ui/domain-status";
@@ -30,10 +31,11 @@ import styles from "./artist-track-detail.module.css";
 
 export function ArtistTrackDetail({ track }: { track: ArtistTrackDetailData }) {
   const previewTrack = track.preview ? { ...track.preview, href: `/artist/tracks/${track.slug}` } : null;
-  const metadataComplete = Boolean(track.title && track.genre && track.durationSeconds);
+  const coreMetadataRecorded = Boolean(track.title && track.genre && track.durationSeconds);
+  const identityDetails = [track.genre, track.subgenre, track.durationSeconds ? formatDuration(track.durationSeconds) : null, track.musicalKey, track.releaseYear || null].filter(Boolean);
   const rightsAttention = true;
   const tabs = [
-    { id: "overview", label: "Overview", panel: <OverviewPanel track={track} metadataComplete={metadataComplete} /> },
+    { id: "overview", label: "Overview", panel: <OverviewPanel track={track} coreMetadataRecorded={coreMetadataRecorded} /> },
     { id: "audio-assets", label: "Audio & Assets", panel: <AssetsPanel track={track} /> },
     { id: "rights", label: "Rights & Splits", attention: rightsAttention, panel: <RightsPanel track={track} /> },
     { id: "licensing", label: "Licensing", panel: <LicensingPanel track={track} /> },
@@ -49,13 +51,11 @@ export function ArtistTrackDetail({ track }: { track: ArtistTrackDetailData }) {
           {track.coverArtUrl ? <Image src={track.coverArtUrl} alt={`${track.title} cover`} fill priority sizes="(max-width: 560px) 96px, 150px" className={styles.coverImage} /> : <Music2 aria-hidden="true" />}
         </div>
         <div className={styles.identity}>
-          <div className={styles.identityMeta}><DomainStatus tone={track.buyerVisibility.tone}>{track.buyerVisibility.label}</DomainStatus><span>Updated {formatDate(track.updatedAt)}</span></div>
+          <div className={styles.identityMeta}><ArtistTrackStatus track={track} className={styles.statusSummary} /><span>Updated {formatDate(track.updatedAt)}</span></div>
           <p className={styles.eyebrow}>Track</p>
           <h1>{track.title}</h1>
           <p>{track.artistName}</p>
-          <div className={styles.inlineMeta}>
-            <span>{track.genre}</span><i />{track.subgenre ? <><span>{track.subgenre}</span><i /></> : null}<span>{formatDuration(track.durationSeconds)}</span><i /><span>{track.musicalKey}</span><i /><span>{track.releaseYear}</span>
-          </div>
+          <div className={styles.inlineMeta}>{identityDetails.map((detail, index) => <span key={`${detail}-${index}`}>{index > 0 ? <i aria-hidden="true" /> : null}{detail}</span>)}</div>
         </div>
         <div className={styles.actions}>
           <Button asChild variant="outline"><Link href={`/artist/tracks/${track.slug}/preview`}><Eye aria-hidden="true" className="h-4 w-4" />Buyer Preview</Link></Button>
@@ -65,8 +65,7 @@ export function ArtistTrackDetail({ track }: { track: ArtistTrackDetailData }) {
 
       <section className={styles.previewCard} aria-label="Buyer preview audio">
         {previewTrack ? <PreviewAudioButton track={previewTrack} className={styles.widePreviewButton} /> : <Button type="button" variant="outline" disabled className={styles.widePreviewButton}><FileAudio aria-hidden="true" />Preview unavailable</Button>}
-        <div className={styles.previewText}><strong>Buyer preview</strong><span>{track.assets.buyerPreviewReady ? `${formatDuration(track.durationSeconds)} public-safe preview` : "Add a Buyer preview before this track can appear in Discover."}</span></div>
-        <div className={styles.previewProgress} aria-hidden="true"><span data-ready={track.assets.buyerPreviewReady} /></div>
+        <div className={styles.previewText}><strong>Buyer preview</strong><span>{track.assets.buyerPreviewReady ? "Play the public-safe preview in the shared player." : "Add a Buyer preview before this track can appear in Discover."}</span></div>
         <div className={styles.previewNote}><Volume2 aria-hidden="true" /><span>Play to open seek and volume controls</span></div>
       </section>
 
@@ -75,7 +74,7 @@ export function ArtistTrackDetail({ track }: { track: ArtistTrackDetailData }) {
   );
 }
 
-function OverviewPanel({ track, metadataComplete }: { track: ArtistTrackDetailData; metadataComplete: boolean }) {
+function OverviewPanel({ track, coreMetadataRecorded }: { track: ArtistTrackDetailData; coreMetadataRecorded: boolean }) {
   return (
     <div className={styles.panelStack}>
       <section className={styles.section}>
@@ -89,8 +88,8 @@ function OverviewPanel({ track, metadataComplete }: { track: ArtistTrackDetailDa
       <section className={styles.section}>
         <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Current facts</p><h2>Track readiness</h2><p>These states use existing track, preview, and license records. Rights-layer readiness remains unavailable.</p></div></div>
         <div className={styles.readinessGrid}>
-          <StatusRow label="Audio" value={track.assets.fullMasterStored && track.assets.buyerPreviewReady ? "Ready" : "Needs attention"} tone={track.assets.fullMasterStored && track.assets.buyerPreviewReady ? "success" : "warning"} detail={track.assets.fullMasterStored ? (track.assets.buyerPreviewReady ? "Protected source and Buyer preview recorded" : "Buyer preview is missing") : "Protected source is not recorded"} />
-          <StatusRow label="Metadata" value={metadataComplete ? "Complete" : "Needs attention"} tone={metadataComplete ? "success" : "warning"} detail="Based on fields available today" />
+          <StatusRow label="Audio references" value={track.assets.fullMasterStored && track.assets.buyerPreviewReady ? "Recorded" : "Needs attention"} tone={track.assets.fullMasterStored && track.assets.buyerPreviewReady ? "success" : "warning"} detail={track.assets.fullMasterStored ? (track.assets.buyerPreviewReady ? "Protected source and Buyer preview references recorded" : "Buyer preview is missing") : "Protected source is not recorded"} />
+          <StatusRow label="Core metadata" value={coreMetadataRecorded ? "Recorded" : "Needs details"} tone={coreMetadataRecorded ? "success" : "warning"} detail="Title, genre, and duration only; not an overall readiness decision" />
           <StatusRow label="Rights & splits" value="Legacy records" tone="warning" detail="Recording and Composition completion cannot be verified yet" />
           <StatusRow label="Licensing" value={track.activeLicenseCount ? "Configured" : "Needs attention"} tone={track.activeLicenseCount ? "success" : "warning"} detail={`${track.activeLicenseCount} active ${track.activeLicenseCount === 1 ? "option" : "options"}`} />
         </div>

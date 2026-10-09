@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, FileAudio, Music2, Plus, Search, ShieldAlert } from "lucide-react";
 
 import { PreviewAudioButton } from "@/components/audio/preview-audio-provider";
+import { ArtistTrackStatus } from "@/components/artist/tracks/artist-track-status";
 import { Button } from "@/components/ui/button";
 import { DataState } from "@/components/ui/data-state";
 import { FirstUseState } from "@/components/ui/first-use-state";
@@ -42,7 +43,7 @@ export function ArtistCatalogView({ data }: { data: ArtistCatalogPageData }) {
         <form action="/artist/catalog" className={styles.search} role="search">
           <label htmlFor="artist-catalog-search" className="sr-only">Search your catalog</label>
           <Search aria-hidden="true" className="h-4 w-4" />
-          <input id="artist-catalog-search" name="query" type="search" defaultValue={data.query} placeholder="Search title, genre, or catalog slug" />
+          <input id="artist-catalog-search" name="query" type="search" defaultValue={data.query} placeholder="Search title or genre" />
           {data.status !== "all" ? <input type="hidden" name="status" value={data.status} /> : null}
           <Button type="submit" variant="secondary" size="sm">Search</Button>
         </form>
@@ -85,12 +86,12 @@ export function ArtistCatalogView({ data }: { data: ArtistCatalogPageData }) {
                   </div>
                   <div className={styles.trackText}>
                     <Link href={`/artist/tracks/${track.slug}`}>{track.title}</Link>
-                    <span>{[track.genre, track.subgenre].filter(Boolean).join(" · ") || "Music details not provided"}</span>
+                    <span>{[track.artistName, track.genre, track.subgenre].filter(Boolean).join(" · ")}</span>
                   </div>
                 </div>
                 <div className={styles.cell} role="cell" data-label="Status">
-                  <DomainStatus tone={track.buyerVisibility.tone}>{track.buyerVisibility.label}</DomainStatus>
-                  <small>{track.statusLabel}</small>
+                  <ArtistTrackStatus track={track} className={styles.statusSummary} />
+                  <Link className={styles.mobileOpen} href={`/artist/tracks/${track.slug}`} aria-label={`View details for ${track.title}`}>View details <ChevronRight aria-hidden="true" /></Link>
                 </div>
                 <div className={styles.cell} role="cell" data-label="Assets">
                   <span className={cn(styles.assetCount, track.assets.availableCount === track.assets.trackedCount && styles.complete)}><FileAudio aria-hidden="true" />{track.assets.availableCount} of {track.assets.trackedCount}</span>
@@ -125,13 +126,9 @@ export function ArtistCatalogView({ data }: { data: ArtistCatalogPageData }) {
 
       {data.pageCount > 1 ? (
         <nav className={styles.pagination} aria-label="Catalog pages">
-          <Button asChild variant="outline" aria-disabled={data.page === 1} className={data.page === 1 ? styles.disabledLink : undefined}>
-            <Link href={buildCatalogHref({ query: data.query, status: data.status, page: Math.max(1, data.page - 1) })}><ChevronLeft aria-hidden="true" />Previous</Link>
-          </Button>
+          {data.page === 1 ? <span className={styles.disabledLink} aria-disabled="true"><ChevronLeft aria-hidden="true" />Previous</span> : <Button asChild variant="outline"><Link href={buildCatalogHref({ query: data.query, status: data.status, page: data.page - 1 })}><ChevronLeft aria-hidden="true" />Previous</Link></Button>}
           <span>Page {data.page} of {data.pageCount}</span>
-          <Button asChild variant="outline" aria-disabled={data.page === data.pageCount} className={data.page === data.pageCount ? styles.disabledLink : undefined}>
-            <Link href={buildCatalogHref({ query: data.query, status: data.status, page: Math.min(data.pageCount, data.page + 1) })}>Next<ChevronRight aria-hidden="true" /></Link>
-          </Button>
+          {data.page === data.pageCount ? <span className={styles.disabledLink} aria-disabled="true">Next<ChevronRight aria-hidden="true" /></span> : <Button asChild variant="outline"><Link href={buildCatalogHref({ query: data.query, status: data.status, page: data.page + 1 })}>Next<ChevronRight aria-hidden="true" /></Link></Button>}
         </nav>
       ) : null}
     </div>

@@ -548,18 +548,6 @@ export async function getAdminOrders() {
   });
 }
 
-export async function getAdminUsers() {
-  if (shouldUseDemoData()) {
-    return demoUsers;
-  }
-
-  await requireAccountScope("admin");
-  const supabase = await createPrivilegedSupabaseClient();
-
-  const { data } = await supabase.from("user_profiles").select("id, full_name, email, role, created_at").order("created_at", { ascending: false });
-  return data || [];
-}
-
 function buildDemoReviewQueue(): AdminReviewQueueItem[] {
   const rightsByTrackId = new Map<string, RightsHolder[]>(
     demoTracks.map((track) => [track.id, track.rights_holders || []])

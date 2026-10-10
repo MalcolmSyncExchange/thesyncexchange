@@ -1,0 +1,49 @@
+import { notFound } from "next/navigation";
+import { AdminShell } from "@/components/admin-v2/admin-shell";
+import { AdminUsersDirectory, AdminUserDetailView, AdminUserNotFound } from "@/components/admin-v2/users-view";
+import AdminUsersLoading from "@/app/(app)/admin/users/loading";
+import { env } from "@/lib/env";
+import type { AdminUserDirectory } from "@/lib/admin-v2/users";
+import type { AdminUserDetail } from "@/services/admin/users";
+
+const at = "2026-10-09T12:00:00Z";
+const people = [
+  { id: "11111111-1111-4111-8111-111111111111", name: "Mara Vale", email: "mara.vale@example.test", role: "artist" as const, createdAt: at },
+  { id: "22222222-2222-4222-8222-222222222222", name: "Noah Reed", email: "noah.reed@example.test", role: "buyer" as const, createdAt: at },
+  { id: "33333333-3333-4333-8333-333333333333", name: "Ari Mercer", email: "ari.mercer@example.test", role: "admin" as const, createdAt: at }
+];
+
+export default async function Fixture({ searchParams }: { searchParams: Promise<{ view?: string; state?: string; role?: string }> }) {
+  if (!env.demoMode || process.env.NODE_ENV !== "development") notFound();
+  const { view, state, role } = await searchParams;
+  const admin = { id: "fictional-admin", email: "admin@example.test", role: "admin" as const, fullName: "Fictional Admin" };
+  if (state === "loading") return <AdminShell user={admin}><AdminUsersLoading /></AdminShell>;
+  if (state === "error") return <AdminShell user={admin}><div role="alert" style={{ padding: 24, border: "1px solid #b98438", borderRadius: 14 }}><h1>User records are unavailable.</h1><p>No account status is inferred from a failed read. Please try again.</p></div></AdminShell>;
+  if (view === "detail" && state === "not-found") return <AdminShell user={admin}><AdminUserNotFound /></AdminShell>;
+  if (view === "detail") {
+    const selected = role === "buyer" ? people[1] : role === "admin" ? people[2] : people[0];
+    const detail: AdminUserDetail = {
+      user: selected,
+      profile: selected.role === "artist" ? { label: "Artist name", value: "Mara Vale" } : selected.role === "buyer" ? { label: "Company", value: "Northframe Creative" } : null,
+      profileSource: state === "partial" ? "unavailable" : "available",
+      recordsSource: state === "partial" ? "partial" : "available",
+      recordCount: selected.role === "admin" ? 0 : state === "empty" ? 0 : state === "partial" ? null : selected.role === "artist" ? 3 : 2,
+      tracks: selected.role === "artist" && state !== "empty" ? [
+        { id: "aaaa1111-1111-4111-8111-111111111111", title: "Glass Harbor", status: "pending_review", createdAt: at },
+        { id: "aaaa2222-2222-4222-8222-222222222222", title: "A Very Long Fictional Track Title for Responsive Review", status: "approved", createdAt: at }
+      ] : [],
+      orders: selected.role === "buyer" && state !== "empty" ? [
+        { id: "bbbb1111-1111-4111-8111-111111111111", title: "Afterglow", licenseName: "Digital campaign", createdAt: at, amountCents: 14900, currency: "USD", payment: "Paid", license: "Issued record", agreement: "Ready", receipt: "Unavailable", files: "Unavailable" },
+        { id: "bbbb2222-2222-4222-8222-222222222222", title: "Glass Harbor", licenseName: "Broadcast", createdAt: at, amountCents: 27900, currency: "USD", payment: "Refunded", license: "Issued record", agreement: "Issued agreement · Historical copy", receipt: "Unavailable", files: "Unavailable" }
+      ] : []
+    };
+    return <AdminShell user={admin}><AdminUserDetailView detail={detail} /></AdminShell>;
+  }
+  const list = state === "empty" || state === "no-results" ? [] : state === "many" ? Array.from({ length: 24 }, (_, index) => ({
+    ...people[index % 3], id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(index + 1).padStart(12, "0")}`,
+    name: index === 0 ? "An Exceptionally Long Fictional Artist Name to Verify Wrapping" : `${people[index % 3].name} ${index + 1}`,
+    email: `fictional.person.${index + 1}@example.test`
+  })) : people;
+  const directory: AdminUserDirectory = { items: list, total: state === "many" ? 128 : state === "empty" || state === "no-results" ? 0 : 3, page: 1, pageSize: 24, query: state === "no-results" ? "not found" : "", role: "all" };
+  return <AdminShell user={admin}><AdminUsersDirectory directory={directory} /></AdminShell>;
+}

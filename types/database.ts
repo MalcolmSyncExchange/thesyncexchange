@@ -3,6 +3,13 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
   public: {
     Tables: {
+      analytics_outbox: {
+        Row: { id: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at: string; delivered_at: string | null; lease_id: string | null; lease_until: string | null };
+        Insert: { id?: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at?: string; delivered_at?: string | null; lease_id?: string | null; lease_until?: string | null };
+        Update: { delivered_at?: string | null; lease_until?: string | null };
+        Relationships: [];
+      };
+
       user_profiles: {
         Row: {
           id: string;
@@ -705,6 +712,13 @@ export interface Database {
       };
     };
     Functions: {
+      get_analytics_verified_purchase: {
+        Args: { p_order_id: string; p_provider_account: string; p_provider_event_id: string };
+        Returns: { order_id: string; buyer_user_id: string; track_id: string; license_type: string; checkout_session_id: string; payment_intent_id: string; amount_minor: number; currency: string; payment_mode: string; paid_at: string; payment_event_id: string; verified_at: string }[];
+      };
+      enqueue_analytics_event: { Args: { p_environment: string; p_event: string; p_actor_id: string; p_actor_role: string; p_properties: Json; p_dedupe_key: string; p_is_internal: boolean; p_is_test: boolean }; Returns: string | null };
+      claim_analytics_event: { Args: { p_environment: string; p_id?: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
+
       update_artist_track_atomic: { Args: { p_actor_id: string; p_track_id: string; p_expected_updated_at: string; p_values: Json; p_rights: Json; p_options: Json }; Returns: string };
       get_own_artist_finance: { Args: Record<string, never>; Returns: { payout_email: string | null }[] };
       consume_rate_limit: {

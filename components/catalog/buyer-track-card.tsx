@@ -1,3 +1,4 @@
+import type { PreviewSurface } from "@/lib/analytics/triggers";
 import styles from "./buyer-track-card.module.css";
 import Image from "next/image";
 import Link from "next/link";
@@ -10,7 +11,7 @@ import { getCatalogPrice } from "@/lib/catalog-discovery";
 import { cn, formatCurrency, formatDuration } from "@/lib/utils";
 import type { BuyerTrack } from "@/types/models";
 
-export function BuyerTrackCard({ track, href, layout = "grid", licenseType = "all" }: { track: BuyerTrack; href: string; layout?: "grid" | "list"; licenseType?: string }) {
+export function BuyerTrackCard({ track, href, layout = "grid", licenseType = "all", previewSurface }: { track: BuyerTrack; href: string; layout?: "grid" | "list"; licenseType?: string; previewSurface?: PreviewSurface }) {
   const price = getCatalogPrice(track, licenseType);
   const compact = layout === "list";
   return (
@@ -26,7 +27,7 @@ export function BuyerTrackCard({ track, href, layout = "grid", licenseType = "al
       </div>
       <div className={cn("space-y-3", compact ? "w-full sm:w-auto" : "p-5")}>
         <div><p className="text-sm font-medium">{price ? `From ${formatCurrency(price.amount)}` : "License unavailable"}</p>{price ? <p className="text-xs text-muted-foreground">{price.name}</p> : null}</div>
-        <div className="flex flex-wrap items-start gap-2"><PreviewButton track={track} /><FavoriteButton trackId={track.id} trackTitle={track.title} initialFavorite={Boolean(track.is_favorite)} revalidatePathname={href} />{!compact ? <Button asChild variant="ghost" className="h-11"><Link href={href}>Details</Link></Button> : null}</div>
+        <div className="flex flex-wrap items-start gap-2"><PreviewButton surface={previewSurface} track={track} /><FavoriteButton trackId={track.id} trackTitle={track.title} initialFavorite={Boolean(track.is_favorite)} revalidatePathname={href} />{!compact ? <Button asChild variant="ghost" className="h-11"><Link href={href}>Details</Link></Button> : null}</div>
       </div>
     </article>
   );

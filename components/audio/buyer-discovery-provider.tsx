@@ -1,5 +1,8 @@
 "use client";
 
+import { useAnalytics } from "@/components/analytics/provider";
+import { previewTracker, type PreviewSurface } from "@/lib/analytics/triggers";
+
 import { createContext, useContext, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 
 import { PreviewAudioButton, PreviewAudioProvider, type PreviewAudioTrack } from "@/components/audio/preview-audio-provider";
@@ -20,14 +23,17 @@ export function useBuyerDiscovery() {
 }
 
 export function BuyerDiscoveryProvider({ children }: { children: ReactNode }) {
+  const capture = useAnalytics();
+  const playbackObserver = useMemo(() => previewTracker(capture), [capture]);
   const [filters, setFilters] = useState(defaultCatalogFilters);
   const context = useMemo(() => ({ filters, setFilters }), [filters]);
-  return <Context.Provider value={context}><PreviewAudioProvider>{children}</PreviewAudioProvider></Context.Provider>;
+  return <Context.Provider value={context}><PreviewAudioProvider playbackObserver={playbackObserver}>{children}</PreviewAudioProvider></Context.Provider>;
 }
 
-export function PreviewButton({ track }: { track: BuyerTrack }) {
+export function PreviewButton({ track, surface = "buyer_workspace" }: { track: BuyerTrack; surface?: PreviewSurface }) {
   const previewTrack: PreviewAudioTrack = {
     id: track.id,
+    discoverySurface: surface,
     slug: track.slug,
     title: track.title,
     artistName: track.artist_name,

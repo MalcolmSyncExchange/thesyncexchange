@@ -42,7 +42,7 @@ export default async function BuyerTrackDetailPage(props: { params: Promise<{ sl
           </Button>
         </div>
       </div>
-      <PreviewButton track={track} />
+      <PreviewButton surface="track_detail" track={track} />
       <div className="grid gap-6 lg:grid-cols-[1fr,360px]">
         <Card>
           <CardHeader>

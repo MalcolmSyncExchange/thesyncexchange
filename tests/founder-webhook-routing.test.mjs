@@ -74,7 +74,8 @@ function harness({db,account,classification,error}={}) {
     'server-only':{},'node:crypto':{createHash,timingSafeEqual},
     '@/lib/env':env,'@/lib/server-env':serverEnv,
     '@/services/supabase/admin':{createAdminSupabaseClient:()=>admin},
-    '@/services/stripe/server':{
+    '@/services/analytics/purchase': { recordVerifiedPurchase: async () => {} },
+  '@/services/stripe/server':{
       getStripeServerClient:()=>stripe,
       syncOrderFromStripeSession:async input=>ordinary.push(['paid',input]),
       markOrderCheckoutSessionPaymentFailed:async input=>ordinary.push(['failed',input]),

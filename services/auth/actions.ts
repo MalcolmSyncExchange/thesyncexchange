@@ -1,5 +1,7 @@
 "use server";
 
+import { captureForUser, capturePersistedSignup } from "@/services/analytics/actor";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
@@ -263,6 +265,7 @@ export async function signupAction(formData: FormData) {
         onboardingStep: role ? "basics" : null,
         onboardingData: {}
       });
+      if (data.user.identities?.length) await capturePersistedSignup(data.user.id, !sessionUser);
     }
 
     if (!sessionUser) {
@@ -560,6 +563,7 @@ export async function updatePasswordAction(formData: FormData) {
 
 export async function saveArtistOnboardingStepAction(formData: FormData) {
   const user = await requireAuthenticatedUser("artist");
+  await captureForUser(user.id, "onboarding_started", {}, `onboarding_started:${user.id}`);
   const step = String(formData.get("step") || "basics");
   let nextPath = "/onboarding/artist";
   let uploadedAvatarPath: string | null = null;
@@ -673,6 +677,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         reportOperationalEvent("avatar_save_outcome_uncertain", "Avatar reference write outcome is uncertain; uploaded object retained.", { userId: user.id });
       }
     }
+    await captureForUser(user.id, "funnel_step_failed", { step: "onboarding", error_code: "save_failed", retryable: true });
     reportOperationalError("artist_onboarding_save_failed", error, {
       userId: user.id,
       step
@@ -687,11 +692,13 @@ export async function finishArtistOnboardingAction(formData: FormData) {
   const user = await requireAuthenticatedUser("artist");
   const destination = String(formData.get("destination") || "dashboard") === "submit" ? "/artist/submit" : "/dashboard/artist";
   await finalizeOnboarding(user, "complete");
+  await captureForUser(user.id, "onboarding_completed", {}, `onboarding_completed:${user.id}`);
   redirect(destination);
 }
 
 export async function saveBuyerOnboardingStepAction(formData: FormData) {
   const user = await requireAuthenticatedUser("buyer");
+  await captureForUser(user.id, "onboarding_started", {}, `onboarding_started:${user.id}`);
   const step = String(formData.get("step") || "basics");
   let nextPath = "/onboarding/buyer";
 
@@ -757,6 +764,7 @@ export async function saveBuyerOnboardingStepAction(formData: FormData) {
       nextPath = "/onboarding/buyer?step=complete";
     }
   } catch (error) {
+    await captureForUser(user.id, "funnel_step_failed", { step: "onboarding", error_code: "save_failed", retryable: true });
     reportOperationalError("buyer_onboarding_save_failed", error, {
       userId: user.id,
       step
@@ -771,6 +779,7 @@ export async function finishBuyerOnboardingAction(formData: FormData) {
   const user = await requireAuthenticatedUser("buyer");
   const destination = String(formData.get("destination") || "catalog") === "catalog" ? "/buyer/catalog" : "/dashboard/buyer";
   await finalizeOnboarding(user, "complete");
+  await captureForUser(user.id, "onboarding_completed", {}, `onboarding_completed:${user.id}`);
   redirect(destination);
 }
 

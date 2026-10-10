@@ -1,5 +1,6 @@
 "use client";
 
+import type { PreviewSurface } from "@/lib/analytics/triggers";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -37,6 +38,7 @@ export interface PreviewAudioTrack {
   waveformUrl: string | null;
   durationSeconds: number;
   href?: string;
+  discoverySurface?: PreviewSurface;
 }
 
 interface PreviewAudioContextValue {
@@ -64,10 +66,14 @@ export function usePreviewAudio() {
   return value;
 }
 
-export function PreviewAudioProvider({ children }: { children: ReactNode }) {
+export function PreviewAudioProvider({ children, playbackObserver }: {
+  children: ReactNode;
+  playbackObserver?: { requested: () => void; playing: (trackId: string, surface?: PreviewSurface) => void; failed: () => void };
+}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeIdRef = useRef<string | null>(null);
   const requestRef = useRef(0);
+  const surfaceRef = useRef<PreviewSurface | undefined>(undefined);
   const [active, setActive] = useState<PreviewAudioTrack | null>(null);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -96,9 +102,11 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    playbackObserver?.requested();
     if (activeIdRef.current !== track.id) {
       audio.pause();
       activeIdRef.current = track.id;
+      surfaceRef.current = track.discoverySurface;
       audio.src = track.previewUrl;
       audio.load();
       setActive(track);
@@ -117,9 +125,10 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
         setPlaying(false);
         setLoading(false);
         setError(previewFailureMessage);
+        playbackObserver?.failed();
       }
     }
-  }, [error]);
+  }, [error, playbackObserver]);
 
   const close = useCallback(() => {
     ++requestRef.current;
@@ -176,7 +185,13 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
         preload="metadata"
         onLoadStart={() => activeIdRef.current && setLoading(true)}
         onCanPlay={() => setLoading(false)}
-        onPlaying={() => { setPlaying(true); setLoading(false); }}
+        onPlaying={() => {
+          setPlaying(true); setLoading(false);
+          const audio = audioRef.current;
+          if (audio && !audio.paused && audio.readyState >= 2 && audio.currentSrc === audio.src && activeIdRef.current) {
+            playbackObserver?.playing(activeIdRef.current, surfaceRef.current);
+          }
+        }}
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
         onWaiting={() => setLoading(true)}
@@ -188,7 +203,7 @@ export function PreviewAudioProvider({ children }: { children: ReactNode }) {
         onError={() => {
           setPlaying(false);
           setLoading(false);
-          if (activeIdRef.current) setError(previewFailureMessage);
+          if (activeIdRef.current) { setError(previewFailureMessage); playbackObserver?.failed(); }
         }}
       />
       {active ? <PersistentPreviewPlayer /> : null}

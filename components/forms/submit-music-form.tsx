@@ -1,5 +1,8 @@
 "use client";
 
+import { useAnalytics } from "@/components/analytics/provider";
+import { submissionTracker } from "@/lib/analytics/triggers";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { BaseSyntheticEvent, FormEvent, InputHTMLAttributes, ReactNode, RefObject } from "react";
 import { forwardRef, useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -147,6 +150,8 @@ export function SubmitMusicForm({
   submitDebugEnabled?: boolean;
 }) {
   const router = useRouter();
+  const capture = useAnalytics();
+  const analytics = useMemo(() => submissionTracker(capture, mode === "create" ? "submission_create" : "submission_edit"), [capture, mode]);
   const [state, setState] = useState<SubmitTrackState>(submitTrackInitialState);
   const [diagnostics, setDiagnostics] = useState<SubmitDiagnostics>(initialSubmitDiagnostics);
   const [submitMode, setSubmitMode] = useState<"draft" | "publish">("draft");
@@ -249,6 +254,8 @@ export function SubmitMusicForm({
   }, [reset, router, state.redirectTo, state.success, track]);
 
   const onInvalidSubmit = (formErrors: FieldErrors<TrackSubmissionValues>) => {
+    analytics.start();
+    capture("funnel_step_failed", { step: "submission", error_code: "validation", retryable: true });
     const firstError = findFirstFormErrorMessage(formErrors);
     updateDiagnostics("onInvalidSubmit", (current) => ({
       invalidSubmits: current.invalidSubmits + 1,
@@ -325,6 +332,7 @@ export function SubmitMusicForm({
 
     setAssetErrors(nextAssetErrors);
     if (nextAssetErrorKeys.length > 0) {
+      capture("funnel_step_failed", { step: "submission", error_code: "validation", retryable: true });
       updateDiagnostics("asset validation blocked", {
         nextAssetErrors: JSON.stringify(nextAssetErrors),
         nextAssetErrorKeys: JSON.stringify(nextAssetErrorKeys),
@@ -355,6 +363,7 @@ export function SubmitMusicForm({
     });
 
     const formData = new FormData();
+    formData.set("analyticsSubmissionAttempt", analytics.start());
     formData.set("title", values.title);
     formData.set("description", values.description);
     formData.set("genre", values.genre);
@@ -446,7 +455,9 @@ export function SubmitMusicForm({
           await deleteTrackAssets(uploadedAssets);
         }
         setState(result);
+        if (!result.success) capture("funnel_step_failed", { step: "submission", error_code: "save_failed", retryable: true });
       } catch (error) {
+        capture("funnel_step_failed", { step: "submission", error_code: "upload_failed", retryable: true });
         await deleteTrackAssets(uploadedAssets);
         updateDiagnostics("upload error", {
           firstAssetError: error instanceof Error ? error.message : "Asset upload failed."
@@ -460,6 +471,7 @@ export function SubmitMusicForm({
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    analytics.start();
     updateDiagnostics("form onSubmit", (current) => ({
       nativeSubmits: current.nativeSubmits + 1
     }));
@@ -467,7 +479,7 @@ export function SubmitMusicForm({
   };
 
   return (
-    <form onSubmit={handleFormSubmit} className="space-y-6" data-testid="track-submit-form">
+    <form onChangeCapture={() => analytics.start()} onSubmit={handleFormSubmit} className="space-y-6" data-testid="track-submit-form">
       <input type="hidden" {...register("saveMode")} value={submitMode} readOnly />
 
       {state.message ? (

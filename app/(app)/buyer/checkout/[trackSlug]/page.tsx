@@ -1,3 +1,4 @@
+import { LicenseForm } from "@/components/analytics/license-form";
 import { notFound } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -67,7 +68,7 @@ export default async function CheckoutPage(
             <p className="text-sm text-muted-foreground">
               Select a license option to create a pending order and continue into secure Stripe checkout. Your order record stays attached to the payment session so confirmation and admin reporting stay in sync.
             </p>
-            <form action={createOrderAction} className="space-y-4" data-testid="buyer-checkout-form">
+            <LicenseForm action={createOrderAction} trackId={track.id}>
               <input type="hidden" name="trackId" value={track.id} />
               <input type="hidden" name="trackSlug" value={track.slug} />
               <fieldset disabled={!payment.checkoutAvailable} className="space-y-3">
@@ -87,6 +88,7 @@ export default async function CheckoutPage(
                       <input
                         type="radio"
                         name="licenseSelection"
+                        data-license-type={option.slug}
                         value={`${option.id}|${option.price_override ?? option.base_price}`}
                         defaultChecked={index === 0}
                         aria-label={option.name}
@@ -99,7 +101,7 @@ export default async function CheckoutPage(
               <Button disabled={!payment.checkoutAvailable || track.license_options.length === 0} className="w-full" data-testid="buyer-checkout-submit">
                 {testPayment ? "Continue to Test Checkout" : "Continue to Secure Checkout"}
               </Button>
-            </form>
+            </LicenseForm>
           </CardContent>
         </Card>
       </div>

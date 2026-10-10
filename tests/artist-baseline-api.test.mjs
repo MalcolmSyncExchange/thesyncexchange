@@ -33,7 +33,9 @@ function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false
   '@/services/generated-licenses/server':{loadGeneratedLicenseByOrderId:async()=>{events.push('read:license');return pending?null:{status:'generated',pdf_storage_path:'fixture/agreement.pdf',generated_at:'2026-09-15',agreement_number:'FIXTURE'};},markGeneratedLicenseDownloaded:async()=>events.push('mark-download')},
   '@/services/orders/activity':{appendOrderActivityLog:async()=>events.push('activity')},
   '@/services/agreements/server':{createAgreementSignedUrl:async()=>{events.push('sign');return'https://fixture.invalid/agreement';},downloadAgreementArtifact:async()=>{events.push('bytes');return'fixture';}},
-  '@/services/orders/checkout-pricing':{loadTrustedCheckoutDetails:async()=>{events.push('read:checkout');return{order:{id:ids.order,buyer_user_id:owner,status:'pending'},amountCents:5000,currency:'USD',trackTitle:'Fixture',trackSlug:'fixture',licenseName:'Digital'};},getStoredOrderPricingMismatch:()=>({amountMismatch:false,currencyMismatch:false})},
+  '@/services/orders/checkout-pricing':{loadTrustedCheckoutDetails:async()=>{events.push('read:checkout');return{order:{id:ids.order,buyer_user_id:owner,track_id:ids.live,license_type_id:ids.license,status:'pending',amount_cents:5000,currency:'USD'},track:{id:ids.live,title:'Fixture',slug:'fixture',status:'approved'},licenseType:{id:ids.license,slug:'digital-campaign',name:'Digital',active:true,default_price_cents:5000},licenseOption:{track_id:ids.live,license_type_id:ids.license,price_cents:5000,active:true},amountCents:5000,currency:'USD',trackTitle:'Fixture',trackSlug:'fixture',licenseName:'Digital'};},getStoredOrderPricingMismatch:()=>({amountMismatch:false,currencyMismatch:false})},
+  '@/services/analytics/checkout':{captureAcceptedLicense:async()=>events.push('analytics:license'),captureCheckoutStarted:async()=>events.push('analytics:checkout')},
+  '@/services/analytics/actor':{captureForUser:async()=>events.push('analytics:failure')},
   '@/lib/server-env':{
    assertStripeServerConfiguration:()=>{},
    getPaymentRuntimeConfiguration:()=>({paymentMode:'test',releaseMode:'preview',livePaymentsEnabled:false}),
@@ -41,7 +43,7 @@ function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false
   },
   '@/services/security/rate-limit':{consumeRateLimit:async()=>({allowed:true}),rateLimitErrorResponse:()=>null},
   '@/services/purchase-completion/server':{preparePurchaseCompletionCheckout:async()=>({enabled:false})},
-  '@/services/stripe/server':{createStripeCheckoutSession:async()=>{events.push('stripe');return{id:'cs_fixture',url:'https://fixture.invalid/checkout'};}}
+  '@/services/stripe/server':{createStripeCheckoutSession:async()=>{events.push('stripe');return{id:'cs_test_fixture',livemode:false,client_reference_id:ids.order,url:'https://checkout.stripe.com/c/pay/cs_test_fixture'};}}
  };
  return{events,mocks};
 }
@@ -63,6 +65,8 @@ for(const [label,opts,status] of [['anonymous',{user:null},401],['artist role',{
  const h=harness(opts),{POST}=load('app/api/checkout/route.ts',h.mocks);
  const response=await POST(request());assert.equal(response.status,status);
  assert.equal(h.events.includes('stripe'),status===200);
+ assert.equal(h.events.includes('analytics:checkout'),status===200);
+ if(status===200) assert.ok(h.events.indexOf('write:orders')<h.events.indexOf('analytics:checkout'));
  if([401,403].includes(status)) assert.ok(!h.events.includes('service-client'));
 });
 for(const action of ['updateTrackStatusAction','updateOrderStatusAction']) test(`${action} denies before privileged context retrieval`,async()=>{

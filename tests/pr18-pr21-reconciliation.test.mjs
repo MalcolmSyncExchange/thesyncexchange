@@ -16,11 +16,13 @@ const inventory = async db => (await db.query(source('scripts/artist-baseline/in
 
 test('PR21 reconciliation remains intact with the additive purchase foundation and adapter; PR18 migrations cannot re-enter', () => {
   assert.deepEqual(readdirSync(new URL('supabase/migrations/', root)).filter(f => /^2026.*\.sql$/.test(f)).sort(), [
+    '20260915072720_analytics_purchase_outbox.sql',
     ...files,
     '20261002045900_purchase_completion_foundation.sql',
     '20261002201230_purchase_completion_fulfillment_adapters.sql',
     '20261004023232_gate_d_acceptance_schema.sql',
-    '20261004023241_gate_d_acceptance_functions.sql'
+    '20261004023241_gate_d_acceptance_functions.sql',
+    '20261010060000_analytics_verified_purchase_evidence.sql'
   ]);
 });
 

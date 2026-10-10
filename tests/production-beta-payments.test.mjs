@@ -137,7 +137,8 @@ async function runWebhookRoute(livemode) {
       requestGateDRevocation: async () => null,
       runGateDAcceptanceJobs: async () => null
     },
-    "@/services/stripe/server": {
+    "@/services/analytics/purchase": { recordVerifiedPurchase: async () => {} },
+  "@/services/stripe/server": {
       getStripeServerClient: () => stripe,
       markOrderCheckoutSessionPaymentFailed: async () => null,
       markOrderRefundedByPaymentIntent: async () => null,

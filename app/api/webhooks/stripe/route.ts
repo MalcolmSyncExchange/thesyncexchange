@@ -1,3 +1,4 @@
+import { recordVerifiedPurchase } from "@/services/analytics/purchase";
 import { createHash } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -176,6 +177,8 @@ export async function POST(request: Request) {
             webhookEventType: event.type,
             verifiedEvent
           });
+          // Ordinary marketplace only: paid persistence and evidence processing have succeeded.
+          if (verifiedEvent) await recordVerifiedPurchase(orderId, session, verifiedEvent.providerEventId);
           revalidateBuyerOrderPaths(orderId);
         }
         break;

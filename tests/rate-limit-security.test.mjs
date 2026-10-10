@@ -82,6 +82,8 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
   };
   const redirect = (url) => { const e = new Error("redirect"); e.url = url; e.digest = "NEXT_REDIRECT"; throw e; };
   const stubs = {
+    "@/services/analytics/checkout": { captureAcceptedLicense: async () => {}, captureCheckoutStarted: async () => {} },
+    "@/services/analytics/actor": { captureForUser: async () => {} },
     "next/server": { NextResponse: { json: Response.json } },
     "next/cache": { revalidatePath() {} },
     "next/headers": { cookies: async () => ({ get: () => undefined }) },
@@ -118,7 +120,7 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
       loadTrustedCheckoutDetails: async () => {
         if (pricingError) throw new Error("Unapproved track or inactive license");
         return { order: { id: "order", buyer_user_id: owner, status: "pending", track_id: "track", license_type_id: "license" },
-          amountCents: 120000, currency: "USD", trackTitle: "Track", trackSlug: "track", licenseName: "Digital" };
+          licenseType: { slug: "digital-campaign" }, amountCents: 120000, currency: "USD", trackTitle: "Track", trackSlug: "track", licenseName: "Digital" };
       },
       getStoredOrderPricingMismatch: () => ({ amountMismatch: true, currencyMismatch: false })
     },

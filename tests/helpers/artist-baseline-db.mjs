@@ -22,13 +22,23 @@ export const fixtureBootstrapSql = `create role anon; create role authenticated;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
    select set_config('request.jwt.claim.role','service_role',false);`;
-export const pgliteDigestFixtureSql = `create schema fixture_support;
-   create function fixture_support.digest(value text,algorithm text) returns bytea language sql immutable as $$
-     select decode(repeat(md5(value),2),'hex') where algorithm='sha256'
+// Vanilla PostgreSQL test containers start without Supabase's preinstalled
+// extension. Install it directly in the hosted schema before replaying SQL;
+// never relocate it or create a public compatibility function.
+export const postgresPgcryptoBootstrapSql = `create schema extensions;
+   create extension pgcrypto with schema extensions;`;
+// PGlite cannot load pgcrypto. This explicit SHA-256-only test adapter uses
+// PostgreSQL's real core hash and the hosted signature/schema. Migration calls
+// are never rewritten. Real extension/runtime proof lives in gate-d-concurrency.
+export const pgliteDigestFixtureSql = `create schema extensions;
+   create function extensions.digest(value text,algorithm text) returns bytea language plpgsql immutable strict as $$
+   begin
+     if algorithm <> 'sha256' then raise exception 'Unsupported fixture digest algorithm'; end if;
+     return pg_catalog.sha256(pg_catalog.convert_to(value,'UTF8'));
+   end
    $$;`;
 export const adaptMigrationForPGlite = sql => sql
-  .replace(/create extension if not exists "pgcrypto";/gi,'')
-  .replace(/\bpublic\.digest\s*\(/gi,'fixture_support.digest(');
+  .replace(/create extension if not exists "pgcrypto";/gi,'');
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
@@ -37,7 +47,7 @@ export async function database(target='repository', {seed=true}={}) {
   await db.exec(`${fixtureBootstrapSql}\n${pgliteDigestFixtureSql}`);
   for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
    (target==='repository' || (target==='pr27' && x<'20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
-   // PGlite has no pgcrypto. Its isolated shim must never shadow the production public.digest function.
+   // Only extension installation is omitted; function names/bodies are unchanged.
    const sql=adaptMigrationForPGlite(source(`supabase/migrations/${file}`));
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }
   }

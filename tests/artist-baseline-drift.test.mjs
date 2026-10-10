@@ -3,22 +3,27 @@ import assert from 'node:assert/strict';
 import {readdirSync} from 'node:fs';
 import {adaptMigrationForPGlite,database,fixtureBootstrapSql,pgliteDigestFixtureSql,snapshot,source,root} from './helpers/artist-baseline-db.mjs';
 import {compare} from '../scripts/artist-baseline/compare.mjs';
-test('lightweight digest shim is isolated from the production public schema',()=>{
+test('lightweight digest adapter preserves the hosted schema and leaves migration calls unchanged',()=>{
  const migration=source('supabase/migrations/20261004023241_gate_d_acceptance_functions.sql');
  assert.doesNotMatch(fixtureBootstrapSql,/public\.digest/i);
  assert.doesNotMatch(pgliteDigestFixtureSql,/public\.digest/i);
- assert.match(pgliteDigestFixtureSql,/fixture_support\.digest/i);
- assert.match(migration,/public\.digest/i);
- assert.doesNotMatch(adaptMigrationForPGlite(migration),/public\.digest/i);
- assert.match(adaptMigrationForPGlite(migration),/fixture_support\.digest/i);
+ assert.match(pgliteDigestFixtureSql,/extensions\.digest/i);
+ assert.doesNotMatch(pgliteDigestFixtureSql,/md5|fixture_support/i);
+ assert.doesNotMatch(migration,/public\.digest/i);
+ assert.equal((migration.match(/extensions\.digest\(/g)||[]).length,2);
+ assert.equal(adaptMigrationForPGlite(migration),migration);
 });
 test('replayed repository domain schema matches captured production, without implying complete migration history',async()=>{
  const db=await database('historical-repository',{seed:false});
  try {
   assert.deepEqual((await db.query(`select
     to_regprocedure('public.digest(text,text)') is not null public_digest,
-    to_regprocedure('fixture_support.digest(text,text)') is not null fixture_digest`)).rows[0],
-    {public_digest:false,fixture_digest:true});
+    to_regprocedure('extensions.digest(text,text)') is not null extensions_digest`)).rows[0],
+    {public_digest:false,extensions_digest:true});
+  assert.equal((await db.query("select encode(extensions.digest('abc','sha256'),'hex') hash")).rows[0].hash,
+    'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  await assert.rejects(db.query("select public.digest('abc','sha256')"),/does not exist/);
+  await assert.rejects(db.query("select extensions.digest('abc','md5')"),/Unsupported fixture digest algorithm/);
   const repo=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
   const diff=compare(repo,snapshot('production'));
   for(const [category,d] of Object.entries(diff)) assert.deepEqual(d,{onlyLeft:[],onlyRight:[],changed:[]},category);

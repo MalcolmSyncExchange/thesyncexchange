@@ -48,7 +48,7 @@
     },
     {
       "file": "0011_storage_object_policies.sql",
-      "sha256": "b036c1a7cb546f7c7ce35eaffa68142019b81e9f9800aeb917b352b38f02371c"
+      "sha256": "88d3e3c6f17d2105f6f27a44ee339e490502048631094e62903805dc089a9c85"
     },
     {
       "file": "0012_avatar_storage_path.sql",

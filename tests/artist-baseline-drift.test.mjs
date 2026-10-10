@@ -1,8 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readdirSync} from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
 import {adaptMigrationForPGlite,database,fixtureBootstrapSql,pgliteDigestFixtureSql,snapshot,source,root} from './helpers/artist-baseline-db.mjs';
 import {compare} from '../scripts/artist-baseline/compare.mjs';
+test('Storage migration fails closed when the provider has not enabled RLS',async()=>{
+ const db=new PGlite();
+ try {
+  await db.exec('create schema storage; create table storage.objects(id uuid)');
+  await assert.rejects(db.exec(source('supabase/migrations/0011_storage_object_policies.sql')),/Storage prerequisite missing/);
+  assert.equal((await db.query("select relrowsecurity from pg_class where oid='storage.objects'::regclass")).rows[0].relrowsecurity,false);
+  assert.equal((await db.query("select count(*)::int n from pg_policies where schemaname='storage'")).rows[0].n,0);
+ } finally {await db.close();}
+});
 test('lightweight digest adapter preserves the hosted schema and leaves migration calls unchanged',()=>{
  const migration=source('supabase/migrations/20261004023241_gate_d_acceptance_functions.sql');
  assert.doesNotMatch(fixtureBootstrapSql,/public\.digest/i);
@@ -56,5 +66,15 @@ test('captured evidence and historical SQL match the recorded SHA-256 provenance
  const provenance=snapshot('provenance');
  assert.equal(hash('scripts/artist-baseline/inventory.sql'),provenance.querySha256);
  for(const [name,expected] of Object.entries(provenance.snapshots)) assert.equal(hash(`tests/fixtures/artist-baseline/${name}.json`),expected,name);
- for(const [path,expected] of Object.entries(provenance.repositorySqlSha256)) assert.equal(hash(path),expected,path);
+ for(const [path,expected] of Object.entries(provenance.repositorySqlSha256)) {
+  if(path==='supabase/migrations/0011_storage_object_policies.sql') {
+   // Preserve the original capture hash: only the provider RLS prerequisite
+   // changed. Every byte of the historical application policy body must match.
+   const current=source(path);
+   assert.doesNotMatch(current,/alter\s+table\s+storage\.objects/i);
+   assert.match(current,/Storage prerequisite missing/);
+   const historical='alter table storage.objects enable row level security;\n\n'+current.slice(current.indexOf('drop policy'));
+   assert.equal(createHash('sha256').update(historical).digest('hex'),expected,path);
+  } else assert.equal(hash(path),expected,path);
+ }
 });

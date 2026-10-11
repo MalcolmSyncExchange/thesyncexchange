@@ -5,6 +5,7 @@ export const ANALYTICS_CONTRACT_VERSION = 2 as const;
 
 export const FUNNELS = {
   artist_acquisition: { role: "artist", steps: ["signup_completed"] },
+  artist_first_submission: { role: "artist", steps: ["signup_completed", "onboarding_started", "onboarding_completed", "submission_completed"] },
   artist_onboarding: { role: "artist", steps: ["signup_completed", "onboarding_started", "onboarding_completed"] },
   artist_submission: { role: "artist", steps: ["submission_started", "submission_completed"] },
   buyer_discovery: { role: "buyer", steps: ["catalog_searched", "track_preview_started", "license_selected"] },
@@ -40,6 +41,7 @@ export type FunnelObservation = {
   orderId?: string;
   submissionAttemptId?: string;
   checkoutAttemptId?: string;
+  isResubmission?: boolean;
 };
 
 export type ObservationWindow = {

@@ -12,7 +12,7 @@ export const FUNNELS = {
 } as const satisfies Record<string, { role: "artist" | "buyer"; steps: readonly EventName[] }>;
 
 export const MARKETPLACE_ENGAGEMENT_EVENTS = ["catalog_searched", "track_preview_started", "license_selected"] as const satisfies readonly EventName[];
-export const DELIVERY_HEALTH_FIELDS = ["pending", "delivered", "leased", "failed_attempts", "oldest_pending_age", "delivery_latency"] as const;
+export const DELIVERY_HEALTH_FIELDS = ["pending", "processing", "retry_scheduled", "held", "exhausted", "delivered", "failed_attempts", "oldest_pending_age", "delivery_latency"] as const;
 export const VERIFIED_COMMERCE_FIELDS = ["verified_paid_orders", "gross_transaction_volume", "refund_adjustments", "average_order_value", "commission_revenue"] as const;
 
 export type FunnelName = keyof typeof FUNNELS;

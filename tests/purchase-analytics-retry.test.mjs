@@ -40,7 +40,7 @@ function clientFor(db,controls) {
    if(name==='enqueue_analytics_event'&&controls.enqueueFails)throw Error('injected enqueue failure');
    const params=Object.entries(args);
    const sql=`public.${identifier(name)}(${params.map(([key],i)=>`${identifier(key)} => $${i+1}`).join(',')})`;
-   const scalar=['record_purchase_completion_event','enqueue_analytics_event'].includes(name);
+   const scalar=['record_purchase_completion_event','enqueue_analytics_event','complete_analytics_event','fail_analytics_event'].includes(name);
    const {rows}=await db.query(scalar?`select ${sql} as value`:`select * from ${sql}`,params.map(([,v])=>v));
    return scalar?rows[0].value:rows;
   }));},
@@ -108,7 +108,8 @@ async function harness({buyer=ids.buyer}={}) {
   });
   const analytics=load('services/analytics/server.ts',{
    ...common,'@/lib/analytics/config':config,'@/lib/analytics/schema':schema,
-   '@/lib/analytics/transport':{sendEvent:async(_config,row)=>{controls.sent.push(plain(row));return true;}}
+   '@/lib/analytics/retry':{nextRetryAt:()=>new Date(Date.now()+60000).toISOString()},
+   '@/lib/analytics/transport':{sendEvent:async(_config,row)=>{controls.sent.push(plain(row));return {kind:'accepted',meaning:'ingestion_only'};}}
   },{ANALYTICS_ENABLED:'true',POSTHOG_HOST:'https://us.i.posthog.com',POSTHOG_PREVIEW_TOKEN:'phc_localfixtureonly'});
   const purchase=load('services/analytics/purchase.ts',{...common,'./server':analytics});
   const route=load('app/api/webhooks/stripe/route.ts',{

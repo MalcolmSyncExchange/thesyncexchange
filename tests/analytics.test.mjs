@@ -67,9 +67,9 @@ test('transport sends only allowlisted data, stable identity/UUID/time; no URL/r
   assert.deepEqual(payloads[0],payloads[1]); assert.equal(payloads[0].distinct_id,id);
   assert.equal(payloads[0].properties.$ip,null); assert.equal(payloads[0].properties.$geoip_disable,true);
   assert.ok(!JSON.stringify(payloads).includes('private'));
-  assert.equal(await transport.sendEvent(cfg,{...row,actor_id:'email@example.com'},request),false);
-  assert.equal(await transport.sendEvent(cfg,{...row,environment:'production'},request),false);
-  assert.equal(await transport.sendEvent(cfg,row,async()=>{throw Error('private error')}),false);
+  assert.deepEqual(await transport.sendEvent(cfg,{...row,actor_id:'email@example.com'},request),{kind:'configuration',category:'configuration_error'});
+  assert.deepEqual(await transport.sendEvent(cfg,{...row,environment:'production'},request),{kind:'configuration',category:'configuration_error'});
+  assert.deepEqual(await transport.sendEvent(cfg,row,async()=>{throw Error('private error')}),{kind:'unknown',category:'unknown_error'});
 });
 function endpoint(user = { id, role:'buyer' }) {
   const captured=[];
@@ -100,14 +100,16 @@ function outboxHarness() {
   const db={rpc(name,args){ const run=()=>{
     if(name==='enqueue_analytics_event') {
       let row=rows.find(r=>r.dedupe_key===args.p_dedupe_key && r.environment===args.p_environment);
-      if(!row) { row={id:webcrypto.randomUUID(),dedupe_key:args.p_dedupe_key,event:args.p_event,actor_id:args.p_actor_id,actor_role:args.p_actor_role,properties:args.p_properties,environment:args.p_environment,is_internal:args.p_is_internal,is_test:args.p_is_test,occurred_at:'2026-09-15T01:00:00Z',delivered_at:null,lease_id:null}; rows.push(row); }
+      if(!row) { row={id:webcrypto.randomUUID(),dedupe_key:args.p_dedupe_key,event:args.p_event,actor_id:args.p_actor_id,actor_role:args.p_actor_role,properties:args.p_properties,environment:args.p_environment,is_internal:args.p_is_internal,is_test:args.p_is_test,occurred_at:'2026-09-15T01:00:00Z',delivered_at:null,lease_id:null,attempt_count:0,delivery_status:'pending'}; rows.push(row); }
       return {data:row.id};
     }
+    if(name==='complete_analytics_event') { const row=rows.find(r=>r.id===args.p_id&&r.lease_id===args.p_lease_id); if(row&&ackWorks){row.delivered_at=new Date().toISOString();row.delivery_status='delivered';row.lease_id=null;} return {data:!!row&&ackWorks,error:ackWorks?null:{}}; }
+    if(name==='fail_analytics_event') { const row=rows.find(r=>r.id===args.p_id&&r.lease_id===args.p_lease_id); if(row){row.delivery_status='retry_scheduled';row.lease_id=null;} return {data:!!row,error:null}; }
     const row=rows.find(r=>(!args.p_id||r.id===args.p_id)&&r.environment===args.p_environment&&!r.delivered_at&&!r.lease_id);
-    if(row) row.lease_id=String(++lease);
+    if(row) {row.lease_id=String(++lease);row.delivery_status='processing';row.attempt_count++;}
     return {data:row?[{...row}]:[]};
   }; return {abortSignal:async()=>run()};},from(){let filters={};return {update(values){this.values=values;return this;},eq(k,v){filters[k]=v;return this;},async abortSignal(){if(!ackWorks)return {error:{}};const row=rows.find(r=>r.id===filters.id&&r.lease_id===filters.lease_id);if(row)Object.assign(row,this.values);return {error:null};}};}};
-  const restart=(target='preview')=>load('services/analytics/server.ts',{'server-only':{},'@/lib/env':{env:{demoMode:false},getDeploymentTarget:()=> target},'@/lib/analytics/config':config,'@/lib/analytics/schema':schema,'@/lib/analytics/transport':{sendEvent:async(c,row)=>{sent.push(plain(row));return transportWorks;}},'@/services/supabase/admin':{createAdminSupabaseClient:()=>db}}, {process:{env:{ANALYTICS_ENABLED:'true',POSTHOG_HOST:'https://us.i.posthog.com',POSTHOG_PREVIEW_TOKEN:'phc_synthetic',POSTHOG_PRODUCTION_TOKEN:'phc_syntheticprod'}}});
+  const restart=(target='preview')=>load('services/analytics/server.ts',{'server-only':{},'@/lib/env':{env:{demoMode:false},getDeploymentTarget:()=> target},'@/lib/analytics/config':config,'@/lib/analytics/schema':schema,'@/lib/analytics/retry':{nextRetryAt:()=>new Date(Date.now()+60000).toISOString()},'@/lib/analytics/transport':{sendEvent:async(c,row)=>{sent.push(plain(row));return transportWorks?{kind:'accepted',meaning:'ingestion_only'}:{kind:'retryable',category:'network_error'};}},'@/services/supabase/admin':{createAdminSupabaseClient:()=>db}}, {process:{env:{ANALYTICS_ENABLED:'true',POSTHOG_HOST:'https://us.i.posthog.com',POSTHOG_PREVIEW_TOKEN:'phc_synthetic',POSTHOG_PRODUCTION_TOKEN:'phc_syntheticprod'}}});
   return {rows,sent,restart,expire(){for(const r of rows)r.lease_id=null;},transportWorks(v){transportWorks=v;},ackWorks(v){ackWorks=v;}};
 }
 test('durable outbox deduplicates repeated/concurrent purchases across module restarts',async()=>{
@@ -203,15 +205,15 @@ test('browser provider sends no identity persistence or ambient browser metadata
 test('manual outbox retry denies non-admin callers before dispatch and bounds each batch',async()=>{
   for(const role of [null,'buyer','artist','admin']) {
     let calls=0;
-    const POST=load('app/api/admin/analytics/retry/route.ts',{'@/services/analytics/actor':{getAnalyticsActor:async()=>role?{id,role}:null},'@/services/analytics/server':{deliverEvent:async()=>{calls++;return true;}}}).POST;
-    const response=await POST(new Request('https://app.invalid/api/admin/analytics/retry',{method:'POST',headers:{origin:'https://app.invalid'}}));
+    const POST=load('app/api/admin/analytics/retry/route.ts',{'@/services/analytics/actor':{getAnalyticsActor:async()=>role?{id,role}:null},'@/services/analytics/server':{analyticsConfig:()=>cfg,deliverEvent:async()=>{calls++;return true;}},'@/services/analytics/worker':{runAnalyticsDeliveryBatch:async()=>{calls=10;return {attempted:10,accepted:10};}},'@/services/supabase/admin':{createAdminSupabaseClient:()=>({})}}).POST;
+    const response=await POST(new Request('https://app.invalid/api/admin/analytics/retry',{method:'POST',headers:{origin:'https://app.invalid','content-type':'application/json'},body:JSON.stringify({action:'run_due'})}));
     assert.equal(response.status,role==='admin'?200:403);assert.equal(calls,role==='admin'?10:0);
   }
 });
 
 test('disabled analytics performs no authentication, outbox write, claim or transport',async()=>{
  let calls=0;const forbidden=()=>{calls++;throw Error('disabled side effect');};
- const server=load('services/analytics/server.ts',{'server-only':{},'@/lib/env':{env:{demoMode:false},getDeploymentTarget:()=> 'preview'},'@/lib/analytics/config':config,'@/lib/analytics/schema':schema,'@/lib/analytics/transport':{sendEvent:forbidden},'@/services/supabase/admin':{createAdminSupabaseClient:forbidden}});
+ const server=load('services/analytics/server.ts',{'server-only':{},'@/lib/env':{env:{demoMode:false},getDeploymentTarget:()=> 'preview'},'@/lib/analytics/config':config,'@/lib/analytics/schema':schema,'@/lib/analytics/retry':{nextRetryAt:forbidden},'@/lib/analytics/transport':{sendEvent:forbidden},'@/services/supabase/admin':{createAdminSupabaseClient:forbidden}});
  assert.equal(await server.enqueueEvent({id,role:'buyer'},'onboarding_started',{}),null);
  assert.equal(await server.deliverEvent(),false);await server.captureEvent({id,role:'buyer'},'onboarding_completed',{});
  const POST=load('app/api/analytics/route.ts',{'@/services/analytics/actor':{getAnalyticsActor:forbidden},'@/services/analytics/server':server,'@/lib/analytics/schema':schema}).POST;

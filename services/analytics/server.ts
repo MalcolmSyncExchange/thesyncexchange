@@ -3,6 +3,7 @@ import { env, getDeploymentTarget } from "@/lib/env";
 import { resolveAnalyticsConfig, commonProperties } from "@/lib/analytics/config";
 import { filterProperties, validActor, type Actor, type EventName, type EventProperties } from "@/lib/analytics/schema";
 import { sendEvent, type StoredEvent } from "@/lib/analytics/transport";
+import { nextRetryAt } from "@/lib/analytics/retry";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import type { Json } from "@/types/database";
 
@@ -25,20 +26,30 @@ export async function enqueueEvent<E extends EventName>(actor: Actor, event: E, 
   if (error) throw new Error("analytics_enqueue_failed");
   return data;
 }
-export async function deliverEvent(id?: string): Promise<boolean> {
+export type DeliveryAttempt = "accepted" | "failed" | "empty" | "unavailable";
+export async function attemptDelivery(id?: string): Promise<DeliveryAttempt> {
   const config = analyticsConfig();
-  if (!config) return false;
+  if (!config) return "empty";
   const db = createAdminSupabaseClient();
-  if (!db) return false;
+  if (!db) return "unavailable";
   const { data, error } = await db.rpc("claim_analytics_event", { p_environment: config.environment, ...(id ? { p_id: id } : {}) }).abortSignal(AbortSignal.timeout(3000));
-  if (error) return false;
+  if (error) return "unavailable";
   const row = data?.[0];
-  if (!row) return false;
-  if (!(await sendEvent(config, row as StoredEvent))) return false;
-  const { error: ackError } = await db.from("analytics_outbox").update({ delivered_at: new Date().toISOString(), lease_until: null })
-    .eq("id", row.id).eq("lease_id", row.lease_id!).abortSignal(AbortSignal.timeout(3000));
-  return !ackError;
+  if (!row || !row.lease_id) return "empty";
+  const outcome = await sendEvent(config, row as StoredEvent);
+  if (outcome.kind === "accepted") {
+    const { data: completed, error: ackError } = await db.rpc("complete_analytics_event", {
+      p_id: row.id, p_lease_id: row.lease_id
+    }).abortSignal(AbortSignal.timeout(3000));
+    return !ackError && completed ? "accepted" : "unavailable";
+  }
+  const retryAt = outcome.kind === "retryable" || outcome.kind === "unknown"
+    ? nextRetryAt(row.attempt_count, new Date()) : null;
+  const { data: failed, error: failError } = await db.rpc("fail_analytics_event", { p_id: row.id, p_lease_id: row.lease_id,
+    p_category: outcome.category, p_retry_at: retryAt }).abortSignal(AbortSignal.timeout(3000));
+  return !failError && failed ? "failed" : "unavailable";
 }
+export async function deliverEvent(id?: string): Promise<boolean> { return (await attemptDelivery(id)) === "accepted"; }
 // Ordinary analytics must not affect signup, saving, or checkout outcomes.
 export async function captureEvent<E extends Exclude<EventName, "purchase_verified">>(actor: Actor, event: E, properties: EventProperties<E>, dedupeKey?: string) {
   try { const id = await enqueueEvent(actor, event, properties, dedupeKey); if (id) await deliverEvent(id); } catch { /* pending rows can be retried; no private logging */ }

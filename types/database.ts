@@ -4,9 +4,9 @@ export interface Database {
   public: {
     Tables: {
       analytics_outbox: {
-        Row: { id: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at: string; delivered_at: string | null; lease_id: string | null; lease_until: string | null };
-        Insert: { id?: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at?: string; delivered_at?: string | null; lease_id?: string | null; lease_until?: string | null };
-        Update: { delivered_at?: string | null; lease_until?: string | null };
+        Row: { id: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at: string; delivered_at: string | null; lease_id: string | null; lease_until: string | null; delivery_status: string; attempt_count: number; delivery_cycle: number; last_attempt_at: string | null; next_retry_at: string | null; failure_category: string | null };
+        Insert: { id?: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at?: string; delivered_at?: string | null; lease_id?: string | null; lease_until?: string | null; delivery_status?: string; attempt_count?: number; delivery_cycle?: number; last_attempt_at?: string | null; next_retry_at?: string | null; failure_category?: string | null };
+        Update: { delivered_at?: string | null; lease_until?: string | null; delivery_status?: string; attempt_count?: number; delivery_cycle?: number; last_attempt_at?: string | null; next_retry_at?: string | null; failure_category?: string | null };
         Relationships: [];
       };
 
@@ -722,6 +722,11 @@ export interface Database {
       };
       enqueue_analytics_event: { Args: { p_environment: string; p_event: string; p_actor_id: string; p_actor_role: string; p_properties: Json; p_dedupe_key: string; p_is_internal: boolean; p_is_test: boolean }; Returns: string | null };
       claim_analytics_event: { Args: { p_environment: string; p_id?: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
+      complete_analytics_event: { Args: { p_id: string; p_lease_id: string }; Returns: boolean };
+      fail_analytics_event: { Args: { p_id: string; p_lease_id: string; p_category: string; p_retry_at?: string | null }; Returns: boolean };
+      hold_analytics_event: { Args: { p_environment: string; p_id: string }; Returns: boolean };
+      release_analytics_event: { Args: { p_environment: string; p_id: string }; Returns: boolean };
+      get_analytics_delivery_health: { Args: { p_environment: string }; Returns: Json };
 
       update_artist_track_atomic: { Args: { p_actor_id: string; p_track_id: string; p_expected_updated_at: string; p_values: Json; p_rights: Json; p_options: Json }; Returns: string };
       get_own_artist_finance: { Args: Record<string, never>; Returns: { payout_email: string | null }[] };

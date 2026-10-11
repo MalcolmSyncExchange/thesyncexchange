@@ -712,6 +712,10 @@ export interface Database {
       };
     };
     Functions: {
+      get_admin_purchase_capabilities: {
+        Args: Record<string, never>;
+        Returns: { foundation_enabled: boolean; asset_preparation_enabled: boolean; receipt_generation_enabled: boolean; entitlement_activation_enabled: boolean; transaction_projection_enabled: boolean; payment_adapter_enabled: boolean }[];
+      };
       get_analytics_verified_purchase: {
         Args: { p_order_id: string; p_provider_account: string; p_provider_event_id: string };
         Returns: { order_id: string; buyer_user_id: string; track_id: string; license_type: string; checkout_session_id: string; payment_intent_id: string; amount_minor: number; currency: string; payment_mode: string; paid_at: string; payment_event_id: string; verified_at: string }[];

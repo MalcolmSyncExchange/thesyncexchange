@@ -22,7 +22,8 @@ test('PR21 reconciliation remains intact with the additive purchase foundation a
     '20261002201230_purchase_completion_fulfillment_adapters.sql',
     '20261004023232_gate_d_acceptance_schema.sql',
     '20261004023241_gate_d_acceptance_functions.sql',
-    '20261010060000_analytics_verified_purchase_evidence.sql'
+    '20261010060000_analytics_verified_purchase_evidence.sql',
+    '20261011004710_sec_payment_readiness.sql'
   ]);
 });
 

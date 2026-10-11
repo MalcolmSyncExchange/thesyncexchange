@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ArrowRight, Check, Database, ExternalLink, ShieldAlert } from "lucide-react";
 
 import type { AdminOperationsSnapshot } from "@/lib/admin-v2/operations";
+import type { PaymentReadiness } from "@/lib/admin-v2/payment-readiness";
+import { PaymentReadinessPanel } from "./payment-readiness";
 import { ActionFeed } from "./action-feed";
 import styles from "./operations.module.css";
 
@@ -14,13 +16,15 @@ const metricSources = [
   { key: "users", label: "Accounts", source: "user_profiles", href: "/admin/users" }
 ] as const;
 
-export function AdminOverview({ snapshot }: { snapshot: AdminOperationsSnapshot }) {
+export function AdminOverview({ snapshot, readiness }: { snapshot: AdminOperationsSnapshot; readiness?: PaymentReadiness }) {
   return (
     <div className={styles.page}>
       <header className={styles.pageHeader}>
         <div><p className={styles.kicker}>Admin overview</p><h1>What needs my attention?</h1><p>Start with work that needs a closer look. Marketplace counts follow below.</p></div>
         <Link className={styles.primaryLink} href="/admin/action-center">Open Action Center <ArrowRight size={17} aria-hidden="true" /></Link>
       </header>
+
+      {readiness ? <PaymentReadinessPanel readiness={readiness} /> : null}
 
       {snapshot.hasAnyUnavailableSource ? <SourceNotice snapshot={snapshot} /> : null}
 

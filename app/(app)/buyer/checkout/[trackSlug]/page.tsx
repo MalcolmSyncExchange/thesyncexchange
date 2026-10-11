@@ -1,110 +1,25 @@
-import { LicenseForm } from "@/components/analytics/license-form";
-import { notFound } from "next/navigation";
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
-import { createOrderAction } from "@/services/buyer/actions";
-import { getBuyerTrackBySlug } from "@/services/buyer/queries";
-import { requireSession } from "@/services/auth/session";
+import { redirect } from "next/navigation";
+import { LicenseReview } from "@/components/checkout/license-review";
+import { licenseDetailHref } from "@/lib/licenses/selection";
 import { getPaymentDisplayConfiguration } from "@/lib/server-env";
+import { createOrderAction } from "@/services/buyer/actions";
+import { loadBuyerCheckoutReview } from "@/services/orders/license-offers";
 
-export default async function CheckoutPage(
-  props: {
-    params: Promise<{ trackSlug: string }>;
-    searchParams?: Promise<{ error?: string }>;
-  }
-) {
-  const searchParams = await props.searchParams;
-  const params = await props.params;
-  const user = await requireSession("buyer");
-  const track = await getBuyerTrackBySlug(params.trackSlug, user.id);
-  if (!track) notFound();
+export default async function CheckoutPage(props: {
+  params: Promise<{ trackSlug: string }>;
+  searchParams?: Promise<{ licenseTypeId?: string | string[]; review?: string; error?: string }>;
+}) {
+  const { trackSlug } = await props.params;
+  const search = await props.searchParams;
+  const review = await loadBuyerCheckoutReview(trackSlug, search?.licenseTypeId);
+  if (!review) redirect(licenseDetailHref(trackSlug, null, true));
   const payment = getPaymentDisplayConfiguration();
-  const testPayment = payment.paymentMode === "test";
-
-  return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <h1 className="text-3xl font-semibold">License checkout</h1>
-      {!payment.checkoutAvailable ? (
-        <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm">
-          Checkout is temporarily unavailable. You can review license options, but payment cannot start. Please contact support if this continues.
-        </div>
-      ) : null}
-      {testPayment ? (
-        <div className="rounded-lg border-2 border-amber-500 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-100" role="status">
-          <p className="font-bold">TEST MODE — NO REAL PAYMENT</p>
-          <p className="mt-1">Use Stripe test payment details only. This checkout creates a test transaction and no commercial license rights.</p>
-        </div>
-      ) : null}
-      {searchParams?.error ? (
-        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">{searchParams.error}</div>
-      ) : null}
-      <div className="grid gap-6 lg:grid-cols-[1fr,360px]">
-        <Card>
-          <CardHeader>
-            <CardTitle>{track.title}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-muted-foreground">{track.description}</p>
-            {track.license_options.map((option) => (
-              <div key={option.id} className="rounded-md border border-border p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{option.name}</p>
-                    <p className="text-sm text-muted-foreground">{option.terms_summary}</p>
-                  </div>
-                  <p className="font-medium">{formatCurrency(option.price_override ?? option.base_price)}</p>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Checkout status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Select a license option to create a pending order and continue into secure Stripe checkout. Your order record stays attached to the payment session so confirmation and admin reporting stay in sync.
-            </p>
-            <LicenseForm action={createOrderAction} trackId={track.id}>
-              <input type="hidden" name="trackId" value={track.id} />
-              <input type="hidden" name="trackSlug" value={track.slug} />
-              <fieldset disabled={!payment.checkoutAvailable} className="space-y-3">
-                <legend className="sr-only">Choose a license</legend>
-                {track.license_options.map((option, index) => (
-                  <label
-                    key={option.id}
-                    className="flex cursor-pointer items-center justify-between rounded-md border border-border p-4 text-sm"
-                    data-testid={`license-option-${option.slug || option.id}`}
-                  >
-                    <div>
-                      <p className="font-medium">{option.name}</p>
-                      <p className="text-muted-foreground">{option.terms_summary}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium">{formatCurrency(option.price_override ?? option.base_price)}</span>
-                      <input
-                        type="radio"
-                        name="licenseSelection"
-                        data-license-type={option.slug}
-                        value={`${option.id}|${option.price_override ?? option.base_price}`}
-                        defaultChecked={index === 0}
-                        aria-label={option.name}
-                        data-testid={`license-radio-${option.slug || option.id}`}
-                      />
-                    </div>
-                  </label>
-                ))}
-              </fieldset>
-              <Button disabled={!payment.checkoutAvailable || track.license_options.length === 0} className="w-full" data-testid="buyer-checkout-submit">
-                {testPayment ? "Continue to Test Checkout" : "Continue to Secure Checkout"}
-              </Button>
-            </LicenseForm>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
+  return <div className="mx-auto max-w-2xl space-y-6">
+    <h1 className="text-3xl font-semibold">Review your license</h1>
+    <p className="break-words text-lg">{review.trackTitle}</p>
+    {payment.paymentMode === "test" ? <p role="status" className="rounded-md border border-border p-3 text-sm font-medium">TEST MODE — NO REAL PAYMENT</p> : null}
+    {search?.error ? <p role="alert" className="text-sm">Payment could not be started. Review your selection and try again when checkout is available.</p> : null}
+    <LicenseReview key={review.offer.revision} review={review} paymentAvailable={payment.checkoutAvailable}
+      testPayment={payment.paymentMode === "test"} changed={search?.review === "changed"} action={createOrderAction} />
+  </div>;
 }

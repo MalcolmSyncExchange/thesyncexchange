@@ -25,6 +25,3 @@ export function submissionTracker(capture: BrowserCapture, surface: "submission_
 export function submissionCompleted(status: string, previousStatus?: string) {
   return status === "pending_review" && previousStatus !== "pending_review";
 }
-export function selectionMethod(explicit: unknown): "explicit" | "default_accepted" {
-  return explicit === "explicit" ? "explicit" : "default_accepted";
-}

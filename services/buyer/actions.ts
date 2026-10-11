@@ -1,7 +1,9 @@
 "use server";
 
-import { captureAcceptedLicense, captureCheckoutStarted } from "@/services/analytics/checkout";
+import { captureCheckoutStarted } from "@/services/analytics/checkout";
 import { captureForUser } from "@/services/analytics/actor";
+import { getTrackLicenseOffers } from "@/services/orders/license-offers";
+import { checkoutReviewHref, licenseDetailHref, readBuyerSelection } from "@/lib/licenses/selection";
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -28,17 +30,17 @@ export async function createOrderAction(formData: FormData) {
   const user = await requireBuyerUser();
   const trackId = String(formData.get("trackId") || "");
   const trackSlug = String(formData.get("trackSlug") || "");
-  const licenseSelection = String(formData.get("licenseSelection") || "");
-  const [licenseTypeId] = licenseSelection.split("|");
+  const selection = readBuyerSelection(formData.get("licenseTypeId"), env.demoMode);
+  const licenseTypeId = selection?.licenseTypeId;
 
   if (!trackId || !trackSlug || !licenseTypeId) {
-    redirect(`/buyer/checkout/${trackSlug}?error=Missing%20checkout%20details.`);
+    redirect(licenseDetailHref(trackSlug, null, true));
   }
 
   if (hasSupabaseEnv && !env.demoMode) {
     const admission = await consumeRateLimit("checkout", user.id);
     if (admission.status !== "allowed") {
-      redirect(`/buyer/checkout/${trackSlug}?error=${encodeURIComponent(getRateLimitMessage(admission))}`);
+      redirect(`${checkoutReviewHref(trackSlug, licenseTypeId)}&error=${encodeURIComponent(getRateLimitMessage(admission))}`);
     }
   }
 
@@ -47,13 +49,15 @@ export async function createOrderAction(formData: FormData) {
     redirect(`/buyer/catalog?error=Track%20selection%20is%20no%20longer%20available.`);
   }
 
-  const selectedLicense = track.license_options.find((option) => option.id === licenseTypeId);
+  const selectedLicense = getTrackLicenseOffers(track).find(option => option.licenseTypeId === licenseTypeId);
   if (!selectedLicense) {
-    redirect(`/buyer/checkout/${trackSlug}?error=Selected%20license%20option%20is%20not%20available.`);
+    redirect(licenseDetailHref(trackSlug, null, true));
   }
-
-  await captureAcceptedLicense(user.id, track.id, selectedLicense.slug, formData.get("analyticsSelectionMethod"));
-  const amountPaid = selectedLicense.price_override ?? selectedLicense.base_price;
+  // Compare the current server offer before any order/session mutation. This
+  // digest is not price authority. Durable checkout attempts belong to Slice 3.
+  if (formData.get("reviewConfirmed") !== "on" || formData.get("reviewRevision") !== selectedLicense.revision) {
+    redirect(checkoutReviewHref(trackSlug, licenseTypeId, true));
+  }
 
   if (!hasSupabaseEnv || env.demoMode) {
     const orderId = `ord_demo_${Date.now()}`;
@@ -63,12 +67,8 @@ export async function createOrderAction(formData: FormData) {
 
   try {
     assertStripeServerConfiguration("Stripe checkout", { requireWebhook: true });
-  } catch (error) {
-    redirect(
-      `/buyer/checkout/${trackSlug}?error=${encodeURIComponent(
-        error instanceof Error ? error.message : "Stripe is not configured for this environment."
-      )}`
-    );
+  } catch {
+    redirect(`${checkoutReviewHref(trackSlug, licenseTypeId)}&error=payment_unavailable`);
   }
 
   const supabase = await createPrivilegedSupabaseClient();
@@ -92,7 +92,7 @@ export async function createOrderAction(formData: FormData) {
 
   const createdNewOrder = !existingPendingOrder?.id;
   const orderId = existingPendingOrder?.id || crypto.randomUUID();
-  const amountCents = Math.round(amountPaid * 100);
+  const amountCents = selectedLicense.amountCents;
   let checkoutSessionId: string | null = null;
 
   try {
@@ -243,11 +243,7 @@ export async function createOrderAction(formData: FormData) {
       await supabase.from("orders").delete().eq("id", orderId);
     }
 
-    redirect(
-      `/buyer/checkout/${trackSlug}?error=${encodeURIComponent(
-        checkoutError instanceof Error ? checkoutError.message : "Unable to start Stripe checkout."
-      )}`
-    );
+    redirect(`${checkoutReviewHref(trackSlug, licenseTypeId)}&error=checkout_failed`);
   }
 }
 

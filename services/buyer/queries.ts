@@ -46,7 +46,7 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Buyer
     ? await supabase.from("track_rights_holders_public").select("id,track_id,name,role_type,ownership_percent").in("track_id", trackIds)
     : { data: [], error: null };
   const optionResult = trackIds.length
-    ? await supabase.from("track_license_options").select("track_id,price_cents,active,license_types(id,name,slug,description,exclusive,default_price_cents,terms_summary,active)").in("track_id", trackIds).eq("active", true)
+    ? await supabase.from("track_license_options").select("id,track_id,price_cents,active,license_types(id,name,slug,description,exclusive,default_price_cents,terms_summary,active)").in("track_id", trackIds).eq("active", true)
     : { data: [], error: null };
   if (optionResult.error) throw new Error("Unable to load catalog license options.");
   for (const row of normalizedTrackRows) row.track_license_options = (optionResult.data || []).filter(option => option.track_id === row.id);
@@ -238,6 +238,8 @@ function mapTrack(row: any, artistName: string, rightsHolderRows: any[], isFavor
       const license = option.license_types as LicenseType;
       return {
         id: license.id, name: license.name, slug: license.slug, description: license.description,
+        track_license_option_id: option.id, offer_active: option.active === true,
+        amount_cents: Number(option.price_cents ?? (option.license_types as any).default_price_cents),
         exclusive: license.exclusive, terms_summary: license.terms_summary, active: license.active,
         base_price: Number((option.license_types as any).default_price_cents || 0) / 100,
         price_override: option.price_cents == null ? null : Number(option.price_cents) / 100

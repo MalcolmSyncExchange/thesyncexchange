@@ -9,6 +9,8 @@ import * as schema from '../lib/analytics/schema.ts';
 import * as config from '../lib/analytics/config.ts';
 import * as transport from '../lib/analytics/transport.ts';
 import * as triggers from '../lib/analytics/triggers.ts';
+import * as selection from '../lib/licenses/selection.ts';
+import * as eligibility from '../lib/buyer-catalog-eligibility.ts';
 import { reconcileAppUserProfile } from '../services/auth/reconcile-app-user.mjs';
 const require = createRequire(import.meta.url);
 const id = '11111111-1111-4111-8111-111111111111';
@@ -92,7 +94,6 @@ test('preview counts actual playing once, never click/resume; submissions start 
   const submission=triggers.submissionTracker(capture,'submission_create'); assert.equal(submission.start(),submission.start());
   assert.equal(events.filter(e=>e[0]==='submission_started').length,1);
   assert.equal(triggers.submissionCompleted('draft'),false); assert.equal(triggers.submissionCompleted('pending_review','draft'),true); assert.equal(triggers.submissionCompleted('pending_review','pending_review'),false);
-  assert.equal(triggers.selectionMethod(null),'default_accepted'); assert.equal(triggers.selectionMethod('explicit'),'explicit'); assert.equal(triggers.selectionMethod('private@example.com'),'default_accepted');
 });
 function outboxHarness() {
   const rows=[]; const sent=[]; let transportWorks=true; let ackWorks=true; let lease=0;
@@ -182,13 +183,14 @@ test('real catalog component debounces search changes and sends only counts and 
   assert.deepEqual(plain(events[1][1].filter_types),['genre','minBpm']);assert.equal(events[1][1].filter_count,2);assert.equal(events[1][1].sort,'price-low');assert.ok(!JSON.stringify(events).includes('Private genre'));
   const empty=runner.render(Browser,{tracks:[],basePath:'/buyer/catalog'});assert.equal(empty.type,'empty');
 });
-test('real license form marks explicit changes and preserves default acceptance without reading input values',()=>{
-  const runner=hookRunner();const events=[];class Input {name='licenseSelection';dataset={licenseType:'broadcast'};value='private payment details';}
-  const Form=load('components/analytics/license-form.tsx',{react:runner.hooks,'./provider':{useAnalytics:()=> (...args)=>events.push(args)},'@/lib/analytics/schema':schema},{HTMLInputElement:Input}).LicenseForm;
-  let tree=runner.render(Form,{trackId:other,action:async()=>{},children:null});
-  assert.equal(findElement(tree,e=>e.type==='input').props.value,'default_accepted');
-  tree.props.onChange({target:new Input()});tree=runner.render(Form,{trackId:other,action:async()=>{},children:null});
-  assert.equal(findElement(tree,e=>e.type==='input').props.value,'explicit');assert.equal(events[0][0],'license_selected');assert.ok(!JSON.stringify(events).includes('private'));
+test('track-detail selection captures only explicit safe properties with payments disabled',()=>{
+  const runner=hookRunner();const events=[];
+  const Component=load('components/catalog/buyer-license-selector.tsx',{react:runner.hooks,'next/link':{default:'link'},'next/navigation':{useRouter:()=>({replace(){}})},'@/components/analytics/provider':{useAnalytics:()=> (...args)=>events.push(args)},'@/components/ui/button':{Button:'button'},'./license-option-card':{LicenseOptionCard:'license-card'},'@/lib/licenses/selection':selection,'@/lib/analytics/schema':schema},{window:{sessionStorage:{setItem(){}}}}).BuyerLicenseSelector;
+  const props={trackId:other,trackSlug:'synthetic',paymentAvailable:false,offers:[{trackId:other,licenseTypeId:orderId,slug:'broadcast',name:'Private descriptive data',termsSummary:'Private terms',revision:'a'.repeat(64)}]};
+  let tree=runner.render(Component,props);assert.equal(events.length,0);
+  const card=findElement(tree,e=>e.type==='license-card');assert.equal(card.props.selected,false);card.props.onSelect();card.props.onSelect();
+  tree=runner.render(Component,props);assert.equal(findElement(tree,e=>e.type==='license-card').props.selected,true);
+  assert.deepEqual(plain(events),[['license_selected',{track_id:other,license_type:'broadcast',selection_method:'explicit'}]]);
 });
 test('browser provider sends no identity persistence or ambient browser metadata and is inert when disabled',async()=>{
   const requests=[];const runner=hookRunner();
@@ -290,7 +292,7 @@ test('onboarding first interaction dedupes within mount; no render-only event',(
  const tree=runner.render(Component,{children:null});assert.equal(events.length,0);tree.props.onChangeCapture();tree.props.onSubmitCapture();assert.deepEqual(plain(events),[['onboarding_started',{}]]);
 });
 
-function checkoutHarness({persistFailure=false,prepareFailure=false,sessionFailure=false,sessionChange={},role='buyer',authenticated=true,trackAvailable=true}={}) {
+function checkoutHarness({persistFailure=false,prepareFailure=false,sessionFailure=false,sessionChange={},role='buyer',authenticated=true,trackAvailable=true,paymentAvailable=true}={}) {
  const events=[];const captures=[];let boundOrderId=orderId;
  const redirect=url=>{const e=Error('redirect');e.url=url;e.digest='NEXT_REDIRECT';throw e;};
  const db={auth:{getUser:async()=>({data:{user:authenticated?{id,email:'private@example.com'}:null}})},from(table){
@@ -300,10 +302,14 @@ function checkoutHarness({persistFailure=false,prepareFailure=false,sessionFailu
    single:async()=>{events.push(op);return {data:{id:boundOrderId}};},
    then(resolve){events.push(op);return Promise.resolve({error:persistFailure&&op==='update'?{message:'private database error'}:null}).then(resolve);}};return q;}};
  const captureForUser=async(...args)=>{events.push(args[1]);captures.push(args);};
- const serverEnv={assertStripeServerConfiguration(){},assertStripeRuntimeObject(_label,session){if(session.livemode!==false)throw Error('wrong mode');},getPaymentRuntimeConfiguration:()=>({paymentMode:'test'}),getPaymentActivityMetadata:()=>({paymentMode:'test'})};
+ const serverEnv={assertStripeServerConfiguration(){if(!paymentAvailable)throw Error('payment unavailable');},assertStripeRuntimeObject(_label,session){if(session.livemode!==false)throw Error('wrong mode');},getPaymentRuntimeConfiguration:()=>({paymentMode:'test'}),getPaymentActivityMetadata:()=>({paymentMode:'test'})};
+ const track={id:other,slug:'synthetic',status:'approved',preview_file_path:'private',license_options:[{id:orderId,track_license_option_id:other,active:true,offer_active:true,amount_cents:100,slug:'broadcast',base_price:999,name:'Broadcast'}]};
+ const offers=load('services/orders/license-offers.ts',{'server-only':{},'@/lib/env':{env:{demoMode:false}},'@/lib/buyer-catalog-eligibility':eligibility,'@/lib/licenses/selection':selection,'@/services/auth/session':{},'@/services/buyer/queries':{},'./checkout-pricing':{CHECKOUT_CURRENCY:'USD'}});
+ const revision=offers.getTrackLicenseOffers(track)[0].revision;
  const analytics=load('services/analytics/checkout.ts',{'server-only':{},'@/lib/server-env':serverEnv,'@/lib/analytics/schema':schema,'./actor':{captureForUser}});
  const stubs={
   '@/services/analytics/checkout':analytics,'@/services/analytics/actor':{captureForUser},
+  '@/services/orders/license-offers':offers,'@/lib/licenses/selection':selection,
   'next/cache':{revalidatePath(){}},'next/headers':{cookies:async()=>({})},'next/navigation':{redirect,unstable_rethrow(e){if(e.digest==='NEXT_REDIRECT')throw e;}},'next/server':{NextResponse:{json:Response.json}},
   '@/lib/env':{env:{demoMode:false},hasSupabaseEnv:true},'@/lib/server-env':serverEnv,
   '@/lib/payment-mode.mjs':{canReusePendingOrderForPaymentMode:()=>false,getStripeCheckoutSessionMode:()=> 'test'},'@/lib/license':{},
@@ -312,13 +318,13 @@ function checkoutHarness({persistFailure=false,prepareFailure=false,sessionFailu
   '@/services/purchase-completion/server':{preparePurchaseCompletionCheckout:async()=>{events.push('evidence-prepared');if(prepareFailure)throw Error('private preparation error');}},
   '@/services/auth/user-profiles':{selectUserProfileCompat:async()=>({data:{role}})},'@/services/auth/session':{resolveRoleRedirect:()=>'/login'},
   '@/services/supabase/privileged':{createPrivilegedSupabaseClient:async()=>db},'@/services/supabase/server':{createServerSupabaseClient:async()=>db},'@/services/supabase/schema-compat':{isMissingColumnError:()=>false},
-  '@/services/buyer/queries':{getBuyerTrackBySlug:async()=>trackAvailable?{id:other,slug:'synthetic',license_options:[{id:orderId,slug:'broadcast',base_price:1,name:'Broadcast'}]}:null},
+  '@/services/buyer/queries':{getBuyerTrackBySlug:async()=>trackAvailable?track:null},
   '@/services/orders/checkout-pricing':{loadTrustedCheckoutDetails:async()=>({order:{id:orderId,buyer_user_id:id,status:'pending',track_id:other,license_type_id:orderId},licenseType:{slug:'broadcast'},amountCents:100,currency:'USD'}),getStoredOrderPricingMismatch:()=>({amountMismatch:false,currencyMismatch:false})},
   '@/services/security/rate-limit':{consumeRateLimit:async()=>({status:'allowed'}),rateLimitErrorResponse:()=>null}
  };
  const action=load('services/buyer/actions.ts',stubs).createOrderAction;
  const POST=load('app/api/checkout/route.ts',stubs).POST;
- return {events,captures,async action(method){const form=new FormData();for(const [k,v] of Object.entries({trackId:other,trackSlug:'synthetic',licenseSelection:orderId+'|0.01',...(method?{analyticsSelectionMethod:method}:{})}))form.set(k,v);try{await action(form);}catch(e){assert.equal(e.digest,'NEXT_REDIRECT');}},async api(){try{return await POST(new Request('https://app.invalid/api/checkout',{method:'POST',body:JSON.stringify({orderId})}));}catch(e){if(!sessionFailure)throw e;}}};
+ return {events,captures,async action(overrides={}){const form=new FormData();for(const [k,v] of Object.entries({trackId:other,trackSlug:'synthetic',licenseTypeId:orderId,reviewRevision:revision,reviewConfirmed:'on',price:'0.01',currency:'EVIL',licenseSelection:orderId+'|0.01',...overrides}))form.set(k,v);try{await action(form);}catch(e){assert.equal(e.digest,'NEXT_REDIRECT');}},async api(){try{return await POST(new Request('https://app.invalid/api/checkout',{method:'POST',body:JSON.stringify({orderId})}));}catch(e){if(!sessionFailure)throw e;}}};
 }
 test('current marketplace action and API capture only after Stripe and successful session persistence',async()=>{
  for(const method of ['action','api']) {
@@ -332,12 +338,17 @@ test('current marketplace action and API capture only after Stripe and successfu
   }
  }
 });
-test('default license is accepted after server validation only; explicit UI selection is not counted again',async()=>{
- const h=checkoutHarness();await h.action();assert.equal(h.captures[0][1],'license_selected');assert.equal(h.captures[0][2].selection_method,'default_accepted');
- const explicit=checkoutHarness();await explicit.action('explicit');assert.equal(explicit.captures.filter(e=>e[1]==='license_selected').length,0);
+test('payment action and API retries cannot manufacture a license decision',async()=>{
+ const h=checkoutHarness();await h.action();await h.api();await h.api();assert.equal(h.captures.filter(e=>e[1]==='license_selected').length,0);
  const invalid=checkoutHarness({trackAvailable:false});await invalid.action();assert.equal(invalid.captures.length,0);
  const failed=checkoutHarness({persistFailure:true});await failed.action();assert.ok(failed.captures.some(e=>e[1]==='funnel_step_failed'&&e[2].error_code==='checkout_failed'));
  assert.ok(!h.captures.some(e=>e[1]==='funnel_step_failed'),'Next redirect is control flow, not a failure');
+});
+test('unconfirmed or stale review, invalid selection and payment-off action create no order or Stripe session',async()=>{
+ for(const overrides of [{reviewConfirmed:''},{reviewRevision:'stale'},{licenseTypeId:id},{licenseTypeId:'invalid'},{licenseTypeId:''}]) {
+  const h=checkoutHarness();await h.action(overrides);assert.ok(!h.events.includes('insert'));assert.ok(!h.events.includes('stripe'));assert.equal(h.captures.length,0);
+ }
+ const off=checkoutHarness({paymentAvailable:false});await off.action();assert.ok(!off.events.includes('insert'));assert.ok(!off.events.includes('stripe'));assert.equal(off.captures.length,0);
 });
 test('purchase hook is absent from return-page services, Gate D and generic checkout',()=>{
  for(const file of ['services/stripe/server.ts','app/api/create-checkout-session/route.ts','app/api/gate-d/checkout/route.ts'])assert.doesNotMatch(source(file),/\brecordVerifiedPurchase\b/);

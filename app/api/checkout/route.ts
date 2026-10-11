@@ -1,4 +1,4 @@
-import { captureAcceptedLicense, captureCheckoutStarted } from "@/services/analytics/checkout";
+import { captureCheckoutStarted } from "@/services/analytics/checkout";
 import { captureForUser } from "@/services/analytics/actor";
 import { NextResponse } from "next/server";
 
@@ -190,7 +190,6 @@ export async function POST(request: Request) {
     }
   }).catch(() => undefined);
 
-  await captureAcceptedLicense(user.id, trustedCheckout.order.track_id, trustedCheckout.licenseType.slug, null);
   await captureCheckoutStarted(user.id, orderId, trustedCheckout.order.track_id, trustedCheckout.licenseType.slug, session);
   return NextResponse.json({
     url: session.url,

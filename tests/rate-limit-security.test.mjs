@@ -4,9 +4,17 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { webcrypto } from "node:crypto";
 import ts from "typescript";
+import * as selection from "../lib/licenses/selection.ts";
+import { load } from "./helpers/license-selection-harness.mjs";
 
 const userId = "12345678-1234-1234-1234-123456789abc";
 const otherId = "87654321-1234-1234-1234-123456789abc";
+const licenseTypeId = "11111111-1111-4111-8111-111111111111";
+const trustedTrack = { id: "track", title: "Track", slug: "track", status: "approved", preview_file_path: "fixture-preview", license_options: [{ id: licenseTypeId, track_license_option_id: otherId, active: true, offer_active: true, amount_cents: 120000, name: "Digital", slug: "digital-campaign", base_price: 1200, exclusive: false, description: "Approved description", terms_summary: "Approved usage" }] };
+const offers = load("services/orders/license-offers.ts", {
+  "@/lib/env": { env: { demoMode: false } }, "./checkout-pricing": { CHECKOUT_CURRENCY: "USD" },
+  "@/services/auth/session": {}, "@/services/buyer/queries": {}
+});
 const resetAt = "2030-01-01T00:01:00.000Z";
 const allowedRow = { allowed: true, remaining: 4, retry_after_seconds: 0, reset_at: resetAt };
 const deniedRow = { allowed: false, remaining: 0, retry_after_seconds: 42, reset_at: resetAt };
@@ -82,7 +90,9 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
   };
   const redirect = (url) => { const e = new Error("redirect"); e.url = url; e.digest = "NEXT_REDIRECT"; throw e; };
   const stubs = {
-    "@/services/analytics/checkout": { captureAcceptedLicense: async () => {}, captureCheckoutStarted: async () => {} },
+    "@/services/analytics/checkout": { captureCheckoutStarted: async () => {} },
+    "@/services/orders/license-offers": offers,
+    "@/lib/licenses/selection": selection,
     "@/services/analytics/actor": { captureForUser: async () => {} },
     "next/server": { NextResponse: { json: Response.json } },
     "next/cache": { revalidatePath() {} },
@@ -130,7 +140,7 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     } },
     "@/services/buyer/queries": { getBuyerTrackBySlug: async () => {
       events.push("catalog-preview-read");
-      return { id: "track", title: "Track", slug: "track", license_options: [{ id: "license", name: "Digital", base_price: 1200 }] };
+      return trustedTrack;
     } },
     "@/services/storage/assets": {
       assertStorageUploadMetadata() {},
@@ -152,7 +162,7 @@ const checkoutRequest = () => jsonRequest({ orderId: "order", userId: otherId, a
 const uploadRequest = () => jsonRequest({ kind: "cover-art", scope: "draft", fileName: "cover.png", fileSize: 10, userId: otherId });
 function orderForm() {
   const form = new FormData();
-  for (const [key, value] of Object.entries({ trackId: "track", trackSlug: "track", licenseSelection: "license|1", userId: otherId })) form.set(key, value);
+  for (const [key, value] of Object.entries({ trackId: "track", trackSlug: "track", licenseTypeId, reviewRevision: offers.getTrackLicenseOffers(trustedTrack)[0].revision, reviewConfirmed: "on", licenseSelection: "license|1", userId: otherId })) form.set(key, value);
   return form;
 }
 
@@ -191,7 +201,7 @@ test("checkout authorization, ownership and trusted validation precede admission
     assert.deepEqual(h.events, []);
   }
   const missingInput = harness();
-  await assert.rejects(missingInput.action(new FormData()), e => e.url.includes("Missing%20checkout%20details"));
+  await assert.rejects(missingInput.action(new FormData()), e => e.url.includes("selection=unavailable"));
   assert.deepEqual(missingInput.calls, []);
   assert.deepEqual(missingInput.events, []);
 });

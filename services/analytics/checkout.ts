@@ -4,12 +4,6 @@ import { assertStripeRuntimeObject } from "@/lib/server-env";
 import { filterProperties } from "@/lib/analytics/schema";
 import { captureForUser } from "./actor";
 
-export async function captureAcceptedLicense(userId: string, trackId: string, license: unknown, method: unknown) {
-  if (method === "explicit") return; // The browser already records explicit interaction.
-  const safe = filterProperties("license_selected", { track_id: trackId, license_type: license, selection_method: "default_accepted" });
-  if (safe) await captureForUser(userId, "license_selected", safe);
-}
-
 // Call only after the marketplace order has persisted the new session binding.
 // URL and Stripe objects are validation inputs, never event properties.
 export async function captureCheckoutStarted(userId: string, orderId: string, trackId: string, license: unknown, session: Stripe.Checkout.Session) {

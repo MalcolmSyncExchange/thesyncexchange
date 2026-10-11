@@ -4,18 +4,29 @@ import { notFound } from "next/navigation";
 import { PreviewButton } from "@/components/audio/buyer-discovery-provider";
 import { FavoriteButton } from "@/components/catalog/favorite-button";
 import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
+import { BuyerLicenseSelector } from "@/components/catalog/buyer-license-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency, formatDuration } from "@/lib/utils";
+import { formatDuration } from "@/lib/utils";
+import { getPaymentDisplayConfiguration } from "@/lib/server-env";
+import { getTrackLicenseOffers } from "@/services/orders/license-offers";
+import { licenseDetailHref, readBuyerSelection } from "@/lib/licenses/selection";
+import { env } from "@/lib/env";
 import { requireSession } from "@/services/auth/session";
 import { getBuyerCatalogTracks, getBuyerTrackBySlug } from "@/services/buyer/queries";
 
-export default async function BuyerTrackDetailPage(props: { params: Promise<{ slug: string }> }) {
+export default async function BuyerTrackDetailPage(props: { params: Promise<{ slug: string }>; searchParams?: Promise<{ licenseTypeId?: string | string[]; selection?: string }> }) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const user = await requireSession("buyer");
   const track = await getBuyerTrackBySlug(params.slug, user.id);
   if (!track) notFound();
+  const offers = getTrackLicenseOffers(track);
+  const selection = readBuyerSelection(searchParams?.licenseTypeId, env.demoMode);
+  const selected = offers.find(offer => offer.licenseTypeId === selection?.licenseTypeId)?.licenseTypeId || null;
+  const invalidSelection = searchParams?.selection === "unavailable" || (searchParams?.licenseTypeId !== undefined && !selected);
+  const payment = getPaymentDisplayConfiguration();
 
   const tracks = await getBuyerCatalogTracks(user.id);
   const related = tracks.filter((item) => item.genre === track.genre && item.id !== track.id).slice(0, 3);
@@ -38,7 +49,7 @@ export default async function BuyerTrackDetailPage(props: { params: Promise<{ sl
         <div className="flex items-center gap-3">
           <FavoriteButton trackTitle={track.title} trackId={track.id} initialFavorite={Boolean(track.is_favorite)} revalidatePathname={`/buyer/catalog/${track.slug}`} />
           <Button asChild size="lg" data-testid="license-track-button">
-            <Link href={`/buyer/checkout/${track.slug}`}>License This Track</Link>
+            <Link href={licenseDetailHref(track.slug, selected)}>Select License</Link>
           </Button>
         </div>
       </div>
@@ -84,24 +95,9 @@ export default async function BuyerTrackDetailPage(props: { params: Promise<{ sl
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>Available licenses</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {track.license_options.map((option) => (
-              <div key={option.id} className="rounded-md border border-border p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{option.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{option.terms_summary}</p>
-                  </div>
-                  <p className="font-medium">{formatCurrency(option.price_override ?? option.base_price)}</p>
-                </div>
-                <p className="mt-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  {option.exclusive ? "Exclusive negotiation path" : "Standard non-exclusive license"}
-                </p>
-              </div>
-            ))}
+          <CardContent className="min-w-0 pt-6">
+            <BuyerLicenseSelector key={track.id} trackId={track.id} trackSlug={track.slug} offers={offers}
+              initialLicenseTypeId={selected} invalidSelection={invalidSelection} paymentAvailable={payment.checkoutAvailable} />
           </CardContent>
         </Card>
       </div>

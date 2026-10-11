@@ -62,6 +62,8 @@ export type FunnelInput = {
   window: ObservationWindow;
   environment: "preview" | "production";
   cohortActorIds?: ReadonlySet<string>;
+  /** Internal cooperative reporting deadline; never serialized in metrics. */
+  deadlineAt?: number;
   includeTest?: boolean;
   includeInternal?: boolean;
 };

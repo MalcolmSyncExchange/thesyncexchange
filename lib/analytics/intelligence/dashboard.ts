@@ -1,3 +1,4 @@
+import { validateReportRequest } from "./read-models.ts";
 import { validateRange, timeBuckets, type Granularity } from "./time.ts";
 import type { MetricCard } from "./read-models.ts";
 export function dashboardRequest(params: Record<string, string | string[] | undefined>, now = new Date()) {
@@ -12,7 +13,10 @@ export function dashboardRequest(params: Record<string, string | string[] | unde
   validateRange({ startInclusive: new Date(queryStart).toISOString(), endExclusive: new Date(followUpEnd).toISOString() });
   const granularity = (scalar("interval") ?? "day") as Granularity;
   timeBuckets(range, granularity, "UTC");
-  return { range, environment: "preview" as const, timezone: "UTC", granularity, now, maxStepLagMs: 86400000, comparePrevious: scalar("compare") === "yes" };
+  const trackPage = Number(scalar("trackPage") ?? "1");
+  const request = { range, environment: "preview" as const, timezone: "UTC", granularity, now, maxStepLagMs: 86400000, comparePrevious: scalar("compare") === "yes", seriesMetric: scalar("seriesMetric") ?? "track_preview_started", trackPage };
+  validateReportRequest(request);
+  return request;
 }
 export function metricText(card: MetricCard) {
   return card.metric.value === null ? "Unavailable" : card.metric.value.toLocaleString("en-US", { maximumFractionDigits: 2 });

@@ -14,10 +14,10 @@ export async function GET() {
   if (!config || !db) return new Response(null, { status: 503 });
   try {
     const [health, attention] = await Promise.all([
-      db.rpc("get_analytics_delivery_health", { p_environment: config.environment }),
+      db.rpc("get_analytics_delivery_health", { p_environment: config.environment }).abortSignal(AbortSignal.timeout(5000)),
       db.from("analytics_outbox").select("id,event,delivery_status,attempt_count,delivery_cycle,failure_category,last_attempt_at,next_retry_at")
         .eq("environment", config.environment).in("delivery_status", ["held", "exhausted"])
-        .order("occurred_at", { ascending: true }).limit(50)
+        .order("occurred_at", { ascending: true }).order("id", { ascending: true }).limit(50).abortSignal(AbortSignal.timeout(5000))
     ]);
     if (health.error || attention.error) return new Response(null, { status: 503 });
     return Response.json({ health: health.data, attention: attention.data }, { headers: noStore });

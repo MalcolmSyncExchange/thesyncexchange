@@ -196,9 +196,9 @@ test('admin endpoint rejects unauthorized users before privileged reads or retry
 
 test('admin health and intervention expose only safe fields and require explicit IDs',async()=>{
   const calls=[];
-  const db={rpc:async(name,args)=>{calls.push([name,args]);return {data:name==='get_analytics_delivery_health'?{statuses:{held:1},failures:{client_rejected:1}}:true,error:null};},
+  const db={rpc:(name,args)=>{calls.push([name,args]);const response=Promise.resolve({data:name==='get_analytics_delivery_health'?{statuses:{held:1},failures:{client_rejected:1}}:true,error:null});return Object.assign(response,{abortSignal:signal=>{assert.ok(signal instanceof AbortSignal);return response;}});},
     from:table=>{assert.equal(table,'analytics_outbox');return {select(fields){assert.ok(!fields.includes('properties'));assert.ok(!fields.includes('actor_id'));return this;},
-      eq(){return this;},in(){return this;},order(){return this;},limit:async()=>({data:[{id:eventId,event:'onboarding_started',delivery_status:'held',failure_category:'client_rejected'}],error:null})};}};
+      eq(){return this;},in(){return this;},order(){return this;},limit(){return this;},abortSignal:async signal=>{assert.ok(signal instanceof AbortSignal);return {data:[{id:eventId,event:'onboarding_started',delivery_status:'held',failure_category:'client_rejected'}],error:null};}};}};
   const route=load('app/api/admin/analytics/retry/route.ts',{
     '@/services/analytics/actor':{getAnalyticsActor:async()=>({id:ids.buyer,role:'admin'})},
     '@/services/analytics/server':{analyticsConfig:()=>cfg,deliverEvent:async()=>{calls.push(['retry']);return true;}},

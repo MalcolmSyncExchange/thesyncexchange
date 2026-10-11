@@ -31,14 +31,12 @@ function validWindow(window: FunnelInput["window"]): boolean {
     Number.isFinite(maxStepLagMs) && maxStepLagMs > 0;
 }
 
-function canAdvance(attempt: Attempt, event: FunnelObservation, maxStepLagMs: number): boolean {
-  const previous = attempt.events.at(-1)!;
-  const lag = milliseconds(event.occurredAt) - milliseconds(previous.occurredAt);
-  if (lag <= 0 || lag > maxStepLagMs) return false;
+function canAdvance(attempt: Attempt, event: FunnelObservation, maxStepLagMs: number, timeOf: (event: FunnelObservation) => number): boolean {
   if (attempt.trackId && event.trackId && attempt.trackId !== event.trackId) return false;
   if (attempt.orderId && event.orderId && attempt.orderId !== event.orderId) return false;
   if (attempt.submissionAttemptId && event.submissionAttemptId && attempt.submissionAttemptId !== event.submissionAttemptId) return false;
-  return true;
+  const lag = timeOf(event) - timeOf(attempt.events.at(-1)!);
+  return lag > 0 && lag <= maxStepLagMs;
 }
 
 /** Calculate observed, ordered journeys. Each later event advances at most one entry attempt. */
@@ -60,9 +58,15 @@ export function calculateFunnel(input: FunnelInput): FunnelReport {
   const start = milliseconds(input.window.startInclusive);
   const end = milliseconds(input.window.endExclusive);
   const through = milliseconds(input.window.observedThrough);
+  const times = new Map<string, number>();
+  const timeOf = (event: FunnelObservation) => times.get(event.eventId)!;
+  const checkDeadline = () => {
+    if (input.deadlineAt !== undefined && Date.now() >= input.deadlineAt) throw new Error("analytics_report_deadline");
+  };
   const byId = new Map<string, FunnelObservation>();
   let conflictingId = false;
   for (const event of input.observations) {
+    checkDeadline();
     if (event.actorRole !== definition.role || event.environment !== input.environment ||
       (!input.includeTest && event.isTest) || (!input.includeInternal && event.isInternal) ||
       (input.cohortActorIds && !input.cohortActorIds.has(event.actorId)) || !steps.includes(event.event)) continue;
@@ -70,22 +74,26 @@ export function calculateFunnel(input: FunnelInput): FunnelReport {
     if (!Number.isFinite(time) || time > through) continue;
     const previous = byId.get(event.eventId);
     if (previous && JSON.stringify(previous) !== JSON.stringify(event)) conflictingId = true;
-    else byId.set(event.eventId, event);
+    else { byId.set(event.eventId, event); times.set(event.eventId, time); }
   }
   if (conflictingId) return calculateFunnel({ ...input, source: "insufficient_evidence" });
-  const events = [...byId.values()].sort((a, b) => milliseconds(a.occurredAt) - milliseconds(b.occurredAt) || a.eventId.localeCompare(b.eventId));
+  const events = [...byId.values()].sort((a, b) => timeOf(a) - timeOf(b) || a.eventId.localeCompare(b.eventId));
   const attempts: Attempt[] = [];
-  const observed = steps.map(step => events.filter(event => event.event === step && milliseconds(event.occurredAt) >= start).length);
+  const observed = steps.map(step => events.filter(event => event.event === step && timeOf(event) >= start).length);
   for (const event of events) {
+    checkDeadline();
     const index = steps.indexOf(event.event);
     if (index === 0) {
-      const time = milliseconds(event.occurredAt);
+      const time = timeOf(event);
       if (time >= start && time < end) attempts.push({ actorId: event.actorId, events: [event],
         trackId: event.trackId, orderId: event.orderId, submissionAttemptId: event.submissionAttemptId });
       continue;
     }
-    const target = attempts.find(attempt => attempt.actorId === event.actorId && attempt.events.length === index &&
-      canAdvance(attempt, event, input.window.maxStepLagMs));
+    const target = attempts.find((attempt, candidate) => {
+      if ((candidate & 255) === 0) checkDeadline();
+      return attempt.actorId === event.actorId && attempt.events.length === index &&
+        canAdvance(attempt, event, input.window.maxStepLagMs, timeOf);
+    });
     if (!target) continue;
     target.events.push(event);
     target.trackId ||= event.trackId;
@@ -102,7 +110,7 @@ export function calculateFunnel(input: FunnelInput): FunnelReport {
     const toCount = actorSets[index + 1].size;
     const perActor = new Map<string, number>();
     for (const attempt of attempts.filter(item => item.events.length > index + 1)) {
-      const seconds = (milliseconds(attempt.events[index + 1].occurredAt) - milliseconds(attempt.events[index].occurredAt)) / 1000;
+      const seconds = (timeOf(attempt.events[index + 1]) - timeOf(attempt.events[index])) / 1000;
       perActor.set(attempt.actorId, Math.min(perActor.get(attempt.actorId) ?? Infinity, seconds));
     }
     const fromAttempts = attempts.filter(attempt => attempt.events.length > index).length;
@@ -114,7 +122,7 @@ export function calculateFunnel(input: FunnelInput): FunnelReport {
   });
   const completionByActor = new Map<string, number>();
   for (const attempt of attempts.filter(item => item.events.length === steps.length)) {
-    const seconds = (milliseconds(attempt.events.at(-1)!.occurredAt) - milliseconds(attempt.events[0].occurredAt)) / 1000;
+    const seconds = (timeOf(attempt.events.at(-1)!) - timeOf(attempt.events[0])) / 1000;
     completionByActor.set(attempt.actorId, Math.min(completionByActor.get(attempt.actorId) ?? Infinity, seconds));
   }
   return { version: ANALYTICS_CONTRACT_VERSION, funnel: input.funnel, steps: stepResults, transitions,

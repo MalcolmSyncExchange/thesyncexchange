@@ -1,3 +1,4 @@
+import { withinDeadline } from "./deadline.ts";
 import { projectOutboxObservation } from "./projection.ts";
 import { validateRange, type TimeRange } from "./time.ts";
 import type { ReadSource } from "./read-models.ts";
@@ -5,10 +6,11 @@ import type { EventName } from "../schema.ts";
 
 export const SOURCE_PAGE_SIZE = 500;
 export const SOURCE_ROW_LIMIT = 10000;
-export type SourceQuery = TimeRange & { environment: "preview" | "production"; offset: number; limit: number };
+export type SourceQuery = TimeRange & { environment: "preview" | "production"; offset: number; limit: number; signal: AbortSignal };
 export type SourcePage = { rows: unknown[] | null; error: boolean };
 export type SourceDependencies = {
   /** Must read authenticated session and public.user_profiles.role. */
+  readBudgetMs?: number;
   authorizeAdmin: () => Promise<boolean>;
   /** Called only after authorization. Return a narrowly scoped service-role reader. */
   openReader: () => ((query: SourceQuery) => Promise<SourcePage>) | null;
@@ -16,7 +18,8 @@ export type SourceDependencies = {
 /** Injectable orchestration for local mocks. Production wiring lives in a server-only module. */
 export async function readAnalyticsSource(deps: SourceDependencies, range: TimeRange,
   environment: "preview" | "production", instrumentedEvents: readonly EventName[]): Promise<ReadSource> {
-  if (!await deps.authorizeAdmin()) throw new Error("analytics_admin_required");
+  const signal = AbortSignal.timeout(Math.min(8000, Math.max(1, deps.readBudgetMs ?? 8000)));
+  if (!await withinDeadline(deps.authorizeAdmin, signal)) throw new Error("analytics_admin_required");
   validateRange(range);
   if (environment !== "preview" && environment !== "production") throw new Error("analytics_invalid_environment");
   const base: ReadSource = { state: "unavailable_source", type: "local_outbox", observations: [], instrumentedEvents,
@@ -29,7 +32,7 @@ export async function readAnalyticsSource(deps: SourceDependencies, range: TimeR
     const seen = new Set<string>();
     // One sentinel page distinguishes exactly-at-cap results from truncated results.
     for (let offset = 0; offset <= SOURCE_ROW_LIMIT; offset += SOURCE_PAGE_SIZE) {
-      const page = await readPage({ ...range, environment, offset, limit: SOURCE_PAGE_SIZE });
+      const page = await withinDeadline(() => readPage({ ...range, environment, offset, limit: SOURCE_PAGE_SIZE, signal }), signal);
       if (page.error || !Array.isArray(page.rows)) return base;
       if (page.rows.length > SOURCE_PAGE_SIZE || observations.length + page.rows.length > SOURCE_ROW_LIMIT)
         return { ...base, state: "insufficient_evidence" };

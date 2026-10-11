@@ -2,13 +2,15 @@ import "server-only";
 import { getAnalyticsActor } from "./actor";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { readAnalyticsSource } from "@/lib/analytics/intelligence/source-reader";
-import { buildSECReadModels, type ReadRequest } from "@/lib/analytics/intelligence/read-models";
+import { buildSECReadModels, validateReportRequest, type ReadRequest } from "@/lib/analytics/intelligence/read-models";
 import type { EventName } from "@/lib/analytics/schema";
-import { previousPeriod, validateRange } from "@/lib/analytics/intelligence/time";
+import { previousPeriod } from "@/lib/analytics/intelligence/time";
 
-/** No route, scheduler, event delivery or dashboard UI is installed by Slice 3. */
+/** Eight seconds shared across authorization/pagination; reserve two for aggregation. */
 export async function readSECAnalytics(request: ReadRequest, instrumentedEvents: readonly EventName[]) {
-  validateRange(request.range);
+  const deadlineAt = Date.now() + 10000;
+  request = { ...request, seriesMetric: request.seriesMetric ?? "track_preview_started" };
+  validateReportRequest(request);
   const queryRange = {
     startInclusive: request.comparePrevious ? previousPeriod(request.range).startInclusive : request.range.startInclusive,
     endExclusive: new Date(Date.parse(request.range.endExclusive) + request.maxStepLagMs * 4).toISOString()
@@ -24,10 +26,14 @@ export async function readSECAnalytics(request: ReadRequest, instrumentedEvents:
           .eq("environment", query.environment).in("actor_role", ["artist", "buyer"]).eq("is_test", false).eq("is_internal", false)
           .gte("occurred_at", query.startInclusive).lt("occurred_at", query.endExclusive)
           .order("occurred_at", { ascending: true }).order("id", { ascending: true })
-          .range(query.offset, query.offset + query.limit - 1).abortSignal(AbortSignal.timeout(5000));
+          .range(query.offset, query.offset + query.limit - 1).abortSignal(AbortSignal.any([query.signal, AbortSignal.timeout(5000)]));
         return { rows: data, error: !!error };
       };
     }
   }, queryRange, request.environment, instrumentedEvents);
-  return buildSECReadModels(source, request);
+  const result = buildSECReadModels(source, { ...request, deadlineAt: Math.min(deadlineAt, Date.now() + 2000) });
+  if (Date.now() >= deadlineAt) throw new Error("analytics_report_deadline");
+  if (new TextEncoder().encode(JSON.stringify(result)).byteLength > 2000000) throw new Error("analytics_report_payload_budget");
+  if (Date.now() >= deadlineAt) throw new Error("analytics_report_deadline");
+  return result;
 }

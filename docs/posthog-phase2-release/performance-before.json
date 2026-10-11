@@ -1,0 +1,97 @@
+{
+  "baseline": true,
+  "node": "v24.14.1",
+  "method": "three sequential fixture runs; all samples <=2s and DTO <=2MB required for supported requests; no hosted timing",
+  "results": [
+    {
+      "label": "daily-small",
+      "rows": 1000,
+      "tracks": 50,
+      "days": 89,
+      "comparePrevious": false,
+      "samplesMs": [
+        76.26,
+        62.57,
+        61.89
+      ],
+      "medianMs": 62.57,
+      "serializedBytes": 781583,
+      "returnedTracks": 50
+    },
+    {
+      "label": "daily-cap",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 89,
+      "comparePrevious": false,
+      "samplesMs": [
+        2532.12,
+        2541.34,
+        2527.67
+      ],
+      "medianMs": 2532.12,
+      "serializedBytes": 1886915,
+      "returnedTracks": 500
+    },
+    {
+      "label": "daily-comparison-cap",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 44,
+      "comparePrevious": true,
+      "samplesMs": [
+        6793.63,
+        6845.83,
+        6837.82
+      ],
+      "medianMs": 6837.82,
+      "serializedBytes": 2704807,
+      "returnedTracks": 500
+    },
+    {
+      "label": "hourly-cap",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 7,
+      "comparePrevious": false,
+      "samplesMs": [
+        2774.99,
+        2757.92,
+        2759.67
+      ],
+      "medianMs": 2759.67,
+      "serializedBytes": 2363377,
+      "returnedTracks": 500
+    },
+    {
+      "label": "hourly-comparison-cap",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 7,
+      "comparePrevious": true,
+      "samplesMs": [
+        14221.38,
+        14586.21,
+        14349
+      ],
+      "medianMs": 14349,
+      "serializedBytes": 3968907,
+      "returnedTracks": 500
+    },
+    {
+      "label": "legacy-hourly-range",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 89,
+      "comparePrevious": false,
+      "samplesMs": [
+        9614.06,
+        9940.16,
+        9736.19
+      ],
+      "medianMs": 9736.19,
+      "serializedBytes": 14256936,
+      "returnedTracks": 500
+    }
+  ]
+}

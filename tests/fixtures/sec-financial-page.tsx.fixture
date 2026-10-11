@@ -1,0 +1,8 @@
+import { notFound } from "next/navigation";
+import { FinancialDashboard } from "@/components/admin-v2/financial-dashboard";
+import { buildFinancialReport } from "@/lib/analytics/financial/report";
+export default function Fixture() {
+ if (process.env.SYNC_EXCHANGE_DEMO_MODE !== "true" || process.env.NODE_ENV !== "development") notFound();
+ const data = buildFinancialReport({ state: "available", reason: "complete", historyComplete: true, refundsState: "available", failedPayments: { state: "zero", value: 0 }, refunds: [], payments: [{ paymentKey: "private-payment", orderKey: "private-order", mode: "test", capturedAt: "2026-10-02T12:00:00Z", amountMinor: 10000, currency: "USD", licenseCategory: "broadcast", signatureVerified: true, orderBinding: "matched", license: "failed" }] }, { range: { startInclusive: "2026-10-01T00:00:00Z", endExclusive: "2026-10-04T00:00:00Z" }, mode: "test", granularity: "day", comparePrevious: true });
+ return <main className="p-6"><FinancialDashboard data={data} /></main>;
+}

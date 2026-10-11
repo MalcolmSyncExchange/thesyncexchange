@@ -4,6 +4,8 @@ import type { EventName } from "../schema.ts";
 export const ANALYTICS_CONTRACT_VERSION = 2 as const;
 
 export const FUNNELS = {
+  artist_journey: { role: "artist", steps: ["signup_completed", "onboarding_started", "onboarding_completed", "submission_started", "submission_completed"] },
+  buyer_journey: { role: "buyer", steps: ["catalog_searched", "track_preview_started", "license_selected", "checkout_started", "purchase_verified"] },
   artist_acquisition: { role: "artist", steps: ["signup_completed"] },
   artist_first_submission: { role: "artist", steps: ["signup_completed", "onboarding_started", "onboarding_completed", "submission_completed"] },
   artist_onboarding: { role: "artist", steps: ["signup_completed", "onboarding_started", "onboarding_completed"] },

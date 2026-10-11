@@ -83,7 +83,7 @@ function aggregate(source: ReadSource, range: TimeRange, trackId?: string): Map<
   for (const [event, label] of Object.entries({ signup_completed: "Signups", onboarding_started: "Onboarding entries", onboarding_completed: "Onboarding completions",
     submission_started: "Submission attempts", submission_completed: "Completed submissions", catalog_searched: "Searches", track_preview_started: "Previews",
     license_selected: "License selections", checkout_started: "Checkout attempts", purchase_verified: "Verified purchases" }) as [EventName, string][]) {
-    const role = event.startsWith("submission_") ? "artist" : ["catalog_searched", "track_preview_started", "license_selected", "checkout_started", "purchase_verified"].includes(event) ? "buyer" : null;
+    const role = ["signup_completed", "onboarding_started", "onboarding_completed", "submission_started", "submission_completed"].includes(event) ? "artist" : ["catalog_searched", "track_preview_started", "license_selected", "checkout_started", "purchase_verified"].includes(event) ? "buyer" : null;
     add(event, label, [event], () => rows.filter(row => row.event === event && (!role || row.actorRole === role)).length);
   }
   const submissions = rows.filter(row => row.event === "submission_completed" && row.actorRole === "artist");
@@ -146,5 +146,12 @@ export function buildSECReadModels(raw: ReadSource, request: ReadRequest): SECRe
     source.state !== "available" ? sourceMetric(source.state) : source.delivery?.[status as keyof NonNullable<ReadSource["delivery"]>] === undefined ? sourceMetric("insufficient_evidence") : numberMetric(source.delivery[status as keyof NonNullable<ReadSource["delivery"]>]!), source.queriedRange));
   return { intelligence: [...marketplace, ...funnels.map(funnel => funnel.metrics.find(metric => metric.id.endsWith(".overall"))!)],
     marketplace, funnels, tracks, eventHealth, series: timeBuckets(request.range, request.granularity, request.timezone).map(range => ({ range,
-      metrics: [...aggregate(source, range)].map(([id, item]) => card(id, item.label, item.metric, range)) })) };
+      metrics: [...aggregate(source, range)].map(([id, item]) => {
+        const duration = Date.parse(request.range.endExclusive) - Date.parse(request.range.startInclusive);
+        const priorRange = { startInclusive: new Date(Date.parse(range.startInclusive) - duration).toISOString(), endExclusive: new Date(Date.parse(range.endExclusive) - duration).toISOString() };
+        const priorMetric = previous ? aggregate(source, priorRange).get(id)?.metric : undefined;
+        const result = card(id, item.label, item.metric, range, priorMetric);
+        if (result.comparison) result.comparison = { ...result.comparison, range: priorRange, coverage: coverage(priorMetric?.value === null ? { ...source, coverageVerified: false } : source, request, priorRange) };
+        return result;
+      }) })) };
 }

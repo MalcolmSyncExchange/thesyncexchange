@@ -11,7 +11,7 @@ export async function readSECAnalytics(request: ReadRequest, instrumentedEvents:
   validateRange(request.range);
   const queryRange = {
     startInclusive: request.comparePrevious ? previousPeriod(request.range).startInclusive : request.range.startInclusive,
-    endExclusive: new Date(Date.parse(request.range.endExclusive) + request.maxStepLagMs * 3).toISOString()
+    endExclusive: new Date(Date.parse(request.range.endExclusive) + request.maxStepLagMs * 4).toISOString()
   };
   const source = await readAnalyticsSource({
     authorizeAdmin: async () => (await getAnalyticsActor())?.role === "admin",

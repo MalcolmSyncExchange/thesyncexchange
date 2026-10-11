@@ -1,0 +1,2 @@
+"use client";
+export default function ErrorState({ reset }: { reset: () => void }) { return <div role="alert" className="rounded-xl border p-6"><h2 className="text-xl font-semibold">Intelligence unavailable</h2><p className="my-3">The analytics request could not be completed. No missing values have been inferred.</p><button className="rounded border px-4 py-2" onClick={reset}>Retry</button></div>; }

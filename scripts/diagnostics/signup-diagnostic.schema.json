@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sanitized artist signup diagnostic snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "outcome", "failure_category", "last_completed_step", "failed_step", "exception_category", "elapsed_ms", "route", "relevant_http_status", "submit_initiated", "submission_occurred", "auth_request_observed", "auth_response_observed", "auth_visibility", "console_error_categories", "network_failure_categories", "checkpoints"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "status": { "enum": ["running", "passed", "failed"] },
+    "outcome": { "enum": [null, "awaiting_email_confirmation", "authenticated_session"] },
+    "failure_category": { "enum": [null, "navigation_failure", "form_readiness_failure", "field_population_failure", "submission_failure", "auth_http_failure", "auth_timeout", "profile_reconciliation_failure", "browser_initialization_failure", "outcome_failure", "harness_failure"] },
+    "last_completed_step": { "anyOf": [{ "$ref": "#/$defs/step" }, { "type": "null" }] },
+    "failed_step": { "anyOf": [{ "$ref": "#/$defs/step" }, { "type": "null" }] },
+    "exception_category": { "enum": [null, "timeout", "browser_closed", "http_failure", "assertion_failure", "operation_failure"] },
+    "elapsed_ms": { "type": "integer", "minimum": 0 },
+    "route": { "enum": ["unknown", "other_route", "/signup/artist", "/onboarding", "/onboarding/artist", "/artist/dashboard", "/auth/confirm", "/login"] },
+    "relevant_http_status": { "anyOf": [{ "type": "integer", "minimum": 100, "maximum": 599 }, { "type": "null" }] },
+    "submit_initiated": { "type": "boolean" },
+    "submission_occurred": { "type": "boolean" },
+    "auth_request_observed": { "type": "boolean" },
+    "auth_response_observed": { "type": "boolean" },
+    "auth_visibility": { "enum": ["unknown", "browser", "trusted_server_observer", "server_side_unobservable"] },
+    "console_error_categories": {
+      "type": "array", "uniqueItems": true, "maxItems": 4,
+      "items": { "enum": ["javascript_error", "hydration_error", "resource_load_error", "other_console_error"] }
+    },
+    "network_failure_categories": {
+      "type": "array", "uniqueItems": true, "maxItems": 5,
+      "items": { "enum": ["aborted", "timeout", "connection_failed", "blocked", "other_network_failure"] }
+    },
+    "checkpoints": {
+      "type": "array", "maxItems": 13,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["step", "status", "elapsed_ms"],
+        "properties": {
+          "step": { "$ref": "#/$defs/step" },
+          "status": { "enum": ["started", "completed", "failed", "not_observable"] },
+          "elapsed_ms": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "step": {
+      "enum": ["browser_initialization", "navigation_started", "signup_page_loaded", "form_located", "form_ready", "test_fields_populated", "submit_initiated", "submit_completed", "auth_request_observed", "auth_response_observed", "navigation_or_confirmation_outcome_observed", "profile_reconciliation_verified", "final_result_recorded"]
+    }
+  }
+}

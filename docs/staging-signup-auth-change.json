@@ -1,0 +1,25 @@
+{
+  "status": "prepared_not_applied",
+  "captured_date_utc": "2026-10-11",
+  "project_id": "oppijylbkcbiqfuvckgj",
+  "project_name": "sync-exchange-posthog-staging",
+  "organization_id": "mrusvpfrejtelzxovdjv",
+  "site_id": "d8e851a6-ab37-4b0e-9403-9b2c1be65f13",
+  "deployment_id": "6acb04b41c6d687bbab9c19f",
+  "before": {
+    "site_url": "http://localhost:3000",
+    "redirect_urls": []
+  },
+  "proposed": {
+    "site_url": "https://6acb04b41c6d687bbab9c19f--sync-exchange-posthog-staging.netlify.app",
+    "redirect_urls": [
+      "https://6acb04b41c6d687bbab9c19f--sync-exchange-posthog-staging.netlify.app/auth/confirm?next=%2Fonboarding"
+    ]
+  },
+  "rollback": {
+    "site_url": "http://localhost:3000",
+    "redirect_urls": [],
+    "requires": "Recheck exact staging project and current values. Restore only this change; stop on configuration drift. Separate founder approval required."
+  },
+  "approval_required": "Founder approval for these two staging Auth fields only. This is not authorization to send email, signup, change SMTP/team membership, or modify production."
+}

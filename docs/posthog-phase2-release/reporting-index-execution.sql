@@ -55,11 +55,32 @@ begin
 end; $preflight$;
 do $queue$
 begin
-  if (select count(*) from public.analytics_outbox) <> 4
+  if (select count(*) from public.analytics_outbox) <> 5
      or exists (select 1 from public.analytics_outbox where delivered_at is null or lease_until > now()) then
     raise exception 'Outbox baseline changed; stop without deleting or replaying rows';
   end if;
+  if exists (
+    select 1 from (values
+('035e3594-c5de-4906-853a-774a19f223e9'::uuid,'53b59af9fffa30d3713eacaf8abb0a1d982816a1885691fbae92b8286d478671'),
+('2d11b65d-4a4e-45f4-b841-62f5ba034ebf'::uuid,'e409ee93523239a53b2eecddc09bd96c303563a92977b4723caac3e4df996027'),
+('56409790-bc42-447d-887b-6e274ea2ecbf'::uuid,'6847da70f8b04af7bcd5a5f2238b6b65e796d30836840fea1bbcdffe9cfeaa15'),
+('9f0d215b-c415-4fe5-becf-246fe66102e5'::uuid,'00557ed114be6b2456516877497e95c22d5f5a14de14150ec509848bbf2dafbc'),
+('c8c68b8d-454d-4400-8b62-0e718a9a52f5'::uuid,'468e9a77e3c1df2d30fa30eb9639943949393d4546c686643dfb328494609a96')
+) expected(id,sha256)
+    left join public.analytics_outbox o on o.id=expected.id
+    where o.id is null or encode(extensions.digest(((to_jsonb(o) - ARRAY['delivery_status','attempt_count','delivery_cycle','last_attempt_at','next_retry_at','failure_category','occurred_at','delivered_at','lease_until']) || jsonb_build_object('occurred_at',to_char(o.occurred_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),'delivered_at',to_char(o.delivered_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),'lease_until',to_char(o.lease_until at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')))::text,'sha256'),'hex') is distinct from expected.sha256
+  ) then
+    raise exception 'Outbox identity/payload/timestamp fingerprint divergence; renewed verification required';
+  end if;
 end; $queue$;
+do $delivery_state$
+begin
+  if exists (select 1 from public.analytics_outbox where delivery_status is distinct from 'delivered'
+    or attempt_count is distinct from 0 or delivery_cycle is distinct from 0
+    or last_attempt_at is not null or next_retry_at is not null or failure_category is not null) then
+    raise exception 'Unexpected reliability state; renewed verification required';
+  end if;
+end; $delivery_state$;
 -- SEC source reader: equality environment, non-test/non-internal artist/buyer
 -- cohort, half-open occurred_at range, ORDER BY occurred_at,id, LIMIT 500.
 -- The pending-only index omits delivered evidence. This partial index covers

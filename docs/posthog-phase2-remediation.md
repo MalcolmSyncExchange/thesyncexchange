@@ -1,3 +1,5 @@
+> Historical candidate report. The four-row execution baseline is superseded by [transition preparation](posthog-phase2-transition.md); use the revised five-row pack checksums only after renewed approval.
+
 # PostHog Phase 2 remediation release candidate
 
 ## Scope and provenance

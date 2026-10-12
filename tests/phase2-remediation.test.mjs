@@ -86,18 +86,28 @@ async function hostedFixture() {
  await seedDatabase(db);
  await db.exec('create schema supabase_migrations;create table supabase_migrations.schema_migrations(version text primary key,name text,statements text[]);');
  for(const row of history)await db.query('insert into supabase_migrations.schema_migrations values($1,$2,array[$3::text])',[row.version,row.name,readFileSync(new URL(`../supabase/migrations/${row.name}.sql`,import.meta.url),'utf8')]);
- await db.query("insert into public.analytics_outbox(dedupe_key,environment,event,actor_id,actor_role,properties,is_test,is_internal,delivered_at) select 'review-fixture-'||i,'preview','onboarding_started',$1,'buyer','{}'::jsonb,true,false,now() from generate_series(1,4) i",[ids.buyer]);
+ const snapshot=JSON.parse(readFileSync(new URL('../docs/posthog-phase2-release/outbox-baseline.json',import.meta.url)));
+ for(const [i,row] of snapshot.rows.entries())await db.query("insert into public.analytics_outbox(id,dedupe_key,environment,event,actor_id,actor_role,properties,is_test,is_internal,occurred_at,delivered_at,lease_id,lease_until) values($1,$2,'preview','onboarding_started',$3,'buyer',$4::jsonb,true,false,$5,$6,$7,null)",[row.id,'local-fixture-'+i,ids.buyer,JSON.stringify({fixture:i}),row.occurred_at,row.delivered_at,row.lease_id]);
+ // Private hosted payloads never enter local fixtures. Substitute only five expected
+ // fingerprints, leaving the exact reviewed SQL guard/transactions/DDL unchanged.
+ const fingerprints=(await db.query(`select id,encode(extensions.digest((${snapshot.fingerprintExpression})::text,'sha256'),'hex') as hash from analytics_outbox o`)).rows;
+ db.fixturePacks={};
+ for(const label of ['reliability','reporting-index']){
+  let sql=executionPack(label);
+  for(const row of snapshot.rows)sql=sql.replaceAll(row.row_sha256,fingerprints.find(r=>r.id===row.id).hash);
+  db.fixturePacks[label]=sql;
+ }
  return db;
 }
-const executionPack=label=>readFileSync(new URL(`../docs/posthog-phase2-release/${label}-execution.sql`,import.meta.url),'utf8');
+const executionPack=(label,db)=>db?.fixturePacks?.[label]??readFileSync(new URL(`../docs/posthog-phase2-release/${label}-execution.sql`,import.meta.url),'utf8');
 test('exact approved SQL packs execute locally from the hosted-version fixture and preserve delivered history',async()=>{
  const db=await hostedFixture();try{
- const before=(await db.query('select id,occurred_at,delivered_at from analytics_outbox order by id')).rows;
- await db.exec(executionPack('reliability'));
+ const before=(await db.query("select to_jsonb(o)-array['delivery_status','attempt_count','delivery_cycle','last_attempt_at','next_retry_at','failure_category'] as row from analytics_outbox o order by id")).rows;
+ await db.exec(executionPack('reliability',db));
  assert.equal((await db.query('select count(*)::int as n from supabase_migrations.schema_migrations')).rows[0].n,35);
- assert.deepEqual((await db.query('select id,occurred_at,delivered_at from analytics_outbox order by id')).rows,before);
+ assert.deepEqual((await db.query("select to_jsonb(o)-array['delivery_status','attempt_count','delivery_cycle','last_attempt_at','next_retry_at','failure_category'] as row from analytics_outbox o order by id")).rows,before);
  assert.ok((await db.query('select delivery_status,attempt_count,delivery_cycle from analytics_outbox')).rows.every(r=>r.delivery_status==='delivered'&&r.attempt_count===0&&r.delivery_cycle===0));
- await db.exec(executionPack('reporting-index'));
+ await db.exec(executionPack('reporting-index',db));
  assert.equal((await db.query('select count(*)::int as n from supabase_migrations.schema_migrations')).rows[0].n,36);
  for(const file of ['20261011191427_analytics_delivery_reliability','20261011210517_analytics_reporting_index']){
  const stored=(await db.query("select encode(extensions.digest(array_to_string(statements,E'\\n'),'sha256'),'hex') as hash from supabase_migrations.schema_migrations where name=$1",[file])).rows[0].hash;
@@ -110,11 +120,55 @@ test('cutover SQL rejects divergent history/queue and rolls back a fault after D
  const db=await hostedFixture();try{
  if(fault==='checksum')await db.exec("update supabase_migrations.schema_migrations set statements=array['divergent'] where version='20261010055251'");
  else if(fault==='queue') await db.exec('update analytics_outbox set delivered_at=null where id=(select id from analytics_outbox limit 1)');
- const pack=fault==='late'?executionPack('reliability').replace('insert into supabase_migrations.schema_migrations(version,name,statements)','select 1/0;\ninsert into supabase_migrations.schema_migrations(version,name,statements)'):executionPack('reliability');
+ const pack=fault==='late'?executionPack('reliability',db).replace('insert into supabase_migrations.schema_migrations(version,name,statements)','select 1/0;\ninsert into supabase_migrations.schema_migrations(version,name,statements)'):executionPack('reliability',db);
  await assert.rejects(db.exec(pack),fault==='checksum'?/checksum divergence/:fault==='queue'?/Outbox baseline changed/:/division by zero/);
  await db.exec('rollback');
  assert.equal((await db.query("select count(*)::int as n from information_schema.columns where table_name='analytics_outbox' and column_name='delivery_status'")).rows[0].n,0);
  assert.equal((await db.query('select count(*)::int as n from supabase_migrations.schema_migrations')).rows[0].n,34);
  }finally{await db.close();}
  }
+});
+
+for(const label of ['reliability','reporting-index']){
+ for(const fault of ['four','six','identity','lease','pending','delivered-time','occurred-time','payload','history','state']){
+  test(`${label} guard rejects ${fault} drift without changing existing data`,async()=>{
+   const db=await hostedFixture();try{
+    if(label==='reporting-index')await db.exec(executionPack('reliability',db));
+    const id=JSON.parse(readFileSync(new URL('../docs/posthog-phase2-release/outbox-baseline.json',import.meta.url))).rows[0].id;
+    if(fault==='four')await db.query('delete from analytics_outbox where id=$1',[id]);
+    if(fault==='six')await db.query("insert into analytics_outbox(dedupe_key,environment,event,actor_id,actor_role,properties,is_test,is_internal,delivered_at) values('extra-fixture','preview','onboarding_started',$1,'buyer','{}',true,false,now())",[ids.buyer]);
+    if(fault==='identity')await db.query('update analytics_outbox set id=gen_random_uuid() where id=$1',[id]);
+    if(fault==='lease')await db.query("update analytics_outbox set lease_until=now()+interval '30 seconds' where id=$1",[id]);
+    if(fault==='pending')await db.query('update analytics_outbox set delivered_at=null where id=$1',[id]);
+    if(fault==='delivered-time')await db.query("update analytics_outbox set delivered_at=delivered_at+interval '1 microsecond' where id=$1",[id]);
+    if(fault==='occurred-time')await db.query("update analytics_outbox set occurred_at=occurred_at+interval '1 microsecond' where id=$1",[id]);
+    if(fault==='payload')await db.query("update analytics_outbox set properties='{}'::jsonb where id=$1",[id]);
+    if(fault==='history')await db.exec("update supabase_migrations.schema_migrations set name='changed' where version='20261010055251'");
+    if(fault==='state'){
+     if(label==='reporting-index')await db.query('update analytics_outbox set attempt_count=1 where id=$1',[id]);
+     else await db.query("update analytics_outbox set environment='production' where id=$1",[id]);
+    }
+    const before=(await db.query('select to_jsonb(o) as row from analytics_outbox o order by id')).rows;
+    await assert.rejects(db.exec(executionPack(label,db)),/Outbox baseline changed|fingerprint divergence|checksum divergence|Unexpected reliability state/);
+    await db.exec('rollback');
+    assert.deepEqual((await db.query('select to_jsonb(o) as row from analytics_outbox o order by id')).rows,before);
+    assert.equal((await db.query('select count(*)::int as n from supabase_migrations.schema_migrations')).rows[0].n,label==='reliability'?34:35);
+   }finally{await db.close();}
+  });
+ }
+}
+
+test('queue fingerprint is invariant under session timezone changes and rejects post-DDL payload corruption',async()=>{
+ const db=await hostedFixture();try{
+  await db.exec("set timezone='America/Phoenix'");
+  const before=(await db.query('select to_jsonb(o) as row from analytics_outbox o order by id')).rows;
+  const broken=executionPack('reliability',db).replace('-- Record the exact original file bytes',"-- Record the exact original file bytes");
+  // Inject before the repeated queue guard, after historical migration DDL.
+  const first=broken.indexOf('do $queue$'),second=broken.indexOf('do $queue$',first+1);
+  assert.ok(second>first);
+  const sql=broken.slice(0,second)+"update analytics_outbox set properties='{}'::jsonb;\n"+broken.slice(second);
+  await assert.rejects(db.exec(sql),/fingerprint divergence/);await db.exec('rollback');
+  assert.deepEqual((await db.query('select to_jsonb(o) as row from analytics_outbox o order by id')).rows,before);
+  await db.exec(executionPack('reliability',db));await db.exec(executionPack('reporting-index',db));
+ }finally{await db.close();}
 });

@@ -7,6 +7,7 @@ import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { ArtistOnboardingStep, BuyerOnboardingStep, SessionUser } from "@/types/models";
 
 export interface ArtistOnboardingValues {
+  onboardingVersion: string;
   fullName: string;
   artistName: string;
   avatarPath: string;
@@ -45,18 +46,19 @@ export async function getArtistOnboardingState(user: SessionUser, requestedStep?
     currentStepIndex: getArtistStepIndex(currentStep),
     steps: artistOnboardingSteps,
     values: {
-      fullName: String(payload.fullName || user.fullName || ""),
-      artistName: String(payload.artistName || profile?.artist_name || ""),
-      avatarPath: String(payload.avatarPath || user.avatarPath || ""),
-      avatarUrl: String(payload.avatarUrl || user.avatarUrl || ""),
-      bio: String(payload.bio || profile?.bio || ""),
-      location: String(payload.location || profile?.location || ""),
-      website: String(payload.website || profile?.website || ""),
-      instagram: String(payload.instagram || profile?.instagram_url || socialLinks.instagram || ""),
-      spotify: String(payload.spotify || profile?.spotify_url || socialLinks.spotify || ""),
-      youtube: String(payload.youtube || profile?.youtube_url || socialLinks.youtube || ""),
+      onboardingVersion: user.onboardingUpdatedAt || "",
+      fullName: String(payload.fullName ?? user.fullName ?? ""),
+      artistName: String(payload.artistName ?? profile?.artist_name ?? ""),
+      avatarPath: String(payload.avatarPath ?? user.avatarPath ?? ""),
+      avatarUrl: String(payload.avatarUrl ?? user.avatarUrl ?? ""),
+      bio: String(payload.bio ?? profile?.bio ?? ""),
+      location: String(payload.location ?? profile?.location ?? ""),
+      website: String(payload.website ?? profile?.website ?? ""),
+      instagram: String(payload.instagram ?? profile?.instagram_url ?? socialLinks.instagram ?? ""),
+      spotify: String(payload.spotify ?? profile?.spotify_url ?? socialLinks.spotify ?? ""),
+      youtube: String(payload.youtube ?? profile?.youtube_url ?? socialLinks.youtube ?? ""),
       payoutEmail: String(finance.payout_email || ""),
-      defaultLicensingPreferences: String(payload.defaultLicensingPreferences || profile?.default_licensing_preferences || ""),
+      defaultLicensingPreferences: String(payload.defaultLicensingPreferences ?? profile?.default_licensing_preferences ?? ""),
       firstTrackChoice: payload.firstTrackChoice === "upload" ? "upload" : "later"
     } satisfies ArtistOnboardingValues
   };

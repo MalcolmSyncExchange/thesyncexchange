@@ -1,0 +1,93 @@
+{
+  "localOnly": true,
+  "temporaryRouteAbsentFromProductionBuild": true,
+  "results": [
+    {
+      "name": "unit",
+      "command": "npm run test:unit",
+      "passed": 689,
+      "failed": 0,
+      "skipped": 0,
+      "log": "/private/tmp/tse-combined-unit-final.log",
+      "logSha256": "1f279435e6adbb7568e9de56eb056b62d7318b809854ad81f41b5639a88380d7"
+    },
+    {
+      "name": "analytics",
+      "command": "npm run test:analytics",
+      "passed": 175,
+      "failed": 0,
+      "skipped": 0,
+      "log": "/private/tmp/tse-combined-analytics.log",
+      "logSha256": "309a7687b083dfe2ae4d9b99d6aa9ff33ebaf3e802012169c3003c61936ccfbf"
+    },
+    {
+      "name": "onboarding",
+      "command": "npm run test:artist-onboarding",
+      "passed": 51,
+      "failed": 0,
+      "skipped": 0,
+      "log": "/private/tmp/tse-combined-onboarding.log",
+      "logSha256": "9481fb894df6b8a5b78096275d348dc70c74737f81bf278f35b255b47bb4f65a"
+    },
+    {
+      "name": "security",
+      "command": "npm run test:security-pr2",
+      "passed": 65,
+      "failed": 0,
+      "skipped": 0,
+      "log": "/private/tmp/tse-combined-security-final.log",
+      "logSha256": "178fef12bdaf87fd8593eb779cfeb7b4df0040cd10209cc830fa38b26bcf1cd0"
+    },
+    {
+      "name": "migrations",
+      "command": "npm run test:combined-migrations",
+      "passed": 50,
+      "failed": 0,
+      "skipped": 0,
+      "log": "/private/tmp/tse-combined-migrations-final.log",
+      "logSha256": "7bcccaae592226919d9412a5714a368855b2af2d841fec499fa5bbc21c324b31"
+    },
+    {
+      "name": "managed-postgres",
+      "command": "npm run test:storage-ownership",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "log": "/private/tmp/tse-combined-native.log",
+      "logSha256": "fb84829f96e179c5229f9bc893613f406616e99f49e193c7f6ea7c9f78e8681a"
+    },
+    {
+      "name": "browser",
+      "command": "npm run test:combined-browser",
+      "status": "PASS",
+      "note": "local fixtures only",
+      "log": "/private/tmp/tse-combined-browser-final.log",
+      "logSha256": "b9ea09cbe581be3f714f0b53d609406b3e00a425d7fc63802e7f912ad696636b"
+    },
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "status": "PASS",
+      "note": "",
+      "log": "/private/tmp/tse-combined-typecheck-final.log",
+      "logSha256": "1dc978774d1b3625513e484becd4e50b72c451beaeb3febce7f60f430d80071f"
+    },
+    {
+      "name": "lint",
+      "command": "npm run lint",
+      "status": "PASS",
+      "note": "one existing react-hooks/incompatible-library warning",
+      "log": "/private/tmp/tse-combined-lint-final.log",
+      "logSha256": "68752fad1d25fb007c55e8697e494955037b166831f51d6ff03640d12cfb0b8b"
+    },
+    {
+      "name": "build",
+      "command": "ANALYTICS_ENABLED=false; payment mode test and adapters disabled; npm run build",
+      "status": "PASS",
+      "note": "",
+      "log": "/private/tmp/tse-combined-build-final.log",
+      "logSha256": "4a914f6b76bd35256cf7fffec32c51d2b1fffb6db41e1f1b9c0d8a3af10a5e8b"
+    }
+  ],
+  "performance": "performance.json"
+}

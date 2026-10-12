@@ -359,11 +359,11 @@ test('purchase hook is absent from return-page services, Gate D and generic chec
 });
 
 function authActionsHarness({role='buyer',profileFailure=false,identities=[{id}],session=true,loggedIn=true}={}) {
- const events=[];let row=null;const user={id,role,email:'private@example.com',fullName:'Private name',identities};
- const db={auth:{signUp:async()=>({data:{user,session:session?{user}:null}}),signInWithPassword:async()=>({data:{user:null}})},
+ const events=[];let row=null;const user={id,role,email:'private@example.com',fullName:'Private name',identities,onboardingStep:'complete',onboardingUpdatedAt:'2026-01-01T00:00:00Z',onboardingData:{firstTrackChoice:'later'}};
+ const db={rpc:async()=>{events.push('persist');return {error:profileFailure?Error('private db failure'):null}},auth:{signUp:async()=>({data:{user,session:session?{user}:null}}),signInWithPassword:async()=>({data:{user:null}})},
   from(){return {insert:async value=>{events.push('persist');if(profileFailure)return {error:Error('private db failure')};row=value;return {error:null};}};}};
  const captureForUser=async(...args)=>events.push(['capture',...args]);
- const deps={reconcileAppUserProfile,captureForUser,capturePersistedSignup:async(...args)=>events.push(['signup',...args]),
+ const deps={unstable_rethrow:()=>{},parseArtistOnboardingVersion:()=> '2026-01-01T00:00:00Z',getArtistOnboardingState:async()=>({values:{}}),validateArtistCompletion:()=>{},getArtistSaveErrorMessage:()=> 'safe error',reconcileAppUserProfile,captureForUser,capturePersistedSignup:async(...args)=>events.push(['signup',...args]),
   getMutationClient:async()=>db,getUserProfileMutationClient:async()=>db,
   selectUserProfileCompat:async()=>({data:row}),upsertUserProfileCompat:async(_db,value)=>{events.push('persist');if(profileFailure)return {error:Error('private db failure')};row={...row,...value};return {error:null};},
   normalizeAuthEmail:x=>x,parseSignupRole:x=>x,resolveSignupReturnPath:()=>'/signup',resolveAuthMode:()=> 'supabase',hasSupabaseEnv:true,env:{demoMode:false},createAdminSupabaseClient:()=>db,createServerSupabaseClient:async()=>db,
@@ -375,7 +375,7 @@ function authActionsHarness({role='buyer',profileFailure=false,identities=[{id}]
   between('export async function finishArtistOnboardingAction','export async function saveBuyerOnboardingStepAction'),
   between('export async function finishBuyerOnboardingAction','async function ensureAppUser'),
   between('async function ensureAppUser','async function hasCompletedOnboarding'),
-  between('async function finalizeOnboarding','async function uploadArtistAvatarIfPresent')].join('\n');
+  between('async function finalizeArtistOnboarding','async function uploadArtistAvatarIfPresent')].join('\n');
  const actionModule={exports:{}};runInNewContext(ts.transpileModule(code,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{...deps,exports:actionModule.exports,module:actionModule,FormData,URLSearchParams});
  const form=new FormData();for(const [k,v] of Object.entries({email:user.email,password:'private password',fullName:user.fullName,role}))form.set(k,v);
  return {actions:actionModule.exports,events,form};

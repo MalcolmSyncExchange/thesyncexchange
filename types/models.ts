@@ -250,6 +250,7 @@ export interface SessionUser {
   onboardingStartedAt?: string | null;
   onboardingCompletedAt?: string | null;
   onboardingData?: Record<string, unknown> | null;
+  onboardingUpdatedAt?: string | null;
 }
 
 export type ArtistPublicProfile = Omit<ArtistProfile, "payout_email">;

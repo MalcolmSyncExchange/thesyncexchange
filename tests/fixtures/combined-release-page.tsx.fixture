@@ -1,0 +1,19 @@
+import {headers} from 'next/headers';
+import {notFound} from 'next/navigation';
+import {IntelligenceDashboard,type IntelligenceView} from '@/components/admin-v2/intelligence-dashboard';
+import {FinancialDashboard} from '@/components/admin-v2/financial-dashboard';
+import {buildSECReadModels} from '@/lib/analytics/intelligence/read-models';
+import {dashboardRequest} from '@/lib/analytics/intelligence/dashboard';
+import {buildFinancialReport,unavailableFinancialSource} from '@/lib/analytics/financial/report';
+import {eventSchemas} from '@/lib/analytics/schema';
+export default async function LocalFixture({searchParams}:{searchParams:Promise<Record<string,string>>}){
+ const host=(await headers()).get('host');if(process.env.SYNC_EXCHANGE_DEMO_MODE!=='true'||process.env.ANALYTICS_ENABLED!=='false'||host!=='127.0.0.1:3087')notFound();
+ const params=await searchParams;
+ const range={startInclusive:'2026-01-01T00:00:00Z',endExclusive:'2026-01-03T00:00:00Z'};
+ if(params.view==='financial')return <main className="p-4"><FinancialDashboard data={buildFinancialReport(unavailableFinancialSource(),{range,mode:'test',granularity:'day',comparePrevious:false})}/></main>;
+ let request;try{request=dashboardRequest({start:'2026-01-01',end:'2026-01-03',...params});}catch{return <p role="alert">Invalid date range: hourly maximum seven days.</p>;}
+ const observations=Array.from({length:101},(_,i)=>({eventId:`fixture-${i}`,actorId:`fixture-actor-${i}`,actorRole:'buyer' as const,event:'track_preview_started' as const,trackId:`track-${i.toString().padStart(3,'0')}`,occurredAt:'2026-01-01T01:00:00Z',environment:'preview' as const,isTest:params.tests==='yes',isInternal:false}));
+ const data=buildSECReadModels({state:params.unavailable==='yes'?'unavailable_source':'available',type:'local-browser-fixture',observations,instrumentedEvents:Object.keys(eventSchemas),queriedRange:range,observedThrough:'2026-01-01',coverageVerified:false,lastUpdatedAt:null},request);
+ const query=new URLSearchParams({start:request.range.startInclusive.slice(0,10),end:request.range.endExclusive.slice(0,10),interval:request.granularity,seriesMetric:request.seriesMetric,trackPage:String(request.trackPage)}).toString();
+ return <main className="p-4"><IntelligenceDashboard data={data} view={(params.view??'marketplace') as IntelligenceView} query={`?${query}`}/></main>;
+}

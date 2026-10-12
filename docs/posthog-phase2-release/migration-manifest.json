@@ -1,6 +1,6 @@
 {
   "baselineCommit": "e671bd104abb4deed881a01856c90e0e7bb8fbdb",
-  "purpose": "Complete release inventory, not a replacement for the historical PR2 baseline",
+  "purpose": "Combined release inventory; historical hosted mappings remain unchanged",
   "migrations": [
     {
       "file": "0001_initial_schema.sql",
@@ -145,6 +145,18 @@
     {
       "file": "20261011210517_analytics_reporting_index.sql",
       "sha256": "0ac62cb3ebf55120d043b8166274261fab4c4013c37be273539b17cdcfee0b99"
+    },
+    {
+      "file": "20261012173855_artist_onboarding_atomic.sql",
+      "sha256": "8cc4d1c4fbdf74a48b9685920576fbc5ab06a8d4ab225ca72bc62a56a87e80a2"
+    },
+    {
+      "file": "20261012173856_staging_avatar_storage_readiness.sql",
+      "sha256": "a3c216f8aada2c8eec140ac08e7fdc24a24df46401ba0d3d2179692d52eb669d"
     }
-  ]
+  ],
+  "sourceBaselines": {
+    "posthog": "ddbf3cfc5458762a917e6bdd9be851e2f1aa1a8c",
+    "onboarding": "5f5ff73c7578b865f2257b1df25fa7a500272283"
+  }
 }

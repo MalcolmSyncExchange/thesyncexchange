@@ -74,7 +74,7 @@ async function withManagedDatabase(run) {
     }
     assert.ok(ready,'Disposable Supabase PostgreSQL did not start');
     await asRole('supabase_admin',bootstrap);
-    await run(sql);
+    await run(sql,asRole);
   } finally {if(owned)await docker(['rm','--force',name]);}
 }
 
@@ -99,7 +99,9 @@ async function assertOwnership(sql) {
 
 for(const mode of ['fresh','resume']) test(`managed Storage ${mode}: full non-analytics baseline, unchanged ownership, real policy permissions`,{timeout:90000},async t=>{
   assert.equal(manifest.length,31);
-  assert.deepEqual(manifest.map(m=>m.file),readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')&&!excluded.has(f)).sort());
+  const all=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort();
+  assert.ok(manifest.every(m=>all.includes(m.file)));
+  assert.deepEqual(all.filter(f=>!manifest.some(m=>m.file===f)),['20260915072720_analytics_purchase_outbox.sql','20261010060000_analytics_verified_purchase_evidence.sql','20261011004710_sec_payment_readiness.sql','20261011191427_analytics_delivery_reliability.sql','20261011210517_analytics_reporting_index.sql','20261012173855_artist_onboarding_atomic.sql','20261012173856_staging_avatar_storage_readiness.sql']);
   await withManagedDatabase(async sql=>{
     await assertOwnership(sql);
     const ledger=[];
@@ -166,3 +168,32 @@ async function verifyStorageAuthorization(sql) {
   await assert.rejects(actor('service_role','',"update storage.buckets set public=true where id='purchase-assets'"),/must remain private/);
   await actor('service_role','',`insert into storage.objects(bucket_id,name,version) values('track-audio','${ids.a}/uploads/audio/fresh.wav','v1')`);
 }
+
+test('combined release: four exact migrations preserve existing data under managed Storage ownership', {timeout:90000},async t=>{
+ await withManagedDatabase(async(sql,asRole)=>{
+  await assertOwnership(sql);
+  const history=JSON.parse(source('docs/posthog-phase2-release/hosted-history.json')).migrations;
+  for(const row of history)await sql(source(`supabase/migrations/${row.name}.sql`));
+  const trusted=text=>sql("select set_config('request.jwt.claim.role','service_role',false);"+text);
+  await seedDatabase({exec:trusted});
+  await asRole('supabase_admin',"set role supabase_auth_admin;create table auth.identities(id uuid primary key,user_id uuid references auth.users(id),provider text);grant all on auth.identities to postgres;");
+  await trusted("insert into auth.identities select id,id,'email' from auth.users;update user_profiles set onboarding_step='basics',onboarding_payload='{\"fixture\":\"saved progress\"}' where role='artist';");
+  for(let i=0;i<5;i++)await trusted(`insert into analytics_outbox(dedupe_key,environment,event,actor_id,actor_role,properties,is_test,is_internal,delivered_at) values('combined-${i}','preview','signup_completed','${ids.a}','artist','{}',true,false,now());`);
+  const snapshot=()=>sql("select json_build_object('users',(select json_agg(to_jsonb(p) order by id) from auth.users p),'identities',(select json_agg(to_jsonb(p) order by id) from auth.identities p),'profiles',(select json_agg(to_jsonb(p) order by id) from user_profiles p),'artists',(select json_agg(to_jsonb(p) order by id) from artist_profiles p),'outbox',(select json_agg(to_jsonb(p)-array['delivery_status','attempt_count','delivery_cycle','last_attempt_at','next_retry_at','failure_category'] order by id) from analytics_outbox p))");
+  const before=await snapshot();
+  const files=['20261011191427_analytics_delivery_reliability.sql','20261011210517_analytics_reporting_index.sql','20261012173855_artist_onboarding_atomic.sql','20261012173856_staging_avatar_storage_readiness.sql'];
+  for(const file of files){
+   const raw=source(`supabase/migrations/${file}`);
+   const wrapped=raw.trimStart().startsWith('begin;')?raw:`begin;set local lock_timeout='3s';set local statement_timeout='30s';${raw}\ncommit;`;
+   await assert.rejects(sql(wrapped.replace(/commit;\s*$/,'select 1/0;commit;')),/division by zero/);
+   assert.equal(await snapshot(),before);
+   await sql(wrapped);assert.equal(await snapshot(),before);await assertOwnershipStateOnly(sql);
+   t.diagnostic(`${file}: rollback and exact data preservation passed`);
+  }
+  assert.equal(await sql("select count(*) from analytics_outbox where delivery_status='delivered' and attempt_count=0 and delivery_cycle=0"),'5');
+  assert.equal(await sql("select count(*) from pg_policies where schemaname='storage' and permissive='RESTRICTIVE'"),'7');
+  await assert.rejects(sql(`set role authenticated;select set_config('request.jwt.claim.role','authenticated',false);select set_config('request.jwt.claim.sub','${ids.a}',false);select complete_artist_onboarding_atomic('${ids.a}',now());`),/permission denied/);
+  await assert.rejects(sql(`set role authenticated;select set_config('request.jwt.claim.role','authenticated',false);select set_config('request.jwt.claim.sub','${ids.a}',false);insert into storage.objects(bucket_id,name) values('avatars','${ids.a}/profile/untrusted.jpg');`),/row-level security/);
+  assert.equal(await snapshot(),before);t.diagnostic('service-only RPC and restrictive avatar write boundaries preserved');
+ });
+});

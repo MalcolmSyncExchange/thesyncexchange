@@ -1,0 +1,21 @@
+{
+  "branch": "codex/staging-combined-release",
+  "commonAncestor": "79d1e01f5462fcfa91a4c4ce193abba8e8badd92",
+  "baselines": {
+    "posthog": {
+      "commit": "ddbf3cfc5458762a917e6bdd9be851e2f1aa1a8c",
+      "tree": "9e2a76723f8e862c85bb12d7c0b81d31adca40ac"
+    },
+    "onboarding": {
+      "commit": "5f5ff73c7578b865f2257b1df25fa7a500272283",
+      "tree": "9b371693404fba381344f1057a7527e713638919"
+    }
+  },
+  "migrationManifest": "../posthog-phase2-release/migration-manifest.json",
+  "hostedHistoricalMapping": "../posthog-phase2-release/hosted-history.json",
+  "outboxGuardBaseline": "../posthog-phase2-release/outbox-baseline.json",
+  "executionPackHashes": {
+    "reliability-execution.sql": "52c21070a6f78a42f44fabcc3701e612970c3c589dcf00493a62b5a955038278",
+    "reporting-index-execution.sql": "773ddd5ca0f8c26201c2fb75774d5e4e14e5da51b2dce76d78ed90930cccd374"
+  }
+}

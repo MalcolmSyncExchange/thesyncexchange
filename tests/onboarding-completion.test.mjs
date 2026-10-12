@@ -46,3 +46,7 @@ test("artist review step stays incomplete until finish action records completion
 
   assert.equal(result, false);
 });
+
+test("artist profile presence alone cannot authorize completed workspace access", () => {
+  assert.equal(inferOnboardingCompletionState({role:"artist",hasArtistProfile:true}),false);
+});

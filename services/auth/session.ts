@@ -202,7 +202,7 @@ async function getPersistedUserState(
   ];
 
   const userRow = userResult.data;
-  const role = resolveUserRole(userRow?.role) || detectPersistedRole(artistProfileResult.data, buyerProfileResult.data);
+  const role = resolveUserRole(userRow?.role);
   const fullName = String(userRow?.full_name || fallbackFullName);
   const onboardingStep = role === "admin" ? null : String(userRow?.onboarding_step || "");
   const onboardingComplete = await resolveOnboardingCompletionState(
@@ -227,6 +227,7 @@ async function getPersistedUserState(
     onboardingStartedAt: userRow?.onboarding_started_at || null,
     onboardingCompletedAt: userRow?.onboarding_completed_at || null,
     onboardingStep,
+    onboardingUpdatedAt: userRow?.updated_at || null,
     onboardingData: (userRow?.onboarding_payload as Record<string, unknown> | null) || {},
     onboardingComplete
   } satisfies SessionUser;
@@ -246,12 +247,6 @@ async function resolveOnboardingCompletionState(
     hasArtistProfile: Boolean(artistProfile),
     hasBuyerProfile: Boolean(buyerProfile)
   });
-}
-
-function detectPersistedRole(artistProfile?: { id: string } | null, buyerProfile?: { id: string } | null): UserRole | null {
-  if (artistProfile && !buyerProfile) return "artist";
-  if (buyerProfile && !artistProfile) return "buyer";
-  return null;
 }
 
 function isSafeInternalPath(path: string) {

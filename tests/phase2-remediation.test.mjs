@@ -55,7 +55,7 @@ test('requested series metric retains totals and unavailable states; unknown met
 test('release inventory covers every exact migration byte and execution packs preserve originals',()=>{
  const manifest=JSON.parse(readFileSync(new URL('../docs/posthog-phase2-release/migration-manifest.json',import.meta.url)));
  const history=JSON.parse(readFileSync(new URL('../docs/posthog-phase2-release/hosted-history.json',import.meta.url)));
- assert.equal(manifest.migrations.length,36);assert.equal(history.migrations.length,34);
+ assert.equal(manifest.migrations.length,38);assert.equal(history.migrations.length,34);
  assert.deepEqual(manifest.migrations.map(item=>item.file),readdirSync(new URL('../supabase/migrations/',import.meta.url)).filter(file=>file.endsWith('.sql')).sort());
  for(const item of manifest.migrations)assert.equal(createHash('sha256').update(readFileSync(new URL(`../supabase/migrations/${item.file}`,import.meta.url))).digest('hex'),item.sha256);
  for(const item of history.migrations)assert.equal(createHash('sha256').update(readFileSync(new URL(`../supabase/migrations/${item.name}.sql`,import.meta.url))).digest('hex'),item.sha256);

@@ -10,11 +10,17 @@ import { ZodError } from "zod";
 import { env, getDeploymentTarget, hasSupabaseEnv } from "@/lib/env";
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import { isAbsoluteAssetReference } from "@/lib/storage";
+import { normalizeArtistAvatar } from "@/services/storage/avatar-validation";
 import { uploadManagedAsset } from "@/services/storage/assets";
+import { getArtistOnboardingState } from "@/services/auth/onboarding";
 import { inferOnboardingCompletionState } from "@/services/auth/onboarding-completion";
 import { deleteOwnAvatar } from "@/services/storage/avatar-cleanup";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import {
+  assertArtistStepTransition,
+  parseArtistOnboardingVersion,
+  getArtistStepIndex,
+  validateArtistCompletion,
   getNextArtistStep,
   getNextBuyerStep,
   getValidationErrorMessage,
@@ -37,7 +43,7 @@ import {
   upsertDemoBuyerProfile,
   upsertDemoDirectoryUser
 } from "@/services/auth/demo-store";
-import { selectUserProfileCompat, upsertUserProfileCompat, transitionArtistAvatar } from "@/services/auth/user-profiles";
+import { selectUserProfileCompat, upsertUserProfileCompat } from "@/services/auth/user-profiles";
 import { reconcileAppUserProfile } from "@/services/auth/reconcile-app-user.mjs";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { getSessionUser, resolveOnboardingPath, resolvePostLoginRedirect, resolveRoleRedirect } from "@/services/auth/session";
@@ -564,12 +570,14 @@ export async function updatePasswordAction(formData: FormData) {
 export async function saveArtistOnboardingStepAction(formData: FormData) {
   const user = await requireAuthenticatedUser("artist");
   await captureForUser(user.id, "onboarding_started", {}, `onboarding_started:${user.id}`);
-  const step = String(formData.get("step") || "basics");
+  const step = String(formData.get("step") || "");
   let nextPath = "/onboarding/artist";
   let uploadedAvatarPath: string | null = null;
   let avatarReferenceWriteStarted = false;
 
   try {
+    const expectedVersion = hasSupabaseEnv && !env.demoMode ? parseArtistOnboardingVersion(formData.get("onboardingVersion")) : user.onboardingUpdatedAt;
+    assertArtistStepTransition(step, user.onboardingStep, Boolean(user.onboardingCompletedAt));
     if (step === "basics") {
       const data = parseArtistBasics(formData);
       const uploadedAvatar = await uploadArtistAvatarIfPresent(user.id, formData);
@@ -584,8 +592,10 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         avatarUrl
       };
       await persistArtistOnboarding({
-        user,
+        user: { ...user, onboardingUpdatedAt: expectedVersion },
+        step,
         nextStep: getNextArtistStep("basics"),
+        avatar: uploadedAvatar || undefined,
         beforeUserProfileWrite: uploadedAvatar ? (started = true) => { avatarReferenceWriteStarted = started; } : undefined,
         payload,
         userUpdates: {
@@ -620,16 +630,17 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         youtube: data.youtube
       };
       await persistArtistOnboarding({
-        user,
+        user: { ...user, onboardingUpdatedAt: expectedVersion },
+        step,
         nextStep: getNextArtistStep("profile"),
         payload,
         profileUpdates: {
           bio: data.bio,
           location: data.location,
-          website: data.website || null,
-          instagram_url: data.instagram || null,
-          spotify_url: data.spotify || null,
-          youtube_url: data.youtube || null,
+          website: data.website === undefined ? undefined : data.website || null,
+          instagram_url: data.instagram === undefined ? undefined : data.instagram || null,
+          spotify_url: data.spotify === undefined ? undefined : data.spotify || null,
+          youtube_url: data.youtube === undefined ? undefined : data.youtube || null,
           social_links: buildArtistSocialLinks(data.instagram, data.spotify, data.youtube)
         }
       });
@@ -642,19 +653,21 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         defaultLicensingPreferences: data.defaultLicensingPreferences
       };
       await persistArtistOnboarding({
-        user,
+        user: { ...user, onboardingUpdatedAt: expectedVersion },
+        step,
         nextStep: getNextArtistStep("licensing"),
         payload,
         profileUpdates: {
           payout_email: data.payoutEmail,
-          default_licensing_preferences: data.defaultLicensingPreferences || null
+          default_licensing_preferences: data.defaultLicensingPreferences === undefined ? undefined : data.defaultLicensingPreferences || null
         }
       });
       nextPath = "/onboarding/artist?step=first-track";
     } else {
       const data = parseArtistFirstTrack(formData);
       await persistArtistOnboarding({
-        user,
+        user: { ...user, onboardingUpdatedAt: expectedVersion },
+        step,
         nextStep: getNextArtistStep("first-track"),
         payload: {
           ...user.onboardingData,
@@ -664,6 +677,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
       nextPath = "/onboarding/artist?step=complete";
     }
   } catch (error) {
+    unstable_rethrow(error);
     if (uploadedAvatarPath && uploadedAvatarPath !== user.avatarPath) {
       // A failed response does not prove that the reference write rolled back.
       // Only compensate an upload before that write has even been dispatched.
@@ -677,12 +691,11 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         reportOperationalEvent("avatar_save_outcome_uncertain", "Avatar reference write outcome is uncertain; uploaded object retained.", { userId: user.id });
       }
     }
-    await captureForUser(user.id, "funnel_step_failed", { step: "onboarding", error_code: "save_failed", retryable: true });
-    reportOperationalError("artist_onboarding_save_failed", error, {
-      userId: user.id,
-      step
+    await captureForUser(user.id, "funnel_step_failed", { step: "onboarding", error_code: error instanceof ZodError ? "validation" : "save_failed", retryable: !(error instanceof ZodError) });
+    reportOperationalError("artist_onboarding_save_failed", new Error("Artist onboarding could not be saved."), {
+      step: ["basics", "profile", "licensing", "first-track"].includes(step) ? step : "unsupported"
     });
-    redirect(`/onboarding/artist?step=${encodeURIComponent(step)}&error=${encodeURIComponent(getValidationErrorMessage(error))}`);
+    redirect(`/onboarding/artist?step=${encodeURIComponent(step)}&error=${encodeURIComponent(getArtistSaveErrorMessage(error))}`);
   }
 
   redirect(nextPath);
@@ -691,7 +704,18 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
 export async function finishArtistOnboardingAction(formData: FormData) {
   const user = await requireAuthenticatedUser("artist");
   const destination = String(formData.get("destination") || "dashboard") === "submit" ? "/artist/submit" : "/dashboard/artist";
-  await finalizeOnboarding(user, "complete");
+  try {
+    const expectedVersion = hasSupabaseEnv && !env.demoMode ? parseArtistOnboardingVersion(formData.get("onboardingVersion")) : user.onboardingUpdatedAt;
+    if (!user.onboardingCompletedAt) {
+      if (user.onboardingStep !== "complete") throw new Error("Finish each onboarding step before completing setup.");
+      const state = await getArtistOnboardingState(user);
+      validateArtistCompletion({ ...state.values, firstTrackChoice: user.onboardingData?.firstTrackChoice });
+    }
+    await finalizeArtistOnboarding({ ...user, onboardingUpdatedAt: expectedVersion });
+  } catch (error) {
+    unstable_rethrow(error);
+    redirect(`/onboarding/artist?error=${encodeURIComponent(getArtistSaveErrorMessage(error))}`);
+  }
   await captureForUser(user.id, "onboarding_completed", {}, `onboarding_completed:${user.id}`);
   redirect(destination);
 }
@@ -843,6 +867,8 @@ async function requireAuthenticatedUser(role: "artist" | "buyer"): Promise<Sessi
 
 async function persistArtistOnboarding({
   user,
+  step,
+  avatar,
   nextStep,
   payload,
   userUpdates,
@@ -850,6 +876,8 @@ async function persistArtistOnboarding({
   beforeUserProfileWrite
 }: {
   user: SessionUser;
+  step: string;
+  avatar?: { path: string; publicUrl: string | null };
   nextStep: string;
   payload: Record<string, unknown>;
   userUpdates?: Record<string, unknown>;
@@ -860,64 +888,26 @@ async function persistArtistOnboarding({
 
   if (hasSupabaseEnv && !env.demoMode) {
     const client = await getUserProfileMutationClient(user.role);
-    if (profileUpdates) {
-      const existingProfileResult = await client.from("artist_profiles").select("*").eq("user_id", user.id).maybeSingle();
-      if (existingProfileResult.error) {
-        throw existingProfileResult.error;
-      }
-
-      const artistProfileWrite = buildArtistProfileUpsert({
-        userId: user.id,
-        onboardingPayload: payload,
-        profileUpdates,
-        existingProfile: existingProfileResult.data
-      });
-
-      const { error: profileError } = await client.from("artist_profiles").upsert(
-        artistProfileWrite as Database["public"]["Tables"]["artist_profiles"]["Insert"],
-        { onConflict: "user_id" }
-      );
-
-      if (profileError) {
-        throw profileError;
-      }
-    }
-
+    if (!user.onboardingUpdatedAt) throw new Error("Reload onboarding before saving this step.");
+    const fields: Record<string, string[]> = {
+      basics: ["fullName", "artistName"], profile: ["bio", "location", "website", "instagram", "spotify", "youtube"],
+      licensing: ["payoutEmail", "defaultLicensingPreferences"], "first-track": ["firstTrackChoice"]
+    };
+    const data = Object.fromEntries((fields[step] || []).filter((key) => payload[key] !== undefined).map((key) => [key, payload[key]]));
     beforeUserProfileWrite?.();
-    const writeProfile = beforeUserProfileWrite
-      ? (client: Awaited<ReturnType<typeof getUserProfileMutationClient>>, values: Database["public"]["Tables"]["user_profiles"]["Insert"]) => transitionArtistAvatar(client, values, { path: user.avatarPath || null, url: user.avatarPath ? null : user.avatarUrl || null })
-      : upsertUserProfileCompat;
-    const profileResult = await writeProfile(
-      client,
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        full_name: String(payload.fullName || user.fullName),
-        ...getStoredAvatarFields({
-          avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
-          avatarUrl: String(payload.avatarUrl || user.avatarUrl || "") || null
-        }),
-        onboarding_started_at: user.onboardingStartedAt || now,
-        onboarding_completed_at: null,
-        onboarding_step: nextStep,
-        onboarding_payload: Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "payoutEmail")),
-        ...(userUpdates || {})
-      } as Database["public"]["Tables"]["user_profiles"]["Insert"]
-    );
-
-    if ("definitelyNotWritten" in profileResult && profileResult.definitelyNotWritten === true) {
-      beforeUserProfileWrite?.(false);
+    const { error } = await client.rpc("save_artist_onboarding_atomic", {
+      p_actor_id: user.id, p_expected_updated_at: user.onboardingUpdatedAt,
+      p_step: step, p_data: data as import("@/types/database").Json, p_avatar_path: avatar?.path || null
+    });
+    if (error) {
+      // PostgreSQL validation/conflict failures prove rollback; transport failures do not.
+      if (["22023", "42501", "PT409"].includes(error.code)) beforeUserProfileWrite?.(false);
+      throw error;
     }
-    const userError = profileResult.error;
-    if (userError) {
-      throw userError;
-    }
-
-
     return;
   }
 
+  const savedNextStep = getArtistStepIndex(user.onboardingStep) > getArtistStepIndex(nextStep) ? user.onboardingStep || nextStep : nextStep;
   await upsertDemoDirectoryUser({
     id: user.id,
     email: user.email,
@@ -925,7 +915,7 @@ async function persistArtistOnboarding({
     fullName: String(payload.fullName || user.fullName),
     avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
     avatarUrl: String(payload.avatarUrl || user.avatarUrl || "") || null,
-    onboardingStep: nextStep,
+    onboardingStep: savedNextStep,
     onboardingStartedAt: user.onboardingStartedAt || now,
     onboardingCompletedAt: null,
     onboardingData: payload
@@ -948,7 +938,7 @@ async function persistArtistOnboarding({
     fullName: String(payload.fullName || user.fullName),
     avatarPath: String(payload.avatarPath || user.avatarPath || "") || null,
     avatarUrl: String(payload.avatarUrl || user.avatarUrl || "") || null,
-    onboardingStep: nextStep,
+    onboardingStep: savedNextStep,
     onboardingStartedAt: user.onboardingStartedAt || now,
     onboardingCompletedAt: null,
     onboardingData: payload,
@@ -1118,6 +1108,28 @@ async function getDemoArtistProfileSnapshot(userId: string) {
     : null;
 }
 
+function getArtistSaveErrorMessage(error: unknown) {
+  if (error instanceof ZodError) return getValidationErrorMessage(error);
+  if (error instanceof Error) return error.message;
+  const code = (error as { code?: string } | null)?.code;
+  if (code === "PT409") return "Your onboarding changed. Reload before saving again.";
+  if (code === "22023") return "Review the required fields and complete each step before continuing.";
+  return "We could not save onboarding. Reload to check your saved progress before trying again.";
+}
+
+async function finalizeArtistOnboarding(user: SessionUser) {
+  if (hasSupabaseEnv && !env.demoMode) {
+    const client = await getUserProfileMutationClient(user.role);
+    if (!user.onboardingUpdatedAt) throw new Error("Reload onboarding before completing setup.");
+    const { error } = await client.rpc("complete_artist_onboarding_atomic", {
+      p_actor_id: user.id, p_expected_updated_at: user.onboardingUpdatedAt
+    });
+    if (error) throw error;
+    return;
+  }
+  await finalizeOnboarding(user, "complete");
+}
+
 async function finalizeOnboarding(user: SessionUser, nextStep: string) {
   const completedAt = new Date().toISOString();
 
@@ -1185,7 +1197,7 @@ async function uploadArtistAvatarIfPresent(userId: string, formData: FormData) {
     supabase,
     userId,
     kind: "avatar",
-    file
+    file: await normalizeArtistAvatar(file)
   });
 
   return {
@@ -1194,7 +1206,7 @@ async function uploadArtistAvatarIfPresent(userId: string, formData: FormData) {
   };
 }
 
-function buildArtistSocialLinks(instagram: string, spotify: string, youtube: string) {
+function buildArtistSocialLinks(instagram?: string, spotify?: string, youtube?: string) {
   const entries = Object.entries({
     instagram,
     spotify,
@@ -1227,22 +1239,21 @@ function buildArtistProfileUpsert({
     artist_name: nextArtistName,
     bio: String(profileUpdates?.bio || onboardingPayload.bio || existingProfile?.bio || ""),
     location: String(profileUpdates?.location || onboardingPayload.location || existingProfile?.location || ""),
-    website: toNullableString(profileUpdates?.website || onboardingPayload.website || existingProfile?.website),
+    website: toNullableString(profileUpdates?.website !== undefined ? profileUpdates.website : onboardingPayload.website !== undefined ? onboardingPayload.website : existingProfile?.website),
     instagram_url: toNullableString(
-      profileUpdates?.instagram_url || onboardingPayload.instagram || existingProfile?.instagram_url
+      profileUpdates?.instagram_url !== undefined ? profileUpdates.instagram_url : onboardingPayload.instagram !== undefined ? onboardingPayload.instagram : existingProfile?.instagram_url
     ),
-    spotify_url: toNullableString(profileUpdates?.spotify_url || onboardingPayload.spotify || existingProfile?.spotify_url),
-    youtube_url: toNullableString(profileUpdates?.youtube_url || onboardingPayload.youtube || existingProfile?.youtube_url),
+    spotify_url: toNullableString(profileUpdates?.spotify_url !== undefined ? profileUpdates.spotify_url : onboardingPayload.spotify !== undefined ? onboardingPayload.spotify : existingProfile?.spotify_url),
+    youtube_url: toNullableString(profileUpdates?.youtube_url !== undefined ? profileUpdates.youtube_url : onboardingPayload.youtube !== undefined ? onboardingPayload.youtube : existingProfile?.youtube_url),
     social_links: {
-      ...((existingProfile?.social_links as Record<string, string> | null) || {}),
-      ...((profileUpdates?.social_links as Record<string, string> | undefined) || {})
+      ...((profileUpdates?.social_links as Record<string, string> | undefined) ?? (existingProfile?.social_links as Record<string, string> | null) ?? {})
     },
     payout_email: toNullableString(
       profileUpdates?.payout_email || onboardingPayload.payoutEmail || existingProfile?.payout_email
     ),
     default_licensing_preferences: toNullableString(
-      profileUpdates?.default_licensing_preferences ||
-        onboardingPayload.defaultLicensingPreferences ||
+      profileUpdates?.default_licensing_preferences !== undefined ? profileUpdates.default_licensing_preferences :
+        onboardingPayload.defaultLicensingPreferences !== undefined ? onboardingPayload.defaultLicensingPreferences :
         existingProfile?.default_licensing_preferences
     ),
     verification_status: existingProfile?.verification_status || "unverified"
@@ -1256,30 +1267,9 @@ function toNullableString(value: unknown) {
 
 async function resolvePersistedRole(userId: string) {
   const client = await getMutationClient();
-  const [{ data: userRow }, { data: artistProfile }, { data: buyerProfile }] = await Promise.all([
-    selectUserProfileCompat(client, userId),
-    client.from("artist_profiles").select("id").eq("user_id", userId).maybeSingle(),
-    client.from("buyer_profiles").select("id").eq("user_id", userId).maybeSingle()
-  ]) as [
-    Awaited<ReturnType<typeof selectUserProfileCompat>>,
-    { data: { id: string } | null },
-    { data: { id: string } | null }
-  ];
-
-  const storedRole = parseRole(userRow?.role);
-  if (storedRole) {
-    return storedRole;
-  }
-
-  if (artistProfile && !buyerProfile) {
-    return "artist";
-  }
-
-  if (buyerProfile && !artistProfile) {
-    return "buyer";
-  }
-
-  return null;
+  const { data: userRow, error } = await selectUserProfileCompat(client, userId);
+  if (error) throw new Error("Unable to verify the canonical account role.");
+  return parseRole(userRow?.role);
 }
 
 function getStoredAvatarFields({

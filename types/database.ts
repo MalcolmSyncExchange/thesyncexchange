@@ -712,6 +712,15 @@ export interface Database {
       };
     };
     Functions: {
+      save_artist_onboarding_atomic: {
+        Args: { p_actor_id: string; p_expected_updated_at: string; p_step: string; p_data: Json; p_avatar_path?: string | null };
+        Returns: string;
+      };
+      complete_artist_onboarding_atomic: {
+        Args: { p_actor_id: string; p_expected_updated_at: string };
+        Returns: string;
+      };
+
       get_admin_purchase_capabilities: {
         Args: Record<string, never>;
         Returns: { foundation_enabled: boolean; asset_preparation_enabled: boolean; receipt_generation_enabled: boolean; entitlement_activation_enabled: boolean; transaction_projection_enabled: boolean; payment_adapter_enabled: boolean }[];

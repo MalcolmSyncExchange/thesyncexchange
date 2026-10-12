@@ -4,7 +4,7 @@ export function inferOnboardingCompletionState({
   role,
   onboardingCompletedAt,
   onboardingStep,
-  hasArtistProfile,
+  hasArtistProfile: _hasArtistProfile,
   hasBuyerProfile
 }: {
   role: UserRole | null;
@@ -30,7 +30,8 @@ export function inferOnboardingCompletionState({
   }
 
   if (role === "artist") {
-    return Boolean(hasArtistProfile);
+    void _hasArtistProfile;
+    return false;
   }
 
   return Boolean(hasBuyerProfile);

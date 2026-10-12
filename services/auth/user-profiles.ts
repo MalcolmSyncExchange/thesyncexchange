@@ -5,6 +5,7 @@ import type { Database } from "@/types/database";
 
 export type UserProfileCompatRow = Pick<
   Database["public"]["Tables"]["user_profiles"]["Row"],
+  | "updated_at"
   | "id"
   | "email"
   | "role"
@@ -23,7 +24,7 @@ export async function selectUserProfileCompat(
 ) {
   const primary = await supabase
     .from("user_profiles")
-    .select("id, email, role, full_name, avatar_path, avatar_url, onboarding_started_at, onboarding_completed_at, onboarding_step, onboarding_payload")
+    .select("id, updated_at, email, role, full_name, avatar_path, avatar_url, onboarding_started_at, onboarding_completed_at, onboarding_step, onboarding_payload")
     .eq("id", userId)
     .maybeSingle();
 
@@ -62,7 +63,7 @@ export async function selectUserProfileCompat(
 
   const fallback = await supabase
     .from("user_profiles")
-    .select("id, email, role, full_name, avatar_url, onboarding_started_at, onboarding_completed_at, onboarding_step, onboarding_payload")
+    .select("id, updated_at, email, role, full_name, avatar_url, onboarding_started_at, onboarding_completed_at, onboarding_step, onboarding_payload")
     .eq("id", userId)
     .maybeSingle();
 

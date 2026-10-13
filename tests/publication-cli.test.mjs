@@ -7,7 +7,7 @@ import {execFileSync} from 'node:child_process';
 import {BUILD_ARGS,DEPLOY_ARGS,validateCliArguments,verifyLocalSiteLink,runCheckedPublication} from '../scripts/publish-staging-checked.mjs';
 import {SITE} from '../scripts/verify-staging-publication.mjs';
 const buildHelp='  --context <context>\n  --dry\n  --offline\n  --help\n';
-const deployHelp='  --no-build\n  --prod\n  --context <context>\n  -s, --site <site>\n';
+const deployHelp='  --dir <path>\n  --no-build\n  --prod\n  --context <context>\n  -s, --site <site>\n';
 test('supported build/deploy commands validate; regression --site on build is rejected before execution',()=>{validateCliArguments(BUILD_ARGS,buildHelp);validateCliArguments(DEPLOY_ARGS,deployHelp);assert.throws(()=>validateCliArguments([...BUILD_ARGS,'--site',SITE],buildHelp));});
 test('local link is exact, preserved, and rejects production/override before execution',()=>{const d=mkdtempSync(join(tmpdir(),'tse-cli-link-'));try{assert.equal(verifyLocalSiteLink(d),SITE);const original=readFileSync(d+'/.netlify/state.json','utf8');verifyLocalSiteLink(d);assert.equal(readFileSync(d+'/.netlify/state.json','utf8'),original);assert.throws(()=>verifyLocalSiteLink(d,'production'));writeFileSync(d+'/.netlify/state.json',JSON.stringify({siteId:'production'}));assert.throws(()=>verifyLocalSiteLink(d));}finally{rmSync(d,{recursive:true,force:true});}});
 for(const stage of ['prepare','build','verify'])test('complete workflow stops without upload when '+stage+' fails',async()=>{const calls=[];const operation=name=>()=>{calls.push(name);if(name===stage)throw Error('stop');};await assert.rejects(runCheckedPublication({prepare:operation('prepare'),build:operation('build'),verify:operation('verify'),publish:operation('upload')}));assert.ok(!calls.includes('upload'));});
@@ -19,7 +19,7 @@ if(cli)test('installed CLI accepts generated flags and rejects unsupported build
 test('complete corrected commands match required build and no-rebuild upload',async()=>{
  const {validateCliCombination}=await import('../scripts/publish-staging-checked.mjs');
  assert.deepEqual(BUILD_ARGS,['build','--context','production']);
- assert.deepEqual(DEPLOY_ARGS,['deploy','--no-build','--prod','--site',SITE]);
+ assert.deepEqual(DEPLOY_ARGS,['deploy','--no-build','--prod','--site',SITE,'--dir','.netlify/static']);
  validateCliCombination(BUILD_ARGS);validateCliCombination(DEPLOY_ARGS);
  assert.throws(()=>validateCliCombination(['deploy','--no-build','--prod','--context','production','--site',SITE]));
 });

@@ -4,8 +4,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatS
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { main, SITE, verifySelectedSite } from './verify-staging-publication.mjs';
+import { STATIC_DIRECTORY, verifyStagingAssets, withPreparedDeployConfig } from './verify-staging-assets.mjs';
 export const BUILD_ARGS=['build','--context','production'];
-export const DEPLOY_ARGS=['deploy','--no-build','--prod','--site',SITE];
+export const DEPLOY_ARGS=['deploy','--no-build','--prod','--site',SITE,'--dir',STATIC_DIRECTORY];
 export function validateCliCombination(args) {
   if(args[0]==='deploy' && args.includes('--no-build') && args.includes('--context'))throw Error('Netlify CLI 27.12.0 rejects --context with --no-build.');
   if(args[0]==='build' && args.includes('--site'))throw Error('Build site selection must use the verified local link.');
@@ -59,10 +60,10 @@ async function execute() {
       verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID);
       if(!dry)await verifySelectedSite();
     },
-    build:()=>{verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID);if(dry){console.log(JSON.stringify({dryRun:true,site:SITE,build:BUILD_ARGS,deploy:DEPLOY_ARGS,upload:false}));return;}execFileSync(cli,BUILD_ARGS,{env:childEnv,stdio:'inherit'});},
+    build:()=>{verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID);if(dry){console.log(JSON.stringify({dryRun:true,site:SITE,build:BUILD_ARGS,deploy:DEPLOY_ARGS,upload:false}));return;}execFileSync(cli,BUILD_ARGS,{env:childEnv,stdio:'inherit'});console.log(JSON.stringify(verifyStagingAssets(directory)));},
     fingerprint:dry?undefined:()=>artifactFingerprint(directory),
     verify:()=>{if(!dry)return main();console.log('Offline command/site-link validation passed; provider, artifact and credential gates remain mandatory for real publication.');},
-    publish:()=>{verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID);if(!dry)execFileSync(cli,DEPLOY_ARGS,{env:childEnv,stdio:'inherit'});}
+    publish:()=>{verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID);if(!dry){verifyStagingAssets(directory);withPreparedDeployConfig(directory,()=>execFileSync(cli,DEPLOY_ARGS,{env:childEnv,stdio:'inherit'}));}}
   });
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)execute().catch(()=>{console.error('Checked staging publication stopped. Do not retry automatically or publish manually.');process.exitCode=1;});

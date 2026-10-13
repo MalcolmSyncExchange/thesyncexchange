@@ -6,7 +6,7 @@ import { storageBuckets } from "@/lib/storage";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 import { isMissingColumnError, isMissingRelationError, isSchemaCacheTableError } from "@/services/supabase/schema-compat";
-import { blockingOperationalKeys } from "@/lib/health/payment-readiness";
+import { blockingOperationalKeys, blockingHealthIssues } from "@/lib/health/payment-readiness";
 import { getHealthPaymentReadiness } from "@/services/health/payment-readiness";
 
 type CapabilityStatus = "available" | "degraded" | "blocked";
@@ -332,7 +332,7 @@ export async function GET() {
   const criticalOperationalMissing = blockingOperational.filter((key) =>
     ["SUPABASE_SERVICE_ROLE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].includes(key)
   );
-  const environmentHasBlockingErrors = environment.errors.length > 0 || !maintenance.valid;
+  const environmentHasBlockingErrors = blockingHealthIssues(environment.errors, paymentDisabled).length > 0 || !maintenance.valid;
   const disabledStripeWarnings = ["missing_stripe_secret_key", "missing_stripe_publishable_key", "missing_stripe_webhook_secret"];
   const environmentHasDeploymentWarnings = environment.deploymentTarget !== "local" &&
     environment.warnings.some(issue => !paymentDisabled || !disabledStripeWarnings.includes(issue.code));

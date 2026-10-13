@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { env, getMissingCoreEnvKeys, getPublicEnvironmentDiagnostics } from "@/lib/env";
 import { getMissingOperationalEnvKeys, getServerEnvironmentDiagnostics } from "@/lib/server-env";
 import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
-import { blockingOperationalKeys } from "@/lib/health/payment-readiness";
+import { blockingOperationalKeys, blockingHealthIssues } from "@/lib/health/payment-readiness";
 import { getHealthPaymentReadiness } from "@/services/health/payment-readiness";
 
 export async function GET() {
@@ -14,7 +14,7 @@ export async function GET() {
   const maintenance = resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE);
   const paymentReadiness = await getHealthPaymentReadiness();
   const blockingOperational = blockingOperationalKeys(missingOperational, !paymentReadiness.credentialsRequired);
-  const ok = maintenance.valid && missingCore.length === 0 && blockingOperational.length === 0 && serverDiagnostics.errors.length === 0;
+  const ok = maintenance.valid && missingCore.length === 0 && blockingOperational.length === 0 && blockingHealthIssues(serverDiagnostics.errors, !paymentReadiness.credentialsRequired).length === 0;
 
   return NextResponse.json(
     {

@@ -100,12 +100,12 @@ test("Vercel production, preview and development remain supported", () => {
 });
 
 test("Next config embeds non-secret target and explicit preview payment mode, ignoring an externally supplied build stamp", () => {
-  assert.deepEqual(buildConfig({ CONTEXT: "branch-deploy", TSE_BUILD_DEPLOYMENT_TARGET: "production" }), {
-    TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: ""
+  assert.deepEqual(buildConfig({ CONTEXT: "branch-deploy", TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "production" }), {
+    TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: ""
   });
-  assert.deepEqual(buildConfig({ CONTEXT: "production", SYNC_EXCHANGE_PAYMENT_MODE: "live" }), { TSE_BUILD_DEPLOYMENT_TARGET: "production", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
-  assert.deepEqual(buildConfig({}), { TSE_BUILD_DEPLOYMENT_TARGET: "local", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
-  assert.deepEqual(buildConfig({ CONTEXT: "deploy-preview", SYNC_EXCHANGE_PAYMENT_MODE: "test" }), { TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: "test" });
+  assert.deepEqual(buildConfig({ CONTEXT: "production", SYNC_EXCHANGE_PAYMENT_MODE: "live" }), { TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "production", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
+  assert.deepEqual(buildConfig({}), { TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "local", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
+  assert.deepEqual(buildConfig({ CONTEXT: "deploy-preview", SYNC_EXCHANGE_PAYMENT_MODE: "test" }), { TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: "test" });
 });
 
 test("actual application keeps the built preview/production target when runtime CONTEXT disappears", () => {
@@ -375,4 +375,9 @@ test("billing portal is explicit, fail closed, and always disabled in production
   assert.equal(productionBeta.enabled, false);
   assert.equal(productionBeta.releaseMode, "production_beta");
   assert.equal(productionBeta.reason, "production_beta");
+});
+
+test("build site identity is derived from platform SITE_ID and ignores a supplied stamp",()=>{
+ const c=buildConfig({NETLIFY:"true",CONTEXT:"production",SITE_ID:"actual-production",TSE_BUILD_NETLIFY_SITE_ID:"d8e851a6-ab37-4b0e-9403-9b2c1be65f13"});
+ assert.equal(c.TSE_BUILD_NETLIFY_SITE_ID,"actual-production");
 });

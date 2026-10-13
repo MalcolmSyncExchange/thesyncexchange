@@ -25,6 +25,7 @@ export default function nextConfig(phase) {
   return {
     // next start reloads config without build metadata; keep the compiled target.
     env: phase === PHASE_PRODUCTION_SERVER ? {} : {
+      TSE_BUILD_NETLIFY_SITE_ID: process.env.NETLIFY === "true" ? process.env.SITE_ID || "" : "",
       TSE_BUILD_DEPLOYMENT_TARGET: resolveDeploymentTarget(process.env),
       TSE_BUILD_PREVIEW_PAYMENT_MODE: resolveDeploymentTarget(process.env) === "preview"
         ? process.env.SYNC_EXCHANGE_PAYMENT_MODE || "" : ""

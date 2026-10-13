@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {BUILD_ARGS,DEPLOY_ARGS,validateCliArguments,verifyLocalSiteLink,runCheckedPublication} from '../scripts/publish-staging-checked.mjs';
+import {SITE} from '../scripts/verify-staging-publication.mjs';
+const buildHelp='  --context <context>\n  --dry\n  --offline\n  --help\n';
+const deployHelp='  --no-build\n  --prod\n  --context <context>\n  -s, --site <site>\n';
+test('supported build/deploy commands validate; regression --site on build is rejected before execution',()=>{validateCliArguments(BUILD_ARGS,buildHelp);validateCliArguments(DEPLOY_ARGS,deployHelp);assert.throws(()=>validateCliArguments([...BUILD_ARGS,'--site',SITE],buildHelp));});
+test('local link is exact, preserved, and rejects production/override before execution',()=>{const d=mkdtempSync(join(tmpdir(),'tse-cli-link-'));try{assert.equal(verifyLocalSiteLink(d),SITE);const original=readFileSync(d+'/.netlify/state.json','utf8');verifyLocalSiteLink(d);assert.equal(readFileSync(d+'/.netlify/state.json','utf8'),original);assert.throws(()=>verifyLocalSiteLink(d,'production'));writeFileSync(d+'/.netlify/state.json',JSON.stringify({siteId:'production'}));assert.throws(()=>verifyLocalSiteLink(d));}finally{rmSync(d,{recursive:true,force:true});}});
+for(const stage of ['prepare','build','verify'])test('complete workflow stops without upload when '+stage+' fails',async()=>{const calls=[];const operation=name=>()=>{calls.push(name);if(name===stage)throw Error('stop');};await assert.rejects(runCheckedPublication({prepare:operation('prepare'),build:operation('build'),verify:operation('verify'),publish:operation('upload')}));assert.ok(!calls.includes('upload'));});
+test('complete supported workflow checks selected site and flags before building, verification before one upload',async()=>{const calls=[];await runCheckedPublication({prepare:()=>{validateCliArguments(BUILD_ARGS,buildHelp);validateCliArguments(DEPLOY_ARGS,deployHelp);calls.push('selected-site');},build:()=>calls.push('build'),verify:()=>calls.push('artifact-credential-capability-gates'),publish:()=>calls.push('upload')});assert.deepEqual(calls,['selected-site','build','artifact-credential-capability-gates','upload']);});
+test('complete offline dry-run validates arguments and link with zero upload calls',async()=>{const d=mkdtempSync(join(tmpdir(),'tse-dry-'));const calls=[];try{await runCheckedPublication({prepare:()=>{verifyLocalSiteLink(d);validateCliArguments(BUILD_ARGS,buildHelp);validateCliArguments(DEPLOY_ARGS,deployHelp);},build:()=>calls.push(BUILD_ARGS),verify:()=>calls.push('offline-plan'),publish:()=>calls.push('skipped-upload')});assert.deepEqual(calls,[BUILD_ARGS,'offline-plan','skipped-upload']);}finally{rmSync(d,{recursive:true,force:true});}});
+const cli=process.env.NETLIFY_CLI_TEST_BIN;
+if(cli)test('installed CLI accepts generated flags and rejects unsupported build site flag locally',()=>{const build=execFileSync(cli,['build','--help'],{encoding:'utf8'});const deploy=execFileSync(cli,['deploy','--help'],{encoding:'utf8'});validateCliArguments(BUILD_ARGS,build);validateCliArguments(DEPLOY_ARGS,deploy);assert.throws(()=>validateCliArguments([...BUILD_ARGS,'--site',SITE],build));});

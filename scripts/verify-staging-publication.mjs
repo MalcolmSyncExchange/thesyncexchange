@@ -15,6 +15,15 @@ export function verifyPublicationEvidence({source,approvedSource,clean,site,comp
   if(rpc.error || !Array.isArray(rpc.data) || rpc.data.length!==1 || !names.every(key=>rpc.data[0][key]===false)) fail();
   return {site:SITE,origin:ORIGIN,project:PROJECT,compiledIdentity:'PASS',functionsIdentityContract:'PASS',payments:'disabled',analytics:'disabled'};
 }
+export async function verifySelectedSite() {
+  const token=process.env.NETLIFY_AUTH_TOKEN;
+  if(!token)throw Error('Private Netlify verification credential required.');
+  const response=await fetch(`https://api.netlify.com/api/v1/sites/${SITE}`,{redirect:'error',headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)});
+  if(!response.ok)throw Error('Selected site identity read failed.');
+  const site=await response.json();
+  if(site.id!==SITE||site.ssl_url!==ORIGIN)throw Error('Selected site identity mismatch.');
+  return {site:SITE,origin:ORIGIN};
+}
 export async function main() {
   const approvedSource=process.argv[2];if(!/^[a-f0-9]{40}$/.test(approvedSource||'')) throw Error('Exact approved source SHA required.');
   const source=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();const clean=!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim();

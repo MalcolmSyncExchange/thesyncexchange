@@ -1,5 +1,7 @@
 "use server";
 
+import { isDedicatedStagingIdentity } from "@/lib/health/payment-readiness";
+
 import { captureForUser, capturePersistedSignup } from "@/services/analytics/actor";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -134,6 +136,13 @@ function buildConfirmationRedirectUrl(nextPath: string) {
   return buildAuthCallbackRedirectUrl({
     appUrl: env.appUrl,
     deploymentTarget: getDeploymentTarget(),
+    dedicatedStagingIdentityVerified: isDedicatedStagingIdentity({
+      ...process.env,
+      TSE_BUILD_NETLIFY_SITE_ID: process.env.TSE_BUILD_NETLIFY_SITE_ID,
+      NEXT_PUBLIC_APP_URL: env.appUrl,
+      NEXT_PUBLIC_SUPABASE_URL: env.supabaseUrl,
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: env.supabaseAnonKey
+    }, getDeploymentTarget()),
     nextPath
   });
 }

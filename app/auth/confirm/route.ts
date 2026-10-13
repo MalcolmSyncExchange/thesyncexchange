@@ -1,3 +1,4 @@
+import { isDedicatedStagingIdentity } from "@/lib/health/payment-readiness";
 import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
@@ -34,7 +35,14 @@ export async function GET(request: Request) {
     const deploymentTarget = getDeploymentTarget();
     appOrigin = resolveConfiguredAuthAppOrigin({
       configuredAppUrl: env.configuredAppUrl || (deploymentTarget === "local" ? env.appUrl : undefined),
-      deploymentTarget
+      deploymentTarget,
+      dedicatedStagingIdentityVerified: isDedicatedStagingIdentity({
+        ...process.env,
+        TSE_BUILD_NETLIFY_SITE_ID: process.env.TSE_BUILD_NETLIFY_SITE_ID,
+        NEXT_PUBLIC_APP_URL: env.appUrl,
+        NEXT_PUBLIC_SUPABASE_URL: env.supabaseUrl,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: env.supabaseAnonKey
+      }, deploymentTarget)
     });
   } catch (error) {
     reportOperationalError("auth_confirm_configuration_invalid", error, {

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { env, getMissingCoreEnvKeys, getPublicEnvironmentDiagnostics } from "@/lib/env";
 import { getMissingOperationalEnvKeys, getServerEnvironmentDiagnostics } from "@/lib/server-env";
 import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
+import { blockingOperationalKeys } from "@/lib/health/payment-readiness";
+import { getHealthPaymentReadiness } from "@/services/health/payment-readiness";
 
 export async function GET() {
   const missingCore = getMissingCoreEnvKeys();
@@ -10,13 +12,17 @@ export async function GET() {
   const publicDiagnostics = getPublicEnvironmentDiagnostics();
   const serverDiagnostics = getServerEnvironmentDiagnostics();
   const maintenance = resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE);
-  const ok = maintenance.valid && missingCore.length === 0 && missingOperational.length === 0 && serverDiagnostics.errors.length === 0;
+  const paymentReadiness = await getHealthPaymentReadiness();
+  const blockingOperational = blockingOperationalKeys(missingOperational, !paymentReadiness.credentialsRequired);
+  const ok = maintenance.valid && missingCore.length === 0 && blockingOperational.length === 0 && serverDiagnostics.errors.length === 0;
 
   return NextResponse.json(
     {
       ok,
       missingCore,
       missingOperational,
+      blockingOperational,
+      paymentReadiness,
       deploymentTarget: publicDiagnostics.deploymentTarget,
       releaseMode: serverDiagnostics.releaseMode,
       paymentMode: serverDiagnostics.paymentMode,

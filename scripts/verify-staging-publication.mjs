@@ -41,6 +41,6 @@ export async function main() {
   if(!env.find(x=>x.key==='SUPABASE_SERVICE_ROLE_KEY')?.is_secret)throw Error('Functions credential must be marked secret.');
   const r=await fetch(`https://${PROJECT}.supabase.co/rest/v1/rpc/get_admin_purchase_capabilities`,{method:'POST',redirect:'error',headers:{apikey:credential,Authorization:`Bearer ${credential}`,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(10000)});
   const data=await r.json();const result=verifyPublicationEvidence({source,approvedSource,clean,site,compiled,functions:{SITE_ID:site.id,URL:site.ssl_url},vars,credential,rpc:{data,error:!r.ok}});
-  console.log(JSON.stringify({...result,source,actualFunctionsRuntime:'Must also pass health after separately authorized publication; no deployment performed'}));
+  console.log(JSON.stringify({...result,source,tree:execFileSync('git',['rev-parse','HEAD^{tree}'],{encoding:'utf8'}).trim(),actualFunctionsRuntime:'Must also pass health after separately authorized publication; no deployment performed'}));
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(()=>{console.error('Publication verification failed; do not publish. No credentials printed.');process.exitCode=1;});

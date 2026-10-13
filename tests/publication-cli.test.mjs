@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,symlinkSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -15,3 +15,40 @@ test('complete supported workflow checks selected site and flags before building
 test('complete offline dry-run validates arguments and link with zero upload calls',async()=>{const d=mkdtempSync(join(tmpdir(),'tse-dry-'));const calls=[];try{await runCheckedPublication({prepare:()=>{verifyLocalSiteLink(d);validateCliArguments(BUILD_ARGS,buildHelp);validateCliArguments(DEPLOY_ARGS,deployHelp);},build:()=>calls.push(BUILD_ARGS),verify:()=>calls.push('offline-plan'),publish:()=>calls.push('skipped-upload')});assert.deepEqual(calls,[BUILD_ARGS,'offline-plan','skipped-upload']);}finally{rmSync(d,{recursive:true,force:true});}});
 const cli=process.env.NETLIFY_CLI_TEST_BIN;
 if(cli)test('installed CLI accepts generated flags and rejects unsupported build site flag locally',()=>{const build=execFileSync(cli,['build','--help'],{encoding:'utf8'});const deploy=execFileSync(cli,['deploy','--help'],{encoding:'utf8'});validateCliArguments(BUILD_ARGS,build);validateCliArguments(DEPLOY_ARGS,deploy);assert.throws(()=>validateCliArguments([...BUILD_ARGS,'--site',SITE],build));});
+
+test('complete corrected commands match required build and no-rebuild upload',async()=>{
+ const {validateCliCombination}=await import('../scripts/publish-staging-checked.mjs');
+ assert.deepEqual(BUILD_ARGS,['build','--context','production']);
+ assert.deepEqual(DEPLOY_ARGS,['deploy','--no-build','--prod','--site',SITE]);
+ validateCliCombination(BUILD_ARGS);validateCliCombination(DEPLOY_ARGS);
+ assert.throws(()=>validateCliCombination(['deploy','--no-build','--prod','--context','production','--site',SITE]));
+});
+test('artifact mutation after publication verification prevents upload',async()=>{
+ const calls=[];let fingerprint='built';
+ await assert.rejects(runCheckedPublication({build:()=>calls.push('build'),fingerprint:()=>({sha256:fingerprint}),verify:()=>{calls.push('verify');fingerprint='changed';},publish:()=>calls.push('upload')}));
+ assert.deepEqual(calls,['build','verify']);
+});
+test('unchanged exact build artifact is uploaded once without a second build',async()=>{
+ const calls=[];await runCheckedPublication({build:()=>calls.push('build'),fingerprint:()=>({sha256:'verified-bytes',files:1}),verify:()=>calls.push('verify'),publish:()=>calls.push(DEPLOY_ARGS)});
+ assert.deepEqual(calls,['build','verify',DEPLOY_ARGS]);
+});
+
+test('artifact fingerprint detects actual output and in-project symlink target mutations',async()=>{
+ const {artifactFingerprint}=await import('../scripts/publish-staging-checked.mjs');const d=mkdtempSync(join(tmpdir(),'tse-artifact-'));
+ try{mkdirSync(d+'/.next');mkdirSync(d+'/.netlify');writeFileSync(d+'/.next/build','build');writeFileSync(d+'/dependency','first');symlinkSync(d+'/dependency',d+'/.netlify/linked');const before=artifactFingerprint(d);writeFileSync(d+'/dependency','changed');assert.notEqual(artifactFingerprint(d).sha256,before.sha256);writeFileSync(d+'/.next/build','changed-build');assert.notEqual(artifactFingerprint(d).sha256,before.sha256);}finally{rmSync(d,{recursive:true,force:true});}
+});
+test('artifact fingerprint rejects external and cyclic links',async()=>{
+ const {artifactFingerprint}=await import('../scripts/publish-staging-checked.mjs');const d=mkdtempSync(join(tmpdir(),'tse-artifact-'));
+ try{mkdirSync(d+'/.next');mkdirSync(d+'/.netlify');symlinkSync(tmpdir(),d+'/.netlify/external');assert.throws(()=>artifactFingerprint(d));rmSync(d+'/.netlify/external');symlinkSync(d+'/.netlify',d+'/.netlify/cycle');assert.throws(()=>artifactFingerprint(d));}finally{rmSync(d,{recursive:true,force:true});}
+});
+
+if(cli)test('actual installed deploy option parser accepts full corrected combination without executing action',async()=>{
+ const {createRequire}=await import('node:module');const {pathToFileURL}=await import('node:url');const {dirname,resolve}=await import('node:path');
+ const {Command}=createRequire(cli)('commander');
+ class ParserCommand extends Command { createCommand(name){return new ParserCommand(name);} addExamples(){return this;} }
+ const {createDeployCommand}=await import(pathToFileURL(resolve(dirname(cli),'../dist/commands/deploy/index.js')).href);
+ const parsed=createDeployCommand(new ParserCommand());parsed.parseOptions(DEPLOY_ARGS.slice(1));
+ const options=parsed.opts();assert.equal(options.build,false);assert.equal(options.prod,true);assert.equal(options.site,SITE);assert.equal(options.context,undefined);
+ const rejected=createDeployCommand(new ParserCommand());rejected.parseOptions(['--no-build','--prod','--context','production','--site',SITE]);
+ assert.equal(Boolean(rejected.opts().context&&!rejected.opts().build),true);
+});

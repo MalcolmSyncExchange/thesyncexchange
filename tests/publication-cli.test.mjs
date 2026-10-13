@@ -52,3 +52,24 @@ if(cli)test('actual installed deploy option parser accepts full corrected combin
  const rejected=createDeployCommand(new ParserCommand());rejected.parseOptions(['--no-build','--prod','--context','production','--site',SITE]);
  assert.equal(Boolean(rejected.opts().context&&!rejected.opts().build),true);
 });
+
+test('only the generated root deno.lock is ignored; every other source change blocks publication',async()=>{
+ const d=mkdtempSync(join(tmpdir(),'tse-generated-lock-'));
+ const git=(...args)=>execFileSync('git',args,{cwd:d,encoding:'utf8'}).trim();
+ try{
+  git('init','--quiet');writeFileSync(d+'/.gitignore',readFileSync(new URL('../.gitignore',import.meta.url)));writeFileSync(d+'/source','approved');git('add','.gitignore','source');git('-c','user.name=Unit Test','-c','user.email=unit@example.test','commit','--quiet','-m','fixture');
+  const commit=git('rev-parse','HEAD'),tree=git('rev-parse','HEAD^{tree}');
+  mkdirSync(d+'/.next');mkdirSync(d+'/.netlify');writeFileSync(d+'/.next/build','verified');writeFileSync(d+'/.netlify/function','verified-function');
+  const {artifactFingerprint}=await import('../scripts/publish-staging-checked.mjs');const fingerprint=artifactFingerprint(d);
+  writeFileSync(d+'/deno.lock',JSON.stringify({version:'5',remote:{'https://edge.netlify.com/':'a'.repeat(64)}}));
+  assert.equal(git('status','--porcelain'),'');assert.equal(git('check-ignore','deno.lock'),'deno.lock');assert.equal(git('rev-parse','HEAD'),commit);assert.equal(git('rev-parse','HEAD^{tree}'),tree);assert.deepEqual(artifactFingerprint(d),fingerprint);
+  for(const name of ['unexpected.txt','other.lock','package-lock.json','nested/deno.lock']){if(name.includes('/'))mkdirSync(d+'/nested',{recursive:true});writeFileSync(d+'/'+name,'unexpected');assert.ok(git('status','--porcelain'),name+' must block');rmSync(d+'/'+name);}
+  writeFileSync(d+'/source','changed');assert.match(git('status','--porcelain'),/M source/);writeFileSync(d+'/source','approved');
+  git('add','-f','deno.lock');git('-c','user.name=Unit Test','-c','user.email=unit@example.test','commit','--quiet','-m','deliberately tracked lock fixture');writeFileSync(d+'/deno.lock','changed');assert.match(git('status','--porcelain'),/M deno.lock/);
+ }finally{rmSync(d,{recursive:true,force:true});}
+});
+
+test('publication wrapper still enforces exact approved source and clean status before build',()=>{
+ const wrapper=readFileSync(new URL('../scripts/publish-staging-checked.mjs',import.meta.url),'utf8');const verifier=readFileSync(new URL('../scripts/verify-staging-publication.mjs',import.meta.url),'utf8');
+ assert.match(wrapper,/rev-parse','HEAD/);assert.match(wrapper,/!==approved/);assert.match(wrapper,/status','--porcelain/);assert.match(verifier,/source!==approvedSource/);assert.match(verifier,/!clean/);
+});

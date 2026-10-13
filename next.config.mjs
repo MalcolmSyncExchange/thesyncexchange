@@ -22,10 +22,15 @@ if (supabaseUrl) {
 }
 
 export default function nextConfig(phase) {
+  const siteId = process.env.NETLIFY === "true" || process.env.NETLIFY_LOCAL === "true" ? process.env.SITE_ID || "" : "";
+  if (phase !== PHASE_PRODUCTION_SERVER && process.env.SYNC_EXCHANGE_DEPLOYMENT_CLASS === "dedicated-staging" &&
+      (siteId !== "d8e851a6-ab37-4b0e-9403-9b2c1be65f13" || resolveDeploymentTarget(process.env) !== "production")) {
+    throw new Error("Dedicated staging build identity is missing or mismatched.");
+  }
   return {
     // next start reloads config without build metadata; keep the compiled target.
     env: phase === PHASE_PRODUCTION_SERVER ? {} : {
-      TSE_BUILD_NETLIFY_SITE_ID: process.env.NETLIFY === "true" ? process.env.SITE_ID || "" : "",
+      TSE_BUILD_NETLIFY_SITE_ID: siteId,
       TSE_BUILD_DEPLOYMENT_TARGET: resolveDeploymentTarget(process.env),
       TSE_BUILD_PREVIEW_PAYMENT_MODE: resolveDeploymentTarget(process.env) === "preview"
         ? process.env.SYNC_EXCHANGE_PAYMENT_MODE || "" : ""

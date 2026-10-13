@@ -47,7 +47,8 @@ export function isDedicatedStagingIdentity(vars: Record<string, string | undefin
   }
   return target === "production" && vars.SYNC_EXCHANGE_DEPLOYMENT_CLASS === "dedicated-staging" &&
     vars.SITE_ID === site && vars.TSE_BUILD_NETLIFY_SITE_ID === site &&
-    vars.NETLIFY === "true" && (vars.CONTEXT === undefined || vars.CONTEXT === "production") &&
+    vars.URL === "https://sync-exchange-posthog-staging.netlify.app" &&
+    (vars.CONTEXT === undefined || vars.CONTEXT === "production") &&
     vars.NEXT_PUBLIC_APP_URL === "https://sync-exchange-posthog-staging.netlify.app" &&
     vars.NEXT_PUBLIC_SUPABASE_URL === `https://${project}.supabase.co` &&
     vars.ANALYTICS_ENABLED === "false" && vars.SYNC_EXCHANGE_DEMO_MODE === "false" &&

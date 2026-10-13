@@ -1,0 +1,21 @@
+# Build identity fix-forward
+
+The cached Netlify CLI's @netlify/config supplies the API-identified SITE_ID and NETLIFY_LOCAL=true. Hosted CI uses NETLIFY=true. The former stamp generator accepted only NETLIFY=true, so CLI publication compiled an empty site stamp even though SITE_ID was available. The runtime guard separately required NETLIFY, which is not a documented Functions runtime variable. The earlier report that SITE_ID itself was missing was too broad.
+
+Build stamping now accepts the CLI or CI platform marker and derives the stamp only from SITE_ID. A dedicated-staging build fails immediately if that identity is absent/wrong or context is not production. User-supplied TSE_BUILD_NETLIFY_SITE_ID still cannot override the generated stamp. Functions require reserved runtime SITE_ID and URL to match the approved site/origin and the compiled stamp; they do not require build-only NETLIFY or CONTEXT. No host/request-header guess, arbitrary staging label, or compiled stamp alone grants an exception. Supabase credential/project checks, bounded authenticated six-capability RPC, origin, disabled analytics/demo/adapter/billing, TEST mode and absent Stripe credentials remain mandatory. Actual production behavior remains strict.
+
+## Required publication path (separate deployment authorization required)
+
+Use `npm run publish:staging:checked -- <exact-approved-source-sha>`. It runs Netlify build in production context on only the hard-coded dedicated staging site, then the mandatory publication verifier, then exactly one no-build production deploy to that site. Build failures or verification failures stop before upload. Do not bypass with raw `netlify deploy`, and do not automatically retry a failed deploy.
+
+NETLIFY_CLI_BIN may identify an existing installed Netlify executable; default is netlify. Existing private NETLIFY_AUTH_TOKEN and independently verified staging SUPABASE_SERVICE_ROLE_KEY must be supplied privately in process memory, never arguments, files or logs. The service key is removed from child build/deploy environments; it is used only by the parent's read-only verification. Published Functions use the existing hosted secret. The verifier does not provision or modify credentials or provider settings.
+
+The verifier checks exact approved SHA and clean source; .netlify build artifacts are ignored. It reads .next/required-server-files.json and rejects empty/wrong compiled identity/target, verifies Netlify site identity/main URL and published variable scopes via authenticated GETs, verifies staging anon/service-role claims, and proves the service-role credential with the six-OFF RPC against the exact staging URL. It rejects any Stripe key, production PostHog token, enabled analytics, wrong project/origin, missing credentials, malformed/failed capabilities, and build/Functions identity contract mismatch. Only nonsecret status is printed.
+
+Before publication, Functions identity is the API-confirmed site's reserved SITE_ID/URL contract matched against the compiled artifact and published scopes. Actual deployed Functions identity and hosted masked service secret cannot be exercised for the replacement until deployment. Immediately afterward, require GET /api/health/config to return 200 with disabled payments and GET /api/health/readiness to return healthy; stop on failure without another deploy. This distinction prevents simulated prepublication evidence from being reported as executed hosted Functions verification.
+
+Local regression tests mock transport/capabilities and use unsigned synthetic JWTs solely as claim fixtures; successful mocked RPC is never treated as proof of a real credential. Actual publication verification requires authenticated provider reads and a real read-only staging service-role RPC.
+
+All hosted settings, existing deployed application, Auth configuration, records, migration history, analytics events and QA hold remain unchanged by this local remediation. Auth handover, admin session/dashboard verification and QA restart remain separately gated after healthy deployment.
+
+References: https://docs.netlify.com/build/functions/environment-variables/ (reserved SITE_ID/URL; build-only variables differ); cached @netlify/config/lib/env/main.js getGeneralEnv and READONLY_ENV establish NETLIFY_LOCAL versus NETLIFY.

@@ -23,7 +23,7 @@ export function createSecureStagingReader({request=fetch,serviceCredential=getSt
    pat=await managementCredential();const identity=await call(`https://api.supabase.com/v1/projects/${project}`,{headers:{Authorization:`Bearer ${pat}`}});
    if(identity.id!==project||identity.name!=='sync-exchange-posthog-staging')fail('identity_mismatch');verified=true;
   },
-  database:async admin=>{if(!verified)fail('identity_mismatch');return call(`https://api.supabase.com/v1/projects/${project}/database/query`,{method:'POST',headers:{Authorization:`Bearer ${pat}`,'Content-Type':'application/json'},body:JSON.stringify({query:preservationQuery(admin),read_only:true})});},
+  database:async (admin,executionAuthorization)=>{if(!verified)fail('identity_mismatch');return call(`https://api.supabase.com/v1/projects/${project}/database/query`,{method:'POST',headers:{Authorization:`Bearer ${pat}`,'Content-Type':'application/json'},body:JSON.stringify({query:preservationQuery(admin,executionAuthorization),read_only:true})});},
   environment:async()=>{
    if(!verified)fail('identity_mismatch');netlifyToken??=await netlifyCredential();
    const headers={Authorization:`Bearer ${netlifyToken}`};const identity=await call(`https://api.netlify.com/api/v1/sites/${site}`,{headers});if(identity.id!==site||identity.name!=='sync-exchange-posthog-staging')fail('identity_mismatch');
@@ -40,13 +40,14 @@ export function createSecureStagingReader({request=fetch,serviceCredential=getSt
 export function createStagingPreservationCollector({reader=createSecureStagingReader(),fingerprintKey=randomBytes(32),writeArtifact=async()=>{}}={}){
  const hash=value=>createHmac('sha256',fingerprintKey).update(JSON.stringify(canonical(value))).digest('hex');
  let active=false;
- return {collect:async({approvedAdminId,mode})=>{
+ return {collect:async({approvedAdminId,mode,executionAuthorization})=>{
   if(active)fail('invalid_collection');active=true;
-  const diagnostic={status:'running',step:'identity',mode:['AUTHENTICATED_REHEARSAL','READ_ONLY_NO_LOGIN'].includes(mode)?mode:'invalid',failureCategory:null,failedAssertion:null,sources:preservationDomains.map(source=>({source,status:'not_attempted',success:false,count:null,complete:false,readAt:null,fingerprintPresent:false})),artifactPreserved:false};
+  const diagnostic={status:'running',step:'identity',mode:['AUTHENTICATED_REHEARSAL','READ_ONLY_NO_LOGIN','BOUNDED_EVENT_EXECUTION'].includes(mode)?mode:'invalid',failureCategory:null,failedAssertion:null,sources:preservationDomains.map(source=>({source,status:'not_attempted',success:false,count:null,complete:false,readAt:null,fingerprintPresent:false})),artifactPreserved:false};
   const save=async()=>{try{await writeArtifact(structuredClone(diagnostic));}catch{fail('artifact_write_failed');}};let result;
   try{
-   await save();if(!['AUTHENTICATED_REHEARSAL','READ_ONLY_NO_LOGIN'].includes(mode))fail('invalid_collection');
-   await reader.verify();diagnostic.step='database';await save();const response=await reader.database(approvedAdminId);
+   await save();if(!['AUTHENTICATED_REHEARSAL','READ_ONLY_NO_LOGIN','BOUNDED_EVENT_EXECUTION'].includes(mode))fail('invalid_collection');
+   if(mode==='BOUNDED_EVENT_EXECUTION'&&!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(executionAuthorization||''))fail('invalid_collection');
+   await reader.verify();diagnostic.step='database';await save();const response=await reader.database(approvedAdminId,mode==='BOUNDED_EVENT_EXECUTION'?executionAuthorization:undefined);
    if(!Array.isArray(response)||response.length!==1)fail('invalid_collection');const raw=response[0].snapshot;diagnostic.step='database.snapshot_metadata';
    if(raw?.environmentId!==project||raw.complete!==true||raw.consistent!==true||raw.readOnly!==true||raw.privilegedRead!==true||typeof raw.transactionId!=='string'||!raw.transactionId||!Number.isFinite(Date.parse(raw.startedAt))||!Number.isFinite(Date.parse(raw.finishedAt))||Date.parse(raw.finishedAt)<Date.parse(raw.startedAt))fail('invalid_collection');
    diagnostic.step='environment_configuration';await save();const env=await reader.environment();raw.sources.environment_configuration=env;
@@ -59,7 +60,7 @@ export function createStagingPreservationCollector({reader=createSecureStagingRe
      if(!row||typeof row.id!=='string'||!row.id||seen.has(row.id))fail('invalid_collection');seen.add(row.id);
      if(source==='environment_configuration')return {id:row.id,fingerprint:hash(row),loginFingerprint:null,loginTimes:null,ownerId:null,createdAt:null};
      if(!/^[a-f0-9]{64}$/.test(row.fingerprint||'')||(row.loginFingerprint!==null&&!/^[a-f0-9]{64}$/.test(row.loginFingerprint||'')))fail('invalid_collection');
-     return {id:row.id,fingerprint:hash(row.fingerprint),loginFingerprint:row.loginFingerprint===null?null:hash(row.loginFingerprint),loginTimes:row.loginTimes,ownerId:row.ownerId,createdAt:row.createdAt};
+     return {id:row.id,fingerprint:hash(row.fingerprint),loginFingerprint:row.loginFingerprint===null?null:hash(row.loginFingerprint),loginTimes:row.loginTimes,ownerId:row.ownerId,createdAt:row.createdAt,execution:mode==='BOUNDED_EVENT_EXECUTION'?row.execution??null:null};
     }).sort((a,b)=>a.id.localeCompare(b.id));
     const fingerprint=hash(domains[source].map(row=>[row.id,row.fingerprint]));privateCoverage.push({source,fingerprint,count:s.count,readAt:s.readAt});
     Object.assign(target,{status:'passed',success:true,count:s.count,complete:true,readAt:s.readAt,fingerprintPresent:true});await save();

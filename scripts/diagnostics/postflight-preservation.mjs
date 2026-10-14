@@ -1,3 +1,4 @@
+import {executionPreservationAssertions} from './bounded-execution-preservation.mjs';
 import { createHash } from 'node:crypto';
 export const preservationDomains=['auth.users','auth.identities','auth.sessions','public.user_profiles','public.artist_profiles','public.buyer_profiles','storage.objects','storage.buckets','analytics_outbox','staging_analytics_validation','staging_analytics_validation_slot','existing_policies','onboarding_records','purchase_capabilities','authorization_grants','table_security','migration_history','environment_configuration'];
 const stable=value=>JSON.stringify(canonical(value));
@@ -25,23 +26,28 @@ export function capturePreservationSnapshot(read,approvedAdminId){
    }
    const approved=(domain==='auth.users'&&row.id===approvedAdminId)||(domain==='auth.identities'&&row.user_id===approvedAdminId);
    const normalized={...row};if(approved)for(const key of authorizedTimestampFields)delete normalized[key];
-   return {id:row.id,fingerprint:digest(row),loginFingerprint:approved?digest(normalized):null,loginTimes:approved?Object.fromEntries(authorizedTimestampFields.map(key=>[key,row[key]??null])):null,ownerId:domain==='auth.sessions'?row.user_id:null,createdAt:domain==='auth.sessions'?row.created_at:null};
+   return {id:row.id,fingerprint:digest(row),loginFingerprint:approved?digest(normalized):null,loginTimes:approved?Object.fromEntries(authorizedTimestampFields.map(key=>[key,row[key]??null])):null,ownerId:domain==='auth.sessions'?row.user_id:null,createdAt:domain==='auth.sessions'?row.created_at:null,execution:row.execution??null};
   }).sort((a,b)=>a.id.localeCompare(b.id));
  }
  return {environmentId:read.environmentId,approvedAdminId,transactionId:read.transactionId,startedAt:read.startedAt,finishedAt:read.finishedAt,domains};
 }
-export function comparePreservationSnapshots(before,after,{approvedAdminId,environmentId,loginStartedAt,loginFinishedAt,expectedNewSessions,approvedSessionId,mode}){
+export function comparePreservationSnapshots(before,after,authorization){
+ const {approvedAdminId,environmentId,loginStartedAt,loginFinishedAt,expectedNewSessions,approvedSessionId,mode}=authorization;
+ const execution=mode==='BOUNDED_EVENT_EXECUTION';
  const assertions=[];const record=(assertion,passed,category='unexpected_mutation')=>assertions.push({assertion,passed,category:passed?'preserved':category});
- const start=time(loginStartedAt),end=time(loginFinishedAt),authenticated=mode==='AUTHENTICATED_REHEARSAL',readonly=mode==='READ_ONLY_NO_LOGIN';
+ const start=time(loginStartedAt),end=time(loginFinishedAt),authenticated=mode==='AUTHENTICATED_REHEARSAL'||execution,readonly=mode==='READ_ONLY_NO_LOGIN';
  record('snapshot.authorization',typeof approvedAdminId==='string'&&!!approvedAdminId&&((authenticated&&typeof approvedSessionId==='string'&&!!approvedSessionId&&expectedNewSessions===1&&Number.isFinite(start)&&Number.isFinite(end)&&end>=start)||(readonly&&expectedNewSessions===0&&approvedSessionId===undefined&&loginStartedAt===undefined&&loginFinishedAt===undefined)),'invalid_authorization');
  record('snapshot.identity',!!before&&!!after&&environmentId==='oppijylbkcbiqfuvckgj'&&before.environmentId===environmentId&&after.environmentId===environmentId&&before.approvedAdminId===approvedAdminId&&after.approvedAdminId===approvedAdminId,'snapshot_identity_mismatch');
  record('snapshot.timing',!!before&&!!after&&Number.isFinite(time(before.finishedAt))&&Number.isFinite(time(after.startedAt))&&(readonly?time(before.finishedAt)<=time(after.startedAt):time(before.finishedAt)<=start&&end<=time(after.startedAt)),'ambiguous_snapshot_timing');
  record('snapshot.completeness',!!before?.domains&&!!after?.domains&&preservationDomains.every(domain=>Array.isArray(before.domains[domain])&&Array.isArray(after.domains[domain])),'partial_snapshot');
  record('snapshot.record_integrity',preservationDomains.every(domain=>[before?.domains?.[domain],after?.domains?.[domain]].every(rows=>Array.isArray(rows)&&rows.every(row=>typeof row.id==='string'&&!!row.id&&/^[a-f0-9]{64}$/.test(row.fingerprint||'')&&(row.loginFingerprint===null||/^[a-f0-9]{64}$/.test(row.loginFingerprint||'')&&row.loginTimes&&authorizedTimestampFields.every(key=>Object.hasOwn(row.loginTimes,key)))))),'invalid_record_fingerprint');
- if(assertions.every(x=>x.passed))for(const domain of preservationDomains){
+ if(assertions.every(x=>x.passed)){
+ if(execution)assertions.push(...executionPreservationAssertions(before,after,authorization));
+ for(const domain of preservationDomains){
   const old=before.domains[domain],next=after.domains[domain];const oldMap=new Map(old.map(x=>[x.id,x])),nextMap=new Map(next.map(x=>[x.id,x]));
   record(domain+'.unique_identities',oldMap.size===old.length&&nextMap.size===next.length,'invalid_record_identity');
   record(domain+'.existing_records',old.every(row=>{const current=nextMap.get(row.id);if(!current)return false;if(row.fingerprint===current.fingerprint)return true;
+   if(execution&&domain==='staging_analytics_validation_slot')return row.id===current.id;
    if(!authenticated||!row.loginFingerprint||row.loginFingerprint!==current.loginFingerprint)return false;
    return authorizedTimestampFields.every(key=>{const was=row.loginTimes[key],now=current.loginTimes[key];if(was===now)return true;return Number.isFinite(time(now))&&(was===null||Number.isFinite(time(was))&&time(now)>=time(was))&&time(now)>=start&&time(now)<=end;});
   }));
@@ -51,7 +57,8 @@ export function comparePreservationSnapshots(before,after,{approvedAdminId,envir
    record('auth.sessions.new_session_identity',added.every(row=>row.id===approvedSessionId),'unexpected_session_identity');
    record('auth.sessions.new_session_owner',added.every(row=>row.ownerId===approvedAdminId),'unexpected_session_owner');
    record('auth.sessions.new_session_time',added.every(row=>Number.isFinite(time(row.createdAt))&&time(row.createdAt)>=start&&time(row.createdAt)<=end),'unexpected_session_time');
-  }else record(domain+'.no_added_records',added.length===0);
+  }else record(domain+'.no_added_records',execution&&domain==='staging_analytics_validation'?added.length===1&&added[0].id===authorization.executionAuthorization:execution&&domain==='analytics_outbox'?added.length===1&&added[0].id===authorization.eventId:added.length===0);
+ }
  }
  return {status:assertions.every(x=>x.passed)?'passed':'failed',firstFailedAssertion:assertions.find(x=>!x.passed)?.assertion??null,assertions};
 }

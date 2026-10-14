@@ -24,16 +24,23 @@ export const databaseSources={
  table_security:"select c.oid::text as id,jsonb_build_object('schema',n.nspname,'name',c.relname,'owner',c.relowner,'kind',c.relkind,'rls',c.relrowsecurity,'force_rls',c.relforcerowsecurity) as state from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','storage','auth','security_private','commerce_private')",
  migration_history:'select version as id,name,statements from supabase_migrations.schema_migrations'
 };
-export function preservationQuery(adminId){
+export function preservationQuery(adminId,executionAuthorization){
  if(!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(adminId))throw Error('invalid_admin_identity');
+ if(executionAuthorization!==undefined&&!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(executionAuthorization))throw Error('invalid_execution_authorization');
  const sources=Object.entries(databaseSources).map(([name,query])=>{
   const approved=name==='auth.users'?`t.id::text='${adminId}'`:name==='auth.identities'?`t.user_id::text='${adminId}'`:'false';
+  let execution='null';
+  if(executionAuthorization){
+   if(name==='staging_analytics_validation')execution=`case when t.id='${executionAuthorization}'::uuid then (to_jsonb(t)-'rn')||jsonb_build_object('expiryExact',t.expires_at=t.created_at+interval '5 minutes') else null end`;
+   if(name==='analytics_outbox')execution=`case when t.dedupe_key='bounded-validation:${executionAuthorization}' then (to_jsonb(t)-'rn'-'properties')||jsonb_build_object('propertiesMatch',t.properties=jsonb_build_object('submission_attempt_id','${executionAuthorization}','surface','submission_create')) else null end`;
+   if(name==='staging_analytics_validation_slot')execution='t.state';
+  }
   const special=['auth.users','auth.identities'].includes(name);
   return `'${name}',(select jsonb_build_object('success',true,'count',count(*),'complete',count(*)<=20000,'readAt',clock_timestamp(),'rows',coalesce(jsonb_agg(jsonb_build_object(
   'id',t.id::text,'fingerprint',encode(sha256(convert_to((to_jsonb(t)-'rn')::text,'UTF8')),'hex'),
   'loginFingerprint',${special?`case when ${approved} then encode(sha256(convert_to((to_jsonb(t)-'rn'-'last_sign_in_at'-'updated_at')::text,'UTF8')),'hex') else null end`:'null'},
   'loginTimes',${special?`case when ${approved} then jsonb_build_object('last_sign_in_at',to_jsonb(t)->'last_sign_in_at','updated_at',to_jsonb(t)->'updated_at') else null end`:'null'},
-  'ownerId',${name==='auth.sessions'?'t.user_id::text':'null'},'createdAt',${name==='auth.sessions'?'t.created_at':'null'}) order by t.id::text) filter(where rn<=20000),'[]'::jsonb)) from (select s.*,row_number() over(order by id::text) rn from (${query}) s) t)`;
+  'execution',${execution},'ownerId',${name==='auth.sessions'?'t.user_id::text':'null'},'createdAt',${name==='auth.sessions'?'t.created_at':'null'}) order by t.id::text) filter(where rn<=20000),'[]'::jsonb)) from (select s.*,row_number() over(order by id::text) rn from (${query}) s) t)`;
  });
  // One aggregate SELECT uses a single PostgreSQL MVCC statement snapshot.
  // No caller-supplied SQL, DDL, login, mutation or database-side helper creation.

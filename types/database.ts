@@ -712,6 +712,9 @@ export interface Database {
       };
     };
     Functions: {
+      claim_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_event: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
+      finish_staging_analytics_validation: { Args: { p_authorization: string; p_lease: string; p_accepted: boolean }; Returns: string };
+
       save_artist_onboarding_atomic: {
         Args: { p_actor_id: string; p_expected_updated_at: string; p_step: string; p_data: Json; p_avatar_path?: string | null };
         Returns: string;

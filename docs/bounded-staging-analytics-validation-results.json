@@ -1,0 +1,69 @@
+{
+  "baseline": "4f37c185766979a2f0f21b47860b5af8dc062fa3",
+  "branch": "codex/posthog-single-event-validation",
+  "migration": {
+    "file": "20261014024758_bounded_staging_analytics_validation.sql",
+    "sha256": "0f9dfb056661b9a89bda9a06d6e589fb88dcaaa3cdbc3a6c9579457732ece7e1",
+    "manifestFiles": 39,
+    "prior38ChecksumsUnchanged": true,
+    "appliedHosted": false
+  },
+  "checks": {
+    "focused": {
+      "command": "npm run test:bounded-analytics",
+      "passed": 39,
+      "failed": 0,
+      "logSha256": "5190246b488c454577e17b3a492880abbb6d3eaf11b58522473a332b71241bd9"
+    },
+    "analytics": {
+      "command": "npm run test:analytics",
+      "passed": 236,
+      "failed": 0,
+      "logSha256": "66c97f830a2b1a5f541c72b7c7948eee585ec78e5f591bd513a7de14588f0451"
+    },
+    "unit": {
+      "command": "npm run test:unit",
+      "passed": 909,
+      "failed": 0,
+      "logSha256": "adfdd432f88713e13b77d70c9bf71573b7ee84f6c013bd393b534ec7ec6ba9a1"
+    },
+    "security": {
+      "command": "npm run test:security-pr2",
+      "passed": 104,
+      "failed": 0,
+      "logSha256": "d5a9bc971c40da9c9cdff0a454b7a0a0d61131df2da525c730ec4e3a5a00793e"
+    },
+    "typecheck": {
+      "command": "npm run typecheck",
+      "result": "PASS",
+      "logSha256": "1dc978774d1b3625513e484becd4e50b72c451beaeb3febce7f60f430d80071f"
+    },
+    "lint": {
+      "command": "npm run lint",
+      "result": "PASS",
+      "logSha256": "53a6241c8342a02d75a040545ce5ae359c907ee538efe017648b917775c2fa93",
+      "limitation": "One existing React Hook Form compiler warning; zero errors."
+    },
+    "build": {
+      "command": "npm run build",
+      "result": "PASS",
+      "logSha256": "b62fe755c99b0b186ce78ab908033db1957a898bb35803f4caf12873e02ee86f"
+    },
+    "diff": {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  },
+  "limitations": [
+    "PGlite competing calls use a single queued connection; multi-connection PostgreSQL contention remains a rollout check.",
+    "Exact live Artist/operator/grant UUID/absolute expiry have not been selected or approved.",
+    "Managed privilege/JWT claim mapping and PostHog destination visibility require separate authorized checks."
+  ],
+  "developmentCorrections": [
+    "Explicit revoke removes inherited service-role DELETE on new grant audit table.",
+    "Added follow-on migration required inventory assertions/manifest to increase38to39 without changing prior checksums.",
+    "Initial type mismatch was narrowed explicitly and dependency-install overlap required a clean unit rerun; all final checks pass."
+  ],
+  "hostedChanges": false,
+  "eventsSent": false
+}

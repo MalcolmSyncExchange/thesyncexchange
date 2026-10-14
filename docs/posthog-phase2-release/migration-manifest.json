@@ -153,10 +153,15 @@
     {
       "file": "20261012173856_staging_avatar_storage_readiness.sql",
       "sha256": "a3c216f8aada2c8eec140ac08e7fdc24a24df46401ba0d3d2179692d52eb669d"
+    },
+    {
+      "file": "20261014024758_bounded_staging_analytics_validation.sql",
+      "sha256": "0f9dfb056661b9a89bda9a06d6e589fb88dcaaa3cdbc3a6c9579457732ece7e1"
     }
   ],
   "sourceBaselines": {
     "posthog": "ddbf3cfc5458762a917e6bdd9be851e2f1aa1a8c",
-    "onboarding": "5f5ff73c7578b865f2257b1df25fa7a500272283"
+    "onboarding": "5f5ff73c7578b865f2257b1df25fa7a500272283",
+    "boundedValidation": "4f37c185766979a2f0f21b47860b5af8dc062fa3"
   }
 }

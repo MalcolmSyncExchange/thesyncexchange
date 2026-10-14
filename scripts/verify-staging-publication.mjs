@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { getStagingPublicationCredential } from './staging-publication-credential.mjs';
 export const SITE = 'd8e851a6-ab37-4b0e-9403-9b2c1be65f13';
 export const ORIGIN = 'https://sync-exchange-posthog-staging.netlify.app';
 export const PROJECT = 'oppijylbkcbiqfuvckgj';
@@ -29,8 +30,9 @@ export async function main() {
   const source=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();const clean=!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim();
   const compiled=JSON.parse(readFileSync('.next/required-server-files.json','utf8')).config.env;
   // This command never deploys. Provider reads require a private token in memory.
-  const token=process.env.NETLIFY_AUTH_TOKEN,credential=process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if(!token||!credential)throw Error('Private provider verification credentials required; do not put keys in arguments or files.');
+  const token=process.env.NETLIFY_AUTH_TOKEN;
+  if(!token)throw Error('Private provider verification credentials required; do not put keys in arguments or files.');
+  const credential=await getStagingPublicationCredential();
   async function net(path){const r=await fetch('https://api.netlify.com/api/v1'+path,{redirect:'error',headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('Provider identity read failed.');return r.json();}
   const site=await net(`/sites/${SITE}`);if(site.id!==SITE||site.ssl_url!==ORIGIN)throw Error('Wrong staging site.');
   const shared=await net(`/accounts/${site.account_id}/env?context_name=production`);

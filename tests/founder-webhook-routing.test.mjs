@@ -10,6 +10,7 @@ import Stripe from 'stripe';
 import * as paymentMode from '../lib/payment-mode.mjs';
 import * as deploymentTarget from '../lib/deployment-target.mjs';
 import * as maintenance from '../lib/maintenance-mode.mjs';
+import * as stagingIdentity from '../lib/staging-identity.ts';
 import * as capabilities from '../lib/admin-v2/payment-readiness.ts';
 import {database,asActor} from './helpers/artist-baseline-db.mjs';
 
@@ -89,7 +90,7 @@ function harness({db,account,classification,error}={}) {
     '@/lib/maintenance-mode.mjs':maintenance,
     '@/lib/monitoring':{reportOperationalError(){},reportOperationalEvent(){}}
   };
-  const healthRules=load('lib/health/payment-readiness.ts',{'@/lib/admin-v2/payment-readiness':capabilities},variables);
+  const healthRules=load('lib/health/payment-readiness.ts',{'@/lib/admin-v2/payment-readiness':capabilities,'../staging-identity.ts':stagingIdentity},variables);
   common['@/lib/health/payment-readiness']=healthRules;
   common['@/services/health/payment-readiness']=load('services/health/payment-readiness.ts',{...common,'server-only':{}},variables);
   const gate=load('services/gate-d/server.ts',common,variables);

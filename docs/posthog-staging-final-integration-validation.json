@@ -1,0 +1,79 @@
+{
+  "baseline": "5845ee54472c4143028330627e859d18ffb78529",
+  "routingPatch": "a6997cfbbf4a103ee68e26e7c04af243d32ed5e1",
+  "counts": {
+    "unit": 837,
+    "analytics": 197,
+    "security": 65,
+    "auth": 66,
+    "publication": 117,
+    "assets": 25,
+    "fixtureBrowser": 7,
+    "compiledBrowserViewports": 2
+  },
+  "logs": {
+    "unit": {
+      "path": "/private/tmp/tse-integrated-unit.log",
+      "sha256": "cccff2670dd95562683a3716951b7a127ad4badc5895da8d089f5029eb7bad0e"
+    },
+    "analytics": {
+      "path": "/private/tmp/tse-integrated-analytics.log",
+      "sha256": "5136ec0adf2ae0d9f91efb1fb8118913afd0ab8c8e3dff68f4f6aaf8c1824778"
+    },
+    "security": {
+      "path": "/private/tmp/tse-integrated-security.log",
+      "sha256": "f7cc64b100dd170d281d12ca74537b2578021ef3d02c5a2c95e81657bef998d2"
+    },
+    "auth": {
+      "path": "/private/tmp/tse-integrated-auth.log",
+      "sha256": "6e96fdc13b175f68722f8b2764d3056420a9cf109cff3bfdab53272361801acb"
+    },
+    "publication": {
+      "path": "/private/tmp/tse-integrated-publication.log",
+      "sha256": "359e2307c8d2f403ffebcad8a133d16f0fb083ef7f1aa999f2b2251f18cfe4bc"
+    },
+    "assets": {
+      "path": "/private/tmp/tse-integrated-assets.log",
+      "sha256": "ca29d76a512bbb7588af4705b2a15ca3dc9a9bcbca96583954e38a8177f4d4c0"
+    },
+    "typecheck": {
+      "path": "/private/tmp/tse-integrated-typecheck.log",
+      "sha256": "1dc978774d1b3625513e484becd4e50b72c451beaeb3febce7f60f430d80071f"
+    },
+    "lint": {
+      "path": "/private/tmp/tse-integrated-lint.log",
+      "sha256": "18ce87653d24190f92a38275d4cca1f7e625c5ae53a722d3ca22fa7e41b24c86"
+    },
+    "build": {
+      "path": "/private/tmp/tse-integrated-build.log",
+      "sha256": "ed12ec2ecae3e334d90a542a832dd2390f4d2a50c378d20f4f6ad8bd2f35d47d"
+    },
+    "adapter": {
+      "path": "/private/tmp/tse-integrated-adapter.log",
+      "sha256": "e42956041fa058613ad64789e3c2595a86f6fdf9e327258bdf9585a0d296cff8"
+    },
+    "browser": {
+      "path": "/private/tmp/tse-integrated-browser.log",
+      "sha256": "0907f0042acdc7d5faffa72bd0f6a461446e160213bf79bccdf47e9cb75ed51a"
+    },
+    "ui-assets": {
+      "path": "/private/tmp/tse-integrated-ui-assets.log",
+      "sha256": "0c2b7a4b17c9358be2f69983b02f31b9299a06c23d13b97558b7bc2cd7ec2670"
+    }
+  },
+  "adapter": {
+    "cli": "27.12.0",
+    "mode": "local offline",
+    "publishDirectory": ".netlify/static",
+    "css": 5,
+    "javascript": 55,
+    "publicFiles": 53,
+    "redirects": true,
+    "headers": true
+  },
+  "renderingEvidence": "/private/tmp/tse-integrated-rendering",
+  "hostedTokenBinding": "Secret production-context entry present; value/project equality not retrievable",
+  "analytics": "stored false",
+  "purchaseCapabilities": "all six false",
+  "hostedChanges": false
+}

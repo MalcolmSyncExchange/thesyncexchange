@@ -400,3 +400,42 @@ test('TEST payments remain marked is_test even in a production deployment target
  assert.equal(h.rows[0].environment,'production');assert.equal(h.rows[0].is_test,true);
  await server.enqueueEvent({id,role:'admin'},'onboarding_started',{},'admin');assert.equal(h.rows[1].is_internal,true);
 });
+
+// Synthetic credentials only; no hosted calls or real events.
+const stagingJwt = role => 'header.' + Buffer.from(JSON.stringify({ref:'oppijylbkcbiqfuvckgj',role})).toString('base64url') + '.signature';
+const dedicatedStagingVars = () => ({ANALYTICS_ENABLED:'true',SYNC_EXCHANGE_DEMO_MODE:'false',SYNC_EXCHANGE_DEPLOYMENT_CLASS:'dedicated-staging',NETLIFY:'true',URL:'https://sync-exchange-posthog-staging.netlify.app',CONTEXT:'production',SITE_ID:'d8e851a6-ab37-4b0e-9403-9b2c1be65f13',TSE_BUILD_NETLIFY_SITE_ID:'d8e851a6-ab37-4b0e-9403-9b2c1be65f13',NEXT_PUBLIC_APP_URL:'https://sync-exchange-posthog-staging.netlify.app',NEXT_PUBLIC_SUPABASE_URL:'https://oppijylbkcbiqfuvckgj.supabase.co',NEXT_PUBLIC_SUPABASE_ANON_KEY:stagingJwt('anon'),SUPABASE_SERVICE_ROLE_KEY:stagingJwt('service_role'),POSTHOG_HOST:'https://us.i.posthog.com',POSTHOG_PREVIEW_TOKEN:'phc_stagefixture',POSTHOG_PRODUCTION_TOKEN:'phc_prodfixture'});
+test('dedicated staging in production context routes preview token and test cohort',()=>{
+ const c=config.resolveAnalyticsConfig(dedicatedStagingVars(),'production');
+ assert.equal(c.token,'phc_stagefixture');assert.equal(c.environment,'preview');
+ assert.equal(config.commonProperties(c,{id,role:'artist'}).is_test,true);
+ for(const enabled of [undefined,'false','TRUE',''])assert.equal(config.resolveAnalyticsConfig({...dedicatedStagingVars(),ANALYTICS_ENABLED:enabled},'production'),null);
+});
+const routingNegatives={site:{SITE_ID:'production-site'},buildSite:{TSE_BUILD_NETLIFY_SITE_ID:'production-site'},unknownSite:{SITE_ID:'unknown'},missingSite:{SITE_ID:undefined},missingBuild:{TSE_BUILD_NETLIFY_SITE_ID:undefined},project:{NEXT_PUBLIC_SUPABASE_URL:'https://other.supabase.co'},anon:{NEXT_PUBLIC_SUPABASE_ANON_KEY:stagingJwt('service_role')},service:{SUPABASE_SERVICE_ROLE_KEY:stagingJwt('anon')},origin:{NEXT_PUBLIC_APP_URL:'https://thesyncexchange.com'},originPath:{NEXT_PUBLIC_APP_URL:'https://sync-exchange-posthog-staging.netlify.app/path'},classification:{SYNC_EXCHANGE_DEPLOYMENT_CLASS:undefined},platform:{URL:undefined},platformOrigin:{URL:'https://thesyncexchange.com'},context:{CONTEXT:'deploy-preview'},missingToken:{POSTHOG_PREVIEW_TOKEN:undefined},invalidToken:{POSTHOG_PREVIEW_TOKEN:'invalid'},sharedToken:{POSTHOG_PREVIEW_TOKEN:'phc_prodfixture'},wrongHost:{POSTHOG_HOST:'https://eu.i.posthog.com'}};
+for(const [name,patch] of Object.entries(routingNegatives))test('dedicated staging routing fails closed: '+name,()=>assert.equal(config.resolveAnalyticsConfig({...dedicatedStagingVars(),...patch},'production'),null));
+test('wrong-project credential claims cannot route dedicated staging',()=>{
+ for(const key of ['NEXT_PUBLIC_SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY']){
+  const value='header.'+Buffer.from(JSON.stringify({ref:'other',role:key.includes('ANON')?'anon':'service_role'})).toString('base64url')+'.signature';
+  assert.equal(config.resolveAnalyticsConfig({...dedicatedStagingVars(),[key]:value},'production'),null);
+ }
+});
+test('actual production retains production routing and cannot use flag or fallback to preview',()=>{
+ const p={ANALYTICS_ENABLED:'true',POSTHOG_HOST:'https://us.i.posthog.com',POSTHOG_PRODUCTION_TOKEN:'phc_prodfixture',POSTHOG_PREVIEW_TOKEN:'phc_stagefixture',CONTEXT:'production',NETLIFY:'true',SITE_ID:'production-site',TSE_BUILD_NETLIFY_SITE_ID:'production-site'};
+ assert.equal(config.resolveAnalyticsConfig(p,'production').token,'phc_prodfixture');
+ assert.equal(config.resolveAnalyticsConfig({...p,SYNC_EXCHANGE_DEPLOYMENT_CLASS:'dedicated-staging'},'production'),null);
+ assert.equal(config.resolveAnalyticsConfig({...p,POSTHOG_PRODUCTION_TOKEN:undefined},'production'),null);
+ assert.equal(config.resolveAnalyticsConfig({...p,POSTHOG_PRODUCTION_TOKEN:'phc_stagefixture'},'production'),null);
+ assert.equal(config.resolveAnalyticsConfig(p,'preview'),null);
+});
+
+test('staging transport uses only preview credentials and cannot deliver production rows',async()=>{
+ const c=config.resolveAnalyticsConfig(dedicatedStagingVars(),'production');
+ const row={id,event:'signup_completed',actor_id:id,actor_role:'artist',properties:{confirmation_required:true},occurred_at:'2026-10-13T00:00:00Z',environment:'preview',is_test:true,is_internal:false};
+ const requests=[];
+ const mock=async(url,init)=>{requests.push({url,body:JSON.parse(init.body)});return new Response(null,{status:200});};
+ assert.equal((await transport.sendEvent(c,row,mock)).kind,'accepted');
+ assert.equal(requests[0].url,'https://us.i.posthog.com/i/v0/e/');
+ assert.equal(requests[0].body.api_key,'phc_stagefixture');assert.equal(requests[0].body.uuid,id);
+ assert.equal(requests[0].body.properties.environment,'preview');assert.equal(requests[0].body.properties.is_test,true);
+ assert.equal((await transport.sendEvent(c,{...row,environment:'production'},mock)).kind,'configuration');
+ assert.equal(requests.length,1);
+});

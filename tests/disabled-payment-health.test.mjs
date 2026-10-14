@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as stagingIdentity from '../lib/staging-identity.ts';
 import * as capabilities from '../lib/admin-v2/payment-readiness.ts';
 import * as paymentMode from '../lib/payment-mode.mjs';
 import * as maintenance from '../lib/maintenance-mode.mjs';
 const source=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 function load(file,imports,raw={}){const loadedModule={exports:{}};vm.runInNewContext(ts.transpileModule(source(file),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:loadedModule,exports:loadedModule.exports,process:{env:raw},Buffer,AbortSignal,require:n=>{if(Object.hasOwn(imports,n))return imports[n];throw Error('Unexpected import '+n);}});return loadedModule.exports;}
 const off=()=>Object.fromEntries(Object.keys(capabilities.CAPABILITY_LABELS).map(k=>[k,false]));
-const pure=load('lib/health/payment-readiness.ts',{'@/lib/admin-v2/payment-readiness':capabilities});
+const pure=load('lib/health/payment-readiness.ts',{'@/lib/admin-v2/payment-readiness':capabilities,'../staging-identity.ts':stagingIdentity});
 function harness(options={}){
  const raw={SYNC_EXCHANGE_PAYMENT_MODE:'test',SUPABASE_SERVICE_ROLE_KEY:'unit-only-not-a-real-credential',SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED:'false',SYNC_EXCHANGE_BILLING_PORTAL_ENABLED:'false',ANALYTICS_ENABLED:'false',...options.raw};
  const target=options.target||'preview';const appEnv={env:{demoMode:false,stripePublishableKey:raw.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,appUrl:'https://unit.invalid'},getDeploymentTarget:()=>target,getMissingCoreEnvKeys:()=>options.missingCore||[],getPublicEnvironmentDiagnostics:()=>({deploymentTarget:target,issues:options.issues||[]}),hasSupabaseEnv:true};

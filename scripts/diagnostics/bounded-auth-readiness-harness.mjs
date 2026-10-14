@@ -22,8 +22,9 @@ export function validateReadinessResponse(httpStatus,body,expectation='ready'){
  return {category:dormant?'EXPECTED_DORMANT':'READY',ready:body.ready,grantUsable:body.grantUsable,
    ...Object.fromEntries([...safetyChecks,...bindingChecks].map(key=>[key,body[key]]))};
 }
-export async function runBoundedAuthReadinessDiagnostics({driver,expectedAdminId,writeArtifact,timeoutMs=15000,cleanupTimeoutMs=1000,readinessExpectation='ready'}){
- const state={status:'running',step:'prepared',lastConfirmedCheckpoint:null,failedStep:null,readinessExpectation:['ready','dormant'].includes(readinessExpectation)?readinessExpectation:'invalid',readiness:null,failureCategory:null,timeoutCategory:null,cleanup:'pending',artifactPreserved:false,checkpoints:steps.map(step=>({step,state:'not_started',httpStatus:null,requestAttempted:false,responseObserved:false}))};
+export async function runBoundedAuthReadinessDiagnostics({driver,expectedAdminId,writeArtifact,timeoutMs=15000,cleanupTimeoutMs=1000,readinessExpectation='ready',loginFlow='direct'}){
+ const selectedSteps=loginFlow==='server-action'?['login_submission','server_action_outcome',...steps.slice(1)]:steps;
+ const state={status:'running',step:'prepared',lastConfirmedCheckpoint:null,failedStep:null,readinessExpectation:['ready','dormant'].includes(readinessExpectation)?readinessExpectation:'invalid',loginFlow:['direct','server-action'].includes(loginFlow)?loginFlow:'invalid',readiness:null,failureCategory:null,timeoutCategory:null,cleanup:'pending',artifactPreserved:false,checkpoints:selectedSteps.map(step=>({step,state:'not_started',httpStatus:null,requestAttempted:false,responseObserved:false}))};
  const controller=new AbortController();let current;
  const save=async()=>{try{await writeArtifact(structuredClone(state));}catch{throw new Failure('artifact_write_failed');}};
  const bounded=async(operation,ms=timeoutMs)=>{let timer;try{return await Promise.race([Promise.resolve().then(operation),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Failure('step_timeout')),ms);})]);}finally{clearTimeout(timer);}};
@@ -34,7 +35,13 @@ export async function runBoundedAuthReadinessDiagnostics({driver,expectedAdminId
  try{
  await save();
  if(!['ready','dormant'].includes(readinessExpectation))throw new Failure('invalid_readiness_expectation');
- await start('admin_login',true);const login=observe(await bounded(()=>driver.login({signal:controller.signal})));if(current.httpStatus!==200||login?.authenticated!==true)throw new Failure('login_rejected');await confirmed();
+ if(!['direct','server-action'].includes(loginFlow))throw new Failure('invalid_login_flow');
+ if(loginFlow==='server-action'){
+  await start('login_submission',true);const submitted=await bounded(()=>driver.submitLogin({signal:controller.signal}));if(submitted?.submitted!==true)throw new Failure('login_not_submitted');await confirmed();
+  await start('server_action_outcome',true);const outcome=observe(await bounded(()=>driver.observeLoginOutcome({signal:controller.signal})));if(![200,303].includes(current.httpStatus)||outcome?.completed!==true||outcome?.authenticatedRoute!==true)throw new Failure('login_rejected');await confirmed();
+ }else{
+  await start('admin_login',true);const login=observe(await bounded(()=>driver.login({signal:controller.signal})));if(current.httpStatus!==200||login?.authenticated!==true)throw new Failure('login_rejected');await confirmed();
+ }
  await start('session_establishment');const session=await bounded(()=>driver.inspectSession());if(session?.expired===true)throw new Failure('session_expired');if(session?.established!==true)throw new Failure('session_missing');await confirmed();
  await start('auth_get_user',true);const user=observe(await bounded(()=>driver.getUser({signal:controller.signal})));if(current.httpStatus!==200||user?.verified!==true||user?.userId!==expectedAdminId)throw new Failure('auth_user_rejected');await confirmed();
  await start('canonical_admin_role',true);const profile=observe(await bounded(()=>driver.getCanonicalRole({signal:controller.signal})));if(current.httpStatus!==200||profile?.role!=='admin')throw new Failure('canonical_role_rejected');await confirmed();
@@ -46,7 +53,7 @@ export async function runBoundedAuthReadinessDiagnostics({driver,expectedAdminId
  state.readiness=validateReadinessResponse(readinessHttpStatus,body,readinessExpectation);
  // No raw body, headers, cookies, errors or identity values enter artifacts.
  await confirmed();state.status='passed';
- }catch(error){state.failedStep=state.step;state.status='failed';state.failureCategory=error instanceof Failure?error.category:'operation_failed';if(current)current.state='failed';if(state.failureCategory==='step_timeout'){state.timeoutCategory=state.step;controller.abort();}}
+ }catch(error){state.failedStep=state.step;state.status='failed';state.failureCategory=error instanceof Failure?error.category:error?.name==='TimeoutError'?'step_timeout':'operation_failed';if(current)current.state='failed';if(state.failureCategory==='step_timeout'){state.timeoutCategory=state.step;controller.abort();}}
  finally{
  controller.abort();state.step='terminal';
  try{await save();}catch{state.failedStep='terminal_artifact';state.status='failed';state.failureCategory='artifact_write_failed';}

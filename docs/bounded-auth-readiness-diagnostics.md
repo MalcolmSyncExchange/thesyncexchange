@@ -61,8 +61,9 @@ operation, each completed checkpoint, observed HTTP status before parsing JSON,
 and a terminal artifact after bounded cleanup. The artifact contains fixed step,
 category, last confirmed checkpoint, status, request/response booleans and timeout
 step only. Raw responses/errors, UUIDs, tokens, headers and cookies are discarded.
-The readiness JSON must have `status=ready`, `ready=true` and all nine checks true;
-extra response fields are never persisted. No subsequent event call is automatic.
+The default active-validation mode requires HTTP 200, `status=ready`, `ready=true`
+and all nine checks true. The explicit dormant mode below has a separate strict
+contract. Extra response fields are never persisted. No subsequent event call is automatic.
 The caller must honor a failed terminal state. Artifact write failure prevents
 new operations; cleanup is still attempted and artifact preservation is reported
 honestly if the writer remains unavailable. Drivers must honor abort signals.
@@ -80,7 +81,7 @@ arming operation, effective runtime binding and independently verified readiness
 These expired grants cannot be reset, extended or reused. This document authorizes
 no hosted change, deployment, login, event or grant operation.
 
-## Validation results
+## Validation results (baseline diagnostic repair)
 
 - Focused authentication diagnostic tests: 21/21.
 - `npm run test:unit`: 979/979.
@@ -98,3 +99,58 @@ All new tests use mocks/local fixtures. No hosted authentication was repeated,
 no new grant was created, and neither readiness nor event endpoints were invoked
 by this remediation. Both expired grant IDs require preservation. The current
 runtime UUID is expired; no next event attempt is runnable with that binding.
+
+## Explicit dormant rehearsal mode
+
+Use `runDormantReadinessRehearsal(options)` from
+`scripts/diagnostics/bounded-dormant-rehearsal-adapter.mjs`, or explicitly select
+`readinessExpectation: 'dormant'` in the harness. Default is `'ready'`; arbitrary
+expectations are rejected before login. The adapter delegates JSON validation to
+the harness, never rewrites HTTP status, never clones a response for later parsing
+and never parses after cleanup. Retire the historical temporary adapter in
+`/private/tmp/tse-auth-readonly-rehearsal`; preserve its receipts as evidence.
+
+A successful dormant response must satisfy every condition:
+
+- Actual HTTP status 503, captured and persisted before JSON parsing.
+- JSON `status: 'not_ready'`, `ready: false`, `grantUsable: false`.
+- `validationEnabled`, `stagingIdentityValid`, `globalAnalyticsDisabled`,
+  `boundedConfigurationRecognized`, `paymentCapabilitiesOff` all exactly true.
+- `authorizationMatches`, `artistMatches`, `operatorMatches` present as booleans.
+  Each is recorded independently; true matches on an expired grant do not make
+  that grant usable, and false matches with no grant do not fail dormancy.
+
+Only this complete contract produces `status: 'passed'` with fixed
+`readiness.category: 'EXPECTED_DORMANT'`. A raw 503 is never sufficient.
+Configuration mismatch, invalid/missing flags, unavailable status, malformed JSON,
+401/403/500, and unexpected 200 fail with fixed categories. Default `'ready'` mode
+continues to reject 503 and demands all identity matches and usable grant on 200.
+
+JSON is parsed inside the bounded operation before the response signal is aborted
+and before driver cleanup. A JSON syntax failure, body abort and deadline timeout
+receive distinct categories: `readiness_invalid_json`, `readiness_body_aborted`,
+`step_timeout`. `failedStep` survives terminal cleanup. Safe readiness artifacts
+contain only allowlisted category and boolean fields; raw JSON and additional
+secret-bearing fields are discarded. Drivers retain secrets privately and must
+use authenticated GET only, honor cancellation and disable automatic retries.
+
+This local change does not authorize a rehearsal. One fresh read-only staging
+rehearsal must be separately approved, with staging preflight and the existing
+reviewed secure driver connected to this adapter. No grants or events are needed.
+The application readiness route and all hosted configuration remain unchanged.
+
+## Dormant diagnostic fix validation
+
+- Focused diagnostic tests: 38/38, including a final native streamed-body fixture.
+- Analytics tests: 321/321.
+- Unit tests: 995/995.
+- Security tests: 189/189.
+- Typecheck, lint, build, module syntax and diff checks: PASS.
+- Lint retains one existing React Hook Form warning and zero errors.
+
+The broad suites ran before the final streamed-body test was added; the final
+focused run includes that test. No runtime code changed after the broad checks.
+All execution used local mocks/fixtures. No hosted read, login, readiness request,
+grant write, event, migration or deployment occurred during this fix.
+Recommendation: GO for a separately authorized single read-only rehearsal using
+this adapter after a fresh staging preflight. Event execution remains unauthorized.

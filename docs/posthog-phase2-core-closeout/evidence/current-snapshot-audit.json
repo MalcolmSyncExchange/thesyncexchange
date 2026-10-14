@@ -1,0 +1,939 @@
+{
+  "status": "COMPLETE_WITH_LIMITATIONS",
+  "historicalPreservation": "NOT_VERIFIED",
+  "checks": [
+    {
+      "assertion": "staging.identity",
+      "status": "PASS",
+      "evidence": "Verified exact project through secure read-only provider"
+    },
+    {
+      "assertion": "historical.baseline_fingerprints",
+      "status": "NOT_VERIFIED",
+      "evidence": "Original collector diagnostic contains fingerprintPresent booleans only; private per-record fingerprints/HMAC key were not persisted. No postflight snapshot was returned."
+    },
+    {
+      "assertion": "public.user_profiles.older_release_fingerprint",
+      "status": "PASS",
+      "evidence": "Full record aggregate compared to retained older release fingerprint"
+    },
+    {
+      "assertion": "public.artist_profiles.older_release_fingerprint",
+      "status": "PASS",
+      "evidence": "Full record aggregate compared to retained older release fingerprint"
+    },
+    {
+      "assertion": "public.buyer_profiles.older_release_fingerprint",
+      "status": "PASS",
+      "evidence": "Full record aggregate compared to retained older release fingerprint"
+    },
+    {
+      "assertion": "storage.objects.older_release_fingerprint",
+      "status": "PASS",
+      "evidence": "Full record aggregate compared to retained older release fingerprint"
+    },
+    {
+      "assertion": "storage.buckets.older_release_fingerprint",
+      "status": "PASS",
+      "evidence": "Older release comparison covers non-avatar buckets only"
+    },
+    {
+      "assertion": "onboarding_and_roles.older_release_fingerprint",
+      "status": "PASS",
+      "evidence": "Canonical user_profiles includes roles and onboarding columns; compared to older release baseline"
+    },
+    {
+      "assertion": "rls.older_policy_subset",
+      "status": "PASS",
+      "evidence": "Older fingerprint covers public/storage policies except three named avatar policies; not full current RLS coverage"
+    },
+    {
+      "assertion": "auth.users.older_normalized_fingerprint",
+      "status": "PASS",
+      "evidence": "Older user fingerprint permits only approved Admin last_sign_in_at/updated_at fields; all other users and identity fields are protected"
+    },
+    {
+      "assertion": "auth.sessions.older_existing_subset",
+      "status": "PASS",
+      "evidence": "Retained 19-session release subset; cannot establish exact 25-session execution baseline"
+    },
+    {
+      "assertion": "auth.identities.exact_execution_fingerprint",
+      "status": "NOT_VERIFIED",
+      "evidence": "Exact pre-execution per-record fingerprints unavailable; older aggregate may include authorized login timestamp differences"
+    },
+    {
+      "assertion": "auth.users.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 5,
+        "current": 5,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "auth.identities.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 5,
+        "current": 5,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "auth.sessions.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 25,
+        "current": 26,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "public.user_profiles.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 5,
+        "current": 5,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "public.artist_profiles.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 1,
+        "current": 1,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "public.buyer_profiles.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 1,
+        "current": 1,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "storage.objects.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 4,
+        "current": 4,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "storage.buckets.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 7,
+        "current": 7,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "analytics_outbox.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 5,
+        "current": 6,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "staging_analytics_validation.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 2,
+        "current": 3,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "staging_analytics_validation_slot.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 1,
+        "current": 1,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "existing_policies.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 44,
+        "current": 44,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "onboarding_records.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 5,
+        "current": 5,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "purchase_capabilities.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 1,
+        "current": 1,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "authorization_grants.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 1637,
+        "current": 1637,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "table_security.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 319,
+        "current": 319,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "migration_history.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 40,
+        "current": 40,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "environment_configuration.count_delta",
+      "status": "PASS",
+      "evidence": {
+        "before": 17,
+        "current": 17,
+        "scope": "Count comparison only, not content preservation"
+      }
+    },
+    {
+      "assertion": "auth.sessions.exact_execution_content",
+      "status": "NOT_VERIFIED",
+      "evidence": "Original execution record fingerprints are unavailable; current snapshots cannot recreate a past baseline"
+    },
+    {
+      "assertion": "storage.buckets.exact_execution_content",
+      "status": "NOT_VERIFIED",
+      "evidence": "Original execution record fingerprints are unavailable; current snapshots cannot recreate a past baseline"
+    },
+    {
+      "assertion": "existing_policies.exact_execution_content",
+      "status": "NOT_VERIFIED",
+      "evidence": "Original execution record fingerprints are unavailable; current snapshots cannot recreate a past baseline"
+    },
+    {
+      "assertion": "authorization_grants.exact_execution_content",
+      "status": "NOT_VERIFIED",
+      "evidence": "Original execution record fingerprints are unavailable; current snapshots cannot recreate a past baseline"
+    },
+    {
+      "assertion": "table_security.exact_execution_content",
+      "status": "NOT_VERIFIED",
+      "evidence": "Original execution record fingerprints are unavailable; current snapshots cannot recreate a past baseline"
+    },
+    {
+      "assertion": "environment_configuration.exact_execution_content",
+      "status": "NOT_VERIFIED",
+      "evidence": "Original execution record fingerprints are unavailable; current snapshots cannot recreate a past baseline"
+    }
+  ],
+  "startedAt": "2026-10-14T23:02:02.201Z",
+  "failureReproduction": {
+    "httpStatus": 400,
+    "succeeded": false,
+    "undefinedFunction": false,
+    "permissionDenied": true,
+    "readOnlyRejected": false
+  },
+  "functionResolution": {
+    "unqualified_resolves": true,
+    "qualified_resolves": true
+  },
+  "authorizedChanges": {
+    "approved_admin_role": true,
+    "approved_artist_role": true,
+    "sessions_in_login_window": 1,
+    "authorized_slot": true,
+    "exactly_three_grants": true,
+    "exact_consumed_grant": true
+  },
+  "currentSnapshot": {
+    "status": "passed",
+    "step": "terminal",
+    "mode": "BOUNDED_EVENT_EXECUTION",
+    "failureCategory": null,
+    "failedAssertion": null,
+    "sources": [
+      {
+        "source": "auth.users",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.523716+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "auth.identities",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.523931+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "auth.sessions",
+        "status": "passed",
+        "success": true,
+        "count": 26,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.524618+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.user_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.524962+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.artist_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.52514+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.buyer_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.525241+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "storage.objects",
+        "status": "passed",
+        "success": true,
+        "count": 4,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.525481+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "storage.buckets",
+        "status": "passed",
+        "success": true,
+        "count": 7,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.525726+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "analytics_outbox",
+        "status": "passed",
+        "success": true,
+        "count": 6,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.526048+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "staging_analytics_validation",
+        "status": "passed",
+        "success": true,
+        "count": 3,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.526229+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "staging_analytics_validation_slot",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.526352+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "existing_policies",
+        "status": "passed",
+        "success": true,
+        "count": 44,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.531207+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "onboarding_records",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.53148+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "purchase_capabilities",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.531562+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "authorization_grants",
+        "status": "passed",
+        "success": true,
+        "count": 1637,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.561534+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "table_security",
+        "status": "passed",
+        "success": true,
+        "count": 319,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.569839+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "migration_history",
+        "status": "passed",
+        "success": true,
+        "count": 40,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:13.574078+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "environment_configuration",
+        "status": "passed",
+        "success": true,
+        "count": 17,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:14.882Z",
+        "fingerprintPresent": true
+      }
+    ],
+    "artifactPreserved": true
+  },
+  "secondSnapshot": {
+    "status": "passed",
+    "step": "terminal",
+    "mode": "BOUNDED_EVENT_EXECUTION",
+    "failureCategory": null,
+    "failedAssertion": null,
+    "sources": [
+      {
+        "source": "auth.users",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.58749+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "auth.identities",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.587741+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "auth.sessions",
+        "status": "passed",
+        "success": true,
+        "count": 26,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.588433+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.user_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.58872+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.artist_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.588839+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.buyer_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.588918+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "storage.objects",
+        "status": "passed",
+        "success": true,
+        "count": 4,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.589104+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "storage.buckets",
+        "status": "passed",
+        "success": true,
+        "count": 7,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.589378+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "analytics_outbox",
+        "status": "passed",
+        "success": true,
+        "count": 6,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.58983+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "staging_analytics_validation",
+        "status": "passed",
+        "success": true,
+        "count": 3,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.590021+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "staging_analytics_validation_slot",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.590102+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "existing_policies",
+        "status": "passed",
+        "success": true,
+        "count": 44,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.595079+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "onboarding_records",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.595344+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "purchase_capabilities",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.595424+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "authorization_grants",
+        "status": "passed",
+        "success": true,
+        "count": 1637,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.627037+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "table_security",
+        "status": "passed",
+        "success": true,
+        "count": 319,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.636027+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "migration_history",
+        "status": "passed",
+        "success": true,
+        "count": 40,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:18.640663+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "environment_configuration",
+        "status": "passed",
+        "success": true,
+        "count": 17,
+        "complete": true,
+        "readAt": "2026-10-14T23:02:19.731Z",
+        "fingerprintPresent": true
+      }
+    ],
+    "artifactPreserved": true
+  },
+  "currentQuietComparison": {
+    "status": "passed",
+    "firstFailedAssertion": null,
+    "assertions": [
+      {
+        "assertion": "snapshot.authorization",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "snapshot.identity",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "snapshot.timing",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "snapshot.completeness",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "snapshot.record_integrity",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.users.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.users.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.users.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.identities.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.identities.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.identities.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.sessions.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.sessions.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.sessions.new_session_count",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.sessions.new_session_identity",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.sessions.new_session_owner",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "auth.sessions.new_session_time",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.user_profiles.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.user_profiles.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.user_profiles.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.artist_profiles.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.artist_profiles.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.artist_profiles.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.buyer_profiles.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.buyer_profiles.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "public.buyer_profiles.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "storage.objects.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "storage.objects.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "storage.objects.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "storage.buckets.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "storage.buckets.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "storage.buckets.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "analytics_outbox.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "analytics_outbox.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "analytics_outbox.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "staging_analytics_validation.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "staging_analytics_validation.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "staging_analytics_validation.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "staging_analytics_validation_slot.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "staging_analytics_validation_slot.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "staging_analytics_validation_slot.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "existing_policies.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "existing_policies.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "existing_policies.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "onboarding_records.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "onboarding_records.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "onboarding_records.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "purchase_capabilities.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "purchase_capabilities.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "purchase_capabilities.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "authorization_grants.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "authorization_grants.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "authorization_grants.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "table_security.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "table_security.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "table_security.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "migration_history.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "migration_history.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "migration_history.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "environment_configuration.unique_identities",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "environment_configuration.existing_records",
+        "passed": true,
+        "category": "preserved"
+      },
+      {
+        "assertion": "environment_configuration.no_added_records",
+        "passed": true,
+        "category": "preserved"
+      }
+    ]
+  },
+  "finishedAt": "2026-10-14T23:02:19.760Z"
+}

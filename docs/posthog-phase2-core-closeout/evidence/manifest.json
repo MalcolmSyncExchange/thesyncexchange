@@ -1,0 +1,71 @@
+{
+  "preparedAt": "2026-10-14T23:14:08.642Z",
+  "copiesAreByteIdentical": true,
+  "originalsPreserved": true,
+  "files": [
+    {
+      "file": "execution-receipt.json",
+      "originalPath": "/private/tmp/tse-final-bounded-event-971da0c/receipt.json",
+      "sha256": "5d403d28c211bfa88ef53d12e961c8cb9aaf4d0fb4e5cc0c62ce5e1f814bb0f7",
+      "byteLength": 13166,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    },
+    {
+      "file": "coordinator-receipt.json",
+      "originalPath": "/private/tmp/tse-final-bounded-event-971da0c/coordinator.json",
+      "sha256": "2ef6de6342e5f71a96a90068b20ac8f4460881f947c484fd8ed65b38cc6ec07d",
+      "byteLength": 2860,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    },
+    {
+      "file": "destination-verification.json",
+      "originalPath": "/private/tmp/tse-final-bounded-event-971da0c/destination-result.json",
+      "sha256": "7a668b07232d457963f21b7b9150e7803303ae4d68fad3649ef6514e6b4005ee",
+      "byteLength": 861,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    },
+    {
+      "file": "postflight-audit.json",
+      "originalPath": "/private/tmp/tse-postflight-preservation-audit/final-report.json",
+      "sha256": "f385821815a80b81e59ad4ed7e11852922df21218b2c5fe20be0f1a06958b05f",
+      "byteLength": 19766,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    },
+    {
+      "file": "current-snapshot-audit.json",
+      "originalPath": "/private/tmp/tse-postflight-preservation-audit/audit.json",
+      "sha256": "f6167154164df44fc5966c6f6cbaa7e70788ef3ac465e9b54d02d50af6e2ebd5",
+      "byteLength": 26438,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    },
+    {
+      "file": "permission-diagnosis.json",
+      "originalPath": "/private/tmp/tse-postflight-preservation-audit/permission-diagnosis.json",
+      "sha256": "26d8b1ff2c469c7c8948301b591f62692927782c457e04c530bbddab6131309c",
+      "byteLength": 130,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    },
+    {
+      "file": "final-safety.json",
+      "originalPath": "/private/tmp/tse-postflight-preservation-audit/safety.json",
+      "sha256": "64f6159430c4e5893abb61575ef263afba8e9fcd12b3638d14ad0d1eeb82670f",
+      "byteLength": 1924,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    },
+    {
+      "file": "historical-grants.json",
+      "originalPath": "/private/tmp/tse-postflight-preservation-audit/historical-grants.json",
+      "sha256": "b73fd8b4b1dcad66552d5eda198d03a985abbf3c1ea9fd55a21062167e9233b6",
+      "byteLength": 111,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    },
+    {
+      "file": "scheduled-worker-check.json",
+      "originalPath": "/private/tmp/tse-postflight-preservation-audit/schedules.json",
+      "sha256": "779b0196882071d163ad746a86fb046f99f521fac351f92941bf5ef4b94b9ab8",
+      "byteLength": 182,
+      "classification": "sanitized evidence; no credential or private fingerprint values"
+    }
+  ],
+  "privateBaselines": "Older release fingerprints remain at their existing restricted paths; no private baseline or key copied into Git."
+}

@@ -1,0 +1,503 @@
+{
+  "status": "stopped",
+  "step": "sec_verification",
+  "source": "971da0c498905cec2ce642b954d35f34b123509a",
+  "tree": "b0326e895c185099ae923c527047e087af57bdb9",
+  "siteId": "d8e851a6-ab37-4b0e-9403-9b2c1be65f13",
+  "startedAt": "2026-10-14T22:42:41.973Z",
+  "configurationUpdated": false,
+  "publicationAttempts": 0,
+  "checks": [
+    {
+      "assertion": "source.exact",
+      "passed": true
+    },
+    {
+      "assertion": "supabase.identity",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.history",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.quiet_complete",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.event_count",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.queue_quiet",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.event_history",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.grant_count",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.grants_dormant",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.new_grant_absent",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.service_role_and_payments_off",
+      "passed": true
+    },
+    {
+      "assertion": "site.identity",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.ANALYTICS_ENABLED",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.STAGING_ANALYTICS_VALIDATION_ENABLED",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.STAGING_ANALYTICS_VALIDATION_ADMIN",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.STAGING_ANALYTICS_VALIDATION_ARTIST",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.SYNC_EXCHANGE_PAYMENT_MODE",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.SYNC_EXCHANGE_BILLING_PORTAL_ENABLED",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.NEXT_PUBLIC_APP_URL",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.NEXT_PUBLIC_SUPABASE_URL",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.absent_POSTHOG_PRODUCTION_TOKEN",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.absent_STRIPE_SECRET_KEY",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.absent_STRIPE_WEBHOOK_SECRET",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.absent_NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+      "passed": true
+    },
+    {
+      "assertion": "preflight.preview_token_metadata",
+      "passed": true
+    },
+    {
+      "assertion": "posthog.staging_ingestion_host",
+      "passed": true
+    },
+    {
+      "assertion": "deployment.approved_source_receipt",
+      "passed": true
+    },
+    {
+      "assertion": "preflight./api/health/config",
+      "passed": true
+    },
+    {
+      "assertion": "preflight./api/health/readiness",
+      "passed": true
+    },
+    {
+      "assertion": "binding.scope",
+      "passed": true
+    },
+    {
+      "assertion": "no_scheduled_functions",
+      "passed": true
+    },
+    {
+      "assertion": "identities.complete",
+      "passed": true
+    },
+    {
+      "assertion": "identities.dedupe_unused",
+      "passed": true
+    },
+    {
+      "assertion": "identities.canonical_admin",
+      "passed": true
+    },
+    {
+      "assertion": "identities.canonical_artist",
+      "passed": true
+    },
+    {
+      "assertion": "identities.admin_confirmed",
+      "passed": true
+    },
+    {
+      "assertion": "identities.artist_confirmed",
+      "passed": true
+    },
+    {
+      "assertion": "historical_grants.exact_contract",
+      "passed": true
+    },
+    {
+      "assertion": "no_database_analytics_schedule",
+      "passed": true
+    },
+    {
+      "assertion": "baseline.complete",
+      "passed": true
+    },
+    {
+      "assertion": "arming.after_verified_auth",
+      "passed": true
+    },
+    {
+      "assertion": "grant.exact_new_contract",
+      "passed": true
+    },
+    {
+      "assertion": "coordinator.passed",
+      "passed": false
+    }
+  ],
+  "baseline": {
+    "status": "passed",
+    "step": "terminal",
+    "mode": "BOUNDED_EVENT_EXECUTION",
+    "failureCategory": null,
+    "failedAssertion": null,
+    "sources": [
+      {
+        "source": "auth.users",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.061051+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "auth.identities",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.061284+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "auth.sessions",
+        "status": "passed",
+        "success": true,
+        "count": 25,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.061947+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.user_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.062217+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.artist_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.062374+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "public.buyer_profiles",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.062458+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "storage.objects",
+        "status": "passed",
+        "success": true,
+        "count": 4,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.062642+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "storage.buckets",
+        "status": "passed",
+        "success": true,
+        "count": 7,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.06287+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "analytics_outbox",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.063113+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "staging_analytics_validation",
+        "status": "passed",
+        "success": true,
+        "count": 2,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.06322+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "staging_analytics_validation_slot",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.063335+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "existing_policies",
+        "status": "passed",
+        "success": true,
+        "count": 44,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.068176+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "onboarding_records",
+        "status": "passed",
+        "success": true,
+        "count": 5,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.068444+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "purchase_capabilities",
+        "status": "passed",
+        "success": true,
+        "count": 1,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.068531+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "authorization_grants",
+        "status": "passed",
+        "success": true,
+        "count": 1637,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.09857+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "table_security",
+        "status": "passed",
+        "success": true,
+        "count": 319,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.106863+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "migration_history",
+        "status": "passed",
+        "success": true,
+        "count": 40,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:57.111162+00:00",
+        "fingerprintPresent": true
+      },
+      {
+        "source": "environment_configuration",
+        "status": "passed",
+        "success": true,
+        "count": 17,
+        "complete": true,
+        "readAt": "2026-10-14T22:42:58.248Z",
+        "fingerprintPresent": true
+      }
+    ],
+    "artifactPreserved": true
+  },
+  "armAttempts": 1,
+  "armHttpStatus": 200,
+  "grant": {
+    "id": "a2926e46-df3b-4631-807e-4643e1f8c1f5",
+    "createdAt": "2026-10-14T22:43:07.976842+00:00",
+    "expiresAt": "2026-10-14T22:48:07.976842+00:00"
+  },
+  "eventId": "f7d9bd71-58ce-4770-a970-725c7b11ac6a",
+  "destination": {
+    "status": "PASS",
+    "project": 657650,
+    "matchingRows": 1,
+    "event": {
+      "uuid": "f7d9bd71-58ce-4770-a970-725c7b11ac6a",
+      "event": "submission_started",
+      "distinct_id": "9e61c9ea-ed51-4328-8937-0b989dece2c9",
+      "timestamp": "2026-10-14T22:43:08.889000Z",
+      "is_test": true,
+      "environment": "preview",
+      "authorization_id": "a2926e46-df3b-4631-807e-4643e1f8c1f5"
+    },
+    "checks": {
+      "uuid": true,
+      "eventName": true,
+      "Artist": true,
+      "testLabel": true,
+      "previewEnvironment": true,
+      "timestampAtMillisecondPrecision": true
+    },
+    "timestampPrecision": "PostHog query timestamp matches Supabase occurrence at millisecond precision; Supabase retains additional microseconds.",
+    "queryContext": "PostHog connector active staging project 657650; exact UUID lookup with LIMIT 2",
+    "verifiedAt": "2026-10-14T22:44:09.192Z"
+  },
+  "coordinator": {
+    "status": "failed",
+    "step": "terminal",
+    "failureCategory": "postflight_collection_failed",
+    "postAttempts": 1,
+    "eventId": "f7d9bd71-58ce-4770-a970-725c7b11ac6a",
+    "authentication": {
+      "status": "passed",
+      "step": "terminal",
+      "lastConfirmedCheckpoint": "readiness_json_validation",
+      "failedStep": null,
+      "readinessExpectation": "ready",
+      "loginFlow": "server-action",
+      "readiness": {
+        "category": "READY",
+        "ready": true,
+        "grantUsable": true,
+        "validationEnabled": true,
+        "stagingIdentityValid": true,
+        "globalAnalyticsDisabled": true,
+        "boundedConfigurationRecognized": true,
+        "paymentCapabilitiesOff": true,
+        "authorizationMatches": true,
+        "artistMatches": true,
+        "operatorMatches": true
+      },
+      "failureCategory": null,
+      "timeoutCategory": null,
+      "cleanup": "complete",
+      "artifactPreserved": true,
+      "checkpoints": [
+        {
+          "step": "login_submission",
+          "state": "passed",
+          "httpStatus": null,
+          "requestAttempted": true,
+          "responseObserved": false
+        },
+        {
+          "step": "server_action_outcome",
+          "state": "passed",
+          "httpStatus": 200,
+          "requestAttempted": true,
+          "responseObserved": true
+        },
+        {
+          "step": "session_establishment",
+          "state": "passed",
+          "httpStatus": null,
+          "requestAttempted": false,
+          "responseObserved": false
+        },
+        {
+          "step": "auth_get_user",
+          "state": "passed",
+          "httpStatus": 200,
+          "requestAttempted": true,
+          "responseObserved": true
+        },
+        {
+          "step": "canonical_admin_role",
+          "state": "passed",
+          "httpStatus": 200,
+          "requestAttempted": true,
+          "responseObserved": true
+        },
+        {
+          "step": "readiness_get_submission",
+          "state": "passed",
+          "httpStatus": null,
+          "requestAttempted": true,
+          "responseObserved": false
+        },
+        {
+          "step": "readiness_http_response",
+          "state": "passed",
+          "httpStatus": 200,
+          "requestAttempted": true,
+          "responseObserved": true
+        },
+        {
+          "step": "readiness_json_validation",
+          "state": "passed",
+          "httpStatus": null,
+          "requestAttempted": false,
+          "responseObserved": false
+        }
+      ]
+    },
+    "event": {
+      "status": "passed",
+      "checkpoint": "terminal",
+      "submissionStarted": true,
+      "responseReceived": true,
+      "httpStatus": 200,
+      "responseCategory": "delivery_accepted",
+      "handlerAcknowledgment": "structured",
+      "grantClaimOutcome": "claimed",
+      "failureCategory": null,
+      "timeout": false,
+      "cleanup": "complete",
+      "eventId": "f7d9bd71-58ce-4770-a970-725c7b11ac6a"
+    },
+    "preservation": null,
+    "cleanup": "complete",
+    "artifactPreserved": true
+  },
+  "failedStep": "sec_verification",
+  "failureCategory": "gate_failed",
+  "finishedAt": "2026-10-14T22:44:12.416Z"
+}

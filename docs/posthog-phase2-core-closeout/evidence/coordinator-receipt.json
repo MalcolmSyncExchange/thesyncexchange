@@ -1,0 +1,107 @@
+{
+  "status": "failed",
+  "step": "terminal",
+  "failureCategory": "postflight_collection_failed",
+  "postAttempts": 1,
+  "eventId": "f7d9bd71-58ce-4770-a970-725c7b11ac6a",
+  "authentication": {
+    "status": "passed",
+    "step": "terminal",
+    "lastConfirmedCheckpoint": "readiness_json_validation",
+    "failedStep": null,
+    "readinessExpectation": "ready",
+    "loginFlow": "server-action",
+    "readiness": {
+      "category": "READY",
+      "ready": true,
+      "grantUsable": true,
+      "validationEnabled": true,
+      "stagingIdentityValid": true,
+      "globalAnalyticsDisabled": true,
+      "boundedConfigurationRecognized": true,
+      "paymentCapabilitiesOff": true,
+      "authorizationMatches": true,
+      "artistMatches": true,
+      "operatorMatches": true
+    },
+    "failureCategory": null,
+    "timeoutCategory": null,
+    "cleanup": "complete",
+    "artifactPreserved": true,
+    "checkpoints": [
+      {
+        "step": "login_submission",
+        "state": "passed",
+        "httpStatus": null,
+        "requestAttempted": true,
+        "responseObserved": false
+      },
+      {
+        "step": "server_action_outcome",
+        "state": "passed",
+        "httpStatus": 200,
+        "requestAttempted": true,
+        "responseObserved": true
+      },
+      {
+        "step": "session_establishment",
+        "state": "passed",
+        "httpStatus": null,
+        "requestAttempted": false,
+        "responseObserved": false
+      },
+      {
+        "step": "auth_get_user",
+        "state": "passed",
+        "httpStatus": 200,
+        "requestAttempted": true,
+        "responseObserved": true
+      },
+      {
+        "step": "canonical_admin_role",
+        "state": "passed",
+        "httpStatus": 200,
+        "requestAttempted": true,
+        "responseObserved": true
+      },
+      {
+        "step": "readiness_get_submission",
+        "state": "passed",
+        "httpStatus": null,
+        "requestAttempted": true,
+        "responseObserved": false
+      },
+      {
+        "step": "readiness_http_response",
+        "state": "passed",
+        "httpStatus": 200,
+        "requestAttempted": true,
+        "responseObserved": true
+      },
+      {
+        "step": "readiness_json_validation",
+        "state": "passed",
+        "httpStatus": null,
+        "requestAttempted": false,
+        "responseObserved": false
+      }
+    ]
+  },
+  "event": {
+    "status": "passed",
+    "checkpoint": "terminal",
+    "submissionStarted": true,
+    "responseReceived": true,
+    "httpStatus": 200,
+    "responseCategory": "delivery_accepted",
+    "handlerAcknowledgment": "structured",
+    "grantClaimOutcome": "claimed",
+    "failureCategory": null,
+    "timeout": false,
+    "cleanup": "complete",
+    "eventId": "f7d9bd71-58ce-4770-a970-725c7b11ac6a"
+  },
+  "preservation": null,
+  "cleanup": "complete",
+  "artifactPreserved": true
+}

@@ -1,0 +1,7 @@
+[
+  {
+    "query_role": "supabase_read_only_user",
+    "query_role_can_execute": false,
+    "service_role_can_execute": true
+  }
+]

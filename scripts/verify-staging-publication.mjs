@@ -1,3 +1,4 @@
+import {publicationStep,diagnostic} from './publication-diagnostics.mjs';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -25,24 +26,26 @@ export async function verifySelectedSite() {
   if(site.id!==SITE||site.ssl_url!==ORIGIN)throw Error('Selected site identity mismatch.');
   return {site:SITE,origin:ORIGIN};
 }
-export async function main() {
+export async function main(state={buildBegan:false,uploadBegan:false}) {
   const approvedSource=process.argv[2];if(!/^[a-f0-9]{40}$/.test(approvedSource||'')) throw Error('Exact approved source SHA required.');
   const source=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();const clean=!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim();
   const compiled=JSON.parse(readFileSync('.next/required-server-files.json','utf8')).config.env;
   // This command never deploys. Provider reads require a private token in memory.
   const token=process.env.NETLIFY_AUTH_TOKEN;
-  if(!token)throw Error('Private provider verification credentials required; do not put keys in arguments or files.');
-  const credential=await getStagingPublicationCredential();
+  await publicationStep('configuration',()=>{if(!token)throw Error('Private provider verification credentials required; do not put keys in arguments or files.');},state);
+  const credential=await publicationStep('credential',()=>getStagingPublicationCredential(),state);
   async function net(path){const r=await fetch('https://api.netlify.com/api/v1'+path,{redirect:'error',headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('Provider identity read failed.');return r.json();}
-  const site=await net(`/sites/${SITE}`);if(site.id!==SITE||site.ssl_url!==ORIGIN)throw Error('Wrong staging site.');
-  const shared=await net(`/accounts/${site.account_id}/env?context_name=production`);
+  const site=await publicationStep('provider-site',()=>net(`/sites/${SITE}`),state);if(site.id!==SITE||site.ssl_url!==ORIGIN)throw Error('Wrong staging site.');
+  return publicationStep('configuration',async()=>{
+  const shared=await publicationStep('configuration',()=>net(`/accounts/${site.account_id}/env?context_name=production`),state);
   if(shared.length || Object.keys(site.build_settings?.env || {}).length)throw Error('Unexpected shared or legacy build configuration.');
-  const env=await net(`/accounts/${site.account_id}/env?site_id=${SITE}&context_name=production`);const vars={};
+  const env=await publicationStep('configuration',()=>net(`/accounts/${site.account_id}/env?site_id=${SITE}&context_name=production`),state);const vars={};
   for(const x of env){vars[x.key]=(x.values.find(v=>v.context==='production') || x.values.find(v=>v.context==='all'))?.value;const privateKey=['SUPABASE_SERVICE_ROLE_KEY','POSTHOG_PREVIEW_TOKEN','POSTHOG_HOST'].includes(x.key);if(privateKey&&JSON.stringify(x.scopes)!=='["functions"]')throw Error('Private scope mismatch.');}
   for(const key of ['NEXT_PUBLIC_APP_URL','NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','ANALYTICS_ENABLED','SYNC_EXCHANGE_DEPLOYMENT_CLASS','SYNC_EXCHANGE_PAYMENT_MODE','SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED','SYNC_EXCHANGE_BILLING_PORTAL_ENABLED','SYNC_EXCHANGE_DEMO_MODE'])if(!['builds','functions'].every(scope=>env.find(x=>x.key===key)?.scopes.includes(scope)))throw Error('Published scope mismatch.');
   if(!env.find(x=>x.key==='SUPABASE_SERVICE_ROLE_KEY')?.is_secret)throw Error('Functions credential must be marked secret.');
   const r=await fetch(`https://${PROJECT}.supabase.co/rest/v1/rpc/get_admin_purchase_capabilities`,{method:'POST',redirect:'error',headers:{apikey:credential,Authorization:`Bearer ${credential}`,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(10000)});
   const data=await r.json();const result=verifyPublicationEvidence({source,approvedSource,clean,site,compiled,functions:{SITE_ID:site.id,URL:site.ssl_url},vars,credential,rpc:{data,error:!r.ok}});
   console.log(JSON.stringify({...result,source,tree:execFileSync('git',['rev-parse','HEAD^{tree}'],{encoding:'utf8'}).trim(),actualFunctionsRuntime:'Must also pass health after separately authorized publication; no deployment performed'}));
+  },state);
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(()=>{console.error('Publication verification failed; do not publish. No credentials printed.');process.exitCode=1;});
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)publicationStep('verification',()=>main()).catch(error=>{console.error(JSON.stringify(diagnostic(error)));console.error('Publication verification failed; do not publish. No credentials printed.');process.exitCode=1;});

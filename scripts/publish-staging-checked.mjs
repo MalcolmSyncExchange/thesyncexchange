@@ -1,3 +1,4 @@
+import {publicationStep,diagnostic} from './publication-diagnostics.mjs';
 // Execute publication only with separate founder authorization.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, realpathSync, statSync } from 'node:fs';
@@ -50,20 +51,24 @@ export async function runCheckedPublication({prepare=()=>{},build,verify,publish
 }
 
 async function execute() {
-  const approved=process.argv[2],dry=process.argv.includes('--dry-run');
+  const state={buildBegan:false,uploadBegan:false};
+  await publicationStep('source',async()=>{
+  const approved=process.argv[2];
   if(!/^[a-f0-9]{40}$/.test(approved||'')||execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()!==approved||execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim())throw Error('Approved source or clean worktree mismatch.');
+  });
+  const approved=process.argv[2],dry=process.argv.includes('--dry-run');
   const directory=process.cwd();const childEnv={...process.env};delete childEnv.SUPABASE_SERVICE_ROLE_KEY;delete childEnv.NETLIFY_SITE_ID;
   const cli=process.env.NETLIFY_CLI_BIN||'netlify';
-  await runCheckedPublication({
+  await publicationStep('fingerprint',()=>runCheckedPublication({
     prepare:async()=>{
-      for(const args of [BUILD_ARGS,DEPLOY_ARGS])validateCliArguments(args,execFileSync(cli,[args[0],'--help'],{env:childEnv,encoding:'utf8'}));
-      verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID);
-      if(!dry)await verifySelectedSite();
+      for(const args of [BUILD_ARGS,DEPLOY_ARGS])await publicationStep('cli-'+args[0]+'-help',()=>validateCliArguments(args,execFileSync(cli,[args[0],'--help'],{env:childEnv,encoding:'utf8',stdio:['ignore','pipe','pipe']})),state);
+      await publicationStep('site-link',()=>verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID),state);
+      if(!dry)await publicationStep('provider-site',()=>verifySelectedSite(),state);
     },
-    build:()=>{verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID);if(dry){console.log(JSON.stringify({dryRun:true,site:SITE,build:BUILD_ARGS,deploy:DEPLOY_ARGS,upload:false}));return;}execFileSync(cli,BUILD_ARGS,{env:childEnv,stdio:'inherit'});console.log(JSON.stringify(verifyStagingAssets(directory)));},
+    build:async()=>{await publicationStep('site-link',()=>verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID),state);if(dry){console.log(JSON.stringify({dryRun:true,site:SITE,build:BUILD_ARGS,deploy:DEPLOY_ARGS,upload:false}));return;}state.buildBegan=true;await publicationStep('build',()=>execFileSync(cli,BUILD_ARGS,{env:childEnv,stdio:['ignore','pipe','pipe'],maxBuffer:16*1024*1024}),state);console.log(JSON.stringify(await publicationStep('assets',()=>verifyStagingAssets(directory),state)));},
     fingerprint:dry?undefined:()=>artifactFingerprint(directory),
-    verify:()=>{if(!dry)return main();console.log('Offline command/site-link validation passed; provider, artifact and credential gates remain mandatory for real publication.');},
-    publish:()=>{verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID);if(!dry){verifyStagingAssets(directory);withPreparedDeployConfig(directory,()=>execFileSync(cli,DEPLOY_ARGS,{env:childEnv,stdio:'inherit'}));}}
-  });
+    verify:()=>{if(!dry)return publicationStep('verification',()=>main(state),state);console.log('Offline command/site-link validation passed; provider, artifact and credential gates remain mandatory for real publication.');},
+    publish:async()=>{await publicationStep('site-link',()=>verifyLocalSiteLink(directory,process.env.NETLIFY_SITE_ID),state);if(!dry){await publicationStep('assets',()=>verifyStagingAssets(directory),state);await publicationStep('upload',()=>withPreparedDeployConfig(directory,()=>{state.uploadBegan=true;return execFileSync(cli,DEPLOY_ARGS,{env:childEnv,stdio:['ignore','pipe','pipe'],maxBuffer:16*1024*1024});}),state);console.log(JSON.stringify({publication:'complete',site:SITE}));}}
+  }),state);
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)execute().catch(()=>{console.error('Checked staging publication stopped. Do not retry automatically or publish manually.');process.exitCode=1;});
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)execute().catch(error=>{console.error(JSON.stringify(diagnostic(error)));console.error('Checked staging publication stopped. Do not retry automatically or publish manually.');process.exitCode=1;});

@@ -5,8 +5,6 @@ import { isDedicatedStagingDeploymentIdentity } from '@/lib/staging-identity';
 import { boundedValidationConfig } from '@/lib/analytics/bounded-validation';
 import { parseCapabilityFlags } from '@/lib/admin-v2/payment-readiness';
 
-const authorization = '82c44923-4522-41e2-99f2-e567e1570b4d';
-const artist = '9e61c9ea-ed51-4328-8937-0b989dece2c9';
 const headers = {
   'Cache-Control': 'private, no-store, max-age=0',
   'Netlify-CDN-Cache-Control': 'no-store',
@@ -15,7 +13,8 @@ const headers = {
 
 export async function GET() {
   // getAnalyticsActor verifies Auth and the canonical user_profiles.role.
-  if ((await getAnalyticsActor())?.role !== 'admin') {
+  const actor=await getAnalyticsActor();
+  if (actor?.role !== 'admin') {
     return Response.json({ status: 'forbidden' }, { status: 403, headers });
   }
   const target = getDeploymentTarget();
@@ -31,17 +30,20 @@ export async function GET() {
     return Response.json({ status: 'unavailable' }, { status: 404, headers });
   }
   const config = boundedValidationConfig(vars, target);
+  if(config && actor.id!==config.operator)return Response.json({status:'forbidden'},{status:403,headers});
   const checks = {
     validationEnabled: vars.STAGING_ANALYTICS_VALIDATION_ENABLED === 'true',
-    authorizationMatches: vars.STAGING_ANALYTICS_VALIDATION_AUTHORIZATION === authorization,
-    artistMatches: vars.STAGING_ANALYTICS_VALIDATION_ARTIST === artist,
+    authorizationMatches: false,
+    artistMatches: false,
+    operatorMatches: false,
+    grantUsable: false,
     stagingIdentityValid: true,
     globalAnalyticsDisabled: vars.ANALYTICS_ENABLED === 'false',
     boundedConfigurationRecognized: config !== null,
     paymentCapabilitiesOff: false
   };
-  // No grant query, claim, consumption, capture or transport path exists here.
-  if (config && checks.authorizationMatches && checks.artistMatches) {
+  // Read-only active-grant inspection; never arms, consumes or delivers.
+  if (config) {
     try {
       const db = createAdminSupabaseClient();
       if (db) {
@@ -49,6 +51,12 @@ export async function GET() {
           .abortSignal(AbortSignal.timeout(3000));
         const flags = result.error ? null : parseCapabilityFlags(result.data);
         checks.paymentCapabilitiesOff = Boolean(flags && Object.values(flags).every(value => value === false));
+        const grant=await db.rpc('get_staging_analytics_validation_readiness',{p_authorization:config.authorization,p_artist:config.artist,p_operator:actor.id}).abortSignal(AbortSignal.timeout(3000));
+        const row=!grant.error && grant.data?.length===1?grant.data[0]:null;
+        checks.authorizationMatches=Boolean(row?.authorization_matches);
+        checks.artistMatches=Boolean(row?.artist_matches);
+        checks.operatorMatches=Boolean(row?.operator_matches);
+        checks.grantUsable=row?.grant_usable===true;
       }
     } catch { /* Fixed false result; never expose provider errors. */ }
   }

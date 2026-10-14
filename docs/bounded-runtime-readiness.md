@@ -10,23 +10,20 @@ can respond with readiness. Other environments return 404 after authorization;
 non-admin callers return 403. This does not change production authentication or
 analytics behavior.
 
-The route compares the two configured identifiers with the founder-approved
-values fixed in server source. It returns only `status`, `ready`, and fixed
-booleans: `validationEnabled`, `authorizationMatches`, `artistMatches`,
-`stagingIdentityValid`, `globalAnalyticsDisabled`,
-`boundedConfigurationRecognized`, `paymentCapabilitiesOff`. Successful readiness
-is HTTP 200; incorrect, missing or unavailable configuration is HTTP 503. It
-never returns UUIDs, tokens, configuration objects, environment values, hashes
-or provider errors. Responses are private/no-store and vary by credentials.
+The route validates the configured authorization, Artist and Admin operator UUIDs
+against the current immutable database grant. The authenticated canonical Admin
+must match the configured operator. It returns only status/ready and fixed
+booleans, including operatorMatches and grantUsable, never identifiers, tokens,
+environment values, hashes or provider errors. Responses are private/no-store.
+Readiness is 200 only for a usable active grant with correct identities and six
+OFF flags; a dormant/unarmed capability is 503. Non-admin or wrong-operator
+callers are denied, and non-staging environments return 404.
 
-The only privileged operation is the existing read-only
-`get_admin_purchase_capabilities` RPC, with a three-second timeout and fail-closed
-parsing of all six OFF flags. It is reached only after authorization, staging
-identity and configuration/identifier validation. There is no grant table query,
-claim, grant mutation, consumption, event enqueue, capture or transport invocation.
-The diagnostic reports configuration readiness, not that a grant has been armed.
-Grant absence and historical data must still be checked independently during an
-explicitly authorized rollout.
+The only privileged operations are the read-only get_admin_purchase_capabilities
+and get_staging_analytics_validation_readiness RPCs, with bounded timeouts.
+There is no claim, grant mutation, event enqueue, capture or transport invocation.
+The rollover procedure and expected dormant readiness are documented in
+[immutable renewal](immutable-staging-validation-renewal.md).
 
 Tests use the real pure identity/configuration evaluators with isolated clients.
 All non-admin roles and production are rejected; malformed configurations and

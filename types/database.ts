@@ -712,7 +712,9 @@ export interface Database {
       };
     };
     Functions: {
-      claim_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_event: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
+      claim_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_event: string; p_operator: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
+      arm_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_operator: string; p_event: string }; Returns: { id: string; created_at: string; expires_at: string }[] };
+      get_staging_analytics_validation_readiness: { Args: { p_authorization: string; p_artist: string; p_operator: string }; Returns: { authorization_matches: boolean; artist_matches: boolean; operator_matches: boolean; grant_usable: boolean }[] };
       finish_staging_analytics_validation: { Args: { p_authorization: string; p_lease: string; p_accepted: boolean }; Returns: string };
 
       save_artist_onboarding_atomic: {

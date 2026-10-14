@@ -56,7 +56,8 @@
     "test:publication": "node --test --experimental-strip-types tests/publication-cli.test.mjs tests/build-identity.test.mjs tests/deployment-target.test.mjs tests/disabled-payment-health.test.mjs tests/staging-publication-credential.test.mjs tests/publication-diagnostics.test.mjs",
     "test:assets": "node --test tests/staging-assets.test.mjs tests/publication-cli.test.mjs",
     "verify:ui-assets": "node scripts/verify-ui-assets.mjs",
-    "test:bounded-analytics": "node --test --experimental-strip-types tests/bounded-analytics-validation.test.mjs tests/bounded-runtime-readiness.test.mjs tests/bounded-invocation-diagnostics.test.mjs"
+    "test:bounded-analytics": "node --test --experimental-strip-types tests/bounded-analytics-validation.test.mjs tests/bounded-runtime-readiness.test.mjs tests/bounded-invocation-diagnostics.test.mjs",
+    "test:validation-renewal:native": "node scripts/test-validation-renewal-native.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

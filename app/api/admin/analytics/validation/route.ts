@@ -7,7 +7,8 @@ export async function POST(request:Request) {
   const deny=(status:number,category='request_denied',claimOutcome='not_attempted')=>Response.json({status:'rejected',category,claimOutcome},{status,headers:{'Cache-Control':'private, no-store','Netlify-CDN-Cache-Control':'no-store'}});
   if(request.headers.get('origin')!==new URL(request.url).origin)return deny(403);
   // Canonical server role checked before opening any privileged client.
-  if((await getAnalyticsActor())?.role!=='admin')return deny(403);
+  const actor=await getAnalyticsActor();
+  if(actor?.role!=='admin')return deny(403);
   const config=boundedValidationConfig({
     ...process.env,
     TSE_BUILD_NETLIFY_SITE_ID: process.env.TSE_BUILD_NETLIFY_SITE_ID,
@@ -17,6 +18,7 @@ export async function POST(request:Request) {
     SYNC_EXCHANGE_DEMO_MODE:String(env.demoMode)
   },getDeploymentTarget());
   if(!config)return deny(503,'configuration_rejected');
+  if(actor.id!==config.operator)return deny(403);
   // No actor, event, properties or authorization supplied by the caller.
   // Empty body only; do not read/buffer arbitrary request data.
   if(!await hasEmptyValidationBody(request))return deny(400,'invalid_body');
@@ -28,7 +30,7 @@ export async function POST(request:Request) {
     const result=await executeBoundedValidation(config,{
       claim:async()=>{
         failureCategory='claim_failed';claimOutcome='unknown';
-        const r=await db.rpc('claim_staging_analytics_validation',{p_authorization:config.authorization,p_artist:config.artist,p_event:VALIDATION_EVENT}).abortSignal(AbortSignal.timeout(3000));
+        const r=await db.rpc('claim_staging_analytics_validation',{p_authorization:config.authorization,p_artist:config.artist,p_event:VALIDATION_EVENT,p_operator:actor.id}).abortSignal(AbortSignal.timeout(3000));
         if(r.error||!r.data||r.data.length>1)throw new Error('validation_claim_failed');
         const row=r.data[0];claimOutcome=row?'claimed':'empty';if(!row)return null;
         if(row.event!==VALIDATION_EVENT||row.actor_role!=='artist'||!row.lease_id||!row.lease_until)throw new Error('validation_row_invalid');

@@ -71,7 +71,7 @@ record its observation interval. No distributed atomic snapshot or absence of
 transient writes is claimed. A caller's attestation is not independent proof of
 collection correctness: the live collector must be separately reviewed before use.
 
-Only explicitly authorized changes are allowed:
+In explicit `AUTHENTICATED_REHEARSAL` mode, only these authorized changes are allowed:
 
 - On the approved Admin's Auth user and associated identity records, only
   `last_sign_in_at` and `updated_at` may change. Each changed timestamp must be
@@ -130,3 +130,15 @@ by their fixed domain assertion. No subsequent runtime behavior change is made.
 Recommendation: GO for preparing a reviewed, separately authorized read-only
 rehearsal with the complete collector. NO-GO for an event-bearing execution until
 fresh coherent snapshots pass; the exact historical failure remains unknown.
+
+## Explicit operation modes and complete collector
+
+No mode is inferred or defaulted. `AUTHENTICATED_REHEARSAL` requires the exact
+approved Admin/session identities, a bounded login window and expectedNewSessions=1.
+`READ_ONLY_NO_LOGIN` requires expectedNewSessions=0 and no login window/session
+authorization fields. It permits no timestamp or Auth identity changes. Both
+modes preserve all other protected rows strictly. See
+[complete collector](staging-preservation-collector.md) for the concrete secure
+reader, source coverage, private fingerprints and no-login rehearsal procedure.
+The earlier missing-collector/no-login limitation is resolved locally; no hosted
+rehearsal is executed by this change.

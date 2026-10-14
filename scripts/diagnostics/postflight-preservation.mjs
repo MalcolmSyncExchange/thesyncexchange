@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-export const preservationDomains=['auth.users','auth.identities','auth.sessions','public.user_profiles','public.artist_profiles','public.buyer_profiles','storage.objects','storage.buckets','analytics_outbox','staging_analytics_validation','staging_analytics_validation_slot','existing_policies','migration_history','environment_configuration'];
+export const preservationDomains=['auth.users','auth.identities','auth.sessions','public.user_profiles','public.artist_profiles','public.buyer_profiles','storage.objects','storage.buckets','analytics_outbox','staging_analytics_validation','staging_analytics_validation_slot','existing_policies','onboarding_records','purchase_capabilities','authorization_grants','table_security','migration_history','environment_configuration'];
 const stable=value=>JSON.stringify(canonical(value));
 function canonical(value){
  if(Array.isArray(value))return value.map(canonical);
@@ -19,6 +19,10 @@ export function capturePreservationSnapshot(read,approvedAdminId){
   const rows=read.domains?.[domain];if(!Array.isArray(rows))throw new CaptureFailure('partial_snapshot',domain+'.capture_complete');
   const seen=new Set();domains[domain]=rows.map(row=>{
    if(!row||typeof row.id!=='string'||!row.id||seen.has(row.id))throw new CaptureFailure('invalid_record_identity',domain+'.stable_identities');seen.add(row.id);
+   if(read.fingerprinted===true){
+    if(!/^[a-f0-9]{64}$/.test(row.fingerprint||'')||(row.loginFingerprint!==null&&!/^[a-f0-9]{64}$/.test(row.loginFingerprint||'')))throw new CaptureFailure('invalid_record_identity',domain+'.fingerprints');
+    return {...row};
+   }
    const approved=(domain==='auth.users'&&row.id===approvedAdminId)||(domain==='auth.identities'&&row.user_id===approvedAdminId);
    const normalized={...row};if(approved)for(const key of authorizedTimestampFields)delete normalized[key];
    return {id:row.id,fingerprint:digest(row),loginFingerprint:approved?digest(normalized):null,loginTimes:approved?Object.fromEntries(authorizedTimestampFields.map(key=>[key,row[key]??null])):null,ownerId:domain==='auth.sessions'?row.user_id:null,createdAt:domain==='auth.sessions'?row.created_at:null};
@@ -26,19 +30,19 @@ export function capturePreservationSnapshot(read,approvedAdminId){
  }
  return {environmentId:read.environmentId,approvedAdminId,transactionId:read.transactionId,startedAt:read.startedAt,finishedAt:read.finishedAt,domains};
 }
-export function comparePreservationSnapshots(before,after,{approvedAdminId,environmentId,loginStartedAt,loginFinishedAt,expectedNewSessions=1,approvedSessionId}){
+export function comparePreservationSnapshots(before,after,{approvedAdminId,environmentId,loginStartedAt,loginFinishedAt,expectedNewSessions,approvedSessionId,mode}){
  const assertions=[];const record=(assertion,passed,category='unexpected_mutation')=>assertions.push({assertion,passed,category:passed?'preserved':category});
- const start=time(loginStartedAt),end=time(loginFinishedAt);
- record('snapshot.authorization',typeof approvedAdminId==='string'&&!!approvedAdminId&&typeof approvedSessionId==='string'&&!!approvedSessionId&&expectedNewSessions===1&&Number.isFinite(start)&&Number.isFinite(end)&&end>=start,'invalid_authorization');
+ const start=time(loginStartedAt),end=time(loginFinishedAt),authenticated=mode==='AUTHENTICATED_REHEARSAL',readonly=mode==='READ_ONLY_NO_LOGIN';
+ record('snapshot.authorization',typeof approvedAdminId==='string'&&!!approvedAdminId&&((authenticated&&typeof approvedSessionId==='string'&&!!approvedSessionId&&expectedNewSessions===1&&Number.isFinite(start)&&Number.isFinite(end)&&end>=start)||(readonly&&expectedNewSessions===0&&approvedSessionId===undefined&&loginStartedAt===undefined&&loginFinishedAt===undefined)),'invalid_authorization');
  record('snapshot.identity',!!before&&!!after&&environmentId==='oppijylbkcbiqfuvckgj'&&before.environmentId===environmentId&&after.environmentId===environmentId&&before.approvedAdminId===approvedAdminId&&after.approvedAdminId===approvedAdminId,'snapshot_identity_mismatch');
- record('snapshot.timing',!!before&&!!after&&Number.isFinite(time(before.finishedAt))&&Number.isFinite(time(after.startedAt))&&time(before.finishedAt)<=start&&end<=time(after.startedAt),'ambiguous_snapshot_timing');
+ record('snapshot.timing',!!before&&!!after&&Number.isFinite(time(before.finishedAt))&&Number.isFinite(time(after.startedAt))&&(readonly?time(before.finishedAt)<=time(after.startedAt):time(before.finishedAt)<=start&&end<=time(after.startedAt)),'ambiguous_snapshot_timing');
  record('snapshot.completeness',!!before?.domains&&!!after?.domains&&preservationDomains.every(domain=>Array.isArray(before.domains[domain])&&Array.isArray(after.domains[domain])),'partial_snapshot');
  record('snapshot.record_integrity',preservationDomains.every(domain=>[before?.domains?.[domain],after?.domains?.[domain]].every(rows=>Array.isArray(rows)&&rows.every(row=>typeof row.id==='string'&&!!row.id&&/^[a-f0-9]{64}$/.test(row.fingerprint||'')&&(row.loginFingerprint===null||/^[a-f0-9]{64}$/.test(row.loginFingerprint||'')&&row.loginTimes&&authorizedTimestampFields.every(key=>Object.hasOwn(row.loginTimes,key)))))),'invalid_record_fingerprint');
  if(assertions.every(x=>x.passed))for(const domain of preservationDomains){
   const old=before.domains[domain],next=after.domains[domain];const oldMap=new Map(old.map(x=>[x.id,x])),nextMap=new Map(next.map(x=>[x.id,x]));
   record(domain+'.unique_identities',oldMap.size===old.length&&nextMap.size===next.length,'invalid_record_identity');
   record(domain+'.existing_records',old.every(row=>{const current=nextMap.get(row.id);if(!current)return false;if(row.fingerprint===current.fingerprint)return true;
-   if(!row.loginFingerprint||row.loginFingerprint!==current.loginFingerprint)return false;
+   if(!authenticated||!row.loginFingerprint||row.loginFingerprint!==current.loginFingerprint)return false;
    return authorizedTimestampFields.every(key=>{const was=row.loginTimes[key],now=current.loginTimes[key];if(was===now)return true;return Number.isFinite(time(now))&&(was===null||Number.isFinite(time(was))&&time(now)>=time(was))&&time(now)>=start&&time(now)<=end;});
   }));
   const added=next.filter(row=>!oldMap.has(row.id));

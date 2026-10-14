@@ -1,10 +1,12 @@
 # PostHog Phase 2 core staging integration closeout
 
 Prepared from the October 14, 2026 execution and subsequent read-only audit.
-**Recommended decision: accept the verified core staging event pipeline with an
-explicit historical-preservation evidence exception.** Founder acceptance is
-pending; this document records a recommendation, not an approval already given.
-Full historical preservation and production readiness are not established.
+**Founder decision: PostHog Phase 2 Core Integration is accepted with an open
+historical-preservation evidence exception.** The directive accepts the verified
+core functionality documented in closeout commit
+`2e9b44b0160362f7b057a2e75468a981e22dffb4`. See the
+[acceptance and exception register](acceptance-record.md). Full Phase 2 staging
+acceptance and production readiness remain separate, unresolved gates.
 
 ## Release and event identity
 
@@ -121,32 +123,33 @@ one coherent replacement for the lost complete execution baseline.
 | Full environment metadata preservation | NOT VERIFIED | Current stability and key safety settings verified; exact execution baseline missing |
 | Current snapshot coverage/quiet state | PASS | All 18 sources complete; 62 comparisons between current snapshots passed |
 | Complete historical execution preservation | BLOCKED | Missing original fingerprint map/key; cannot claim PASS |
-| Limited core staging integration acceptance | PASS WITH LIMITATIONS | Recommend explicit founder acceptance of the stated evidence exception |
+| PostHog Phase 2 Core Integration milestone | ACCEPTED WITH OPEN EVIDENCE EXCEPTION | Explicit founder directive; governance acceptance does not change verification classifications |
+| Full Phase 2 staging acceptance | UNRESOLVED | Separate acceptance gate; not granted by the core milestone decision |
+| Production readiness | UNRESOLVED | Separate requirements and authorization remain outstanding |
 | Production analytics activation | BLOCKED | Separate production requirements, evidence and authorization outstanding |
 
 No unexpected differences were detected within the independently verifiable
 subsets. That statement does not exclude changes in the unverified historical
 domains. Record counts alone are not content-preservation evidence.
 
-## Founder decision recommendation
+## Recorded founder decision
 
-The founder can formally accept the **core staging integration** with this
-explicit evidence exception, without another live event. A new event would add
-data but would not restore the old fingerprint map or prove historical Auth/RLS
-preservation. The already consumed grant and delivered event must be preserved.
+The founder explicitly accepts the verified event delivery, independent PostHog
+destination matching, test classification and SEC exclusion documented in the
+original closeout commit. The **PostHog Phase 2 Core Integration** milestone is
+accepted with evidence exception `PH2-CORE-EVIDENCE-001`, which remains **OPEN**.
 
-Suggested decision text, awaiting an actual founder decision:
+Complete execution-time preservation could not be established because the original
+fingerprint baseline was not retained. Acceptance does not convert the missing
+Auth/session, RLS/privilege or other historical comparison evidence into PASS.
+The original failed receipt and all scoped verification results remain preserved.
 
-> I accept the PostHog Phase 2 core staging event pipeline as verified for the
-> recorded event, with the historical-preservation evidence gaps in this matrix
-> expressly acknowledged. This acceptance is limited to core staging integration.
-> It does not certify complete historical preservation, authorize another event,
-> resume QA, enable analytics or authorize production deployment or activation.
-
-Record the founder's name, decision timestamp and reference when separately
-provided. The prior NO-GO for unconditional full staging acceptance remains
-accurate; scoped exception acceptance is a distinct governance decision, not a
-retroactive PASS for the missing assertions.
+No additional live event is required to record this decision: another event cannot
+recover the missing historical baseline. Full Phase 2 staging acceptance and
+production readiness remain unresolved. No production analytics activation,
+general staging QA, additional events, migrations, deployments or payment
+capability changes are authorized. See [the decision record](acceptance-record.md)
+for attribution, scope and exception disposition.
 
 ## Evidence custody
 

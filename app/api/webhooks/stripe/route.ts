@@ -64,7 +64,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing Stripe signature." }, { status: 400 });
   }
 
-  const payload = await request.text();
+  let payload: string;
+  try {
+    payload = process.env.SYNC_EXCHANGE_FINANCIAL_INGESTION_ENABLED === "true"
+      ? await readBoundedFinancialPayload(request) : await request.text();
+  } catch { return NextResponse.json({ error: "Webhook payload exceeds the supported limit." }, { status: 413 }); }
 
   let event: Stripe.Event;
   try {
@@ -99,6 +103,13 @@ export async function POST(request: Request) {
   const providerCreatedAt = new Date(event.created * 1000).toISOString();
 
   try {
+    let financialCaptureFailed = false;
+    if (process.env.SYNC_EXCHANGE_FINANCIAL_INGESTION_ENABLED === "true") {
+      try {
+        const { captureFinancialWebhook } = await import("@/services/finance/ingestion");
+        await captureFinancialWebhook(payload, signature);
+      } catch { financialCaptureFailed = true; }
+    }
     switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
@@ -324,6 +335,9 @@ export async function POST(request: Request) {
       default:
         break;
     }
+    // Retain PK07 payment/adverse safeguards even if finance admission fails.
+    // Returning 500 afterward asks Stripe to retry the missing durable capture.
+    if (financialCaptureFailed) throw new Error("Financial evidence admission requires retry.");
   } catch (error) {
     reportOperationalError("stripe_webhook_processing_failed", error, {
       eventId: event.id,
@@ -338,6 +352,21 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+async function readBoundedFinancialPayload(request: Request) {
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = []; let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      size += value.byteLength;
+      if (size > 262144) { await reader.cancel(); throw new Error("payload_limit"); }
+      chunks.push(value);
+    }
+    return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+  } finally { reader.releaseLock(); }
 }
 
 function stripeIdentity(value: string | { id: string } | null | undefined) {

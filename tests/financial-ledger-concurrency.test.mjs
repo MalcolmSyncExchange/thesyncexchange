@@ -25,9 +25,9 @@ test('native finance lifecycle, non-superuser definers, simultaneous posting, re
   login='pk09_fixture_admin';await sql('create role postgres login superuser');login='postgres';
   const seed=[];await seedDatabase({exec:async s=>seed.push(s+';')});
   const files=(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')).sort();
-  await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...files.filter(f=>!f.endsWith('_financial_ledger_reconciliation.sql')).map(f=>source('supabase/migrations/'+f)),...seed].join('\n'));
+  await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...files.filter(f=>f<'20261022210225_financial_ledger_reconciliation.sql').map(f=>source('supabase/migrations/'+f)),...seed].join('\n'));
   login='pk09_fixture_admin';await sql('alter schema public owner to postgres;grant create on database postgres to postgres;alter role postgres nosuperuser');
-  login='postgres';await sql(source('supabase/migrations/20261022210225_financial_ledger_reconciliation.sql'));login='pk09_fixture_admin';
+  login='postgres';for(const file of files.filter(f=>f>='20261022210225_financial_ledger_reconciliation.sql'))await sql(source('supabase/migrations/'+file));login='pk09_fixture_admin';
   assert.equal(last(await sql("select rolsuper from pg_roles where rolname='postgres'")),'f');
   assert.equal(last(await sql("select current_setting('listen_addresses')=''")),'t');
   let actor='';

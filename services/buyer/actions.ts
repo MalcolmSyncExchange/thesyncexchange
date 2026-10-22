@@ -6,7 +6,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
 import { assertStripeServerConfiguration, getPaymentActivityMetadata } from "@/lib/server-env";
-import { reserveCheckoutOrder } from "@/services/orders/checkout-recovery";
+import { acceptPurchaseQuote, readPurchaseQuote } from "@/services/licensing/purchases";
 import { generateAgreementPlaceholder } from "@/lib/license";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { preparePurchaseCompletionCheckout } from "@/services/purchase-completion/server";
@@ -70,7 +70,10 @@ export async function createOrderAction(formData: FormData) {
   const supabase = await createPrivilegedSupabaseClient();
   let reservation;
   try {
-    reservation = await reserveCheckoutOrder(supabase, user.id, trackId, licenseTypeId);
+    const buyerClient = await createServerSupabaseClient();
+    const quote = await readPurchaseQuote(buyerClient, String(formData.get("quoteId") || ""));
+    if (quote.schedule.track.id !== trackId || quote.schedule.license.id !== licenseTypeId) throw new Error("Transaction selection mismatch.");
+    reservation = await acceptPurchaseQuote(buyerClient, formData);
   } catch {
     redirect(`/buyer/checkout/${trackSlug}?error=${encodeURIComponent("Checkout requires reconciliation. Check your purchases or contact support before retrying.")}`);
   }
@@ -176,9 +179,8 @@ export async function createOrderAction(formData: FormData) {
   } catch (checkoutError) {
     unstable_rethrow(checkoutError);
 
-    if (!checkoutCreationStarted && createdNewOrder) {
-      await supabase.from("orders").delete().eq("id", orderId);
-    }
+    // Accepted legal evidence is retained even if preparation fails before the
+    // provider call. Retry the original accepted quote; never delete its order.
 
     const creationUnconfirmed = checkoutCreationStarted && !checkoutSessionId;
     if (creationUnconfirmed) {

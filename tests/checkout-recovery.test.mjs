@@ -4,14 +4,15 @@ import {createHash} from 'node:crypto';
 import ts from 'typescript';
 import vm from 'node:vm';
 import {database,ids,quote,asActor,source} from './helpers/artist-baseline-db.mjs';
+import {seedFixtureAcceptance,incorporatePurchase,seedLegalReview} from './helpers/purchase-legal-fixture.mjs';
 const scope='a'.repeat(64)+':test';
 const call=async(db,name,args)=>(await db.query(`select public.${name}(${args.map(x=>x===null?'null':quote(typeof x==='object'?JSON.stringify(x):x)).join(',')}) as v`)).rows[0].v;
-const reserve=db=>call(db,'reserve_recoverable_checkout',[ids.buyer,ids.live,ids.license]);
+const reserve=async db=>{const o=await call(db,'reserve_recoverable_checkout',[ids.buyer,ids.live,ids.license]);await seedFixtureAcceptance(db,o.id);return o;};
 function request(id){return {mode:'payment',client_reference_id:id,metadata:{orderId:id,buyerUserId:ids.buyer,trackId:ids.live,licenseTypeId:ids.license,paymentMode:'test'},line_items:[{quantity:1,price_data:{currency:'usd',unit_amount:5000}}]};}
 const claim=(db,id,params=request(id))=>call(db,'claim_checkout_attempt',[id,scope,params]);
 const finish=(db,id,token,session,outcome)=>call(db,'finish_checkout_attempt',[id,token,session,outcome]);
-async function fixture(run){const db=await database();try{await run(db);}finally{await db.close();}}
-function recovery(){const mod={exports:{}};vm.runInNewContext(ts.transpileModule(source('services/orders/checkout-recovery.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:mod.exports,module:mod,require:n=>{assert.equal(n,'node:crypto');return{createHash};}});return mod.exports;}
+async function fixture(run){const db=await database();try{await seedLegalReview(db);await run(db);}finally{await db.close();}}
+function recovery(){const mod={exports:{}};vm.runInNewContext(ts.transpileModule(source('services/orders/checkout-recovery.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:mod.exports,module:mod,require:n=>{if(n==='@/services/licensing/purchases')return{assertAcceptedPurchase:async(client,id)=>{const r=await client.rpc('assert_accepted_purchase',{p_order:id});if(r.error)throw Error('Checkout recovery is unavailable.');return r.data;}};assert.equal(n,'node:crypto');return{createHash};}});return mod.exports;}
 function client(db){return {rpc:async(name,args)=>{try{return {data:await call(db,name,Object.values(args)),error:null};}catch(e){return{data:null,error:{message:e.message}};}}};}
 
 test('reservation retries share one pending order and refuse intentional repeats without review',()=>fixture(async db=>{
@@ -72,7 +73,7 @@ test('wrong provider identity, DB outage and completed-unpaid sessions cannot cr
 const evidence=(id='evt_paid',state='PAID',rest={})=>({providerEventId:id,eventType:state==='PAID'?'checkout.session.completed':'charge.refunded',paymentState:state,checkoutSessionId:'cs_test_fixture',paymentIntentId:'pi_fixture',amountMinor:5000,refundedMinor:0,currency:'USD',evidenceSha256:'a'.repeat(64),providerCreatedAt:'2026-10-21T00:00:00Z',livemode:false,...rest});
 const retain=(db,id,e)=>call(db,'record_verified_checkout_payment',[id,scope,e]);
 async function paidOrder(db){const {id}=await reserve(db),a=await claim(db,id);await finish(db,id,a.token,'cs_test_fixture','bound');await retain(db,id,evidence());await db.exec(`update orders set status='paid',paid_at=now() where id='${id}'`);return id;}
-function licensePayload(id,token){return{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',order_id:id,buyer_id:ids.buyer,track_id:ids.live,license_type_id:ids.license,agreement_number:'ALPHA-SYNTHETIC',status:'generated',terms_snapshot_json:{payment:{paymentMode:'test',commercialRightsGranted:false}},pdf_storage_path:`${ids.buyer}/${id}/${token}.pdf`,pdf_content_type:'application/pdf',pdf_size_bytes:100,html_snapshot:'synthetic',generated_at:'2026-10-21T00:00:00Z'};}
+async function licensePayload(db,id,token){return{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',order_id:id,buyer_id:ids.buyer,track_id:ids.live,license_type_id:ids.license,agreement_number:'ALPHA-SYNTHETIC',status:'generated',terms_snapshot_json:await incorporatePurchase(db,id,{payment:{paymentMode:'test',commercialRightsGranted:false}}),pdf_storage_path:`${ids.buyer}/${id}/${token}.pdf`,pdf_content_type:'application/pdf',pdf_size_bytes:100,html_snapshot:'synthetic',generated_at:'2026-10-21T00:00:00Z'};}
 
 test('unpaid orders and unproven paid flags cannot claim an agreement job',()=>fixture(async db=>{
  const {id}=await reserve(db);await assert.rejects(call(db,'claim_order_agreement_job',[id]),/Paid unheld/);
@@ -93,8 +94,8 @@ test('concurrent artifact claims, expired workers and replay publish exactly one
  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);const old=results.find(r=>r.status==='fulfilled').value;
  await db.exec(`update checkout_recovery.agreement_jobs set lease_until=now()-interval '1 second' where order_id='${id}'`);
  const token=await call(db,'claim_order_agreement_job',[id]);assert.notEqual(old,token);
- await assert.rejects(call(db,'finish_order_agreement_job',[id,old,licensePayload(id,old)]),/Stale/);
- await call(db,'finish_order_agreement_job',[id,token,licensePayload(id,token)]);
+ await assert.rejects(call(db,'finish_order_agreement_job',[id,old,await licensePayload(db,id,old)]),/Stale/);
+ await call(db,'finish_order_agreement_job',[id,token,await licensePayload(db,id,token)]);
  await assert.rejects(call(db,'finish_order_agreement_job',[id,old,null]),/Stale/);
  await assert.rejects(call(db,'claim_order_agreement_job',[id]),/immutable/);
  const licenses=(await db.query('select pdf_storage_path from generated_licenses')).rows;assert.equal(licenses.length,1);assert.ok(licenses[0].pdf_storage_path.endsWith(token+'.pdf'));
@@ -107,7 +108,7 @@ test('concurrent artifact claims, expired workers and replay publish exactly one
 test('artifact interruption can retry; a refund arriving before commit prevents issuance permanently',()=>fixture(async db=>{
  const id=await paidOrder(db);let token=await call(db,'claim_order_agreement_job',[id]);await call(db,'finish_order_agreement_job',[id,token,null]);token=await call(db,'claim_order_agreement_job',[id]);
  await retain(db,id,evidence('evt_partial','PARTIALLY_REFUNDED',{refundedMinor:1000}));
- await assert.rejects(call(db,'finish_order_agreement_job',[id,token,licensePayload(id,token)]),/Paid unheld/);
+ await assert.rejects(call(db,'finish_order_agreement_job',[id,token,await licensePayload(db,id,token)]),/Paid unheld/);
  await retain(db,id,evidence('evt_latepaid'));
  await assert.rejects(call(db,'claim_order_agreement_job',[id]),/Paid unheld/);
  await assert.rejects(db.exec(`update orders set checkout_hold=false where id='${id}'`),/explicit reconciliation/);

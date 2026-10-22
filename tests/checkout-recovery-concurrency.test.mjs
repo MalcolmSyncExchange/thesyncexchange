@@ -6,6 +6,7 @@ import {spawn} from 'node:child_process';
 import {mkdtemp,readdir,rm,mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {fixtureBootstrapSql,seedDatabase,ids,root,source} from './helpers/artist-baseline-db.mjs';
+import {seedLegalReview,seedFixtureAcceptance,newQuote,sqlCall} from './helpers/purchase-legal-fixture.mjs';
 function command(bin,args,input='') {return new Promise((resolve,reject)=>{
  const child=spawn(bin,args,{stdio:['pipe','pipe','pipe']});let out='',err='';child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',reject);child.on('close',code=>code===0?resolve(out.trim()):reject(Error(`${bin} failed: ${err}`)));child.stdin.on('error',()=>{});child.stdin.end(input);
 });}
@@ -20,6 +21,9 @@ test('independent PostgreSQL 17 connections serialize reservation/attempt/issuan
   await command('pg_ctl',['-D',data,'-l',join(dir,'postgres.log'),'-o',`-c listen_addresses= -c unix_socket_directories=${socket} -c max_connections=10 -c shared_buffers=16MB`,'-w','start']);running=true;
   const seed=[];await seedDatabase({exec:async s=>seed.push(s+';')});const files=(await readdir(new URL('supabase/migrations/',root))).filter(x=>x.endsWith('.sql')).sort();
   await sql([fixtureBootstrapSql,...files.map(f=>source('supabase/migrations/'+f)),...seed].join('\n'));
+  let actorSql='';
+  const db={exec:async text=>{if(text.startsWith('set role ')){actorSql=text+';';return;}if(text.startsWith('reset role;')){actorSql='';return;}return sql(actorSql+text);},query:async text=>({rows:(await sql(actorSql+`select row_to_json(r) from (${text}) r;`)).split('\n').filter(x=>x.startsWith('{')).map(JSON.parse)})};
+  await seedLegalReview(db);
   assert.equal(last(await sql("select current_setting('listen_addresses')=''")),'t');
   const reserve=`select public.reserve_recoverable_checkout('${ids.buyer}','${ids.live}','${ids.license}');`;
   const first=sql(`set application_name='checkout-reserve-a';begin;${reserve}select pg_sleep(1);commit;`);
@@ -28,6 +32,7 @@ test('independent PostgreSQL 17 connections serialize reservation/attempt/issuan
   await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='checkout-reserve-b' and wait_event_type='Lock'"))==='1');
   const [a,b]=await Promise.all([first,second]);const ra=JSON.parse(a.split('\n').find(x=>x.startsWith('{'))),rb=JSON.parse(last(b));assert.equal(ra.id,rb.id);
   assert.equal(last(await sql('select count(*) from orders')),'1');const id=ra.id,scope='a'.repeat(64)+':test';
+  await seedFixtureAcceptance(db,id);
   const params={mode:'payment',client_reference_id:id,metadata:{orderId:id,buyerUserId:ids.buyer,trackId:ids.live,licenseTypeId:ids.license,paymentMode:'test'},line_items:[{quantity:1,price_data:{currency:'usd',unit_amount:5000}}]};
   const claim=`select public.claim_checkout_attempt('${id}','${scope}','${JSON.stringify(params)}');`;
   const c1=sql(`set application_name='checkout-attempt-a';begin;${claim}select pg_sleep(1);commit;`);
@@ -65,6 +70,32 @@ test('independent PostgreSQL 17 connections serialize reservation/attempt/issuan
   assert.equal(last(await sql(`select checkout_hold from orders where id='${secondOrder}'`)),'t');
   await sql(`update orders set status='paid',paid_at=now() where id='${secondOrder}'`);
   await assert.rejects(sql(`select public.claim_order_agreement_job('${secondOrder}')`),/Paid unheld/);
+
+  // Real authenticated assent across independent connections, not the legacy
+  // order fixture helper. Same quote is idempotent; a second quote cannot replace
+  // an in-flight accepted schedule under the shared buyer/track/license lock.
+  const legalBuyer='12121212-1212-4212-8212-121212121212';
+  await sql(`insert into auth.users(id,email) values('${legalBuyer}','legalnative@fixture.invalid');insert into user_profiles(id,email,role,full_name) values('${legalBuyer}','legalnative@fixture.invalid','buyer','Legal native fixture');`);
+  const q=await newQuote(db,legalBuyer),q2=await newQuote(db,legalBuyer);
+  const assent=q=>`set role authenticated;set request.jwt.claim.sub='${legalBuyer}';set request.jwt.claim.role='authenticated';${sqlCall('accept_purchase_quote',[q.id,q.hash,q.schedule.terms.requiredConsents,q.schedule.buyer.representative])};`;
+  const assentA=sql(`set application_name='legal-assent-a';begin;${assent(q)}select pg_sleep(1);commit;`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='legal-assent-a' and wait_event='PgSleep'"))==='1');
+  const assentB=sql(`set application_name='legal-assent-b';${assent(q)}`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='legal-assent-b' and wait_event_type='Lock'"))==='1');
+  const values=await Promise.all([assentA,assentB]);const legalOrder=JSON.parse(values[0].split('\n').find(x=>x.startsWith('{'))).id;
+  assert.equal(JSON.parse(last(values[1])).id,legalOrder);await assert.rejects(sql(assent(q2)),/original acceptance/);
+  await sql(`update orders set stripe_checkout_session_id='cs_test_legalnative' where id='${legalOrder}';`);
+  const legalPaid={...evidence,providerEventId:'evt_legalnative',checkoutSessionId:'cs_test_legalnative',paymentIntentId:'pi_legalnative'};
+  await sql(`${sqlCall('record_verified_checkout_payment',[legalOrder,scope,legalPaid])};update orders set status='paid',paid_at=now() where id='${legalOrder}';`);
+  // A rights writer holds the track lock before issuance. The job request must
+  // wait and then observe the changed revision, rather than the old approval.
+  const mutate=sql(`set application_name='legal-owner-change';begin;update rights_holders set name='Changed native owner' where track_id='${ids.live}';select pg_sleep(1);commit;`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='legal-owner-change' and wait_event='PgSleep'"))==='1');
+  const issuance=sql(`set application_name='legal-issue-after-change';select public.claim_order_agreement_job('${legalOrder}');`);const rejected=issuance.then(()=>false,e=>/no longer valid/.test(e.message));
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='legal-issue-after-change' and wait_event_type='Lock'"))==='1');
+  await mutate;assert.equal(await rejected,true);
+  assert.equal(last(await sql(`select count(*) from licensing_private.acceptances where order_id='${legalOrder}'`)),'1');
+  assert.equal(last(await sql('select count(*) from generated_licenses')),'0');
  } finally {
   if(running)await command('pg_ctl',['-D',data,'-m','immediate','-w','stop']);
   // The path was created by mkdtemp above, never supplied by a user/environment.

@@ -13,6 +13,7 @@ import { createServerSupabaseClient } from "@/services/supabase/server";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { consumeRateLimit, rateLimitErrorResponse } from "@/services/security/rate-limit";
 import { hasFrozenCheckoutAttempt } from "@/services/orders/checkout-recovery";
+import { assertAcceptedPurchase } from "@/services/licensing/purchases";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -48,6 +49,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Order not found." }, { status: 404 });
   }
   const supabase = await createPrivilegedSupabaseClient();
+  let accepted;
+  try {
+    accepted = await assertAcceptedPurchase(supabase, orderId);
+  } catch {
+    return NextResponse.json({ error: "Original transaction acceptance and valid rights are required. Resume the original purchase or contact support." }, { status: 409 });
+  }
 
   let trustedCheckout;
   try {
@@ -68,6 +75,7 @@ export async function POST(request: Request) {
   if (trustedCheckout.order.status !== "pending") {
     return NextResponse.json({ error: "Only pending orders can create a new checkout session." }, { status: 409 });
   }
+  trustedCheckout.amountCents = accepted.snapshot.amountCents;
 
   try {
     assertStripeServerConfiguration("Stripe checkout API", { requireWebhook: true });

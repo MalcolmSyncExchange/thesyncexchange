@@ -5,6 +5,7 @@ import {database,ids,quote,asActor,source} from './helpers/artist-baseline-db.mj
 import {classifyLegacyOrder} from '../lib/commerce/legacy-classifier.mjs';
 import {legacyRow} from './fixtures/purchase-completion/legacy-row.mjs';
 import {financialSimulation} from '../lib/commerce/alpha-financial-simulation.mjs';
+import {incorporatePurchase,claimFixtureAgreement,seedLegalReview,call as legalCall} from './helpers/purchase-legal-fixture.mjs';
 
 const buyer2='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const order2='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -44,9 +45,11 @@ async function entitlement({db,contract,asset}) {
  return service(db,()=>call(db,`commerce_private.reserve_entitlement('${contract}','${asset}')`));
 }
 async function agreement({db}) {
- await db.exec(`insert into generated_licenses(order_id,buyer_id,track_id,license_type_id,agreement_number,status,pdf_storage_path,terms_snapshot_json)
- values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}','FIXTURE-1','generated','fixture/agreement.pdf',
- '{"payment":{"paymentMode":"test","commercialRightsGranted":false},"license":{"pricePaidCents":5000,"currency":"USD"}}')`);
+ const snapshot=await incorporatePurchase(db,ids.order,{payment:{paymentMode:'test',commercialRightsGranted:false},license:{pricePaidCents:5000,currency:'USD'}});
+ const path=await claimFixtureAgreement(db,ids.order);
+ await db.exec(`insert into generated_licenses(order_id,buyer_id,track_id,license_type_id,agreement_number,status,pdf_storage_path,pdf_content_type,pdf_size_bytes,terms_snapshot_json)
+ values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}','FIXTURE-1','generated',${q(path)},'application/pdf',100,
+ ${q(JSON.stringify(snapshot))})`);
 }
 async function claim({db},task) {
  return service(db,()=>one(db,`select * from commerce_private.claim_job(${q(task)})`));
@@ -230,6 +233,15 @@ test('Delivery predicate rechecks canonical buyer, feature gate and QA revocatio
  assert.equal(await allowed(ids.buyer),false);assert.equal((await one(ctx.db,'select state from order_asset_entitlements')).state,'suspended');
  await assert.rejects(ctx.db.exec('update commerce_private.qa_fixture_designations set revoked_at=null'),/immutable/);
 }));
+test('rights withdrawal denies existing asset delivery and reactivation without changing the accepted historical license',()=>withFixture(async ctx=>{
+ const id=await entitlement(ctx);await agreement(ctx);await finish(ctx,await claim(ctx,'entitlement_activation'));
+ const before=await legalCall(ctx.db,'read_accepted_purchase',[ids.order]);const r=await seedLegalReview(ctx.db);
+ await legalCall(ctx.db,'invalidate_licensing_review',[ids.admin,'evidence',r.evidence,'disputed','Synthetic rights investigation']);
+ assert.equal(await service(ctx.db,()=>call(ctx.db,`commerce_private.can_deliver('${id}','${ids.buyer}')`)),false);
+ await assert.rejects(ctx.db.exec(`update order_asset_entitlements set state='active' where id='${id}'`),/documentation/);
+ assert.deepEqual(await legalCall(ctx.db,'read_accepted_purchase',[ids.order]),before);
+ assert.equal((await one(ctx.db,'select count(*)::int n from generated_licenses')).n,1);
+}));
 test('Retirement suspends existing access; existing file bytes remain immutable',()=>withFixture(async ctx=>{
  await agreement(ctx);await finish(ctx,await claim(ctx,'entitlement_activation'));
  await ctx.db.exec(`update commerce_private.asset_versions set retired_at=now() where id='${ctx.asset}'`);
@@ -351,7 +363,7 @@ test('Revoked agreement readiness and canonical role change immediately fail del
  const id=await entitlement(ctx);await agreement(ctx);await finish(ctx,await claim(ctx,'entitlement_activation'));
  const allowed=()=>service(ctx.db,()=>call(ctx.db,`commerce_private.can_deliver('${id}','${ids.buyer}')`));
  assert.equal(await allowed(),true);
- await ctx.db.exec("update generated_licenses set status='failed'");assert.equal(await allowed(),false);
- await ctx.db.exec("update generated_licenses set status='generated'");
+ await assert.rejects(ctx.db.exec("update generated_licenses set status='failed'"),/immutable/);
+ assert.equal(await allowed(),true);
  await ctx.db.exec(`update user_profiles set role='artist' where id='${ids.buyer}'`);assert.equal(await allowed(),false);
 }));

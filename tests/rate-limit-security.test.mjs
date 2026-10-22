@@ -127,7 +127,11 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
       if (prepareError) throw new Error("adapter fail closed");
       return { enabled: false };
     } },
-    "@/services/orders/checkout-recovery": { hasFrozenCheckoutAttempt: async () => false, reserveCheckoutOrder: async () => {
+    "@/services/orders/checkout-recovery": { hasFrozenCheckoutAttempt: async () => false },
+    "@/services/licensing/purchases": {
+      readPurchaseQuote: async () => ({schedule:{track:{id:"track"},license:{id:"license"}}}),
+      assertAcceptedPurchase: async () => ({snapshot:{amountCents:120000}}),
+      acceptPurchaseQuote: async () => {
       const id = webcrypto.randomUUID();
       events.push("orders:insert");
       orderRecords.set(id, { id, buyer_user_id: userId, status: "pending", amount_cents: 120000 });
@@ -267,12 +271,12 @@ test("failed uncertainty audit cannot delete a pending provider order or expose 
   assert.equal(h.events.includes("orders:delete"), false);
 });
 
-test("failure before contacting Stripe retains the existing unstarted-order cleanup", async () => {
+test("failure before contacting Stripe now retains the accepted order and its immutable legal evidence", async () => {
   const h = harness({ prepareError: true });
   await assert.rejects(h.action(orderForm()), error => error.digest === "NEXT_REDIRECT");
   assert.equal(h.events.includes("stripe"), false);
-  assert.equal(h.events.includes("orders:delete"), true);
-  assert.equal(h.orderRecords.size, 0);
+  assert.equal(h.events.includes("orders:delete"), false);
+  assert.equal(h.orderRecords.size, 1);
   assert.equal(h.activityEvents.some(event => event.eventType === "checkout_creation_unconfirmed"), false);
 });
 

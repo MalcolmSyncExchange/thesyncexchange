@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { database, asActor, ids, source, root, quote } from './helpers/artist-baseline-db.mjs';
+import {incorporatePurchase,claimFixtureAgreement} from './helpers/purchase-legal-fixture.mjs';
 const migrations=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.startsWith('20260915')).sort();
 async function fixture(fn) {const db=await database();try{await fn(db);}finally{await db.close();}}
 const read=(db,sql)=>db.query(sql).then(r=>r.rows);
@@ -133,18 +134,20 @@ test('narrow avatar cleanup grants allow owner deletion and reject another artis
   assert.equal((await read(db,`delete from storage.objects where name=${quote(path)} returning id`)).length,1);
  });
 }));
-test('account deletion regression: legacy cascade remains explicit before ownership redesign',()=>fixture(async db=>{
+test('account deletion preserves accepted transaction history and allows unused legacy artist deletion',()=>fixture(async db=>{
  await db.exec(`delete from auth.users where id='${ids.b}'`);
  assert.equal((await read(db,`select * from tracks where artist_user_id='${ids.b}'`)).length,0);
  assert.equal((await read(db,`select * from track_audit_log where track_id='${ids.otherTrack}'`)).length,0);
- await db.exec(`insert into orders(id,buyer_user_id,track_id,license_type_id,amount_cents,status) values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}',5000,'fulfilled');
- insert into generated_licenses(order_id,buyer_id,track_id,license_type_id,agreement_number,status,terms_snapshot_json,html_snapshot) values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}','PR2-DELETE','generated','{}','<p>fixture</p>');`);
+ await db.exec(`insert into orders(id,buyer_user_id,track_id,license_type_id,amount_cents,status) values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}',5000,'pending')`);
+ const snapshot=await incorporatePurchase(db,ids.order,{payment:{paymentMode:'test',commercialRightsGranted:false}}),path=await claimFixtureAgreement(db,ids.order);
+ await db.exec(`insert into generated_licenses(order_id,buyer_id,track_id,license_type_id,agreement_number,status,terms_snapshot_json,html_snapshot,pdf_storage_path,pdf_content_type,pdf_size_bytes)
+ values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}','PR2-DELETE','generated',${quote(JSON.stringify(snapshot))},'<p>fixture</p>',${quote(path)},'application/pdf',100)`);
  await assert.rejects(db.exec(`delete from auth.users where id='${ids.a}'`),/foreign key/);
  await asActor(db,ids.buyer,async()=>{
   assert.equal((await read(db,'select * from orders')).length,1);
   assert.equal((await read(db,'select * from generated_licenses')).length,1);
   await assert.rejects(db.exec("update orders set status='paid'"),/permission/);
  });
- await db.exec(`delete from auth.users where id='${ids.buyer}'`);
- assert.equal((await read(db,'select * from orders')).length,0);assert.equal((await read(db,'select * from generated_licenses')).length,0);
+ await assert.rejects(db.exec(`delete from auth.users where id='${ids.buyer}'`),/foreign key|immutable/);
+ assert.equal((await read(db,'select * from orders')).length,1);assert.equal((await read(db,'select * from generated_licenses')).length,1);
 }));

@@ -1,8 +1,13 @@
 import { formatCurrency } from "../../utils.ts";
+import type { PurchaseSchedule } from "@/services/licensing/purchases";
 
 const FALLBACK_TEMPLATE_VERSION = "TSE-SYNC-v1";
 
 export type GeneratedLicenseTermsSnapshot = {
+  purchase?: PurchaseSchedule;
+  purchaseHash?: string;
+  pdfSha256?: string;
+  htmlSha256?: string;
   templateVersion?: string;
   agreementNumber: string;
   agreementStatus: "generated" | "failed";
@@ -81,7 +86,7 @@ export function formatAgreementDate(value: string) {
 }
 
 export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSnapshot) {
-  const brandLogoUrl = "/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png";
+  const brandLogoUrl = "/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png";
   const watermarkUrl = "/brand/the-sync-exchange/watermark/Watermark.png";
   const rightsMarkup = snapshot.track.rightsHolders.length
     ? snapshot.track.rightsHolders
@@ -346,6 +351,7 @@ export function renderSyncLicenseAgreementHtml(snapshot: GeneratedLicenseTermsSn
           </div>
         </section>
 
+        ${snapshot.purchase ? `<section class="section"><h2>Exact accepted legal document — ${escapeHtml(snapshot.purchase.terms.version)}</h2><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(snapshot.purchase.terms.body)}</pre><h2>Immutable accepted transaction and acceptance receipt</h2><p>Purchase SHA-256: ${escapeHtml(snapshot.purchaseHash || "")}</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(JSON.stringify(snapshot.purchase, null, 2))}</pre><p>Authenticated buyer acceptance records declared identity and authority. It is not a rightsholder signature or cryptographic signature.</p></section>` : ""}
         <section class="section">
           <h2>Licensed Recording</h2>
           <p class="body-copy">
@@ -738,6 +744,13 @@ function buildProfessionalAgreementPdf(snapshot: GeneratedLicenseTermsSnapshot) 
   }
 
   addSectionHeading("Acceptance");
+  if (snapshot.purchase) {
+    addParagraph(`Purchase SHA-256: ${snapshot.purchaseHash}. Authenticated acceptance is not a rightsholder or cryptographic signature.`);
+    addSectionHeading("Exact Accepted Legal Text and Transaction Receipt");
+    addParagraph("The complete JSON receipt below preserves the accepted legal text, separate rights pools, parties, usage, economics and acceptance. Unicode is represented by reversible JSON escapes in this PDF appendix; exact Unicode text is retained in the HTML and stored receipt.");
+    const exact = JSON.stringify(snapshot.purchase, null, 2).replace(/[\u007f-\uffff]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+    for (const line of exact.split("\n")) addParagraph(line);
+  }
   addParagraph(
     testOnly
       ? "This test artifact cannot be accepted, signed, or relied upon as a commercial license. No commercial rights are granted."

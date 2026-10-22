@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type Stripe from "stripe";
 import type { AppSupabaseClient } from "@/services/supabase/types";
+import { assertAcceptedPurchase } from "@/services/licensing/purchases";
 
 type RpcClient = { rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }> };
 async function rpc(client: AppSupabaseClient, name: string, args: Record<string, unknown>) {
@@ -31,6 +32,7 @@ export async function recoverableCheckout({ client, stripe, secretKey, params }:
 }) {
   if (params.metadata?.paymentMode !== "test") throw new Error("Recoverable checkout currently accepts TEST payments only.");
   const orderId = String(params.client_reference_id);
+  await assertAcceptedPurchase(client, orderId);
   const scope = createHash("sha256").update(secretKey).digest("hex") + ":test";
   const attempt = await rpc(client, "claim_checkout_attempt", { p_order: orderId, p_scope: scope, p_request: params }) as {
     outcome: string; request: Stripe.Checkout.SessionCreateParams; key?: string; token?: string; session_id?: string;

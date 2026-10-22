@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 
-import { retainVerifiedCheckoutPayment } from "@/services/orders/fulfillment-recovery";
+import { retainAdverseCheckoutPayment, retainVerifiedCheckoutPayment } from "@/services/orders/fulfillment-recovery";
 import { expireCheckoutAttempt, recoverableCheckout } from "@/services/orders/checkout-recovery";
 
 import { env } from "@/lib/env";
@@ -383,6 +383,9 @@ export async function markOrderRefundedByPaymentIntent({
     return null;
   }
 
+  if (!verifiedEvent) throw new Error("Verified refund evidence required.");
+  await retainAdverseCheckoutPayment(supabase, verifiedEvent, serverEnv.stripeSecretKey!);
+
   const { data: boundOrder, error: boundOrderError } = await supabase
     .from("orders")
     .select("id")
@@ -440,6 +443,7 @@ export async function recordOrderDisputeByPaymentIntent({
 }) {
   const supabase = createAdminSupabaseClient();
   if (!supabase) return null;
+  await retainAdverseCheckoutPayment(supabase, verifiedEvent, serverEnv.stripeSecretKey!);
   const { data: order, error } = await supabase
     .from("orders")
     .select("id")

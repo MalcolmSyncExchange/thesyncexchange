@@ -52,6 +52,19 @@ test('independent PostgreSQL 17 connections serialize reservation/attempt/issuan
   await j1;assert.equal(await observed,true);
   assert.equal(last(await sql('select count(*) from generated_licenses')),'0');
   assert.equal(last(await sql("select count(*) from commerce_private.capabilities where foundation_enabled or payment_adapter_enabled")),'0');
+  const secondBuyer='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',secondOrder='ffffffff-ffff-4fff-8fff-ffffffffffff';
+  await sql(`insert into auth.users(id,email) values('${secondBuyer}','orphan@fixture.invalid');insert into user_profiles(id,email,role,full_name) values('${secondBuyer}','orphan@fixture.invalid','buyer','Orphan fixture');
+   insert into orders(id,buyer_user_id,track_id,license_type_id,amount_cents,currency,stripe_checkout_session_id) values('${secondOrder}','${secondBuyer}','${ids.live}','${ids.license}',5000,'USD','cs_test_orphanfixture');`);
+  const refund={...evidence,providerEventId:'evt_orphannative',eventType:'charge.refunded',paymentState:'REFUNDED',paymentIntentId:'pi_orphanfixture',refundedMinor:5000};delete refund.checkoutSessionId;
+  const orphan=sql(`set application_name='checkout-orphan-refund';begin;select public.record_checkout_adverse_event('${scope}','${JSON.stringify(refund)}');select pg_sleep(1);commit;`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='checkout-orphan-refund' and wait_event='PgSleep'"))==='1');
+  const late={...evidence,providerEventId:'evt_orphanpaid',paymentIntentId:'pi_orphanfixture',checkoutSessionId:'cs_test_orphanfixture'};
+  const latePaid=sql(`set application_name='checkout-orphan-paid';select public.record_verified_checkout_payment('${secondOrder}','${scope}','${JSON.stringify(late)}');`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='checkout-orphan-paid' and wait_event_type='Lock'"))==='1');
+  await Promise.all([orphan,latePaid]);
+  assert.equal(last(await sql(`select checkout_hold from orders where id='${secondOrder}'`)),'t');
+  await sql(`update orders set status='paid',paid_at=now() where id='${secondOrder}'`);
+  await assert.rejects(sql(`select public.claim_order_agreement_job('${secondOrder}')`),/Paid unheld/);
  } finally {
   if(running)await command('pg_ctl',['-D',data,'-m','immediate','-w','stop']);
   // The path was created by mkdtemp above, never supplied by a user/environment.

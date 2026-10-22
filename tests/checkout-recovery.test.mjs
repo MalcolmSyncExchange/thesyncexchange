@@ -21,8 +21,8 @@ test('reservation retries share one pending order and refuse intentional repeats
 }));
 test('private attempt data and service functions reject browser roles and role-null bypass',()=>fixture(async db=>{
  const grants=(await db.query(`select proname,has_function_privilege('anon',oid,'execute') as anon,has_function_privilege('authenticated',oid,'execute') as authenticated
- from pg_proc where pronamespace='public'::regnamespace and proname in ('reserve_recoverable_checkout','claim_checkout_attempt','finish_checkout_attempt','checkout_has_frozen_attempt','record_verified_checkout_payment','hold_checkout_order','claim_order_agreement_job','finish_order_agreement_job')`)).rows;
- assert.equal(grants.length,8);assert.ok(grants.every(g=>!g.anon&&!g.authenticated));
+ from pg_proc where pronamespace='public'::regnamespace and proname in ('reserve_recoverable_checkout','claim_checkout_attempt','finish_checkout_attempt','checkout_has_frozen_attempt','record_verified_checkout_payment','record_checkout_adverse_event','hold_checkout_order','claim_order_agreement_job','finish_order_agreement_job')`)).rows;
+ assert.equal(grants.length,9);assert.ok(grants.every(g=>!g.anon&&!g.authenticated));
  for(const role of ['anon','authenticated'])await asActor(db,ids.buyer,async()=>{
   await assert.rejects(reserve(db),/permission/);await assert.rejects(db.query('select * from checkout_recovery.attempts'),/permission/);
  },role);
@@ -123,4 +123,16 @@ test('retrieval of completed unpaid session waits for signed reconciliation with
  await db.exec(`update checkout_recovery.attempts set scope='${createHash('sha256').update('anything').digest('hex')}:test' where order_id='${id}'`);
  const stripe={checkout:{sessions:{create:async()=>created++,retrieve:async()=>({id:'cs_test_fixture',livemode:false,status:'complete',payment_status:'unpaid',client_reference_id:id,metadata:request(id).metadata,amount_total:5000,currency:'usd',expires_at:a.request.expires_at,url:null})}}};
  await assert.rejects(recovery().recoverableCheckout({client:client(db),stripe,secretKey:'anything',params:request(id)}),/awaiting payment reconciliation/);assert.equal(created,0);
+}));
+test('unmapped refund/dispute inbox is durable and blocks later paid issuance before an intent is bound',()=>fixture(async db=>{
+ const {id}=await reserve(db),a=await claim(db,id);await finish(db,id,a.token,'cs_test_fixture','bound');
+ const adverse=evidence('evt_orphan','REFUNDED',{refundedMinor:5000});
+ await call(db,'record_checkout_adverse_event',[scope,adverse]);await call(db,'record_checkout_adverse_event',[scope,adverse]);
+ assert.equal((await db.query('select stripe_payment_intent_id from orders')).rows[0].stripe_payment_intent_id,null);
+ assert.equal((await db.query('select count(*)::int n from checkout_recovery.adverse_inbox')).rows[0].n,1);
+ await assert.rejects(call(db,'record_checkout_adverse_event',[scope,{...adverse,evidenceSha256:'b'.repeat(64)}]),/Conflicting/);
+ await retain(db,id,evidence());await db.exec(`update orders set status='paid',paid_at=now() where id='${id}'`);
+ await assert.rejects(call(db,'claim_order_agreement_job',[id]),/Paid unheld/);
+ assert.equal((await db.query('select count(*)::int n from generated_licenses')).rows[0].n,0);
+ await assert.rejects(db.exec('delete from checkout_recovery.adverse_inbox'),/append only/);
 }));

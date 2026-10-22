@@ -163,11 +163,20 @@ create table checkout_recovery.verified_events (
  scope text not null, event_id text not null, order_id uuid not null references public.orders(id) on delete restrict,
  evidence jsonb not null, recorded_at timestamptz not null default clock_timestamp(), primary key(scope,event_id)
 );
+create table checkout_recovery.adverse_inbox (
+ scope text not null, event_id text not null, payment_intent_id text not null,
+ evidence jsonb not null, recorded_at timestamptz not null default clock_timestamp(), primary key(scope,event_id)
+);
+create index adverse_checkout_intent on checkout_recovery.adverse_inbox(scope,payment_intent_id);
+alter table checkout_recovery.adverse_inbox enable row level security;
+revoke all on checkout_recovery.adverse_inbox from public,anon,authenticated,service_role;
 alter table checkout_recovery.verified_events enable row level security;
 revoke all on checkout_recovery.verified_events from public,anon,authenticated,service_role;
 create function checkout_recovery.reject_event_rewrite() returns trigger language plpgsql security definer set search_path='' as $$
 begin raise exception 'Verified events are append only'; end $$;
 create trigger immutable_verified_checkout_event before update or delete on checkout_recovery.verified_events
+for each row execute function checkout_recovery.reject_event_rewrite();
+create trigger immutable_adverse_checkout_event before update or delete on checkout_recovery.adverse_inbox
 for each row execute function checkout_recovery.reject_event_rewrite();
 revoke all on function checkout_recovery.reject_event_rewrite() from public,anon,authenticated,service_role;
 alter table checkout_recovery.agreement_jobs enable row level security;
@@ -194,12 +203,46 @@ begin
  values(p_order,'stripe_webhook','checkout_hold','Adverse payment evidence requires reconciliation.',jsonb_build_object('reason',p_reason));
 end $$;
 
+create function public.record_checkout_adverse_event(p_scope text,p_evidence jsonb) returns void
+language plpgsql security definer set search_path='' as $$
+declare prior checkout_recovery.adverse_inbox; o record; reason text; amount bigint; refunded bigint;
+begin
+ if auth.role() is distinct from 'service_role' then raise exception 'Service role required'; end if;
+ if p_scope is null or p_scope !~ '^[a-f0-9]{64}:test$' or p_evidence->>'livemode' is distinct from 'false'
+ or p_evidence->>'providerEventId' is null or p_evidence->>'providerEventId' !~ '^evt_[A-Za-z0-9]+$'
+ or p_evidence->>'paymentIntentId' is null or p_evidence->>'paymentIntentId' !~ '^pi_[A-Za-z0-9]+$'
+ or p_evidence->>'evidenceSha256' is null or p_evidence->>'evidenceSha256' !~ '^[a-f0-9]{64}$'
+ then raise exception 'Invalid adverse evidence'; end if;
+ amount:=(p_evidence->>'amountMinor')::bigint;refunded:=(p_evidence->>'refundedMinor')::bigint;
+ if amount is null or amount<=0 or refunded is null or refunded<0 or refunded>amount
+ or upper(p_evidence->>'currency') is distinct from 'USD' then raise exception 'Invalid adverse amounts'; end if;
+ reason:=case when p_evidence->>'paymentState'='PAYMENT_FAILED' and p_evidence->>'eventType'='checkout.session.async_payment_failed' and refunded=0 then 'payment_failed'
+ when p_evidence->>'paymentState'='REFUNDED' and p_evidence->>'eventType'='charge.refunded' and refunded=amount then 'refund_full'
+ when p_evidence->>'paymentState'='PARTIALLY_REFUNDED' and p_evidence->>'eventType'='charge.refunded' and refunded>0 and refunded<amount then 'refund'
+ when p_evidence->>'paymentState'='DISPUTED' and p_evidence->>'eventType'='charge.dispute.created' and refunded=0 then 'dispute' else null end;
+ if reason is null then raise exception 'Incompatible adverse event'; end if;
+ -- Same lock order as paid evidence: provider intent, then matching order.
+ perform pg_advisory_xact_lock(hashtextextended(p_scope||':'||(p_evidence->>'paymentIntentId'),1));
+ select * into prior from checkout_recovery.adverse_inbox where scope=p_scope and event_id=p_evidence->>'providerEventId';
+ if found then
+  if prior.evidence<>p_evidence then raise exception 'Conflicting adverse replay'; end if;
+  return;
+ else
+  insert into checkout_recovery.adverse_inbox(scope,event_id,payment_intent_id,evidence)
+  values(p_scope,p_evidence->>'providerEventId',p_evidence->>'paymentIntentId',p_evidence);
+ end if;
+ for o in select id from public.orders where stripe_payment_intent_id=p_evidence->>'paymentIntentId' order by id for update loop
+  perform public.hold_checkout_order(o.id,reason);
+ end loop;
+end $$;
+
 create function public.record_verified_checkout_payment(p_order uuid,p_scope text,p_evidence jsonb) returns void
 language plpgsql security definer set search_path='' as $$
 declare o public.orders; prior checkout_recovery.verified_events; state text; kind text; amount bigint; refunded bigint;
 begin
  if auth.role() is distinct from 'service_role' then raise exception 'Service role required'; end if;
  if p_scope is null or p_scope !~ '^[a-f0-9]{64}:test$' then raise exception 'TEST credential scope required'; end if;
+ perform pg_advisory_xact_lock(hashtextextended(p_scope||':'||coalesce(p_evidence->>'paymentIntentId',''),1));
  select * into strict o from public.orders where id=p_order for update;
  if exists(select 1 from checkout_recovery.attempts where order_id=p_order and scope<>p_scope) then raise exception 'Provider scope mismatch'; end if;
  state:=p_evidence->>'paymentState'; kind:=p_evidence->>'eventType';
@@ -229,6 +272,11 @@ begin
  insert into checkout_recovery.verified_events(scope,event_id,order_id,evidence) values(p_scope,p_evidence->>'providerEventId',p_order,p_evidence);
  update public.orders set stripe_payment_intent_id=coalesce(stripe_payment_intent_id,p_evidence->>'paymentIntentId'),
  stripe_checkout_session_id=coalesce(stripe_checkout_session_id,p_evidence->>'checkoutSessionId') where id=p_order;
+ if exists(select 1 from checkout_recovery.adverse_inbox where scope=p_scope and payment_intent_id=p_evidence->>'paymentIntentId') then
+  perform public.hold_checkout_order(p_order,(select case evidence->>'paymentState' when 'REFUNDED' then 'refund_full' when 'DISPUTED' then 'dispute' when 'PARTIALLY_REFUNDED' then 'refund' else 'payment_failed' end
+   from checkout_recovery.adverse_inbox where scope=p_scope and payment_intent_id=p_evidence->>'paymentIntentId'
+   order by case evidence->>'paymentState' when 'REFUNDED' then 0 when 'DISPUTED' then 1 when 'PARTIALLY_REFUNDED' then 2 else 3 end limit 1));
+ end if;
  if state<>'PAID' then perform public.hold_checkout_order(p_order,case state when 'PAYMENT_FAILED' then 'payment_failed' when 'REFUNDED' then 'refund_full' when 'PARTIALLY_REFUNDED' then 'refund' else 'dispute' end); end if;
  insert into public.order_activity_log(order_id,source,event_type,message,metadata)
  values(p_order,'stripe_webhook','verified_checkout_event','Signature-verified TEST payment evidence retained.',jsonb_build_object('eventId',p_evidence->>'providerEventId','state',state,'commercialRightsGranted',false));
@@ -290,4 +338,6 @@ revoke all on function public.hold_checkout_order(uuid,text),public.claim_order_
 grant execute on function public.hold_checkout_order(uuid,text),public.claim_order_agreement_job(uuid),public.finish_order_agreement_job(uuid,uuid,jsonb) to service_role;
 revoke all on function public.record_verified_checkout_payment(uuid,text,jsonb) from public,anon,authenticated;
 grant execute on function public.record_verified_checkout_payment(uuid,text,jsonb) to service_role;
+revoke all on function public.record_checkout_adverse_event(text,jsonb) from public,anon,authenticated;
+grant execute on function public.record_checkout_adverse_event(text,jsonb) to service_role;
 commit;

@@ -38,6 +38,9 @@ push, merge, deployment, hosted SQL, provider transactions or capability changes
   entitlements, even if the ordinary adapter capability is disabled. Adverse
   evidence and its hold commit together. Late paid events cannot clear a hold;
   stale writes cannot regress fulfilled/refunded projections.
+  An append-only adverse-event inbox retains refunds/disputes before their
+  PaymentIntent can be mapped. Intent-level locks serialize that receipt with
+  later paid binding; a late paid event inherits the hold before issuance.
 - Replaying a paid event resumes interrupted agreement generation even when an
   earlier activity entry exists. One leased job per order fences concurrent and
   expired workers. Each worker uploads to its own token-specific object without
@@ -53,7 +56,7 @@ the installed Supabase CLI. Applied only in disposable local fixtures.
 
 The migration adds `orders.checkout_closed_at`, `orders.checkout_hold`, a private
 baseline watermark, attempts, verified events and agreement jobs, order/event
-guards and eight public service-only RPCs. Private tables have RLS enabled and
+guards and nine public service-only RPCs. Private tables have RLS enabled and
 deny browser and direct service-role table access; SECURITY DEFINER wrappers use
 an empty search path, explicit service-role checks and restricted EXECUTE grants.
 Order reservation independently checks the canonical persisted Buyer role.
@@ -97,7 +100,8 @@ acceptance remain separate work. A dispute does not itself invent a refund amoun
 
 ## Validation
 
-- `npm run test:unit`: all existing tests plus recovery and simulation regressions.
+- `npm run test:unit`: core suite plus recovery and simulation regressions. The
+  obsolete import-position dedupe assertion is replaced by real handler replay tests.
 - `npm run test:checkout-recovery`: focused adapter, SQL, signature and model tests.
 - `npm run test:purchase-foundation`: existing fulfillment boundaries, plus the two
   connected Alpha simulations included in its foundation test file.

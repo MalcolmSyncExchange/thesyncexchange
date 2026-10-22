@@ -9,11 +9,11 @@ import {assertStripeSessionMatchesTrustedCheckout} from '../services/orders/chec
 function load(file,modules){const mod={exports:{}};vm.runInNewContext(ts.transpileModule(source(file),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:mod,exports:mod.exports,Response,Request,console:{warn(){}},process:{env:{}},require:n=>{assert.ok(Object.hasOwn(modules,n),n);return modules[n];}});return mod.exports;}
 const session={id:'cs_test_fixture',client_reference_id:'order',metadata:{orderId:'order'},payment_status:'paid',payment_intent:'pi_fixture',amount_total:5000,currency:'usd',livemode:false,created:1792540800};
 const verified={providerEventId:'evt_fixture',eventType:'checkout.session.completed',paymentState:'PAID',checkoutSessionId:session.id,paymentIntentId:'pi_fixture',amountMinor:5000,refundedMinor:0,currency:'usd',evidenceSha256:'a'.repeat(64),providerCreatedAt:'2026-10-21T00:00:00Z',livemode:false};
-function syncHarness({interrupt=false}={}){
- const state={order:{id:'order',buyer_user_id:'buyer',track_id:'track',license_type_id:'license',amount_cents:5000,currency:'USD',status:'pending',paid_at:null,agreement_generated_at:null,agreement_path:null,stripe_checkout_session_id:session.id},writes:0,issuance:0,retained:0};
- const db={from(){let values;const result=()=>{if(values){Object.assign(state.order,values);state.writes++;values=null;}return{data:{...state.order},error:null};};const q={select:()=>q,eq:()=>q,update:v=>{values=v;return q;},maybeSingle:async()=>result(),then:(yes,no)=>Promise.resolve(result()).then(yes,no)};return q;}};
+function syncHarness({interrupt=false,missingIntent=false}={}){
+ const state={order:{id:'order',buyer_user_id:'buyer',track_id:'track',license_type_id:'license',amount_cents:5000,currency:'USD',status:'pending',paid_at:null,agreement_generated_at:null,agreement_path:null,stripe_checkout_session_id:session.id},writes:0,issuance:0,retained:0,adverse:0};
+ const db={from(){let values,unmapped=false;const result=()=>{if(values){Object.assign(state.order,values);state.writes++;values=null;}return{data:unmapped?null:{...state.order},error:null};};const q={select:()=>q,eq:column=>{if(column==='stripe_payment_intent_id'&&missingIntent)unmapped=true;return q;},update:v=>{values=v;return q;},maybeSingle:async()=>result(),then:(yes,no)=>Promise.resolve(result()).then(yes,no)};return q;}};
  const modules={stripe:{},'@/lib/env':{env:{appUrl:'https://app.invalid'}},'@/lib/server-env':{assertStripeRuntimeObject(){return{commercialRightsGranted:false};},serverEnv:{stripeSecretKey:'fixture'}},
- '@/services/orders/checkout-recovery':{},'@/services/orders/fulfillment-recovery':{retainVerifiedCheckoutPayment:async()=>state.retained++},
+ '@/services/orders/checkout-recovery':{},'@/services/orders/fulfillment-recovery':{retainVerifiedCheckoutPayment:async()=>state.retained++,retainAdverseCheckoutPayment:async()=>state.adverse++},
  '@/services/orders/activity':{hasProcessedOrderDedupeKey:async()=>true,appendOrderActivityLog:async()=>{}},
  '@/services/orders/checkout-pricing':{loadTrustedCheckoutDetails:async()=>({order:{...state.order},amountCents:5000,currency:'USD'}),assertStripeSessionMatchesTrustedCheckout},
  '@/services/purchase-completion/server':{recordVerifiedPurchaseCompletionEvent:async()=>{}},
@@ -31,6 +31,11 @@ test('same signed event retries interrupted artifact work even if activity alrea
  await assert.rejects(h.api.syncOrderFromStripeSession(input),/artifact interrupted/);assert.equal(h.state.order.status,'paid');
  await h.api.syncOrderFromStripeSession(input);await h.api.syncOrderFromStripeSession(input);
  assert.equal(h.state.issuance,2);assert.equal(h.state.order.agreement_path,'fixture.pdf');assert.equal(h.state.retained,3);
+});
+test('refund handler retains adverse evidence before an unknown-intent lookup can fail',async()=>{
+ const h=syncHarness({missingIntent:true});
+ await assert.rejects(h.api.markOrderRefundedByPaymentIntent({paymentIntentId:'pi_fixture',amountMinor:5000,refundedMinor:5000,verifiedEvent:{...verified,paymentState:'REFUNDED',eventType:'charge.refunded',refundedMinor:5000}}),/known order/);
+ assert.equal(h.state.adverse,1);assert.equal(h.state.writes,0);assert.equal(h.state.issuance,0);
 });
 test('actual Stripe signature verification routes expiration and retries processing errors with non-2xx',async()=>{
  const stripe=new Stripe('sk_test_local_fixture');const key='whsec_local_fixture';let expired=0,fail=false;

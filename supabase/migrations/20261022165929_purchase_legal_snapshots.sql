@@ -14,7 +14,7 @@ create table licensing_private.offers (
  id uuid primary key default gen_random_uuid(), track_id uuid not null references public.tracks(id) on delete restrict,
  license_type_id uuid not null references public.license_types(id) on delete restrict,
  seller_user_id uuid not null references public.user_profiles(id) on delete restrict,
- source_hash text not null, license_exclusive boolean not null, rights jsonb not null, terms jsonb not null, financial jsonb not null,
+ source_hash text not null, rights_epoch bigint not null check(rights_epoch>0), license_exclusive boolean not null, rights jsonb not null, terms jsonb not null, financial jsonb not null,
  reviewed_by uuid not null references public.user_profiles(id) on delete restrict, review_reference text not null,
  created_at timestamptz not null default clock_timestamp(), unique(id,track_id,license_type_id)
 );
@@ -104,7 +104,10 @@ begin
  perform 1 from public.tracks where id=o.track_id for share;
  if exists(select 1 from licensing_private.status_events where kind='offer' and resource_id=o.id)
  or o.source_hash is distinct from licensing_private.rights_source(o.track_id)
+ or not exists(select 1 from licensing_private.offer_heads h join licensing_private.offers current_review on current_review.id=h.offer_id
+ where h.track_id=o.track_id and h.license_type_id=o.license_type_id and current_review.rights=o.rights and current_review.rights_epoch=o.rights_epoch)
  or not exists(select 1 from public.tracks where id=o.track_id and artist_user_id=o.seller_user_id and status='approved')
+ or not exists(select 1 from public.user_profiles where id=o.seller_user_id and role='artist')
  or not exists(select 1 from public.track_license_options x join public.license_types l on l.id=x.license_type_id where x.track_id=o.track_id and l.id=o.license_type_id and x.active and l.active and l.exclusive=o.license_exclusive)
  or (o.rights#>>'{scope,validFrom}')::timestamptz>clock_timestamp()
  or (o.rights#>>'{scope,validUntil}')::timestamptz<greatest(clock_timestamp(),p_until)
@@ -185,10 +188,12 @@ begin
  end loop;
  select count(distinct value->>'partyId') into n from jsonb_array_elements(p_financial->'allocations');
  if total<>10000 or n<>jsonb_array_length(p_financial->'allocations') then raise exception 'Complete unique payee allocation required'; end if;
- insert into licensing_private.offers(track_id,license_type_id,seller_user_id,source_hash,license_exclusive,rights,terms,financial,reviewed_by,review_reference)
- values(p_track,p_license,seller,licensing_private.rights_source(p_track),(select exclusive from public.license_types where id=p_license),p_rights,p_terms,p_financial,p_actor,p_reference) returning id into result;
- perform licensing_private.check_offer(result,clock_timestamp());
+ insert into licensing_private.offers(track_id,license_type_id,seller_user_id,source_hash,rights_epoch,license_exclusive,rights,terms,financial,reviewed_by,review_reference)
+ values(p_track,p_license,seller,licensing_private.rights_source(p_track),
+ coalesce((select prior.rights_epoch+case when prior.rights=p_rights then 0 else 1 end from licensing_private.offer_heads h join licensing_private.offers prior on prior.id=h.offer_id where h.track_id=p_track and h.license_type_id=p_license),1),
+ (select exclusive from public.license_types where id=p_license),p_rights,p_terms,p_financial,p_actor,p_reference) returning id into result;
  insert into licensing_private.offer_heads values(p_track,p_license,result) on conflict(track_id,license_type_id) do update set offer_id=excluded.offer_id;
+ perform licensing_private.check_offer(result,clock_timestamp());
  return result;
 end $$;
 
@@ -243,7 +248,7 @@ begin
   allocations:=allocations||jsonb_build_array(h||jsonb_build_object('amountCents',amount));allocated:=allocated+amount;
  end loop;
  schedule:=jsonb_build_object('schemaVersion','TSE-PURCHASE-1','buyer',p_buyer||jsonb_build_object('userId',buyer,'email',(select email from auth.users where id=buyer)),
- 'offerId',o.id,'seller',o.rights->'seller','rights',o.rights,'rightsSourceHash',o.source_hash,'rightsReviewedAt',o.created_at,'rightsReviewedBy',o.reviewed_by,'rightsReviewReference',o.review_reference,
+ 'offerId',o.id,'seller',o.rights->'seller','rights',o.rights,'rightsReviewGeneration',o.rights_epoch,'rightsSourceHash',o.source_hash,'rightsReviewedAt',o.created_at,'rightsReviewedBy',o.reviewed_by,'rightsReviewReference',o.review_reference,
  'track',jsonb_build_object('id',t.id,'title',t.title,'recordingIdentifier',o.rights->>'recordingIdentifier','workIdentifier',o.rights->>'workIdentifier'),
  'license',jsonb_build_object('id',l.id,'name',l.name,'slug',l.slug,'exclusive',l.exclusive),'usage',p_usage,'terms',o.terms,
  'termsHash',licensing_private.hash_json(o.terms),'documentSha256',encode(sha256(convert_to(o.terms->>'body','UTF8')),'hex'),
@@ -314,6 +319,7 @@ language plpgsql security definer set search_path='' as $$
 declare a licensing_private.acceptances; o public.orders;
 begin
  select * into strict o from public.orders where id=p_order;
+ if not exists(select 1 from public.user_profiles where id=o.buyer_user_id and role='buyer') then raise exception 'Canonical buyer required for issuance'; end if;
  select * into a from licensing_private.acceptances where order_id=p_order;
  if a.order_id is null then raise exception 'Transaction-specific legal acceptance required'; end if;
  if a.buyer_id<>o.buyer_user_id or a.snapshot->>'orderId' is distinct from o.id::text or a.snapshot#>>'{track,id}' is distinct from o.track_id::text

@@ -94,7 +94,11 @@ the actual rounding/economics policy remains necessary before publishing real of
 
 A superseded offer cannot receive new assent. An already accepted version can issue
 under its original text if it remains valid, unwithdrawn and within its issuance
-deadline. Expired usage/terms/evidence, incompatible rights changes and adverse payment
+deadline. A new review with a changed rights schedule invalidates older pending
+clearances even if the legacy ownership list is unchanged. A monotonic per-offer
+rights generation prevents a later reversion from reviving an older acceptance;
+recovery never rebases that acceptance.
+Expired usage/terms/evidence, incompatible rights changes and adverse payment
 states block issuance. No updated template or rights review substitutes for the original.
 After a valid withdrawal the old record remains readable by its Buyer for history.
 Recovering an invalid paid transaction needs a permissioned operator/counsel decision;

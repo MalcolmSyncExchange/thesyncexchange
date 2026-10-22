@@ -76,6 +76,15 @@ test('superseded terms cannot receive new assent; an already accepted valid vers
  await invalidate(db,'offer',r.offer);await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/valid/);
  assert.equal((await call(db,'read_accepted_purchase',[o.id])).snapshot.terms.body,q.schedule.terms.body);
 }));
+test('a new incompatible reviewed rights schedule blocks older accepted purchases even if legacy holders did not change',()=>fixture(async db=>{
+ const {o}=await purchase(db),r=await seedLegalReview(db);const before=await call(db,'read_accepted_purchase',[o.id]);
+ const rights=structuredClone(r.rights);rights.master[0].party.legalName='Different verified master owner';
+ await call(db,'publish_licensing_offer',[ids.admin,ids.live,ids.license,rights,terms,financial,'Synthetic changed ownership review']);
+ await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/valid/);
+ assert.deepEqual(await call(db,'read_accepted_purchase',[o.id]),before);
+ await call(db,'publish_licensing_offer',[ids.admin,ids.live,ids.license,r.rights,terms,financial,'Synthetic ownership reverted again']);
+ await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/valid/);
+}));
 test('expired issuance terms cannot be published or used for issuance',()=>fixture(async db=>{
  const r=await seedLegalReview(db);await assert.rejects(call(db,'publish_licensing_offer',[ids.admin,ids.live,ids.license,r.rights,{...terms,issueUntil:'2000-01-01'},financial,'Synthetic review']),/legal text/);
 }));
@@ -108,6 +117,13 @@ test('ownership or recording-source changes invalidate the reviewed state',()=>f
 }));
 test('seller ownership reassignment cannot retain the former clearance',()=>fixture(async db=>{
  const {o}=await purchase(db);await db.exec(`update tracks set artist_user_id='${ids.b}' where id='${ids.live}'`);await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/valid/);
+}));
+test('canonical account role changes during checkout block new issuance and do not erase accepted facts',()=>fixture(async db=>{
+ const {o}=await purchase(db),before=await call(db,'read_accepted_purchase',[o.id]);
+ await db.exec(`update user_profiles set role='artist' where id='${ids.buyer}'`);await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/Canonical buyer/);
+ assert.deepEqual(await call(db,'read_accepted_purchase',[o.id]),before);
+ await db.exec(`update user_profiles set role='buyer' where id='${ids.buyer}';update user_profiles set role='buyer' where id='${ids.a}'`);
+ await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/valid/);
 }));
 test('required rights evidence revocation and missing storage version block issuance',()=>fixture(async db=>{
  const {o}=await purchase(db);const r=await seedLegalReview(db);await invalidate(db,'evidence',r.evidence);

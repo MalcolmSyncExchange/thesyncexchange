@@ -90,6 +90,7 @@ export async function createOrderAction(formData: FormData) {
   const orderId = existingPendingOrder?.id || crypto.randomUUID();
   const amountCents = Math.round(amountPaid * 100);
   let checkoutSessionId: string | null = null;
+  let checkoutCreationStarted = false;
 
   try {
     if (createdNewOrder) {
@@ -163,6 +164,9 @@ export async function createOrderAction(formData: FormData) {
     // preserves the legacy flow; an invalid enabled configuration fails closed.
     await preparePurchaseCompletionCheckout(orderId);
 
+    // A thrown request can still have created a provider session. Retain its
+    // local order reference so a later verified webhook can reconcile it.
+    checkoutCreationStarted = true;
     const session = await createStripeCheckoutSession({
       orderId,
       trackTitle: track.title,
@@ -233,13 +237,27 @@ export async function createOrderAction(formData: FormData) {
   } catch (checkoutError) {
     unstable_rethrow(checkoutError);
 
-    if (!checkoutSessionId && createdNewOrder) {
+    if (!checkoutCreationStarted && createdNewOrder) {
       await supabase.from("orders").delete().eq("id", orderId);
+    }
+
+    const creationUnconfirmed = checkoutCreationStarted && !checkoutSessionId;
+    if (creationUnconfirmed) {
+      await appendOrderActivityLog(supabase, {
+        orderId,
+        actorId: user.id,
+        source: "system",
+        eventType: "checkout_creation_unconfirmed",
+        message: "Checkout creation could not be confirmed; pending order retained for reconciliation.",
+        metadata: { requiresReconciliation: true, ...getPaymentActivityMetadata() }
+      }).catch(() => undefined);
     }
 
     redirect(
       `/buyer/checkout/${trackSlug}?error=${encodeURIComponent(
-        checkoutError instanceof Error ? checkoutError.message : "Unable to start Stripe checkout."
+        creationUnconfirmed
+          ? "Checkout could not be confirmed. Your pending order was preserved. Check your purchases or contact support before trying again."
+          : checkoutError instanceof Error ? checkoutError.message : "Unable to start Stripe checkout."
       )}`
     );
   }

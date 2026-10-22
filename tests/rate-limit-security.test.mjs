@@ -57,8 +57,11 @@ function limiter({ rows = [allowedRow], error = null, throws = false, missingCli
   return { helper, calls };
 }
 
-function harness({ role = "buyer", authenticated = true, owner = userId, pricingError = false, prepareError = false, limitOptions = {} } = {}) {
+function harness({ role = "buyer", authenticated = true, owner = userId, pricingError = false, prepareError = false, stripeResponseLost = false, auditFails = false, limitOptions = {} } = {}) {
   const events = [];
+  const orderRecords = new Map();
+  const activityEvents = [];
+  let providerOrderId;
   const { helper, calls } = limiter(limitOptions);
   const db = {
     auth: { getUser: async () => ({ data: { user: authenticated ? { id: userId, email: "test@example.invalid" } : null } }) },
@@ -71,7 +74,13 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
         then(resolve, reject) { return Promise.resolve(result()).then(resolve, reject); }
       };
       for (const op of ["insert", "update", "upsert", "delete"]) {
-        query[op] = () => { mutation = true; events.push(`${table}:${op}`); return query; };
+        query[op] = (values) => {
+          mutation = true;
+          events.push(`${table}:${op}`);
+          if (table === "orders" && op === "insert") orderRecords.set(values.id, values);
+          if (table === "orders" && op === "delete") orderRecords.clear();
+          return query;
+        };
       }
       return query;
     },
@@ -108,7 +117,11 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     "@/services/supabase/server": { createServerSupabaseClient: async () => db },
     "@/services/supabase/privileged": { createPrivilegedSupabaseClient: async () => db },
     "@/services/supabase/schema-compat": { isMissingColumnError: () => false, warnSchemaFallbackOnce() {} },
-    "@/services/orders/activity": { appendOrderActivityLog: async () => { events.push("activity"); } },
+    "@/services/orders/activity": { appendOrderActivityLog: async (_client, activity) => {
+      if (auditFails) throw new Error("private audit detail");
+      activityEvents.push(activity);
+      events.push("activity");
+    } },
     "@/services/purchase-completion/server": { preparePurchaseCompletionCheckout: async () => {
       events.push("prepare");
       if (prepareError) throw new Error("adapter fail closed");
@@ -124,6 +137,12 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     },
     "@/services/stripe/server": { createStripeCheckoutSession: async args => {
       events.push("stripe"); assert.equal(args.amountCents, 120000); assert.equal(args.buyerUserId, userId);
+      if (stripeResponseLost) {
+        // The provider accepted the request, but the caller never receives its ID.
+        providerOrderId = args.orderId;
+        events.push("provider-session-created");
+        throw new Error("private Stripe network diagnostic");
+      }
       return { id: "cs_test", url: "https://example.invalid/checkout" };
     } },
     "@/services/buyer/queries": { getBuyerTrackBySlug: async () => {
@@ -140,7 +159,7 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
   const uploadUrl = loadModule("app/api/storage/upload-url/route.ts", stubs).POST;
   const upload = loadModule("app/api/storage/upload/route.ts", stubs).POST;
   const action = loadModule("services/buyer/actions.ts", stubs).createOrderAction;
-  return { checkout, uploadUrl, upload, action, calls, events };
+  return { checkout, uploadUrl, upload, action, calls, events, orderRecords, activityEvents, get providerOrderId() { return providerOrderId; } };
 }
 
 const jsonRequest = body => new Request("https://example.invalid/api", {
@@ -208,6 +227,55 @@ test("both checkout entry points stop before Stripe when Phase 2B preparation fa
   await assert.rejects(h.action(orderForm()), error => error.digest === "NEXT_REDIRECT");
   assert.equal(h.events.filter(event => event === "prepare").length, 2);
   assert.equal(h.events.filter(event => event === "stripe").length, 0);
+});
+
+test("lost Stripe creation response preserves the exact pending order for later reconciliation", async () => {
+  const h = harness({ stripeResponseLost: true });
+  await assert.rejects(h.action(orderForm()), error => {
+    assert.match(decodeURIComponent(error.url), /Checkout could not be confirmed/);
+    assert.doesNotMatch(decodeURIComponent(error.url), /private Stripe/);
+    return error.digest === "NEXT_REDIRECT";
+  });
+  assert.equal(h.events.filter(event => event === "stripe").length, 1);
+  assert.equal(h.events.includes("orders:delete"), false);
+  assert.equal(h.orderRecords.size, 1);
+  const retained = h.orderRecords.get(h.providerOrderId);
+  assert.ok(retained, "provider metadata still resolves to the original order");
+  assert.equal(retained.status, "pending");
+  assert.equal(retained.buyer_user_id, userId);
+  assert.equal(retained.amount_cents, 120000);
+  const audit = h.activityEvents.find(event => event.eventType === "checkout_creation_unconfirmed");
+  assert.equal(audit.orderId, h.providerOrderId);
+  assert.equal(audit.metadata.requiresReconciliation, true);
+  assert.equal(audit.metadata.commercialRightsGranted, false);
+});
+
+test("failed uncertainty audit cannot delete a pending provider order or expose diagnostics", async () => {
+  const h = harness({ stripeResponseLost: true, auditFails: true });
+  await assert.rejects(h.action(orderForm()), error => {
+    assert.match(decodeURIComponent(error.url), /pending order was preserved/);
+    assert.doesNotMatch(decodeURIComponent(error.url), /private/);
+    return error.digest === "NEXT_REDIRECT";
+  });
+  assert.ok(h.orderRecords.has(h.providerOrderId));
+  assert.equal(h.events.includes("orders:delete"), false);
+});
+
+test("failure before contacting Stripe retains the existing unstarted-order cleanup", async () => {
+  const h = harness({ prepareError: true });
+  await assert.rejects(h.action(orderForm()), error => error.digest === "NEXT_REDIRECT");
+  assert.equal(h.events.includes("stripe"), false);
+  assert.equal(h.events.includes("orders:delete"), true);
+  assert.equal(h.orderRecords.size, 0);
+  assert.equal(h.activityEvents.some(event => event.eventType === "checkout_creation_unconfirmed"), false);
+});
+
+test("successful Stripe redirect is not reclassified as unconfirmed checkout", async () => {
+  const h = harness();
+  await assert.rejects(h.action(orderForm()), error => error.url === "https://example.invalid/checkout");
+  assert.equal(h.events.includes("orders:delete"), false);
+  assert.equal(h.activityEvents.some(event => event.eventType === "checkout_creation_unconfirmed"), false);
+  assert.equal(h.activityEvents.some(event => event.eventType === "checkout_created"), true);
 });
 
 test("upload denial prevents signed tokens and prevents even multipart parsing", async () => {

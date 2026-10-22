@@ -180,3 +180,14 @@ approval. Controlled Live and Market Launch require their additional gates.
 Recommended next package: coordinate PK04's validated immutable-source bridge and
 large-file isolated integration, then PK09's contributor/ledger/reconciliation
 operations. Preserve separate Auth/PostHog ownership throughout.
+
+## October 22 PK04 follow-up
+
+The isolated immutable-source candidate now bridges the canonical media records
+to the original accepted manifest. This supersedes the earlier “bridge pending”
+local-code statement above; hosted compatibility/acceptance remains unverified.
+See [PK04 implementation](pk04-immutable-source-integration.md),
+[prepared hosted rehearsal](pk08-hosted-rehearsal-plan.md) and
+[next financial assignment](pk09-financial-reconciliation-assignment.md).
+Historical PK08 test counts above describe commit 64aacff and are not refreshed
+acceptance of the newer candidate. No hosted rehearsal has been executed.

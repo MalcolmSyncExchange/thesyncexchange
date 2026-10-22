@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {readdirSync} from 'node:fs';
-import {fixtureBootstrapSql,seedDatabase,ids,root,source} from './helpers/artist-baseline-db.mjs';
+import {fixtureBootstrapSql,nativeCryptoBootstrapSql,seedDatabase,ids,root,source} from './helpers/artist-baseline-db.mjs';
 function docker(args,input='') {
  return new Promise((resolve,reject)=>{
   const child=spawn('docker',args,{stdio:['pipe','pipe','pipe']});let out='',err='';
@@ -26,7 +26,7 @@ test('independent PostgreSQL connections serialize held-payment duplicates into 
   await waitFor(async()=>{try{await docker(['exec',name,'pg_isready','-h','127.0.0.1','-U','postgres']);return true;}catch{return false;}});
   const seed=[];await seedDatabase({exec:async statement=>seed.push(statement+';')});
   const migrations=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort().map(f=>source(`supabase/migrations/${f}`));
-  await sql([fixtureBootstrapSql,...migrations,...seed].join('\n'));
+  await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...migrations,...seed].join('\n'));
   assert.equal(await sql("select count(*) from pg_extension where extname='pgcrypto'"),'1');
   const contract=`(select id from public.order_delivery_contracts where order_id='${ids.order}')`;
   await sql(`select set_config('request.jwt.claim.role','service_role',false);

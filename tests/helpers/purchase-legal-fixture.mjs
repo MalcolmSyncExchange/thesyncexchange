@@ -1,4 +1,5 @@
 // Synthetic, disposable fixtures only. Never imported by application code.
+import {approvedSource,ensureSourceReview} from './immutable-source-fixture.mjs';
 import { ids, quote, asActor } from './artist-baseline-db.mjs';
 export const legalIds={object:'10101010-1010-4010-8010-101010101010'};
 export const party=(id='master')=>({id,legalName:'Synthetic Rights '+id,entityType:'individual',jurisdiction:'Fixture jurisdiction',address:'123 Synthetic Address'});
@@ -12,6 +13,7 @@ export const call=async(db,name,args)=>(await db.query(sqlCall(name,args))).rows
 const ready=new WeakMap();
 export async function seedLegalReview(db) {
  if(ready.has(db))return ready.get(db);
+ await approvedSource(db);
  await db.exec(`insert into storage.objects(id,bucket_id,name,version,metadata) values('${legalIds.object}','purchase-assets','synthetic-authority.txt','synthetic-v1','{"size":200}')`);
  const evidence=await call(db,'register_licensing_evidence',[ids.admin,legalIds.object,'a'.repeat(64),'SYNTHETIC authority review',future]);
  const rights={seller:{...party('seller'),userId:ids.a},recordingIdentifier:'SYNTHETIC-RECORDING-1',workIdentifier:'SYNTHETIC-WORK-1',
@@ -23,7 +25,7 @@ export async function seedLegalReview(db) {
  const result={evidence,rights,offer};ready.set(db,result);return result;
 }
 export async function newQuote(db,buyer=ids.buyer,overrides={}) {
- await seedLegalReview(db);
+ await seedLegalReview(db);const current=(await db.query(`select offer_id from licensing_private.offer_heads where track_id='${ids.live}' and license_type_id='${ids.license}'`)).rows[0];await ensureSourceReview(db,current.offer_id);
  return asActor(db,buyer,()=>call(db,'prepare_purchase_quote',[ids.live,ids.license,overrides.party||buyerParty,overrides.usage||usage]));
 }
 export const acceptQuote=(db,q,buyer=ids.buyer)=>asActor(db,buyer,()=>call(db,'accept_purchase_quote',[q.id,q.hash,q.schedule.terms.requiredConsents,q.schedule.buyer.representative]));

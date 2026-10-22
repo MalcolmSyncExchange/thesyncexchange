@@ -5,7 +5,7 @@ import {spawn} from 'node:child_process';
 import {mkdtemp,mkdir,readdir,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
-import {fixtureBootstrapSql,seedDatabase,root,source,ids,quote} from './helpers/artist-baseline-db.mjs';
+import {fixtureBootstrapSql,nativeCryptoBootstrapSql,seedDatabase,root,source,ids,quote} from './helpers/artist-baseline-db.mjs';
 import {seedDelivery,beginDownload,finishDownload} from './helpers/secure-delivery-fixture.mjs';
 import {sqlCall} from './helpers/purchase-legal-fixture.mjs';
 const command=(bin,args,input='')=>new Promise((resolve,reject)=>{const c=spawn(bin,args,{stdio:['pipe','pipe','pipe']});let out='',err='';c.stdout.on('data',b=>out+=b);c.stderr.on('data',b=>err+=b);c.on('error',reject);c.on('close',code=>code===0?resolve(out.trim()):reject(Error(`${bin}: ${err}`)));c.stdin.on('error',()=>{});c.stdin.end(input);});
@@ -20,7 +20,7 @@ test('native separate connections deduplicate download authorization and seriali
   await command('pg_ctl',['-D',data,'-l',join(dir,'postgres.log'),'-o',`-c listen_addresses= -c unix_socket_directories=${socket} -c max_connections=10 -c shared_buffers=16MB`,'-w','start']);running=true;
   const seed=[];await seedDatabase({exec:async s=>seed.push(s+';')});
   const files=(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')).sort();
-  await sql([fixtureBootstrapSql,...files.map(f=>source('supabase/migrations/'+f)),...seed].join('\n'));
+  await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...files.map(f=>source('supabase/migrations/'+f)),...seed].join('\n'));
   assert.equal(last(await sql("select current_setting('listen_addresses')=''")),'t');
   let actor='';
   const db={exec:async text=>{if(text.startsWith('set role ')){actor=text+';';return;}if(text.startsWith('reset role;')){actor='';return;}return sql(actor+text);},query:async text=>({rows:(await sql(actor+`select row_to_json(r) from (${text}) r;`)).split('\n').filter(x=>x.startsWith('{')).map(JSON.parse)})};

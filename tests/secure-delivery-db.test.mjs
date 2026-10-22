@@ -1,3 +1,4 @@
+import {ensureSourceReview} from './helpers/immutable-source-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -38,6 +39,7 @@ test('stems, alternate mixes and supporting materials require their own explicit
  insert into track_license_options(track_id,license_type_id,price_cents,active) values('${ids.live}','${tier}',5000,true)`);
  const offer=await call(ctx.db,'publish_licensing_offer',[ids.admin,ids.live,tier,ctx.review.rights,{...terms,version:'SYNTHETIC-STEM-LICENSE'},financial,'SYNTHETIC optional deliverables']);
  await call(ctx.db,'review_license_deliverables',[ids.admin,offer,[{assetVersionId:stems,label:'Stem bundle'},{assetVersionId:alternate,label:'Alternate mix'},{assetVersionId:supporting,label:'Supporting material'}],'SYNTHETIC explicit optional files']);
+ await ensureSourceReview(ctx.db,offer);
  const q=await asActor(ctx.db,ids.buyer,()=>call(ctx.db,'prepare_purchase_quote',[ids.live,tier,buyerParty,usage]));
  const accepted=await acceptQuote(ctx.db,q);
  await call(ctx.db,'prepare_purchase_completion_checkout',[accepted.id,'local','acct_fixture']);

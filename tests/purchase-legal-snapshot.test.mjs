@@ -116,7 +116,9 @@ test('ownership or recording-source changes invalidate the reviewed state',()=>f
  await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/valid/);
 }));
 test('seller ownership reassignment cannot retain the former clearance',()=>fixture(async db=>{
- const {o}=await purchase(db);await db.exec(`update tracks set artist_user_id='${ids.b}' where id='${ids.live}'`);await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/valid/);
+ const {o}=await purchase(db);await assert.rejects(db.exec(`update tracks set artist_user_id='${ids.b}' where id='${ids.live}'`),/Managed media/);
+ assert.equal((await db.query(`select artist_user_id from tracks where id='${ids.live}'`)).rows[0].artist_user_id,ids.a);
+ await db.exec(`update rights_holders set name='Changed owner' where track_id='${ids.live}'`);await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/valid/);
 }));
 test('canonical account role changes during checkout block new issuance and do not erase accepted facts',()=>fixture(async db=>{
  const {o}=await purchase(db),before=await call(db,'read_accepted_purchase',[o.id]);
@@ -165,7 +167,7 @@ test('direct authenticated quote requests are bounded even when the action limit
 test('catalog/profile/price/template changes never rewrite accepted parties, money or legal text',()=>fixture(async db=>{
  const {o}=await purchase(db);const before=await call(db,'read_accepted_purchase',[o.id]);
  await db.exec(`update tracks set title='New mutable title' where id='${ids.live}';update user_profiles set full_name='New profile' where id='${ids.buyer}';update track_license_options set price_cents=9000 where track_id='${ids.live}';update license_types set terms_summary='Changed summary' where id='${ids.license}'`);
- assert.deepEqual(await call(db,'read_accepted_purchase',[o.id]),before);assert.deepEqual(await call(db,'assert_accepted_purchase',[o.id]),{snapshot:before.snapshot,hash:before.hash});
+ assert.deepEqual(await call(db,'read_accepted_purchase',[o.id]),before);await assert.rejects(call(db,'assert_accepted_purchase',[o.id]),/changed incompatibly/);
  await assert.rejects(db.exec(`update orders set amount_cents=9000 where id='${o.id}'`),/immutable/);
  for(const table of ['quotes','acceptances','offers','evidence']){
   await assert.rejects(db.exec(`delete from licensing_private.${table}`),/immutable/);

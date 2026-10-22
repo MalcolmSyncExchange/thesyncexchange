@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {readdirSync} from 'node:fs';
-import {fixtureBootstrapSql,seedDatabase,ids,root,source} from './helpers/artist-baseline-db.mjs';
+import {fixtureBootstrapSql,nativeCryptoBootstrapSql,seedDatabase,ids,root,source} from './helpers/artist-baseline-db.mjs';
 
 function docker(args,input='') {
   return new Promise((resolve,reject)=>{
@@ -36,7 +36,7 @@ test('two PostgreSQL connections serialize one reservation, recover one attempt,
 
     const seed=[];await seedDatabase({exec:async statement=>seed.push(statement+';')});
     const migrations=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort().map(f=>source(`supabase/migrations/${f}`));
-    await sql([fixtureBootstrapSql,...migrations,...seed].join('\n'));
+    await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...migrations,...seed].join('\n'));
     assert.equal(await sql("select count(*) from pg_extension where extname='pgcrypto'"),'1');
     await sql(`
       select set_config('request.jwt.claim.role','service_role',false);

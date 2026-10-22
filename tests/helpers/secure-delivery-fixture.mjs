@@ -1,3 +1,5 @@
+import {copyApprovedMaster} from '../../services/licensing/source-copy.mjs';
+import {approvedSource} from './immutable-source-fixture.mjs';
 import {createHash,randomUUID} from 'node:crypto';
 import {ids,asActor,quote} from './artist-baseline-db.mjs';
 import {seedLegalReview,newQuote,acceptQuote,call,incorporatePurchase,claimFixtureAgreement} from './purchase-legal-fixture.mjs';
@@ -6,10 +8,21 @@ export const deliveryHash=createHash('sha256').update(deliveryBytes).digest('hex
 export const service=(db,name,args)=>call(db,name,args);
 export async function deliveryAsset(db,kind='master',suffix=kind) {
  const object=randomUUID();
+ const source=await approvedSource(db);
  await db.exec(`insert into storage.objects(id,bucket_id,name,version,metadata) values('${object}','track-audio','${ids.a}/variants/${suffix}.wav','v1','{"size":100,"mimetype":"audio/wav"}')`);
- const id=await call(db,'reserve_delivery_variant',[ids.admin,ids.live,object,kind]);
- await db.exec(`insert into storage.objects(bucket_id,name,version,metadata) values('purchase-assets','${id}/master','sealed-v1','{"size":100,"mimetype":"audio/wav"}')`);
- await db.query(`select commerce_private.seal_asset('${id}','${deliveryHash}',100,'audio/wav')`);
+ const canonical=kind==='master' && suffix==='master';
+ const id=canonical?await call(db,'reserve_approved_source_delivery',[ids.admin,source.submission,source.master]):await call(db,'reserve_delivery_variant',[ids.admin,ids.live,object,kind]);
+ if(canonical)await copyApprovedMaster(id,'SYNTHETIC exact source association',{
+  prepare:()=>call(db,'read_approved_master_copy',[ids.admin,id]),
+  read:async x=>{if(!(await db.query(`select 1 from storage.objects where bucket_id=${quote(x.bucket)} and name=${quote(x.path)}`)).rows.length)throw Error('Synthetic object missing');return deliveryBytes;},
+  upload:async(destination,bytes,mime)=>db.exec(`insert into storage.objects(bucket_id,name,version,metadata) values(${quote(destination.bucket)},${quote(destination.path)},'sealed-v1',jsonb_build_object('size',${bytes.byteLength},'mimetype',${quote(mime)}))`),
+  seal:(_id,hash,size,mime,reference)=>call(db,'seal_approved_master_copy',[ids.admin,id,hash,size,mime,reference])
+ });
+ else {
+  await db.exec(`insert into storage.objects(bucket_id,name,version,metadata) values('purchase-assets','${id}/master','sealed-v1','{"size":100,"mimetype":"audio/wav"}')`);
+  await db.query(`select commerce_private.seal_asset('${id}','${deliveryHash}',100,'audio/wav')`);
+  if(kind!=='master')await call(db,'link_approved_delivery_source',[ids.admin,id,source.submission,source.master,'SYNTHETIC exact source association']);
+ }
  await db.exec(`insert into commerce_private.qa_fixture_designations(asset_version_id,buyer_user_id,approval_reference) values('${id}','${ids.buyer}','SYNTHETIC ONLY PK08')`);
  return id;
 }

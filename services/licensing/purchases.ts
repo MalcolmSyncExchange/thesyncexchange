@@ -13,6 +13,7 @@ export type PurchaseSchedule = {
   terms: { version: string; body: string; platformRole: string; approvalReference: string; requiredConsents: string[]; acceptUntil: string; issueUntil: string };
   termsHash: string; documentSha256: string; amountCents: number; currency: string;
   financial: { policyVersion: string; commissionBps: number; platformFeeCents: number; allocations: Array<{ partyId: string; bps: number; amountCents: number }> };
+  sourceEvidence?: { id: string; hash: string; reviewedAt: string; reviewedBy: string; reviewReference: string; snapshot: { submissionId: string; masterId: string; masterVersion: string; masterSha256: string; masterReviewId: string } };
   deliveryManifest?: Array<{ assetVersionId: string; kind: string; label: string; objectVersion: string; sha256: string; byteSize: number; mimeType: string }>;
   orderId?: string; quoteId?: string; quotedAt?: string;
   acceptance?: { buyerId: string; acceptedAt: string; method: string; scheduleHash: string; termsHash: string; documentVersion: string; representative: string; capacity: string; consents: string[]; sessionId: string | null; statement: string };

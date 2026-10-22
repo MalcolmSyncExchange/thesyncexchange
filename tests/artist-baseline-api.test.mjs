@@ -14,7 +14,7 @@ function load(path,mocks={}) {
  },{filename:path});
  return loadedModule.exports;
 }
-function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false}={}) {
+function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false,accepted=true}={}) {
  const events=[];
  const client={auth:{getUser:async()=>{events.push('auth');return{data:{user}};}},from(table){
   let op='read';const q={select:()=>q,eq:()=>q,update:()=>{op='write';return q;},insert:()=>{op='write';return q;},
@@ -40,6 +40,8 @@ function harness({user={id:ids.buyer},role='buyer',owner=ids.buyer,pending=false
    getPaymentActivityMetadata:()=>({paymentMode:'test',releaseMode:'preview',commercialRightsGranted:false})
   },
   '@/services/security/rate-limit':{consumeRateLimit:async()=>({allowed:true}),rateLimitErrorResponse:()=>null},
+  '@/services/licensing/purchases':{assertAcceptedPurchase:async()=>{events.push('legal-source-check');if(!accepted)throw Error('Source/acceptance missing');return{snapshot:{amountCents:5000}};}},
+  '@/services/orders/checkout-recovery':{hasFrozenCheckoutAttempt:async()=>false},
   '@/services/purchase-completion/server':{preparePurchaseCompletionCheckout:async()=>({enabled:false})},
   '@/services/stripe/server':{createStripeCheckoutSession:async()=>{events.push('stripe');return{id:'cs_fixture',url:'https://fixture.invalid/checkout'};}}
  };
@@ -59,11 +61,12 @@ test('forbidden agreement request denies before privileged or license retrieval'
  assert.equal((await handleAgreementAccess(new Request('https://fixture.invalid',{method:'POST',headers:{origin:'https://fixture.invalid'}}),ids.order,true)).status,403);
  assert.ok(!h.events.includes('read:license'));assert.ok(!h.events.includes('service-client'));assert.ok(!h.events.includes('sign'));
 });
-for(const [label,opts,status] of [['anonymous',{user:null},401],['artist role',{role:'artist'},403],['foreign order',{owner:ids.a},404],['own order',{},200]]) test(`checkout entry: ${label}`,async()=>{
+for(const [label,opts,status] of [['anonymous',{user:null},401],['artist role',{role:'artist'},403],['foreign order',{owner:ids.a},404],['missing accepted source',{accepted:false},409],['own order',{},200]]) test(`checkout entry: ${label}`,async()=>{
  const h=harness(opts),{POST}=load('app/api/checkout/route.ts',h.mocks);
  const response=await POST(request());assert.equal(response.status,status);
  assert.equal(h.events.includes('stripe'),status===200);
  if([401,403].includes(status)) assert.ok(!h.events.includes('service-client'));
+ if(status===200)assert.ok(h.events.indexOf('role')<h.events.indexOf('legal-source-check')&&h.events.indexOf('legal-source-check')<h.events.indexOf('stripe'));
 });
 for(const action of ['updateTrackStatusAction','updateOrderStatusAction']) test(`${action} denies before privileged context retrieval`,async()=>{
  const h=harness({role:'buyer'}),actions=load('services/admin/actions.ts',h.mocks);

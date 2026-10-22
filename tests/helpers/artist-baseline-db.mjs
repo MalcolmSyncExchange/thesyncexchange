@@ -6,7 +6,7 @@ export const snapshot = name => JSON.parse(source(`tests/fixtures/artist-baselin
 export const ids = { a:'11111111-1111-4111-8111-111111111111', b:'22222222-2222-4222-8222-222222222222', buyer:'33333333-3333-4333-8333-333333333333', admin:'44444444-4444-4444-8444-444444444444', draft:'55555555-5555-4555-8555-555555555555', live:'66666666-6666-4666-8666-666666666666', otherTrack:'77777777-7777-4777-8777-777777777777', order:'88888888-8888-4888-8888-888888888888', license:'99999999-9999-4999-8999-999999999999' };
 export const quote = x => `'${String(x).replaceAll("'","''")}'`;
 export const ident = x => `"${String(x).replaceAll('"','""')}"`;
-export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls;
+export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls; create role supabase_storage_admin;
    create schema auth; create schema storage;
    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');
    create table auth.sessions(id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade);
@@ -22,13 +22,20 @@ export const fixtureBootstrapSql = `create role anon; create role authenticated;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
    select set_config('request.jwt.claim.role','service_role',false);`;
+// Native suites use real pgcrypto in the provider namespace. No hosted connection.
+export const nativeCryptoBootstrapSql = `create schema extensions; create extension pgcrypto with schema extensions;
+ create function public.digest(text,text) returns bytea language sql immutable as $$ select extensions.digest($1,$2) $$;`;
 export const pgliteDigestFixtureSql = `create schema fixture_support;
    create function fixture_support.digest(value text,algorithm text) returns bytea language sql immutable as $$
      select decode(repeat(md5(value),2),'hex') where algorithm='sha256'
    $$;`;
 export const adaptMigrationForPGlite = sql => sql
   .replace(/create extension if not exists "pgcrypto";/gi,'')
-  .replace(/\bpublic\.digest\s*\(/gi,'fixture_support.digest(');
+
+  // PGlite cannot install pgcrypto: only this isolated test adapter omits the
+  // provider extension preflight. Native PG17 runs unmodified dependency SQL.
+  .replace(/  if pg_catalog\.to_regprocedure\('extensions\.digest\(text,text\)'\)[\s\S]*?end if;/,'')
+  .replace(/\b(public|extensions)\.digest\s*\(/gi,'fixture_support.digest(');
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
@@ -65,7 +72,7 @@ export async function applyCapturedAuthorization(db,s) {
   await db.exec(`grant ${g.privilege} on ${ident(g.schema)}.${ident(g.table)} to ${ident(g.grantee)}`);
 }
 export async function asActor(db,id,run,role='authenticated',sessionId='') {
- if(!['authenticated','anon','service_role'].includes(role)) throw Error('Unknown fixture role');
+ if(!['authenticated','anon','service_role','submission_media_broker'].includes(role)) throw Error('Unknown fixture role');
  await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false); select set_config('request.jwt.claim.session_id',${quote(sessionId)},false)`);
  try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false); select set_config('request.jwt.claim.session_id','',false)"); }
 }

@@ -8,6 +8,7 @@ export function PurchaseReview({ quote, trackSlug, checkoutAvailable, testPaymen
   return <section className="space-y-5" aria-labelledby="transaction-review-title" data-testid="purchase-legal-review">
     <h2 id="transaction-review-title" className="text-xl font-semibold">Review this transaction</h2>
     <p>{s.track.title} · {s.license.name} · {formatCurrency(s.amountCents / 100, s.currency)}</p>
+    {s.sourceEvidence ? <p className="break-all text-sm">Approved recording version {s.sourceEvidence.snapshot.masterVersion}. Source reference {s.sourceEvidence.id}. This purchase retains that exact recording and its listed deliverables.</p> : null}
     <dl className="space-y-2 text-sm">
       <div><dt className="font-semibold">Licensee</dt><dd>{s.buyer.legalName} ({s.buyer.entityType}); {s.buyer.address}; {s.buyer.jurisdiction}. Representative: {s.buyer.representative}, {s.buyer.capacity}. Account: {s.buyer.email}</dd></div>
       <div><dt className="font-semibold">Seller and platform role</dt><dd>{s.seller.legalName}; {s.seller.address}; {s.seller.jurisdiction}. {s.terms.platformRole}</dd></div>

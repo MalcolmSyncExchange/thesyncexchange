@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import {createHash} from 'node:crypto';
+import {verifyArtifact,MAX_INLINE_BYTES} from '../../services/delivery/transfer.mjs';
 
 export const orderId = '11111111-1111-4111-8111-111111111111';
 export function agreementHarness(options = {}) {
@@ -15,7 +17,9 @@ export function agreementHarness(options = {}) {
   const modules = {
     'next/server': { NextResponse: { json: (body, init) => Response.json(body, init), redirect: url => new Response(null, {status:307,headers:{Location:url}}) } },
     '@/lib/demo-data': { orders: [], tracks: [], demoUsers: [], licenseTypes: [] },
-    '@/lib/env': { env: { demoMode: false }, hasSupabaseEnv: true },
+    '@/lib/env': { env: { demoMode: false, agreementsBucket: 'agreements' }, hasSupabaseEnv: true },
+    '@/services/delivery/transfer.mjs': {verifyArtifact,MAX_INLINE_BYTES},
+    '@/services/delivery/server': {readPrivateArtifact: async()=>{state.storageReads++;if(options.storageFails)throw Error('private provider diagnostic');return new TextEncoder().encode(options.artifactBytes || 'fixture agreement');}},
     '@/lib/license': {}, '@/lib/utils': {},
     '@/services/agreements/server': {
       createAgreementSignedUrl: async () => { state.signedUrls++; if (options.signingFails) throw new Error('private diagnostic'); return options.signedUrl || 'https://storage.example/fixture.pdf'; },
@@ -40,3 +44,4 @@ export function agreementHarness(options = {}) {
   };
   return {state,request};
 }
+export const agreementFixtureHash=createHash('sha256').update('fixture agreement').digest('hex');

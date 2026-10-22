@@ -1,5 +1,9 @@
 # PK08 secure delivery — execution plan only
 
+Status 2026-10-22: the subsequent founder implementation directive authorizes
+the local candidate described in [PK08 implementation](pk08-secure-delivery.md).
+This original plan remains the architecture baseline; hosted changes remain unapproved.
+
 No hosted Storage changes or asset-delivery implementation is authorized by this plan.
 Build on the accepted PK07 and PK03/PK06 interfaces; do not create a parallel contract,
 worker, entitlement or asset-version model.

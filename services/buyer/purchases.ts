@@ -23,6 +23,7 @@ import { requireSession } from "@/services/auth/session";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
+import { readBuyerAssets } from "@/services/delivery/server";
 
 const ORDER_FIELDS =
   "id,buyer_user_id,track_id,license_type_id,status,created_at,paid_at,refunded_at,checkout_created_at,amount_cents,currency,agreement_generation_error";
@@ -47,6 +48,7 @@ async function buyerContext() {
 async function presentOwned(
   buyerId: string,
   scoped: OrderFacts[],
+  authenticated: Awaited<ReturnType<typeof createServerSupabaseClient>>,
 ): Promise<Purchase[]> {
   if (!scoped.length) return [];
   // The authenticated query has established ownership for every ID before privileged access.
@@ -109,14 +111,17 @@ async function presentOwned(
         .select("user_id,artist_name")
         .in("user_id", artistIds)
     : { data: [], error: null };
+  const availability = await Promise.all(rows.map(async row => {
+    try { return { id: row.id, assets: await readBuyerAssets(authenticated, row.id) }; }
+    catch { return { id: row.id, assets: null }; }
+  }));
   // Display identity is optional; no private profile fields are loaded.
   // No signing, workers, payment/commerce RPCs, or audit writes occur during presentation.
   return scoped.flatMap((scope) => {
     const row = rows.find((o) => o.id === scope.id);
     if (!row) return [];
     const track = tracks.data?.find((t) => t.id === row.track_id);
-    return [
-      presentPurchase(
+    const purchase = presentPurchase(
         row,
         (licenses.data?.find((l) => l.order_id === row.id) as
           | LicenseFacts
@@ -141,8 +146,17 @@ async function presentOwned(
                 )
               : null,
         },
-      ),
-    ];
+      );
+    const assets = availability.find(item => item.id === row.id)?.assets;
+    if (assets?.length) {
+      const ready = assets.filter(a => a.available).length;
+      purchase.files = { code: ready ? "available" : "restricted", label: ready ? `${ready} of ${assets.length} available` : "Access unavailable",
+        detail: "Only the immutable included asset entitlements are shown. Access is rechecked at download.", evidence: "authoritative", tone: ready ? "success" : "warning" };
+      if (purchase.summary.code === "partial") purchase.summary.detail = "Agreement, receipt and file availability are shown separately.";
+    } else if (assets === null) {
+      purchase.files = { ...purchase.files, evidence: "unknown", detail: "File availability could not be verified. Open this purchase and refresh or contact support." };
+    }
+    return [purchase];
   });
 }
 
@@ -224,7 +238,7 @@ export async function getBuyerPurchasePage(
     throw new Error("Purchase scope denied.");
   const page = scoped.slice(0, options.pageSize);
   return {
-    items: await presentOwned(user.id, page),
+    items: await presentOwned(user.id, page, client),
     nextCursor:
       scoped.length > options.pageSize
         ? purchaseCursor(page[page.length - 1])
@@ -250,5 +264,5 @@ export async function getBuyerPurchase(
     .maybeSingle();
   if (scope.error) throw new Error("Unable to load purchase.");
   if (!scope.data || scope.data.buyer_user_id !== user.id) return null;
-  return (await presentOwned(user.id, [scope.data as OrderFacts]))[0] || null;
+  return (await presentOwned(user.id, [scope.data as OrderFacts], client))[0] || null;
 }

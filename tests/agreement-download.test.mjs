@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { agreementHarness } from './helpers/agreement-access-harness.mjs';
+import { agreementHarness, agreementFixtureHash } from './helpers/agreement-access-harness.mjs';
 
 const origin = { origin: 'https://app.example', 'sec-fetch-site': 'same-origin' };
 const prefetchHeaders = [ {}, {'next-router-prefetch':'1'}, {purpose:'prefetch'}, {'sec-purpose':'prefetch'}, {RSC:'1','next-url':'/buyer/orders'}, {'next-router-prefetch':'1',purpose:'prefetch',RSC:'1'} ];
@@ -58,4 +58,16 @@ test('all agreement entry points use explicit forms, including settings and Admi
     const s=readFileSync(new URL('../'+path,import.meta.url),'utf8');assert.match(s,/AgreementDownloadForm/);assert.doesNotMatch(s,/<Link href=\{order\.agreement/);
   }
   const form=readFileSync(new URL('../components/orders/agreement-download-form.tsx',import.meta.url),'utf8');assert.match(form,/method="post"/);assert.match(form,/type="submit"/);
+});
+test('PK06 historical agreement verifies exact immutable bytes after refund; no bearer URL or re-generation',async()=>{
+ const h=agreementHarness({status:'refunded',license:{terms_snapshot_json:{purchaseHash:'a'.repeat(64),pdfSha256:agreementFixtureHash},pdf_size_bytes:17}});
+ const response=await h.request('POST',origin);assert.equal(response.status,200);assert.equal(await response.text(),'fixture agreement');
+ assert.equal(h.state.signedUrls,0);assert.equal(h.state.storageReads,1);assert.equal(h.state.licenseWrites,0);
+ assert.equal(h.state.audits[0].metadata.sha256,agreementFixtureHash);
+});
+test('PK06 agreement substitution, missing digest and provider failure never release unverified bytes',async()=>{
+ for(const options of [{artifactBytes:'replaced agreement'},{storageFails:true},{license:{terms_snapshot_json:{purchaseHash:'a'.repeat(64)}}}]) {
+  const h=agreementHarness({license:{terms_snapshot_json:{purchaseHash:'a'.repeat(64),pdfSha256:agreementFixtureHash},pdf_size_bytes:17},...options});
+  const response=await h.request('POST',origin);assert.ok([409,503].includes(response.status));assert.equal(response.headers.get('location'),null);assert.equal(h.state.signedUrls,0);assert.equal(h.state.licenseWrites,0);
+ }
 });

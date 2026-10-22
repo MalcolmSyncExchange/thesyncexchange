@@ -1,4 +1,5 @@
 import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
+import { OrderDeliveryAudit } from "@/components/admin/order-delivery-audit";
 
 import { RetryAgreementGenerationForm } from "@/components/admin/retry-agreement-generation-form";
 import { OrderStatusForm } from "@/components/admin/order-status-form";
@@ -37,6 +38,7 @@ export default async function AdminOrdersPage() {
                   </div>
                 </div>
 
+                <OrderDeliveryAudit orderId={order.id}/>
                 <OrderStatusProgress
                   status={order.order_status}
                   stripe_checkout_session_id={order.stripe_checkout_session_id}

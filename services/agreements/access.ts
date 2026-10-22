@@ -12,6 +12,8 @@ import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { Database } from "@/types/database";
+import { readPrivateArtifact } from "@/services/delivery/server";
+import { verifyArtifact, MAX_INLINE_BYTES } from "@/services/delivery/transfer.mjs";
 
 const privateHeaders = { "Cache-Control": "private, no-store, max-age=0", "Netlify-CDN-Cache-Control": "no-store" };
 const json = (body: object, status = 200) => NextResponse.json(body, { status, headers: privateHeaders });
@@ -73,6 +75,20 @@ export async function handleAgreementAccess(request: Request, orderId: string, d
   }
 
   try {
+    const snapshot = license.terms_snapshot_json as { purchaseHash?: string; pdfSha256?: string } | null;
+    if (snapshot?.purchaseHash) {
+      if (!snapshot.pdfSha256 || !license.pdf_size_bytes || license.pdf_size_bytes > MAX_INLINE_BYTES || license.pdf_content_type !== "application/pdf") {
+        return json({ error: "Agreement integrity evidence requires review. Please contact support." }, 409);
+      }
+      const expected = { sha256: snapshot.pdfSha256, byteSize: license.pdf_size_bytes };
+      const bytes = verifyArtifact(await readPrivateArtifact({ bucket: env.agreementsBucket, path: license.pdf_storage_path, byteSize: expected.byteSize, signal: request.signal }), expected);
+      await appendOrderActivityLog(supabase, {
+        orderId, actorId: user.id, requirePersistence: true, source: role === "admin" ? "admin" : "buyer",
+        eventType: "agreement_download_authorized", message: "Immutable agreement bytes verified and prepared. Client receipt is not observed.",
+        metadata: { agreementNumber: license.agreement_number, sha256: expected.sha256, transferCompletionObserved: false }
+      });
+      return new Response(bytes, { headers: { ...deliveryHeaders(orderId, "application/pdf"), "X-Content-Type-Options": "nosniff" } });
+    }
     const signedUrl = await createAgreementSignedUrl(license.pdf_storage_path, 60).catch(() => null);
     const file = signedUrl ? null : await downloadAgreementArtifact(license.pdf_storage_path);
     // One event per successful explicit authorization. A fresh explicit POST is a new authorization,

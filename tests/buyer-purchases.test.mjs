@@ -148,6 +148,7 @@ function harness({
     };
   }
   const modules = {
+    "@/services/delivery/server": { readBuyerAssets: async () => [] },
     "server-only": {},
     "@/lib/purchases/contract": { presentPurchase },
     "@/lib/purchases/pagination": {

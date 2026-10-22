@@ -5,8 +5,8 @@ import { cookies } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { assertStripeServerConfiguration, getPaymentActivityMetadata, getPaymentRuntimeConfiguration } from "@/lib/server-env";
-import { canReusePendingOrderForPaymentMode } from "@/lib/payment-mode.mjs";
+import { assertStripeServerConfiguration, getPaymentActivityMetadata } from "@/lib/server-env";
+import { reserveCheckoutOrder } from "@/services/orders/checkout-recovery";
 import { generateAgreementPlaceholder } from "@/lib/license";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { preparePurchaseCompletionCheckout } from "@/services/purchase-completion/server";
@@ -68,51 +68,20 @@ export async function createOrderAction(formData: FormData) {
   }
 
   const supabase = await createPrivilegedSupabaseClient();
-  const { data: latestPendingOrder } = await supabase
-    .from("orders")
-    .select("id, stripe_checkout_session_id, amount_cents, currency")
-    .eq("buyer_user_id", user.id)
-    .eq("track_id", trackId)
-    .eq("license_type_id", licenseTypeId)
-    .eq("status", "pending")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const paymentRuntime = getPaymentRuntimeConfiguration();
-  const existingPendingOrder =
-    latestPendingOrder?.stripe_checkout_session_id &&
-    canReusePendingOrderForPaymentMode(latestPendingOrder.stripe_checkout_session_id, paymentRuntime.paymentMode)
-      ? latestPendingOrder
-      : null;
-
-  const createdNewOrder = !existingPendingOrder?.id;
-  const orderId = existingPendingOrder?.id || crypto.randomUUID();
-  const amountCents = Math.round(amountPaid * 100);
+  let reservation;
+  try {
+    reservation = await reserveCheckoutOrder(supabase, user.id, trackId, licenseTypeId);
+  } catch {
+    redirect(`/buyer/checkout/${trackSlug}?error=${encodeURIComponent("Checkout requires reconciliation. Check your purchases or contact support before retrying.")}`);
+  }
+  const createdNewOrder = reservation.created_new;
+  const orderId = reservation.id;
+  const amountCents = reservation.amount_cents;
   let checkoutSessionId: string | null = null;
   let checkoutCreationStarted = false;
 
   try {
     if (createdNewOrder) {
-      const { data: order, error } = await supabase
-        .from("orders")
-        .insert({
-          id: orderId,
-          buyer_user_id: user.id,
-          track_id: trackId,
-          license_type_id: licenseTypeId,
-          amount_cents: amountCents,
-          currency: "USD",
-          status: "pending",
-          agreement_url: null
-        })
-        .select("id")
-        .single();
-
-      if (error || !order) {
-        throw new Error(error?.message || "Unable to create order.");
-      }
-
       await appendOrderActivityLog(supabase, {
         orderId,
         actorId: user.id,
@@ -124,36 +93,6 @@ export async function createOrderAction(formData: FormData) {
           licenseTypeId,
           amountCents,
           ...getPaymentActivityMetadata()
-        }
-      }).catch(() => undefined);
-    } else if (
-      Number((existingPendingOrder as any).amount_cents) !== amountCents ||
-      String((existingPendingOrder as any).currency || "").toUpperCase() !== "USD"
-    ) {
-      const { error: reconcileError } = await supabase
-        .from("orders")
-        .update({
-          amount_cents: amountCents,
-          currency: "USD"
-        })
-        .eq("id", orderId)
-        .eq("status", "pending");
-
-      if (reconcileError) {
-        throw new Error(reconcileError.message);
-      }
-
-      await appendOrderActivityLog(supabase, {
-        orderId,
-        actorId: user.id,
-        source: "system",
-        eventType: "checkout_price_reconciled",
-        message: "Pending order price was reconciled to the trusted license price before checkout.",
-        metadata: {
-          storedAmountCents: Number((existingPendingOrder as any).amount_cents || 0),
-          storedCurrency: String((existingPendingOrder as any).currency || ""),
-          trustedAmountCents: amountCents,
-          trustedCurrency: "USD"
         }
       }).catch(() => undefined);
     }

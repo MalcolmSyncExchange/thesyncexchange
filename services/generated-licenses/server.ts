@@ -1,3 +1,4 @@
+import { fulfillmentRecoveryRpc } from "@/services/orders/fulfillment-recovery";
 import { buildAgreementNumber, buildGeneratedLicenseTermsSnapshot } from "@/lib/licenses/generated-license-snapshot";
 import type { GeneratedLicenseTermsSnapshot } from "@/lib/licenses/templates/sync-license-template";
 import { isMissingRelationError, isSchemaCacheTableError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
@@ -59,6 +60,7 @@ export async function listGeneratedLicensesByOrderIds(supabase: AppSupabaseClien
 export async function persistGeneratedLicenseSuccess(
   supabase: AppSupabaseClient,
   {
+    recoveryToken,
     existing,
     orderId,
     buyerId,
@@ -72,6 +74,7 @@ export async function persistGeneratedLicenseSuccess(
     htmlSnapshot,
     generatedAt
   }: {
+    recoveryToken?: string;
     existing: Database["public"]["Tables"]["generated_licenses"]["Row"] | null;
     orderId: string;
     buyerId: string;
@@ -103,6 +106,12 @@ export async function persistGeneratedLicenseSuccess(
     generated_at: generatedAt,
     downloaded_at: existing?.downloaded_at || null
   };
+
+  if (recoveryToken) {
+    return await fulfillmentRecoveryRpc(supabase, "finish_order_agreement_job", {
+      p_order: orderId, p_token: recoveryToken, p_payload: payload
+    }) as Database["public"]["Tables"]["generated_licenses"]["Row"];
+  }
 
   const { data, error } = await supabase
     .from("generated_licenses")

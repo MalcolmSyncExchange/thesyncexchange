@@ -1,5 +1,8 @@
 import Stripe from "stripe";
 
+import { retainVerifiedCheckoutPayment } from "@/services/orders/fulfillment-recovery";
+import { expireCheckoutAttempt, recoverableCheckout } from "@/services/orders/checkout-recovery";
+
 import { env } from "@/lib/env";
 import {
   assertStripeRuntimeObject,
@@ -91,7 +94,7 @@ export async function createStripeCheckoutSession({
     releaseMode: payment.releaseMode,
     commercialRightsGranted: String(payment.paymentMode === "live")
   };
-  const session = await stripe.checkout.sessions.create({
+  const session = await recoverableCheckout({ client: createAdminSupabaseClient()!, stripe, secretKey: serverEnv.stripeSecretKey!, params: {
     mode: "payment",
     client_reference_id: orderId,
     customer_email: buyerEmail,
@@ -125,7 +128,7 @@ export async function createStripeCheckoutSession({
     },
     success_url: `${getOrderConfirmationUrl(orderId)}?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${env.appUrl}/buyer/checkout/${trackSlug}?error=${encodeURIComponent("Checkout was canceled before payment was completed.")}`
-  });
+  }});
 
   assertStripeRuntimeObject("Stripe Checkout Session creation", {
     livemode: session.livemode,
@@ -139,13 +142,15 @@ export async function syncOrderFromStripeSession({
   session,
   webhookEventId,
   webhookEventType,
-  verifiedEvent
+  verifiedEvent,
+  foundationRecording = true
 }: {
   orderId: string;
   session: Stripe.Checkout.Session;
   webhookEventId?: string | null;
   webhookEventType?: string | null;
   verifiedEvent?: VerifiedStripePaymentEvidence;
+  foundationRecording?: boolean;
 }) {
   const paymentClassification = assertStripeRuntimeObject("Stripe Checkout Session fulfillment", {
     livemode: session.livemode,
@@ -156,12 +161,14 @@ export async function syncOrderFromStripeSession({
     return null;
   }
 
-  if (webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId))) {
-    if (verifiedEvent) await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
-    const { data: existingOrder } = await supabase.from("orders").select("*").eq("id", orderId).maybeSingle();
-    return existingOrder as Database["public"]["Tables"]["orders"]["Row"] | null;
+  // Return pages and provider retrieval never establish payment authority.
+  // An unpaid completion event is not a purchase. No agreement side effects.
+  if (!webhookEventId || !webhookEventType || !verifiedEvent || session.payment_status !== "paid") {
+    const { data } = await supabase.from("orders").select("*").eq("id", orderId).maybeSingle();
+    return data as Database["public"]["Tables"]["orders"]["Row"] | null;
   }
-
+  // Do not short-circuit a replay merely because activity was written: a prior
+  // delivery may have failed after payment persistence but before its artifact.
   const processedAt = new Date().toISOString();
   try {
     const trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
@@ -177,6 +184,7 @@ export async function syncOrderFromStripeSession({
     assertStripeSessionMatchesTrustedCheckout(
       {
         ...trustedCheckout,
+        amountCents: Number(trustedCheckout.order.amount_cents),
         order: {
           ...trustedCheckout.order,
           stripe_checkout_session_id: existingOrder.stripe_checkout_session_id
@@ -200,6 +208,8 @@ export async function syncOrderFromStripeSession({
           ? "paid"
           : existingOrder.status;
 
+    await retainVerifiedCheckoutPayment(supabase, orderId, verifiedEvent, serverEnv.stripeSecretKey!);
+
     const data = await persistStripeSyncState(supabase, orderId, {
       stripe_checkout_session_id: existingOrder.stripe_checkout_session_id || session.id,
       stripe_payment_intent_id: existingOrder.stripe_payment_intent_id || paymentIntentId,
@@ -212,7 +222,7 @@ export async function syncOrderFromStripeSession({
       last_webhook_error: null
     });
 
-    if (verifiedEvent) {
+    if (foundationRecording) {
       await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
     }
 
@@ -304,6 +314,9 @@ export async function markOrderCheckoutSessionPaymentFailed({
     return null;
   }
 
+  if (!verifiedEvent) throw new Error("Verified failed-payment evidence required.");
+  await retainVerifiedCheckoutPayment(supabase, orderId, verifiedEvent, serverEnv.stripeSecretKey!);
+
   if (webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId))) {
     if (verifiedEvent) await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
     const { data: existingOrder } = await supabase.from("orders").select("id, status").eq("id", orderId).maybeSingle();
@@ -377,6 +390,9 @@ export async function markOrderRefundedByPaymentIntent({
     .maybeSingle();
   if (boundOrderError || !boundOrder?.id) throw new Error("Refund does not match a known order.");
 
+  if (!verifiedEvent) throw new Error("Verified refund evidence required.");
+  await retainVerifiedCheckoutPayment(supabase, boundOrder.id, verifiedEvent, serverEnv.stripeSecretKey!);
+
   if (verifiedEvent) await recordVerifiedPurchaseCompletionEvent(boundOrder.id, verifiedEvent);
 
   if (webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId))) {
@@ -430,6 +446,7 @@ export async function recordOrderDisputeByPaymentIntent({
     .eq("stripe_payment_intent_id", paymentIntentId)
     .maybeSingle();
   if (error || !order?.id) throw new Error("Dispute does not match a known order.");
+  await retainVerifiedCheckoutPayment(supabase, order.id, verifiedEvent, serverEnv.stripeSecretKey!);
   await recordVerifiedPurchaseCompletionEvent(order.id, verifiedEvent);
   if (!(webhookEventId && (await hasProcessedOrderDedupeKey(supabase, webhookEventId)))) {
     await appendOrderActivityLog(supabase, {
@@ -603,4 +620,12 @@ async function persistRefundState(
   }
 
   return fallback.data as Pick<Database["public"]["Tables"]["orders"]["Row"], "id"> | null;
+}
+
+export async function expireOrderCheckout(orderId: string, session: Stripe.Checkout.Session) {
+  assertStripeRuntimeObject("Stripe checkout expiration", { livemode: session.livemode, checkoutSessionId: session.id });
+  if (session.status !== "expired" || session.payment_status !== "unpaid" || session.client_reference_id !== orderId) throw new Error("Invalid expired checkout evidence.");
+  const client = createAdminSupabaseClient();
+  if (!client) throw new Error("Checkout expiration recovery is unavailable.");
+  await expireCheckoutAttempt(client, orderId, session.id);
 }

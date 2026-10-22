@@ -12,6 +12,7 @@ import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabas
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { consumeRateLimit, rateLimitErrorResponse } from "@/services/security/rate-limit";
+import { hasFrozenCheckoutAttempt } from "@/services/orders/checkout-recovery";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -91,6 +92,14 @@ export async function POST(request: Request) {
   const limitedResponse = rateLimitErrorResponse(admission);
   if (limitedResponse) return limitedResponse;
 
+  try {
+    if (await hasFrozenCheckoutAttempt(supabase, orderId)) {
+      // A retry honors the sealed amount; it never reprices an in-flight charge.
+      trustedCheckout.amountCents = trustedCheckout.order.amount_cents;
+    }
+  } catch {
+    return NextResponse.json({ error: "Checkout recovery is unavailable. Check your purchases before retrying." }, { status: 503 });
+  }
   const pricingMismatch = getStoredOrderPricingMismatch(trustedCheckout);
   if (pricingMismatch.amountMismatch || pricingMismatch.currencyMismatch) {
     const correction = await supabase
@@ -128,7 +137,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const session = await createStripeCheckoutSession({
+  let session;
+  try {
+    session = await createStripeCheckoutSession({
     orderId,
     trackTitle: trustedCheckout.trackTitle,
     trackSlug: trustedCheckout.trackSlug,
@@ -140,6 +151,10 @@ export async function POST(request: Request) {
     trackId: trustedCheckout.order.track_id,
     licenseTypeId: trustedCheckout.order.license_type_id
   });
+
+  } catch {
+    return NextResponse.json({ error: "Checkout is processing or requires reconciliation. Check your purchases before retrying." }, { status: 409 });
+  }
 
   const checkoutCreatedAt = new Date().toISOString();
   const primaryUpdate = await supabase

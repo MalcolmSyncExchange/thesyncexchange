@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {database,ids,quote,asActor,source} from './helpers/artist-baseline-db.mjs';
 import {classifyLegacyOrder} from '../lib/commerce/legacy-classifier.mjs';
 import {legacyRow} from './fixtures/purchase-completion/legacy-row.mjs';
+import {financialSimulation} from '../lib/commerce/alpha-financial-simulation.mjs';
 
 const buyer2='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const order2='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -62,6 +63,34 @@ async function receipt(ctx) {
  return id;
 }
 async function withFixture(run,options) {const ctx=await setup(options);try{await run(ctx);}finally{await ctx.db.close();}}
+
+test('Alpha financial simulation connects verified foundation payment, actual entitlement activation and full-refund revocation',()=>withFixture(async ctx=>{
+ const {amount_minor:amount}=await one(ctx.db,`select amount_minor from order_delivery_contracts where id='${ctx.contract}'`);
+ const sim=financialSimulation({orderId:ids.order,amountMinor:amount,currency:'USD',commissionBps:2000,contributors:[{id:'fixture-master',bps:6000},{id:'fixture-composition',bps:4000}],policyVersion:'ALPHA-SYNTHETIC-ONLY'});
+ const simulated=(id,type,extra={})=>sim.apply({id,type,orderId:ids.order,amountMinor:amount,currency:'USD',verified:true,...extra});
+ simulated('paid','paid');await agreement(ctx);await finish(ctx,await claim(ctx,'entitlement_activation'));
+ const allowed=()=>service(ctx.db,()=>call(ctx.db,`commerce_private.can_deliver((select id from order_asset_entitlements where order_id='${ids.order}'),'${ids.buyer}')`));
+ assert.equal(await allowed(),true);assert.equal(sim.snapshot().balances.cash,amount);
+ // Signed-event adapter input is synthetic and deliberately explicit; the
+ // actual SQL hold/revocation runs in the disposable database only.
+ const e={providerEventId:'evt_alpharefund',eventType:'charge.refunded',paymentState:'REFUNDED',paymentIntentId:'pi_fixture',amountMinor:amount,refundedMinor:amount,currency:'USD',evidenceSha256:digest,providerCreatedAt:'2026-10-21T00:00:00Z',livemode:false};
+ await service(ctx.db,()=>call(ctx.db,`public.record_verified_checkout_payment('${ids.order}','${'a'.repeat(64)}:test',${q(JSON.stringify(e))})`));
+ await event(ctx,{id:'evt_alpharefund',state:'REFUNDED',type:'charge.refunded',refund:amount});
+ const s=simulated('refund','refund',{refundedMinor:amount});assert.ok(Object.values(s.balances).every(x=>x===0));
+ assert.equal(s.entitlement,'revoked');assert.equal((await one(ctx.db,'select state from order_asset_entitlements')).state,'revoked');assert.equal(await allowed(),false);
+ await event(ctx,{id:'evt_alphareplayedpaid'});assert.equal(await allowed(),false);
+ assert.equal((await one(ctx.db,'select count(*)::int n from generated_licenses')).n,1);
+ assert.equal((await one(ctx.db,'select commercial_rights_granted from order_asset_entitlements')).commercial_rights_granted,false);
+}));
+test('Alpha failed-payment simulation and late paid event never activate a license entitlement',()=>withFixture(async ctx=>{
+ const sim=financialSimulation({orderId:ids.order,amountMinor:5000,currency:'USD',commissionBps:0,contributors:[{id:'fixture',bps:10000}],policyVersion:'ALPHA-SYNTHETIC-FAILURE'});
+ sim.apply({id:'failed',type:'failed',orderId:ids.order,amountMinor:5000,currency:'USD',verified:true});
+ await event(ctx,{id:'evt_alphafailed',state:'PAYMENT_FAILED',type:'checkout.session.async_payment_failed'});
+ assert.equal(sim.snapshot().journal.length,0);assert.equal(sim.snapshot().entitlement,'none');
+ await event(ctx,{id:'evt_alphalatepaid'});
+ assert.equal((await one(ctx.db,"select count(*)::int n from order_asset_entitlements where state='active'")).n,0);
+ assert.equal((await one(ctx.db,"select count(*)::int n from commerce_private.fulfillment_jobs where task='entitlement_activation'")).n,0);
+},{paid:false}));
 
 test('capabilities default OFF; no legacy rows generated; original enum unchanged',async()=>{
  const db=await database();try{

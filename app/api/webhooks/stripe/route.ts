@@ -20,6 +20,7 @@ import {
   runGateDAcceptanceJobs
 } from "@/services/gate-d/server";
 import {
+  expireOrderCheckout,
   getStripeServerClient,
   markOrderCheckoutSessionPaymentFailed,
   markOrderRefundedByPaymentIntent,
@@ -128,7 +129,14 @@ export async function POST(request: Request) {
             orderId: gateDRoute.order_id,
             session,
             webhookEventId: event.id,
-            webhookEventType: event.type
+            webhookEventType: event.type,
+            foundationRecording: false,
+            verifiedEvent: {
+              providerEventId: event.id, eventType: event.type, paymentState: "PAID",
+              checkoutSessionId: session.id, paymentIntentId,
+              amountMinor: session.amount_total, refundedMinor: 0, currency: session.currency,
+              evidenceSha256, providerCreatedAt, livemode: event.livemode
+            }
           });
           await recordGateDVerifiedPayment({
             grantId: gateDRoute.grant_id,
@@ -178,6 +186,21 @@ export async function POST(request: Request) {
           });
           revalidateBuyerOrderPaths(orderId);
         }
+        break;
+      }
+      case "checkout.session.expired": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = session.client_reference_id || session.metadata?.orderId;
+        if (!orderId) throw new Error("Expired checkout has no order reference.");
+        const route = await routeGateDWebhook({ checkoutSessionId: session.id, orderHint: isUuid(orderId) ? orderId : null, livemode: event.livemode, connectAccount: event.account || null });
+        if (route.route_code === "conflict") throw new Error("Expired checkout binding conflict.");
+        if (route.route_code === "gate_d") {
+          if (!route.grant_id) throw new Error("Expired Gate D grant missing.");
+          await requestGateDRevocation(route.grant_id, "payment_failed");
+        } else {
+          await expireOrderCheckout(orderId, session);
+        }
+        revalidateBuyerOrderPaths(orderId);
         break;
       }
       case "checkout.session.async_payment_failed": {

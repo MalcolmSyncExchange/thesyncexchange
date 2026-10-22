@@ -193,12 +193,6 @@ test("order write lockdown migration removes direct buyer inserts", () => {
   assert.doesNotMatch(sql, /create policy "Buyers can create pending orders for themselves"/);
 });
 
-test("Stripe webhook sync preserves event dedupe before fulfillment validation", () => {
-  const source = readFileSync(new URL("../services/stripe/server.ts", import.meta.url), "utf8");
-
-  assert.ok(
-    source.indexOf("hasProcessedOrderDedupeKey") < source.indexOf("loadTrustedCheckoutDetails"),
-    "webhook event dedupe should run before trusted checkout validation"
-  );
-  assert.match(source, /dedupeKey:\s*webhookEventId \|\| null/);
-});
+// Event replay is exercised against the real transpiled sync handler in
+// checkout-webhook-recovery.test.mjs. An import-position assertion cannot prove
+// safe dedupe and would incorrectly encourage skipping interrupted fulfillment.

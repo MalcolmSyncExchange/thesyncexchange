@@ -155,7 +155,8 @@ test("one-time Checkout requires neither Customer Write nor Billing Portal Sessi
   const checkoutEnd = stripeServer.indexOf("export async function syncOrderFromStripeSession", checkoutStart);
   const checkout = stripeServer.slice(checkoutStart, checkoutEnd);
 
-  assert.match(checkout, /stripe\.checkout\.sessions\.create/);
+  assert.match(checkout, /recoverableCheckout/);
+  assert.match(readFileSync(new URL("../services/orders/checkout-recovery.ts", import.meta.url), "utf8"), /stripe\.checkout\.sessions\.create/);
   assert.doesNotMatch(checkout, /stripe\.customers/);
   assert.doesNotMatch(checkout, /stripe\.billingPortal/);
 });

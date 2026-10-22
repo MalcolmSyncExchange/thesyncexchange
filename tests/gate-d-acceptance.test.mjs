@@ -54,6 +54,15 @@ async function reserve(db,session=qaSession,user=qaBuyer,role='authenticated') {
   return asActor(db,user,()=>one(db,`select * from public.gate_d_reserve_acceptance('${gateOrder}')`),role,session);
 }
 
+test('ordinary checkout reservation and attempts cannot adopt a Gate D order',async()=>{
+ const db=await setup();try{
+  await assert.rejects(service(db,()=>value(db,`public.reserve_recoverable_checkout('${qaBuyer}','${ids.live}','${ids.license}')`)),/Dedicated acceptance/);
+  await assert.rejects(service(db,()=>value(db,`public.checkout_has_frozen_attempt('${gateOrder}')`)),/Dedicated acceptance/);
+  await assert.rejects(service(db,()=>value(db,`public.claim_checkout_attempt('${gateOrder}','${'a'.repeat(64)}:test','{}')`)),/Dedicated acceptance/);
+  assert.equal((await one(db,'select count(*)::int n from checkout_recovery.attempts')).n,0);
+ }finally{await db.close();}
+});
+
 async function prepare(db,reservation) {
   return service(db,()=>one(db,`select * from public.gate_d_prepare_checkout(
     '${reservation.grant_id}','${reservation.attempt_id}',${reservation.lease_epoch},'https://example.invalid'

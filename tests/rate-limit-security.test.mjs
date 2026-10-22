@@ -127,6 +127,12 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
       if (prepareError) throw new Error("adapter fail closed");
       return { enabled: false };
     } },
+    "@/services/orders/checkout-recovery": { hasFrozenCheckoutAttempt: async () => false, reserveCheckoutOrder: async () => {
+      const id = webcrypto.randomUUID();
+      events.push("orders:insert");
+      orderRecords.set(id, { id, buyer_user_id: userId, status: "pending", amount_cents: 120000 });
+      return { id, created_new: true, amount_cents: 120000, currency: "USD" };
+    } },
     "@/services/orders/checkout-pricing": {
       loadTrustedCheckoutDetails: async () => {
         if (pricingError) throw new Error("Unapproved track or inactive license");

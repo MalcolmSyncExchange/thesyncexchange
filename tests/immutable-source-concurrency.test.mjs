@@ -25,12 +25,12 @@ test('native independent sessions serialize source edits, stale acceptance and s
   await command('psql',['-X','-qAt','-v','ON_ERROR_STOP=1','-h',socket,'-U','pk04_fixture_admin','-d','postgres'],'create role postgres login superuser');
   const seed=[];await seedDatabase({exec:async s=>seed.push(s+';')});
   const files=(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')).sort();
-  await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...files.filter(f=>!f.endsWith('_immutable_source_integration.sql')).map(f=>source('supabase/migrations/'+f)),...seed].join('\n'));
+  await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...files.filter(f=>f<'20261022191602_immutable_source_integration.sql').map(f=>source('supabase/migrations/'+f)),...seed].join('\n'));
   assert.equal(last(await sql("select current_setting('listen_addresses')=''")),'t');
   // Definers execute as their real non-superuser owner during the lifecycle.
-  login='pk04_fixture_admin';await sql('alter schema public owner to postgres;alter role postgres nosuperuser');
+  login='pk04_fixture_admin';await sql('alter schema public owner to postgres;grant create on database postgres to postgres;alter role postgres nosuperuser');
   assert.equal(last(await sql("select rolsuper from pg_roles where rolname='postgres'")),'f');
-  login='postgres';await sql(source('supabase/migrations/20261022191602_immutable_source_integration.sql'));login='pk04_fixture_admin';
+  login='postgres';for(const file of files.filter(f=>f>='20261022191602_immutable_source_integration.sql'))await sql(source('supabase/migrations/'+file));login='pk04_fixture_admin';
   let actor='';
   const db={exec:async text=>{if(text.startsWith('set role ')){actor=text+';';return;}if(text.startsWith('reset role;')){actor='';return;}return sql(actor+text);},query:async text=>({rows:(await sql(actor+`select row_to_json(r) from (${text}) r;`)).split('\n').filter(x=>x.startsWith('{')).map(JSON.parse)})};
   const ctx=await seedDelivery(db),otherBuyer='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';

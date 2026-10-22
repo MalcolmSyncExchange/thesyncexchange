@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-22",
+  "baseline": "b161a2cc7b46d66b9cf417516a4566bb827e9d63",
+  "hostedApplied": false,
+  "capabilityDefault": false,
+  "migrations": [
+    {
+      "path": "supabase/migrations/20261008091022_slice3_submission_media_schema.sql",
+      "sha256": "6c6fba892d2fd64eead9bd5aafa8fb5cd9c95a0bc5d7b2e51b35270ff8534ede",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261008091023_slice3_submission_media_functions.sql",
+      "sha256": "07b650baea1cc6c1452bfe07ae21db6da5d71a0893992705304c734724ec9c10",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261008091024_slice3_submission_media_storage.sql",
+      "sha256": "58129847813b6878980c78e86efbcd74fb46d0d40716a10d949c7804bcfd6897",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261008231329_slice3_media_worker_fenced_io.sql",
+      "sha256": "62da6eac9a058e42aec76022872b680601c91fd62730f7306b6539a5c0809a57",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261009010228_slice3_media_execution_permits.sql",
+      "sha256": "45379f2ef5019bdc4f29135521c5e0b1bd7d037605d776b71631e9c3497dfbd3",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261022053950_checkout_recovery.sql",
+      "sha256": "94e619349006661971e5069f8f2ed48a3519ecc927ba689f8849f8ba21269619",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261022165929_purchase_legal_snapshots.sql",
+      "sha256": "0e3f81c5e50c1283b7c6cbeb1a5dedde463fec71060f5a8df3aca44fbbcbb950",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261022180614_secure_asset_delivery.sql",
+      "sha256": "c869f440d54cc196f6e43f7d78509e4e402311d932a619619fc42374840b35de",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261022191602_immutable_source_integration.sql",
+      "sha256": "d90006ac5a107a74fa7fda0e479c3ec576c94d262ac2b20772784f86551e5ad8",
+      "newInPK09": false,
+      "hostedCompatibility": "Needs Verification"
+    },
+    {
+      "path": "supabase/migrations/20261022210225_financial_ledger_reconciliation.sql",
+      "sha256": "ef36177ed00856927b6ad4827e15385373411c4cc334d8d79f0a6a757b14da02",
+      "newInPK09": true,
+      "hostedCompatibility": "Needs Verification"
+    }
+  ]
+}

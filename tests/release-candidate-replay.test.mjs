@@ -4,11 +4,7 @@ import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {mkdtemp,mkdir,readdir,rm} from 'node:fs/promises';
 import {join} from 'node:path';
-import {fixtureBootstrapSql,nativeCryptoBootstrapSql,seedDatabase,root,source,ids} from './helpers/artist-baseline-db.mjs';
-import {providerFixture,endpoint,credential,signing} from './helpers/financial-provider-fixture.mjs';
-import {normalizeProviderEvent,digest} from '../lib/finance/provider-events.mjs';
-import {readProviderEvidence} from '../services/finance/provider-reader.mjs';
-import {sqlCall} from './helpers/purchase-legal-fixture.mjs';
+import {fixtureBootstrapSql,nativeCryptoBootstrapSql,root,source} from './helpers/artist-baseline-db.mjs';
 const command=(bin,args,input='')=>new Promise((resolve,reject)=>{
  const c=spawn(bin,args,{env:{PATH:process.env.PATH,LC_ALL:'C'},stdio:['pipe','pipe','pipe']});let out='',err='';
  c.stdout.on('data',b=>out+=b);c.stderr.on('data',b=>err+=b);c.on('error',reject);c.on('close',code=>code===0?resolve(out.trim()):reject(Error(`${bin}: ${err}`)));c.stdin.on('error',()=>{});c.stdin.end(input);
@@ -30,11 +26,9 @@ test('release candidate clean native replay installs every source migration in o
   for(const table of ['user_profiles','artist_profiles','analytics_outbox','order_asset_entitlements','finance_private.journals','licensing_private.acceptances','submission_media.assets']){
    assert.equal(await sql('select count(*) from '+table),'0',table);
   }
-  for(const signature of ['public.ingest_financial_provider_event(uuid,text,text,text,jsonb)','public.get_analytics_verified_purchase(uuid,text,text)','public.save_artist_onboarding_atomic(uuid,text,jsonb,timestamptz)']){
-   // Resolve actual signatures from pg_proc below; do not grant broadly to make a test pass.
-   if(await sql(`select to_regprocedure('${signature}') is not null`)==='t'){
-    for(const role of ['anon','authenticated'])assert.equal(await sql(`select has_function_privilege('${role}','${signature}','EXECUTE')`),'f');
-   }
+  for(const name of ['ingest_financial_provider_event','get_analytics_verified_purchase','save_artist_onboarding_atomic']){
+   assert.equal(await sql(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='${name}'`),'1');
+   for(const role of ['anon','authenticated'])assert.equal(await sql(`select bool_or(has_function_privilege('${role}',p.oid,'EXECUTE')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='${name}'`),'f');
   }
   assert.equal(await sql("select not (foundation_enabled or asset_preparation_enabled or receipt_generation_enabled or entitlement_activation_enabled or transaction_projection_enabled or payment_adapter_enabled) from commerce_private.capabilities"),'t');
   assert.equal(await sql("select not (synthetic_posting_enabled or ingestion_enabled or worker_enabled) from finance_private.capabilities"),'t');

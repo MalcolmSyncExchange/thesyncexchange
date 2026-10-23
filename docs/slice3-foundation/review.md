@@ -1,0 +1,343 @@
+# Slice 3 foundation source review
+
+Baseline main `69ed3fe6dd5e8b0c1642d0835e4e3f4075e796f0`, tree
+`124442516c6af419ba31b6ce1d8f3495d08ed41a`. Branch
+`codex/phase-2-slice-3-media-foundation`. Production remains at the previously verified
+published source `e8abfb5253a6d23c515fe8cc8f76670f62281628`. Gate 1 was subsequently
+installed dormant on security staging; this Gate 2 remediation performs no hosted mutation.
+The final commit/tree are recorded in the authoring report, avoiding a self-referential hash.
+
+## Installation compatibility candidate
+
+The package at HEAD `c4c8366d275e3f416aa55fa6bd260c4079c217f1` is SUPERSEDED for
+installation compatibility. Its exact-HEAD security evidence is preserved; it does not
+carry forward over this executable change. `source-manifest.json` retains the old hashes
+and registers the database package and separately hashed Gate 2 SQL. Gate 1 is installed dormant;
+Gate 2 has never been executed on hosted Storage.
+
+Gate 1: ordinary database A/B/C, all capabilities OFF. Gate 2: separately authorized private
+Storage configuration and `storage-protection.sql`. Gate 3: separately authorized broker,
+TUS/worker/decoder/delivery integration. UI requires the later foundations; it is not built.
+
+## Source boundary
+
+Three additive migrations, seven private lifecycle tables, worker profile/types only,
+local PostgreSQL tests and narrowly extended existing migration security assertions.
+No UI, application service rewrite, FFmpeg execution pipeline, worker deployment or
+commerce behavior. No eighth table: derivatives are versioned assets with source FKs.
+
+```mermaid
+flowchart LR
+  Artist -->|canonical role / ownership / revision| RPC
+  RPC --> Submission
+  Submission --> Asset
+  Asset -->|exact object| PrivateStorage
+  Asset --> Job
+  Job -->|fenced lease| Broker
+  Broker -->|future scoped capabilities| Worker
+  Worker -->|bounded validated evidence| Broker
+  Asset -->|accepted generated Preview + exact Master| Review
+  Admin -->|canonical role / frozen package| Review
+  Review -->|atomic current pointers| Submission
+  Submission -->|Preview / Artwork only| BuyerPredicate
+```
+
+## Inventory and constraints
+
+`submission_media.submissions`: submission UUID first, owner/optional unique track,
+optimistic revision, working/accepted/current pointers, region checkpoint, managed-slot
+flags and last save. No Rights/Licensing/Certification fields required. Kind-discriminator
+composite FKs prohibit wrong-purpose or cross-submission pointers.
+
+`assets`: immutable reservation/destination/object/version/checksum, kind, technical state,
+measured audio/image metadata, generated source provenance, exact samples/region,
+validator/profile/build version, immutable Artist acceptance and retention timestamps.
+Composite source FK requires same-submission source_master. READY requires non-null
+identity/checksum/version/validator evidence plus kind-specific technical bounds. Storage
+object FK prevents dangling identity. Preview and waveform source/profile uniqueness.
+
+`operations`: actor/action/key unique + SHA-256 request hash and durable safe outcome.
+`jobs`: exact submission/asset/operation/kind/profile, one asset/type/profile job, attempts,
+queue time, fenced token/epoch/expiry, bounded errors. `master_reviews`: immutable exact
+Master/Preview package hash, one pending review/submission, expected current Master,
+canonical Admin decision. `events`: append-only bounded allowlisted payload, correlation
+and actor. `capabilities`: one singleton row, four false flags. All FKs retain evidence;
+no media deletion cascade. This changes deletion behavior only after explicit adoption.
+
+Technical states: reserved -> uploaded -> verifying -> ready/failed; generated assets can
+reserved -> verifying; transient failure can verifying retry, expired reservations cannot
+upload. READY evidence immutable. Technical READY, Artist accepted, reviewed and current
+remain distinct. Superseded bytes remain READY evidence, publication determined by pointers.
+No invented upload percentage/processing percentage. Jobs queued/running/retry_wait/
+succeeded/failed back async states. Claim admission serialized briefly, processing separate.
+
+## RPC and ACL matrix
+
+All implementation routines: SECURITY DEFINER, empty search_path, fully qualified objects,
+owned by the existing verified `postgres` installer. This uses Supabase's supported owner
+pattern and its existing Auth/Storage privileges, without granting new internal-schema
+access or expanding installer authority. These definers can bypass RLS: canonical actor,
+ownership and lifecycle checks in every external RPC remain mandatory, and are tested.
+PUBLIC/anon/service_role execute is revoked. Private helpers have no application grants.
+Every table ENABLE + FORCE RLS, owner-only policies, direct API/service/broker ACLs revoked.
+Immutable asset/event triggers still reject prohibited writes even by the database owner.
+The trusted database operator retains schema/capability administration; no flag mutation
+RPC exists. No custom executor or additional policies/grants on profiles/tracks are created.
+
+Only `submission_media_broker` remains custom: NOLOGIN, NOINHERIT, NOBYPASSRLS, no
+CREATE/replication authority, schema USAGE and exactly six narrow RPC grants; no tables,
+Auth/Storage or commerce authority. PG17's non-superuser creation records implicit ADMIN
+membership for `postgres`, granted by the bootstrap superuser. The creator cannot revoke
+that grant. The assertion permits only that edge, with SET/INHERIT both FALSE, or no edge;
+rejects all outgoing broker memberships and other inbound edges; explicitly checks that
+anon/authenticated/service_role cannot SET/inherit it. The administrative edge adds no
+runtime power to `postgres`, which already owns the RPCs. It is not a worker credential.
+No new login/membership is provisioned; any future runtime broker setup is Gate 3.
+
+| Caller/grant | Routines | Checks/mutation |
+|---|---|---|
+| authenticated, canonical Artist | media_create_submission; media_bind_track | Session UUID, canonical role, own track/submission; durable idempotent identity |
+| authenticated, canonical Artist | media_reserve_asset | Only Master/Artwork enum, owner, revision, quota; derived immutable reservation, no client destination |
+| authenticated, canonical Artist | media_request_legacy_adoption | Explicit own legacy relative path + exact object; no manufactured validation or auto adoption |
+| authenticated, canonical Artist | media_select_preview_region; media_request_preview | READY exact source, authoritative duration/samples, waveform ready, revision, idempotency, profile uniqueness |
+| authenticated, canonical Artist | media_accept_asset | READY Preview/Artwork, explicit acceptance; current-source Preview/Artwork can activate on approved track; candidate-source Preview stays private |
+| authenticated, canonical Artist | media_request_master_review | New working Master, new accepted exact-source Preview, waveform READY, canonical review entry, frozen hash |
+| authenticated, canonical Artist | media_retry_job | Owned failed retryable bounded attempt job + revision |
+| authenticated, canonical Artist | media_read_submission; media_read_operation | Own safe state/outcome; no Storage identity/path/capability/job internals |
+| authenticated, canonical Admin | media_admin_review_state; media_decide_master_review | Canonical role, frozen package, current pointer/revision, row locks; approve atomically, reject keeps old current |
+| isolated broker role only | upload_destination; observe_upload | Exact reserved DB asset; observed Storage row/version/size/owner; no arbitrary bucket/path parameters |
+| isolated broker role only | claim_job; heartbeat_job; complete_job | Trusted queue, bounded profiles/results, token/epoch/expiry fencing; late results cannot activate anything |
+| isolated broker role only | buyer_media | Opaque current approved Preview/Artwork IDs only; no source delivery |
+
+Helpers/trigger functions: require_actor, require_capability, lock_owned, begin_operation,
+finish_operation, append_event, bump, check_region, package_hash, guard_asset, guard_review,
+guard_submission, guard_event, supersede, asset_dto, guard_managed_track,
+storage_insert_allowed, guard_storage_object and storage_setup_ready. Only storage_insert_allowed additionally
+granted to authenticated for the exact-reservation policy; its safe boolean is not a read API. The provider Storage owner receives only private-schema
+USAGE and EXECUTE on the trigger routine/dormancy predicate, never lifecycle tables.
+
+No generic update/set-state RPC. RPCs consolidate Master/Artwork reservation and
+Preview/Artwork acceptance into strict purpose allowlists. All Artist mutations lock owned
+submission first; idempotency outcome is returned before applying stale revision checks.
+Retries with changed parameters fail, including different submission. Admin resolves review
+then locks submission/track/review and rechecks immutable package/current version.
+
+## Publication and compatibility
+
+`buyer_media(track)` requires capabilities reads+activation, approved eligible track with
+same owner, managed slot/current pointers, READY+accepted current derivative, sealed object
+identity/version, current approved Master review and exact source dependency for Preview.
+Generation alone never publishes. Artwork stays independent of pending Master review.
+Approval switches Master+candidate Preview atomically. Old package remains active through
+pending review/rejection. Approved Preview/Artwork-only changes keep track Approved.
+Media guard blocks legacy path bypasses for managed slots even privileged writes. It is a
+no-op for every unmanaged row, regardless of flags. No legacy path columns are rewritten.
+Existing Buyer player can keep one safe URL/descriptor through a future read-through adapter.
+No Source Master delivery, purchased entitlement, receipt or Gate D route is introduced.
+
+Read-through + explicit lazy source verification only, no backfill. Unsupported/absolute
+legacy sources remain compatible/read-only until replacement. Source adoption alone never
+makes a slot managed or invents validation. A generated/accepted exact package must enter
+canonical Admin review before initial management; this deliberately keeps old legacy
+Preview provenance separate. Legacy Preview/Artwork bytes are not automatically adopted.
+Future app adapter and minimal Admin compatibility are required before activation; the old
+app would keep showing old legacy URLs on managed tracks, so capabilities must remain off
+until the read-through consumer is ready. Installation does not create managed tracks.
+
+Save/resume: create UUID; reserve/upload; observe; validate; waveform; select; generate;
+listen/accept; reserve/validate/accept artwork; read durable checkpoint. Bind track only when
+existing later-step workflow creates it. Leaving browser does not lose DB evidence. Network
+uncertainty looks up operation/asset; never deletes uncertain objects. Initial Master review
+requires track already pending_review/approved, preserving final submission separation.
+
+## Threat model delta
+
+| Threat | Controls | Residual / activation prerequisite |
+|---|---|---|
+| Cross-Artist / metadata spoof / ID substitution | Canonical profile, auth.uid, ownership before mutation/read, composite FKs | Server adapters must retain role checks |
+| Arbitrary destination, stale token, overwrite, deletion | Derived reservation, exact RLS binding, privileged object trigger, immutable identity | Hosted Storage transaction/version semantics require isolated tests |
+| Old Preview attached to replacement | Exact-source FK, source checksum/samples/profile, frozen package hash | Worker must actually decode/revalidate output |
+| Parser exploit / resource abuse | Strict result bounds/profiles, quotas, fenced jobs; proposed isolated decoder | Parser/container not implemented; runtime limits/pinning need security review |
+| Late/duplicate jobs and races | Unique operations/jobs/profiles, row locks, revisions, lease token+epoch | DB concurrency tests do not substitute for full Storage integration |
+| Pending media disclosure | All future buckets private, no raw client reads, safe DTOs, explicit publication predicate | Signing broker/delivery endpoints not implemented |
+| Worker compromise | NOLOGIN isolated broker has RPC-only rights; no table writes/commerce | Future signing broker may need isolated privileged Storage key |
+| Audit leakage/tampering | Allowlisted bounded fields/errors, immutable events | Operator superuser remains trusted |
+| Legacy bypass / dormant regression | Per-slot managed guard, no path rewrites/backfill, false flags | Managed app/edit/Admin adapters require separate work |
+
+## Dormant installation delta and recovery
+
+A: one new schema, one NOLOGIN broker role, seven tables, constraints/14 explicit indexes,
+FORCE RLS, owner-only policies and exactly one FALSE capability row. B: 35 purpose-specific
+functions and four private lifecycle triggers plus unmanaged-no-op public track trigger.
+C: three database-side Storage routines; NO Storage policy/trigger attachment/buckets.
+38 functions in Gate 1 total, 13 public authenticated RPCs and six private broker RPCs.
+No existing Auth/Storage schema or table ACL changes, provider ownership changes or new
+public profiles/tracks policies. New provider grants touch only the new private schema.
+Gate 1 migration ledger delta remains +3 (captured staging 19 -> 22), repository count 34.
+Gate 2 SQL retains four restrictive client protections, one exact-reservation INSERT
+policy and the privileged object guard. The two old executor SELECT policies are removed
+because the executor no longer exists; trusted postgres already observes exact objects.
+
+Expected zero submissions/assets/operations/jobs/reviews/events; zero Storage objects or
+bucket mutation; zero existing-track or commerce mutation; zero worker execution. No timer,
+webhook, pg_cron or automatic historical backfill. Flag changes have no application caller.
+Every migration transactional. B-before-A fails; A/B/C replay preserves singleton flags.
+If B fails after A, keep A dormant and correct/retry B; no destructive rollback. If later
+operation partially uploads, retain bytes and reconcile exact object/version, retry bounded
+job; do not blind-delete evidence. Production install requires separate authorization,
+exact manifest hashes, absent/present schema and role ACL preflight, zero rows, Storage
+baseline/private-bucket inspection, writers/locks, backup, exact-head security approval,
+current app health and confirmed false capabilities.
+
+## Review and validation
+
+Use `npm run test:submission-media` against disposable local PostgreSQL 17, not a hosted
+DSN. Harness only connects Unix socket `/private/tmp`, port 55440, clears PG environment;
+creates/drops uniquely named disposable databases, replays all migrations and synthetic
+fixtures. Use a dedicated cluster with bootstrap superuser `slice3_fixture_admin`; Slice 3 migration
+installation/replay connects as actual non-superuser `postgres` with CREATEROLE. Auth and
+Storage schema/object owners are separate provider roles, auth grant option is absent,
+public.digest is absent and pgcrypto resides in extensions. Stop the cluster after tests. No
+hosted option exists. Tests include replay/order/dormancy, ACL/search_path/RLS, forged IDs,
+reservation sealing, READY evidence, exact provenance, short cues, activation/review,
+append-only audit, legacy compatibility and real independent-session concurrency.
+
+Database tests validate **trusted result contracts**, not actual audio/image decoding.
+Malformed/zero-frame/codec result failures are covered; actual synthetic media processing
+is reserved for future worker authoring. Flags-off evidence: complete repository replay,
+legacy SQL mutation/approved catalog visibility, unchanged application source and full
+route build/regressions. Authenticated browser journeys against real hosted data are not
+claimed and remain a future isolated staging gate.
+
+Security review must cover every migration/role/ACL/RLS/definer/trigger, provenance,
+substitution, publication, sealing, lease fencing and commerce separation at committed
+exact HEAD. No automatic remediation of material review findings. PR #17 overlaps future
+Artist workspace/shared player integration but no foundation SQL. PR #18's older media and
+reviewed-rights migrations overlap existing reconciled protections; do not reintroduce
+those historical bundles. Both overlap manifest/package/test inventories; future merge
+must reconcile additively. No PR/branch content is overwritten here.
+
+## Historical package validation (superseded installation candidate)
+
+- Real PostgreSQL 17.11: 10 lifecycle/concurrency groups passed; four source/profile tests
+  passed (`npm run test:submission-media`: 14 total). Full repository replay, B-before-A
+  rejection and A/B/C repeat replay passed. Tests use real independent PostgreSQL sessions.
+- Existing unit: 443 passed, including discovery, shared Preview security, Slice 2 purchases,
+  Storage deletion and moderation. Artist baseline: 72 passed. Original Artist security gate:
+  5 passed. PR2/security regressions: 65 passed. Assertions retained; exact migration and
+  policy inventories extended additively (31 -> 34 migrations; legacy six policies unchanged).
+- Typecheck passed; lint zero errors, one pre-existing React Hook Form warning at submission
+  form line 173. `git diff --check` passed. Offline migration-manifest preflight: 34 hashes PASS.
+- `npm run build` blocked by the safety script because an unrelated local dev server listens
+  on port 3000. It was left untouched. `npx next build --webpack` passed in this isolated
+  worktree with all application routes compiled. This is not an authenticated browser proof.
+- Pinned install reported existing dependency advisories (2 moderate, 10 high, 1 critical);
+  dependency versions/lockfile are unchanged. No npm audit auto-fix was run.
+
+Four active reservations/unfinished uploads, 20 uploads/day, 20 new Preview regions/hour
+and 50 new checkpoints/day are Artist-wide guardrails, not paid-plan restrictions. Quota
+admission uses an owner advisory lock before row locks. Worker admission permits one active
+job/Artist and serializes only the short claim transaction. Superseded retained Storage grows
+with editing: future GC separate; no destructive cleanup exists in this branch.
+
+## Candidate installation procedure and remaining gates
+
+Required existing installer is postgres (non-superuser, CREATEROLE), with supported
+existing Auth USAGE and Storage SELECT/REFERENCES authority, but no Auth grant option or
+Storage owner/SET-role requirement. B explicitly checks pgcrypto in extensions and exact
+extensions.digest(text,text). No extension is relocated/created by these migrations.
+
+Before separately authorized Gate 1 dispatch, independently verify staging project ID,
+health, reviewed HEAD, migration/setup hashes, exact ledger, schema/function/role absence,
+operator/dependency ACLs, no writers/locks and existing business/media fingerprints.
+Apply A, verify seven FORCE-RLS tables, strict broker graph, singleton FALSE flags and six
+empty lifecycle tables. Apply B, verify 35 fixed-path functions/grants and five triggers.
+Apply C, verify three private routines and narrow provider grants, with no Storage DDL.
+Reconcile ledger +3, all flags FALSE, zero new lifecycle rows/jobs/events/media, existing
+Auth/Storage ACLs/owners/policies/triggers/buckets/object fingerprints unchanged and track,
+rights, commerce and Gate D fingerprints unchanged. Advisor delta: only the expected 13
+public authenticated-definer notices; no unexpected ERROR or privilege WARN. No worker.
+Stop on identity/hash/ledger drift, collision, dependency/lock/error, nonzero rows, enabled
+flags or unexpected fingerprint/advisor change. Never blindly retry an ambiguous outcome.
+Keep successfully installed additive schema dormant and reconcile forward; no deletion.
+
+Gate 2 authority: the earlier raw-owner-only assumption is superseded by captured provider
+configuration. The reviewed non-migration setup accepts exact non-superuser postgres through
+registered supautils policy/drop-trigger grants for storage.objects plus native TRIGGER and
+pinned Migration C routines. No ownership transfer, owner SET ROLE or broader installer grant.
+Buckets remain separately configured through supported Storage management. Global 50 MB
+Free-plan ceiling remains an independent blocker to the approved 250,000,000-byte Master.
+No hosted setup/limit/billing/worker/UI change is authorized.
+
+Source references: Supabase database functions owner/privilege guidance; PostgreSQL 17
+createrole_self_grant and CREATE POLICY owner requirements. No hosted changes, provisioning,
+fixture upload, new UI, purchase delivery, payment or Gate D behavior is introduced.
+
+## Installation-compatibility candidate local validation
+
+- PostgreSQL 17.11: 17 foundation tests PASS, including all prior lifecycle/concurrency
+  groups plus actual non-superuser postgres installation/replay, unavailable Auth grant,
+  provider Storage ownership, extensions-only digest, strict PG17 broker graph, unsupported
+  ordinary Storage setup rejection and provider-owner setup. No hosted validation.
+- Unit 443, Artist baseline 72, Artist security gate 5, PR2/security 65: PASS. These include
+  discovery, Slice 1 media/player, Slice 2 purchases, deletion and moderation regressions.
+- 34 canonical migration hashes and separate Gate 2 setup hash verified. Lint: zero errors,
+  one existing React Hook Form warning. No dependency/UI/application source changes.
+- Default npm build/Turbopack stalled at compilation and was stopped (exit 130) after
+  verifying the process belongs to this isolated worktree. npx next build --webpack PASS,
+  including all routes. No deployment/Next/Netlify configuration was changed.
+- Initial concurrent typecheck/build collided on generated .next files; final typecheck
+  after build PASS. The final authoring report records the exact commit/tree.
+- Fresh exact-HEAD security review is required after commit. Old zero findings do not
+  carry forward. Only after an acceptable fresh review may staging be re-preflighted
+  read-only; no installation or other hosted change is authorized.
+
+## Gate 2 supported-authority source remediation
+
+Previous HEAD f3b8c45450230bfd74e44665144773bdce540fdf and Gate 2 hash
+abaa16088c324ca872c42067946da0a6df59d7afd667c1729d96d57225dcc29f are superseded
+ONLY for this non-migration setup artifact. All 34 migration bytes and the installed A/B/C
+hashes remain identical. No fourth migration, application code or processing implementation.
+
+Authority measurement is entirely pg_catalog-based; no operator-supplied claim parameters.
+Provider grant JSON is parsed as json (not jsonb) to detect duplicate role keys before
+conversion can discard ambiguity. Both settings must be registered string/SIGHUP values
+from configuration file, not pending restart. Exact actor/table entries are required.
+The three Migration C function definitions are SHA-256 pinned, owned by postgres, fixed
+empty search_path and exact non-grantable ACLs. Setup is transactional and refuses replay
+of a same-named modified policy or trigger, retaining unrelated six policies/five triggers.
+
+Local validation requires genuine supautils, not a superuser bypass: build official
+supabase/supautils commit df32bd65e4d13212bf812ee966a51132d034bc17 (3.4.4) using PG17
+PGXS. In a DISPOSABLE cluster only, set dynamic_library_path to that build directory,
+session_preload_libraries='supautils', policy_grants and drop_trigger_grants to the JSON
+{"postgres":["storage.objects"]}, and the provider superuser to the disposable bootstrap
+administrator. Use dedicated Unix socket /private/tmp, port 55440, no TCP listener. No
+installation in Homebrew's shared library directory or hosted configuration is needed.
+The fixture postgres stays NOSUPER, outside Storage owner membership. No new config-read
+privilege is granted. The real suite runs the entire unmodified Gate 2 artifact; separate
+transactional parser fixtures inject negative settings without changing provider config.
+PGlite tests exercise policy behavior only, explicitly excluding provider-hook emulation.
+
+Future authorized setup order: verify exact source/setup hash and installed A/B/C; project
+identity/health/dormancy and unchanged legacy policies/triggers; independently establish
+global ceiling ≥250,000,000 bytes. Execute policy/guard setup as measured postgres in one
+transaction; verify +5 policies/+1 trigger, unchanged existing definitions/owners/ACLs,
+no data/capability/ledger mutation. Configure three PRIVATE buckets separately via supported
+Storage API with reviewed limits; reconcile bucket privacy/limits and zero object mutation.
+No blind replay on changed target identities or ambiguity. Stop before all hosted steps
+while the global ceiling is 50 MB; do not lower product limits or alter billing here.
+
+Expected future Gate 2 delta: +5 Storage policies, +1 Storage trigger, +3 private buckets
+in separately reviewed API step; zero ledger entries, foundation lifecycle rows, objects,
+existing-track mutations, commerce mutations or activated capabilities. Worker/TUS/UI remain
+independent later gates. Exact-HEAD focused security review and a read-only staging recheck
+follow the local source commit; historical security results do not carry forward.
+
+Remediation local results: 20/20 foundation tests PASS (including independent-session
+concurrency and three added authority/replay groups; 31 negative cases inside those groups).
+Unit 443/443, PR2/security 65/65, Artist baseline 72/72 and Artist gate 5/5 PASS. Canonical
+34-migration verification and new separate setup hash PASS. Typecheck and isolated webpack
+production build PASS. Lint zero errors with the existing form line-173 React Hook Form
+warning. git diff --check PASS. Supautils locally built from the pinned official source;
+no hosted policy, trigger, bucket, data, capability, billing or configuration change.

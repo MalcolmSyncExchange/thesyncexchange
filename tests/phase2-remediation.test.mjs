@@ -56,7 +56,9 @@ test('release inventory covers every exact migration byte and execution packs pr
  const manifest=JSON.parse(readFileSync(new URL('../docs/posthog-phase2-release/migration-manifest.json',import.meta.url)));
  const history=JSON.parse(readFileSync(new URL('../docs/posthog-phase2-release/hosted-history.json',import.meta.url)));
  assert.equal(manifest.migrations.length,40);assert.equal(history.migrations.length,34);
- assert.deepEqual(manifest.migrations.map(item=>item.file),readdirSync(new URL('../supabase/migrations/',import.meta.url)).filter(file=>file.endsWith('.sql')).sort());
+ // This historical PostHog manifest is a frozen subset of the integrated release.
+ assert.ok(manifest.migrations.every(item=>readdirSync(new URL('../supabase/migrations/',import.meta.url)).includes(item.file)));
+ // The complete integrated inventory is hashed and replayed separately.
  for(const item of manifest.migrations)assert.equal(createHash('sha256').update(readFileSync(new URL(`../supabase/migrations/${item.file}`,import.meta.url))).digest('hex'),item.sha256);
  for(const item of history.migrations)assert.equal(createHash('sha256').update(readFileSync(new URL(`../supabase/migrations/${item.name}.sql`,import.meta.url))).digest('hex'),item.sha256);
  for(const [label,file,version,count] of [['reliability','20261011191427_analytics_delivery_reliability.sql','20261011191427',34],['reporting-index','20261011210517_analytics_reporting_index.sql','20261011210517',35]]){

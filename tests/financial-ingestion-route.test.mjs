@@ -16,7 +16,7 @@ function load(path,dependencies,env){
 async function harness(db,{captureFailure=false,enabled=true}={}){
  const f=await providerFixture(db),effects=[];
  const deps={
-  'node:crypto':{createHash},'next/cache':{revalidatePath(){}},'next/server':{NextResponse:{json:Response.json}},stripe:{},
+  '@/services/analytics/purchase':{recordVerifiedPurchase:async()=>{}},'node:crypto':{createHash},'next/cache':{revalidatePath(){}},'next/server':{NextResponse:{json:Response.json}},stripe:{},
   '@/lib/server-env':{hasStripeWebhookEnv:true,serverEnv:{stripeWebhookSecret:secret},assertStripeServerConfiguration(){},assertStripeRuntimeObject(_s,o){if(o.livemode!==false)throw Error('mode');},getServerEnvironmentDiagnostics:()=>({})},
   '@/lib/maintenance-mode.mjs':{resolveMaintenanceMode:()=>({blocksApplication:false})},'@/lib/monitoring':{reportOperationalError(){},reportOperationalEvent(){}},
   '@/services/gate-d/server':{routeGateDWebhook:async()=>({route_code:'ordinary'}),recordGateDVerifiedPayment:async()=>{},requestGateDRevocation:async()=>{},runGateDAcceptanceJobs:async()=>{}},

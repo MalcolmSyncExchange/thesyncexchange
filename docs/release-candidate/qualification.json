@@ -1,0 +1,35 @@
+{
+  "branch": "codex/private-beta-integrated-rc",
+  "assemblyParents": [
+    "6bea1543de518732bbb60ee112094ff9b1986a74",
+    "04f60fb255d46b760a309bc78b3582b05f4ff66f",
+    "d32acbf94ba7485c163b0796f65ee25162339f3f"
+  ],
+  "localChanges": [
+    "Preserve legal quote/acceptance after preselected offer review",
+    "Use canonical signed payment contract for retries after catalog drift, retaining artifact rights fences",
+    "Union tests and offline locked dependencies",
+    "Native migration and legacy concurrency runners; isolated media fixture socket/order"
+  ],
+  "verified": {
+    "unit": 1331,
+    "securityArtistMediaContract": 160,
+    "nativeReplayLifecycleSuites": 7,
+    "nativeLegacyEquivalents": 2,
+    "nativeAuthPosthogCommands": 3,
+    "chromiumCombinedChecks": 7,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "0 errors / existing 1 warning"
+  },
+  "limitations": [
+    "Additional suite:197 pass,8 codec/tool failures,1 Linux-only skip; do not mark these cases complete",
+    "Media non-owner/provider-policy fixtures blocked at Storage authority",
+    "Docker backend and managed Supabase runtime Not Run",
+    "Missing isolated Supabase credentials; no production/shared credentials accessed",
+    "Legacy duplicate 0006 versions and two differing predecessor migration hashes require hosted history reconciliation",
+    "PostHog PH2-CORE-EVIDENCE-001 remains OPEN; core acceptance is not full Phase 2 acceptance"
+  ],
+  "recommendation": "Source candidate assembled; NO-GO for hosted execution until preflight gates and separate founder authorization. Private Beta is not approved.",
+  "restrictions": "No push, shared merge, deploy, hosted SQL/Storage/config, analytics/commerce activation or real transactions."
+}

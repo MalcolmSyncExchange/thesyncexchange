@@ -27,6 +27,11 @@ let stripeClient: Stripe | null = null;
 type StripeSyncOrderRow = Pick<
   Database["public"]["Tables"]["orders"]["Row"],
   | "id"
+  | "buyer_user_id"
+  | "track_id"
+  | "license_type_id"
+  | "amount_cents"
+  | "currency"
   | "status"
   | "stripe_checkout_session_id"
   | "stripe_payment_intent_id"
@@ -171,27 +176,25 @@ export async function syncOrderFromStripeSession({
   // delivery may have failed after payment persistence but before its artifact.
   const processedAt = new Date().toISOString();
   try {
-    const trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
-    if (!trustedCheckout) {
-      throw new Error("Order not found for Stripe fulfillment.");
-    }
-
     const existingOrder = await loadOrderForStripeSync(supabase, orderId);
-    if (!existingOrder) {
-      throw new Error("Order not found for Stripe fulfillment.");
+    if (!existingOrder) throw new Error("Order not found for Stripe fulfillment.");
+    let canonicalReplay = false;
+    if (foundationRecording && existingOrder.paid_at && ["paid", "fulfilled", "refunded"].includes(existingOrder.status)) {
+      // A durable signed-payment contract remains authoritative after catalog
+      // changes. Activity alone never qualifies a replay or skips artifact recovery.
+      assertStripeSessionMatchesTrustedCheckout({order: existingOrder,
+        amountCents: existingOrder.amount_cents, currency: existingOrder.currency as "USD"}, session);
+      const retained = await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
+      canonicalReplay = retained?.enabled === true;
     }
-
-    assertStripeSessionMatchesTrustedCheckout(
-      {
-        ...trustedCheckout,
+    if (!canonicalReplay) {
+      const trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
+      if (!trustedCheckout) throw new Error("Order not found for Stripe fulfillment.");
+      assertStripeSessionMatchesTrustedCheckout({ ...trustedCheckout,
         amountCents: Number(trustedCheckout.order.amount_cents),
-        order: {
-          ...trustedCheckout.order,
-          stripe_checkout_session_id: existingOrder.stripe_checkout_session_id
-        }
-      },
-      session
-    );
+        order: {...trustedCheckout.order, stripe_checkout_session_id: existingOrder.stripe_checkout_session_id}
+      }, session);
+    }
 
     const paymentIntentId =
       typeof session.payment_intent === "string"
@@ -222,7 +225,7 @@ export async function syncOrderFromStripeSession({
       last_webhook_error: null
     });
 
-    if (foundationRecording) {
+    if (foundationRecording && !canonicalReplay) {
       await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
     }
 
@@ -480,7 +483,7 @@ async function loadOrderForStripeSync(
   const primary = await supabase
     .from("orders")
     .select(
-      "id, status, stripe_checkout_session_id, stripe_payment_intent_id, agreement_url, agreement_path, checkout_created_at, paid_at, agreement_generated_at, fulfilled_at, refunded_at"
+      "id, buyer_user_id, track_id, license_type_id, amount_cents, currency, status, stripe_checkout_session_id, stripe_payment_intent_id, agreement_url, agreement_path, checkout_created_at, paid_at, agreement_generated_at, fulfilled_at, refunded_at"
     )
     .eq("id", orderId)
     .maybeSingle();

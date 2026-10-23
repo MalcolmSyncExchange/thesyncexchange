@@ -1,0 +1,62 @@
+name: Media native amd64 isolation (offline)
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact reviewed repository commit (40 lowercase hex)
+        required: true
+        type: string
+  # This branch-only trigger avoids installing the workflow on main to run it.
+  push:
+    branches: [codex/phase-2-slice-3-media-worker]
+    paths:
+      - .github/workflows/media-native-amd64.yml
+      - workers/media/**
+      - services/media-broker/**
+      - scripts/media-release/**
+      - contracts/submission-media/**
+      - tests/media-*.test.mjs
+      - tests/media-worker/**
+permissions:
+  contents: read
+concurrency:
+  group: media-native-${{ github.run_id }}
+  cancel-in-progress: false
+jobs:
+  native-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+    steps:
+      - name: Validate exact source and native host
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(uname -m)" = x86_64
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - name: Install pinned public scan tools (no hosted-system credentials)
+        run: |
+          mkdir -p "$RUNNER_TEMP/media-tools"
+          cd "$RUNNER_TEMP/media-tools"
+          curl --fail --location --proto '=https' --tlsv1.2 https://github.com/anchore/syft/releases/download/v1.54.1/syft_1.54.1_linux_amd64.tar.gz -o syft.tar.gz
+          echo 'c069905b391cc4c20a5ba65ad5c10be2a7ba074f8ea6ad203e24d14e303dad47  syft.tar.gz' | sha256sum --check -
+          tar -xzf syft.tar.gz syft
+          curl --fail --location --proto '=https' --tlsv1.2 https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-64bit.tar.gz -o trivy.tar.gz
+          echo 'c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f  trivy.tar.gz' | sha256sum --check -
+          tar -xzf trivy.tar.gz trivy
+          echo "$RUNNER_TEMP/media-tools" >> "$GITHUB_PATH"
+      - name: Build both images and capture complete offline native proof
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          mkdir -p "$RUNNER_TEMP/media-native-evidence"
+          node scripts/media-release/release.mjs "$RUNNER_TEMP/media-native-evidence"
+      - name: Upload safe evidence only (no media, tokens or environment dump)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: media-native-amd64-${{ inputs.source_sha || github.sha }}
+          path: ${{ runner.temp }}/media-native-evidence/*
+          retention-days: 14

@@ -1,0 +1,292 @@
+{
+  "scope": "fresh local vanilla PostgreSQL 17 replay; not hosted/Supabase platform acceptance",
+  "count": 53,
+  "migrations": [
+    {
+      "file": "0001_initial_schema.sql",
+      "version": "0001",
+      "sha256": "49f6193a9f853e4b9f8a50dbd2dc8b38dcfce95854ec2acc0a04324d2829571e"
+    },
+    {
+      "file": "0002_submission_policies.sql",
+      "version": "0002",
+      "sha256": "19dc09093a2a24412559c79946eebacd70e16fc472f5067762c649c5ed7ec26e"
+    },
+    {
+      "file": "0003_storage_bucket.sql",
+      "version": "0003",
+      "sha256": "acfb6edb0e79263c4553433c022b3d9385d4123a30f38785ec71a491b4c78917"
+    },
+    {
+      "file": "0004_admin_moderation.sql",
+      "version": "0004",
+      "sha256": "7bfb71a0079e5d0df2693a92bfc145ac2f6351ff61bd4da62fa74b846f2b266f"
+    },
+    {
+      "file": "0005_admin_flag_severity.sql",
+      "version": "0005",
+      "sha256": "41c577e0276719b6610fde1d4e1f0831bd276650196decc5313233548962fa1f"
+    },
+    {
+      "file": "0006_agreements_bucket.sql",
+      "version": "0006",
+      "sha256": "3598724c2428f31e0ad422cbfff9c543c1345bc23c582479acc3752e2f92b531"
+    },
+    {
+      "file": "0006_onboarding_status.sql",
+      "version": "0006",
+      "sha256": "c2b2394987a866107ad1aa08d5f83ca1855f0f9a7860d8ea6cbd19dc37f1dc8e"
+    },
+    {
+      "file": "0007_users_role_nullable.sql",
+      "version": "0007",
+      "sha256": "e3420b4fc2d3eda2ee65af4ea1ff7f9a5b8bf826af62cf356d8a5f35c34c142b"
+    },
+    {
+      "file": "0008_database_foundation.sql",
+      "version": "0008",
+      "sha256": "628c0f4781b2fe48e85ba46305edc09b06f5c94958614ac758a6f5e8a95de8ae"
+    },
+    {
+      "file": "0009_order_lifecycle.sql",
+      "version": "0009",
+      "sha256": "920822b8cbab00fe32f9f89bc0adb5dbabbacf24b9780341eca24f59c89220f3"
+    },
+    {
+      "file": "0010_order_fulfillment_hardening.sql",
+      "version": "0010",
+      "sha256": "8265e4394d0902b12e76f524bf198e6a8c80759f893cc687e3d7d4aefc716a7c"
+    },
+    {
+      "file": "0011_storage_object_policies.sql",
+      "version": "0011",
+      "sha256": "88d3e3c6f17d2105f6f27a44ee339e490502048631094e62903805dc089a9c85"
+    },
+    {
+      "file": "0012_avatar_storage_path.sql",
+      "version": "0012",
+      "sha256": "01d79714a1b99a6fb79dd0a95fc746d0c3a63c6ef3374bd5ecb5e9602a885c0f"
+    },
+    {
+      "file": "0013_generated_licenses.sql",
+      "version": "0013",
+      "sha256": "8041582dfe8fcaef8c8cb67538f375177322708e6fa257ed5ee4e3bc7c2ff7c0"
+    },
+    {
+      "file": "0014_buyer_workspace_settings.sql",
+      "version": "0014",
+      "sha256": "41ff2ead2a0ad9dbaad611c47f3a0ff99a18c764c445843e3378c1321a253fe0"
+    },
+    {
+      "file": "0016_rls_recursion_fix.sql",
+      "version": "0016",
+      "sha256": "80372268976a58e4887ee6a1bcbd7889eb6b70a053f743a40e37184db82635c1"
+    },
+    {
+      "file": "0017_lock_down_order_writes.sql",
+      "version": "0017",
+      "sha256": "17742ec643e3894a37b5f704fcdcc09723f1c288d9d570eb6e2325614d3f4e3b"
+    },
+    {
+      "file": "0018_lock_down_track_moderation_fields.sql",
+      "version": "0018",
+      "sha256": "7beb9add69d12e1499317dcfc4855d63cefad813e8ecc81f72d6336b5e7fd31f"
+    },
+    {
+      "file": "0019_lock_down_user_profile_roles.sql",
+      "version": "0019",
+      "sha256": "3b689d63492166cf73017019ca29897191e55709578679b9df3ae3ce9dea2e83"
+    },
+    {
+      "file": "0020_remove_auth_profile_role_triggers.sql",
+      "version": "0020",
+      "sha256": "1775ed51134eeae13d2564a53e3731b17d3c2ac9d605689826626d76071e5766"
+    },
+    {
+      "file": "0021_rate_limit_foundation.sql",
+      "version": "0021",
+      "sha256": "756f51f0a06308b0acff1a6ee2cc0a615e21e981df536630e94c183af6391ec9"
+    },
+    {
+      "file": "20260915072720_analytics_purchase_outbox.sql",
+      "version": "20260915072720",
+      "sha256": "3ead2fac00430b5bfa79603fc5b721fdb0dd8f23e9ab7d1ab172ebb0de584e12"
+    },
+    {
+      "file": "20260915224738_reconcile_reviewed_rights_and_storage.sql",
+      "version": "20260915224738",
+      "sha256": "f946132c756190c6d3b033db6c2c62ddf3080456e1596996eb918145f769056c"
+    },
+    {
+      "file": "20260915224822_separate_profile_finance_and_buyer_access.sql",
+      "version": "20260915224822",
+      "sha256": "4897972b1c27d70e7cdff58a8eabb560ce400177558f8db6d6f95a6f14c99d21"
+    },
+    {
+      "file": "20260915225349_atomic_artist_track_writes.sql",
+      "version": "20260915225349",
+      "sha256": "066f8f0bf524c5cba9ae6666400c00c427aadfa0fcc68f99c449b3e30d7c59b2"
+    },
+    {
+      "file": "20260924052925_nonretryable_artist_track_stale_conflict.sql",
+      "version": "20260924052925",
+      "sha256": "12c3bdda46969bdca3743ca4e1449b308c330d7b6c37e172a5a16471f2aedb87"
+    },
+    {
+      "file": "20260924171123_preserve_atomic_rights_holder_identity.sql",
+      "version": "20260924171123",
+      "sha256": "373b3fb8461101e171fb43fd6a7dd278a880f0d50072782410db52feb22baa28"
+    },
+    {
+      "file": "20261001042359_secure_buyer_catalog_views.sql",
+      "version": "20261001042359",
+      "sha256": "c1bd8a145198d44d4e3c6f4afab652c87e1afe974cc81722854d9c4152e844ea"
+    },
+    {
+      "file": "20261002045900_purchase_completion_foundation.sql",
+      "version": "20261002045900",
+      "sha256": "dab672f34592462acc119ed3e85ecaf9f595a621e44d6ee41c1a98bd95b347f1"
+    },
+    {
+      "file": "20261002201230_purchase_completion_fulfillment_adapters.sql",
+      "version": "20261002201230",
+      "sha256": "94a7551f9dd61dc0c4344399f17a779ac2de8b70f2daec95cbac93a2ef637d1c"
+    },
+    {
+      "file": "20261004023232_gate_d_acceptance_schema.sql",
+      "version": "20261004023232",
+      "sha256": "4f4517421e83b1a02f6227753b7e4f7c70118042b696a1b6adbe157310a2ac81"
+    },
+    {
+      "file": "20261004023241_gate_d_acceptance_functions.sql",
+      "version": "20261004023241",
+      "sha256": "b3dfbde1e6f2fd90ab9a084fd7e3e37713ccb28a00e36ec6009c75c47875c4cd"
+    },
+    {
+      "file": "20261008091022_slice3_submission_media_schema.sql",
+      "version": "20261008091022",
+      "sha256": "6c6fba892d2fd64eead9bd5aafa8fb5cd9c95a0bc5d7b2e51b35270ff8534ede"
+    },
+    {
+      "file": "20261008091023_slice3_submission_media_functions.sql",
+      "version": "20261008091023",
+      "sha256": "07b650baea1cc6c1452bfe07ae21db6da5d71a0893992705304c734724ec9c10"
+    },
+    {
+      "file": "20261008091024_slice3_submission_media_storage.sql",
+      "version": "20261008091024",
+      "sha256": "58129847813b6878980c78e86efbcd74fb46d0d40716a10d949c7804bcfd6897"
+    },
+    {
+      "file": "20261008231329_slice3_media_worker_fenced_io.sql",
+      "version": "20261008231329",
+      "sha256": "62da6eac9a058e42aec76022872b680601c91fd62730f7306b6539a5c0809a57"
+    },
+    {
+      "file": "20261009010228_slice3_media_execution_permits.sql",
+      "version": "20261009010228",
+      "sha256": "45379f2ef5019bdc4f29135521c5e0b1bd7d037605d776b71631e9c3497dfbd3"
+    },
+    {
+      "file": "20261010060000_analytics_verified_purchase_evidence.sql",
+      "version": "20261010060000",
+      "sha256": "3b86b6e7cae163e92857e052fef685b3b84985a3665d7763008db6992760efc3"
+    },
+    {
+      "file": "20261011004710_sec_payment_readiness.sql",
+      "version": "20261011004710",
+      "sha256": "6fc3d2714e585f4566068dd371120aeb1323145b23da0b00ca6acb4ab15bcc50"
+    },
+    {
+      "file": "20261011191427_analytics_delivery_reliability.sql",
+      "version": "20261011191427",
+      "sha256": "717cf8b444288c3bcaa8a581cf5bf5ccd15effeb1fff57aea01081dc5a81131e"
+    },
+    {
+      "file": "20261011210517_analytics_reporting_index.sql",
+      "version": "20261011210517",
+      "sha256": "0ac62cb3ebf55120d043b8166274261fab4c4013c37be273539b17cdcfee0b99"
+    },
+    {
+      "file": "20261012173855_artist_onboarding_atomic.sql",
+      "version": "20261012173855",
+      "sha256": "8cc4d1c4fbdf74a48b9685920576fbc5ab06a8d4ab225ca72bc62a56a87e80a2"
+    },
+    {
+      "file": "20261012173856_staging_avatar_storage_readiness.sql",
+      "version": "20261012173856",
+      "sha256": "a3c216f8aada2c8eec140ac08e7fdc24a24df46401ba0d3d2179692d52eb669d"
+    },
+    {
+      "file": "20261014024758_bounded_staging_analytics_validation.sql",
+      "version": "20261014024758",
+      "sha256": "0f9dfb056661b9a89bda9a06d6e589fb88dcaaa3cdbc3a6c9579457732ece7e1"
+    },
+    {
+      "file": "20261014050032_immutable_staging_validation_renewal.sql",
+      "version": "20261014050032",
+      "sha256": "50482a775cfb2ef6b57a845d546d264c2139a484c3ccf3f0ba216bade7789a21"
+    },
+    {
+      "file": "20261022053950_checkout_recovery.sql",
+      "version": "20261022053950",
+      "sha256": "94e619349006661971e5069f8f2ed48a3519ecc927ba689f8849f8ba21269619"
+    },
+    {
+      "file": "20261022165929_purchase_legal_snapshots.sql",
+      "version": "20261022165929",
+      "sha256": "0e3f81c5e50c1283b7c6cbeb1a5dedde463fec71060f5a8df3aca44fbbcbb950"
+    },
+    {
+      "file": "20261022180614_secure_asset_delivery.sql",
+      "version": "20261022180614",
+      "sha256": "c869f440d54cc196f6e43f7d78509e4e402311d932a619619fc42374840b35de"
+    },
+    {
+      "file": "20261022191602_immutable_source_integration.sql",
+      "version": "20261022191602",
+      "sha256": "d90006ac5a107a74fa7fda0e479c3ec576c94d262ac2b20772784f86551e5ad8"
+    },
+    {
+      "file": "20261022210225_financial_ledger_reconciliation.sql",
+      "version": "20261022210225",
+      "sha256": "ef36177ed00856927b6ad4827e15385373411c4cc334d8d79f0a6a757b14da02"
+    },
+    {
+      "file": "20261022213225_financial_ingestion_recovery.sql",
+      "version": "20261022213225",
+      "sha256": "f1872d35ce5484460eb08b1617f316baf85b222b51452cbf420e87d54d0be14c"
+    },
+    {
+      "file": "20261023000941_authenticated_adverse_financial_evidence.sql",
+      "version": "20261023000941",
+      "sha256": "826df468da6de1fbc56d062d3910e025fffb74f7d1bde63f671d22ed1268bec6"
+    },
+    {
+      "file": "20261023001622_verified_provider_fee_bounds.sql",
+      "version": "20261023001622",
+      "sha256": "7a1eee7f2caee1188d67b6b330aa81d34b3f53fdf8236a02ff52d82c13e07557"
+    }
+  ],
+  "duplicateLegacyVersions": {
+    "0006": [
+      "0006_agreements_bucket.sql",
+      "0006_onboarding_status.sql"
+    ]
+  },
+  "sourceChangesAgainstIndependentReview": [
+    {
+      "file": "0011_storage_object_policies.sql",
+      "before": "b036c1a7cb546f7c7ce35eaffa68142019b81e9f9800aeb917b352b38f02371c",
+      "candidate": "88d3e3c6f17d2105f6f27a44ee339e490502048631094e62903805dc089a9c85"
+    },
+    {
+      "file": "20261004023241_gate_d_acceptance_functions.sql",
+      "before": "4d8ed789f5d938028fe86eacfaab14f424e3354761a5d3fe2a5761d1a3802dfc",
+      "candidate": "b3dfbde1e6f2fd90ab9a084fd7e3e37713ccb28a00e36ec6009c75c47875c4cd"
+    }
+  ],
+  "newMigrationsThisTask": [],
+  "sequence": "Lexical exact filename order. Historical 0006 files both execute under filename-aware local replay; plain CLI version history requires explicit legacy baseline handling before any hosted operation.",
+  "managedStorageBoundary": "Non-owner vanilla postgres rejects avatar policy DDL. Provider-supported policy and trigger grants / actual platform owner must be verified; no owner transfer or broad role grant is an approved workaround."
+}

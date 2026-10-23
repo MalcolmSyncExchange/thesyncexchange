@@ -102,7 +102,10 @@ async function harness({buyer=ids.buyer}={}) {
   const completion=load('services/purchase-completion/server.ts',common);
   const activity=load('services/orders/activity.ts',{'@/services/supabase/schema-compat':compatibility});
   const payments=load('services/stripe/server.ts',{
-   ...common,stripe:{default:Stripe},'@/services/orders/activity':activity,'@/services/orders/checkout-pricing':pricing,
+   ...common,
+   '@/services/orders/fulfillment-recovery':load('services/orders/fulfillment-recovery.ts',{'node:crypto':{createHash}}),
+   '@/services/orders/checkout-recovery':{expireCheckoutAttempt:async()=>{},recoverableCheckout:async()=>{throw Error('Unexpected session creation');}},
+   stripe:{default:Stripe},'@/services/orders/activity':activity,'@/services/orders/checkout-pricing':pricing,
    '@/services/purchase-completion/server':completion,'@/services/supabase/schema-compat':compatibility,
    '@/services/agreements/server':{generateAgreementArtifactForOrder:async()=>{controls.calls.push('agreement');}}
   });

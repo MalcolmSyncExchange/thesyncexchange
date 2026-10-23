@@ -36,7 +36,9 @@ test('fresh non-analytics baseline uses hosted pgcrypto for Gate D digest creati
 
     const excluded=new Set(['20260915072720_analytics_purchase_outbox.sql','20261010060000_analytics_verified_purchase_evidence.sql']);
     const manifest=JSON.parse(source('docs/security-pr2/migration-manifest.json')).order;
-    const files=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')&&!excluded.has(f)).sort();
+    const available=readdirSync(new URL('supabase/migrations/',root));
+    const files=manifest.map(m=>m.file);
+    assert.ok(files.every(f=>available.includes(f)&&!excluded.has(f)),'Historical baseline remains a preserved subset of the integrated candidate');
     assert.equal(files.length,31);
     assert.deepEqual(manifest.map(m=>m.file),files,'Replay the complete reviewed non-analytics baseline in exact order');
     await sql([fixtureBootstrapSql,postgresPgcryptoBootstrapSql].join('\n'));

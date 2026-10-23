@@ -16,8 +16,8 @@ function syncHarness({interrupt=false,missingIntent=false}={}){
  '@/services/orders/checkout-recovery':{},'@/services/orders/fulfillment-recovery':{retainVerifiedCheckoutPayment:async()=>state.retained++,retainAdverseCheckoutPayment:async()=>state.adverse++},
  '@/services/orders/activity':{hasProcessedOrderDedupeKey:async()=>true,appendOrderActivityLog:async()=>{}},
  '@/services/orders/checkout-pricing':{loadTrustedCheckoutDetails:async()=>({order:{...state.order},amountCents:5000,currency:'USD'}),assertStripeSessionMatchesTrustedCheckout},
- '@/services/purchase-completion/server':{recordVerifiedPurchaseCompletionEvent:async()=>{}},
- '@/services/agreements/server':{generateAgreementArtifactForOrder:async()=>{state.issuance++;if(interrupt&&state.issuance===1)throw Error('artifact interrupted');state.order.agreement_path='fixture.pdf';state.order.agreement_generated_at='2026-10-21';}},
+ '@/services/purchase-completion/server':{recordVerifiedPurchaseCompletionEvent:async()=>({enabled:true})},
+ '@/services/agreements/server':{generateAgreementArtifactForOrder:async()=>{state.issuance++;if(state.rightsRevoked)throw Error('rights revoked before issuance');if(interrupt&&state.issuance===1)throw Error('artifact interrupted');state.order.agreement_path='fixture.pdf';state.order.agreement_generated_at='2026-10-21';}},
  '@/services/supabase/admin':{createAdminSupabaseClient:()=>db},'@/services/supabase/schema-compat':{isMissingColumnError:()=>false,warnSchemaFallbackOnce(){}}};
  return {api:load('services/stripe/server.ts',modules),state};
 }
@@ -40,7 +40,7 @@ test('refund handler retains adverse evidence before an unknown-intent lookup ca
 test('actual Stripe signature verification routes expiration and retries processing errors with non-2xx',async()=>{
  const stripe=new Stripe('sk_test_local_fixture');const key='whsec_local_fixture';let expired=0,fail=false;
  const route=load('app/api/webhooks/stripe/route.ts',{
-  'node:crypto':{createHash},'next/cache':{revalidatePath(){}},'next/server':{NextResponse:{json:Response.json}},stripe:{},
+  '@/services/analytics/purchase':{recordVerifiedPurchase:async()=>{}},'node:crypto':{createHash},'next/cache':{revalidatePath(){}},'next/server':{NextResponse:{json:Response.json}},stripe:{},
   '@/lib/server-env':{assertStripeRuntimeObject(_c,x){if(x.livemode)throw Error('mode');},assertStripeServerConfiguration(){},hasStripeWebhookEnv:true,serverEnv:{stripeWebhookSecret:key},getServerEnvironmentDiagnostics:()=>({})},
   '@/lib/monitoring':{reportOperationalEvent(){},reportOperationalError(){}},'@/lib/maintenance-mode.mjs':{resolveMaintenanceMode:()=>({blocksApplication:false})},
   '@/services/gate-d/server':{routeGateDWebhook:async()=>({route_code:'ordinary'})},
@@ -51,4 +51,12 @@ test('actual Stripe signature verification routes expiration and retries process
  assert.equal((await send('invalid')).status,400);assert.equal(expired,0);
  const signature=stripe.webhooks.generateTestHeaderString({payload,secret:key});assert.equal((await send(signature)).status,200);assert.equal(expired,1);
  fail=true;assert.equal((await send(signature)).status,500);assert.equal(expired,2);
+});
+
+test('canonical paid retry still refuses an agreement after rights revocation during interruption',async()=>{
+ const h=syncHarness({interrupt:true});const input={orderId:'order',session,verifiedEvent:verified,webhookEventId:'evt_fixture',webhookEventType:'checkout.session.completed'};
+ await assert.rejects(h.api.syncOrderFromStripeSession(input),/artifact interrupted/);
+ h.state.rightsRevoked=true;
+ await assert.rejects(h.api.syncOrderFromStripeSession(input),/rights revoked/);
+ assert.ok(!h.state.order.agreement_path);assert.equal(h.state.order.status,'paid');
 });

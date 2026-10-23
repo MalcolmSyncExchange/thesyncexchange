@@ -1,0 +1,7 @@
+# Local image release evidence
+
+`release.mjs /private/tmp/<evidence-dir>` requires committed clean source, Docker, Syft 1.54.1 and Trivy 0.75.0. Never pushes or contacts GCP/Supabase. Pin/verify downloaded tool binaries against official checksums before running. Current verified Darwin arm64 binary SHA256: Syft bc08d98ac3ca9cf475952b8eab22dfda70f3ab475ceb4e0113b9f77b24b75e26; Trivy 32b84c068e11e5381fc85d3fe2e8ac238659ab22524ce1b2b9dfcbd0b1f7331a.
+
+Build linux/amd64 locally; retain source HEAD/tree, allowlisted context hash, pinned base, snapshot timestamp, local image config digest, SBOM, package inventory, FFmpeg version/config, test output and vulnerability JSON. A local config digest is NOT a registry manifest digest. Capture the latter from the future separately authorized immutable push and bind SBOM/provenance to it. APT uses signed timestamped Debian snapshots and pinned Node CA bootstrap, not mutable mirror inputs. Do not claim byte-for-byte reproducibility. The SBOM contains an explicit custom FFmpeg 9.0.2 component/source hash; also retain encoder configuration. No normalization is introduced.
+
+Any scanner finding blocks this script's release approval; Critical/High are not accepted. Medium/Low/Unknown require written disposition. A source security scan is separate from dependency-image scanning. Cloud runtime isolation proof is separate from emulated Docker proof. `deployment-preflight.mjs` validates explicit offline evidence only and never claims cloud readiness from missing assertions.

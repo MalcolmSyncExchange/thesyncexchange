@@ -60,7 +60,7 @@ test("shared player owns one audio element and exposes seek, volume, mute and re
 
 test("Buyer discovery composes the shared player without replacing its filter contract", async () => {
   const source = await readFile(new URL("../components/audio/buyer-discovery-provider.tsx", import.meta.url), "utf8");
-  assert.match(source, /<PreviewAudioProvider>/);
+  assert.match(source, /<PreviewAudioProvider playbackObserver=\{playbackObserver\}>/);
   assert.match(source, /filters, setFilters/);
   assert.match(source, /export function PreviewButton/);
 });

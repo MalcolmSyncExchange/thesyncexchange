@@ -67,17 +67,20 @@ export function getMissingLoginAccountMessage(authMode: AuthMode) {
 export function buildAuthCallbackRedirectUrl({
   appUrl,
   deploymentTarget,
+  dedicatedStagingIdentityVerified = false,
   nextPath
 }: {
   appUrl: string;
   deploymentTarget: DeploymentTarget;
+  dedicatedStagingIdentityVerified?: boolean;
   nextPath: string;
 }) {
   const callbackUrl = new URL(
     "/auth/confirm",
     resolveConfiguredAuthAppOrigin({
       configuredAppUrl: appUrl,
-      deploymentTarget
+      deploymentTarget,
+      dedicatedStagingIdentityVerified
     })
   );
   callbackUrl.searchParams.set("next", nextPath);
@@ -152,10 +155,12 @@ export function getAuthConfirmSuccessRedirectPath({
 
 export function resolveConfiguredAuthAppOrigin({
   configuredAppUrl,
-  deploymentTarget
+  deploymentTarget,
+  dedicatedStagingIdentityVerified = false
 }: {
   configuredAppUrl?: string | null;
   deploymentTarget: DeploymentTarget;
+  dedicatedStagingIdentityVerified?: boolean;
 }) {
   const candidate = normalizeOptionalString(configuredAppUrl);
 
@@ -194,7 +199,12 @@ export function resolveConfiguredAuthAppOrigin({
     throw new Error("Hosted authentication application origins cannot use localhost.");
   }
 
-  if (deploymentTarget === "production" && !productionAppHosts.has(normalizedHostname)) {
+  // This server-derived proof is supplied only after independent platform, build,
+  // project and credential checks; a staging classification flag is insufficient.
+  const verifiedStagingOrigin = dedicatedStagingIdentityVerified &&
+    parsedAppUrl.origin === "https://sync-exchange-posthog-staging.netlify.app";
+
+  if (deploymentTarget === "production" && !productionAppHosts.has(normalizedHostname) && !verifiedStagingOrigin) {
     throw new Error("Production authentication redirects must use the configured production application origin.");
   }
 

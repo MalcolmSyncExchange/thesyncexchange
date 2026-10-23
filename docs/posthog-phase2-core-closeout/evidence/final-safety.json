@@ -1,0 +1,91 @@
+{
+  "status": "passed",
+  "readOnly": true,
+  "checks": [
+    {
+      "assertion": "query.complete",
+      "passed": true
+    },
+    {
+      "assertion": "six_events",
+      "passed": true
+    },
+    {
+      "assertion": "historical_five_preserved",
+      "passed": true
+    },
+    {
+      "assertion": "no_pending",
+      "passed": true
+    },
+    {
+      "assertion": "no_active_leases",
+      "passed": true
+    },
+    {
+      "assertion": "three_grants",
+      "passed": true
+    },
+    {
+      "assertion": "no_usable_grant",
+      "passed": true
+    },
+    {
+      "assertion": "exact_event_delivered_once",
+      "passed": true
+    },
+    {
+      "assertion": "sec_marketplace_excluded",
+      "passed": true
+    },
+    {
+      "assertion": "grant.permanently_consumed",
+      "passed": true
+    },
+    {
+      "assertion": "history.unchanged_40",
+      "passed": true
+    },
+    {
+      "assertion": "payments.six_off",
+      "passed": true
+    },
+    {
+      "assertion": "environment.read",
+      "passed": true
+    },
+    {
+      "assertion": "global_analytics.disabled",
+      "passed": true
+    },
+    {
+      "assertion": "payments.test_mode",
+      "passed": true
+    },
+    {
+      "assertion": "production_posthog_token.absent",
+      "passed": true
+    }
+  ],
+  "startedAt": "2026-10-14T23:02:48.737Z",
+  "grant": {
+    "id": "a2926e46-df3b-4631-807e-4643e1f8c1f5",
+    "outcome": "accepted",
+    "event_id": "f7d9bd71-58ce-4770-a970-725c7b11ac6a",
+    "created_at": "2026-10-14T22:43:07.976842+00:00",
+    "expires_at": "2026-10-14T22:48:07.976842+00:00",
+    "consumed_at": "2026-10-14T22:43:08.896723+00:00",
+    "finished_at": "2026-10-14T22:43:09.004551+00:00",
+    "expiry_exact": true
+  },
+  "deliveryHealthHttp": 200,
+  "deliveryHealth": {
+    "failures": {},
+    "statuses": {
+      "delivered": 6
+    },
+    "retry_due": 0,
+    "retry_waiting": 0
+  },
+  "finishedAt": "2026-10-14T23:02:54.405Z"
+}

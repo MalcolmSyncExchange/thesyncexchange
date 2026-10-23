@@ -1,0 +1,1 @@
+export default function Loading() { return <div role="status" aria-label="Loading SEC Intelligence" className="grid animate-pulse gap-4 sm:grid-cols-2"><p>Loading SEC Intelligence…</p>{[1,2,3,4].map(i => <div key={i} className="h-40 rounded-xl bg-muted" />)}</div>; }

@@ -93,16 +93,28 @@ test.describe.serial("marketplace happy path", () => {
       .toBeGreaterThan(0);
 
     await buyerPage.goto("/buyer/catalog");
-    await buyerPage.getByTestId("catalog-track-card").filter({ hasText: trackTitle }).first().getByRole("link", { name: "View Track" }).click();
-    await buyerPage.getByTestId("license-track-button").click();
-    await expect(buyerPage.getByTestId("buyer-checkout-form")).toBeVisible();
-    await buyerPage.getByTestId("buyer-checkout-submit").click();
+    await buyerPage.getByTestId("catalog-track-card").filter({ has: buyerPage.getByRole("heading", { name: trackTitle, exact: true }) })
+      .getByRole("link", { name: trackTitle, exact: true }).click();
+    const expectedOffer = await loadExpectedOffer(trackTitle, accounts.buyer.email);
+    const payment = await selectLicenseAndReview(buyerPage, expectedOffer, async () => {
+      const { data, error } = await supabaseAdmin.from("orders")
+        .select("id, stripe_checkout_session_id").eq("track_id", expectedOffer.trackId);
+      expect(error).toBeNull();
+      expect(data, "Selection and review must not create an order or bind a Stripe session").toEqual([]);
+    });
+    await expect(payment).toBeEnabled();
+    await payment.click();
 
     await buyerPage.waitForURL(/stripe\.com|\/pay\//, { timeout: 120_000 });
     const order = await waitForLatestOrder({
       trackTitle,
       buyerEmail: accounts.buyer.email
     });
+    expect(order.buyer_user_id).toBe(expectedOffer.buyerId);
+    expect(order.track_id).toBe(expectedOffer.trackId);
+    expect(order.license_type_id).toBe(expectedOffer.licenseTypeId);
+    expect(order.amount_cents).toBe(expectedOffer.amountCents);
+    expect(order.currency.toUpperCase()).toBe("USD");
 
     await triggerPaidCheckoutWebhook(order);
     const buyerReturnContext = await browser.newContext({ baseURL });
@@ -149,6 +161,85 @@ test.describe.serial("marketplace happy path", () => {
     await expect(adminPage.getByText(order.id)).toBeVisible({ timeout: 60_000 });
   });
 });
+
+test("local buyer explicitly selects an offer and reaches read-only review without payment", async ({ page, context }) => {
+  test.skip(baseURL !== "http://127.0.0.1:3106" || process.env.SYNC_EXCHANGE_DEMO_MODE !== "true"
+    || process.env.ANALYTICS_ENABLED !== "false" || Boolean(supabaseAdmin), "Credential-free isolated demo required");
+  await context.addCookies([{
+    name: "sync-exchange-session",
+    value: JSON.stringify({ id: "buyer-1", email: "music@northframe.co", role: "buyer", fullName: "Elena Park", onboardingComplete: true }),
+    url: baseURL
+  }]);
+  const writes = [];
+  page.on("request", request => {
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) writes.push(new URL(request.url()).pathname);
+  });
+  await page.goto("/buyer/catalog");
+  const card = page.getByTestId("catalog-track-card").filter({ has: page.getByRole("heading", { name: "Midnight Run", exact: true }) });
+  await card.getByRole("link", { name: "Midnight Run", exact: true }).click();
+  const payment = await selectLicenseAndReview(page, {
+    trackTitle: "Midnight Run", trackId: "track-1", licenseTypeId: "lt-2", licenseName: "Broadcast", priceLabel: "$4,800.00 USD"
+  }, async () => expect(writes, "No commerce mutation or analytics request before payment").toEqual([]));
+  await expect(payment).toBeDisabled();
+  await expect(page.getByRole("status").filter({ hasText: "Payment is temporarily unavailable" })).toBeVisible();
+});
+
+async function selectLicenseAndReview(page, offer, assertNoCommerce) {
+  await expect(page.getByRole("heading", { level: 1, name: offer.trackTitle, exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Select License", exact: true }).click();
+  const licenses = page.getByRole("group", { name: "Available licenses" });
+  await expect(licenses).toBeVisible();
+  await expect(licenses.getByRole("radio", { checked: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Continue to Checkout", exact: true })).toBeDisabled();
+  await assertNoCommerce();
+
+  const radio = licenses.getByRole("radio", { name: `${offer.licenseName} ${offer.priceLabel}`, exact: true });
+  await expect(radio).toHaveValue(offer.licenseTypeId);
+  await radio.check();
+  await expect(licenses.getByRole("radio", { checked: true })).toHaveValue(offer.licenseTypeId);
+  await expect(page).toHaveURL(url => url.searchParams.get("licenseTypeId") === offer.licenseTypeId && url.hash === "#licenses");
+  await assertNoCommerce();
+  await page.getByRole("link", { name: "Continue to Checkout", exact: true }).click();
+
+  await expect(page.getByRole("heading", { level: 1, name: "Review your license" })).toBeVisible();
+  await expect(page.locator("main").getByText(offer.trackTitle, { exact: true })).toBeVisible();
+  const review = page.getByRole("region", { name: offer.licenseName, exact: true });
+  await expect(review.getByText(offer.priceLabel, { exact: true })).toBeVisible();
+  await expect(review.getByRole("radio")).toHaveCount(0);
+  const form = page.getByTestId("buyer-checkout-form");
+  await expect(form.locator('input[name="trackId"]')).toHaveValue(offer.trackId);
+  await expect(form.locator('input[name="licenseTypeId"]')).toHaveValue(offer.licenseTypeId);
+  const confirmation = review.getByRole("checkbox", { name: "I have reviewed this license and its current price." });
+  const payment = review.getByRole("button", { name: /^Continue to (Test )?Payment$/ });
+  await expect(confirmation).not.toBeChecked();
+  await expect(payment).toBeDisabled();
+  await assertNoCommerce();
+  await confirmation.check();
+  await expect(confirmation).toBeChecked();
+  await assertNoCommerce();
+  return payment;
+}
+
+async function loadExpectedOffer(trackTitle, buyerEmail) {
+  const [buyer, track, license] = await Promise.all([
+    supabaseAdmin.from("user_profiles").select("id, role").eq("email", buyerEmail).single(),
+    supabaseAdmin.from("tracks").select("id, status").eq("title", trackTitle).single(),
+    supabaseAdmin.from("license_types").select("id, name, default_price_cents").eq("slug", "digital-campaign").eq("active", true).single()
+  ]);
+  for (const result of [buyer, track, license]) expect(result.error).toBeNull();
+  expect(buyer.data.role).toBe("buyer");
+  expect(track.data.status).toBe("approved");
+  const option = await supabaseAdmin.from("track_license_options").select("id, price_cents")
+    .eq("track_id", track.data.id).eq("license_type_id", license.data.id).eq("active", true).single();
+  expect(option.error).toBeNull();
+  const amountCents = option.data.price_cents ?? license.data.default_price_cents;
+  expect(Number.isSafeInteger(amountCents) && amountCents > 0).toBe(true);
+  return {
+    buyerId: buyer.data.id, trackId: track.data.id, trackTitle,
+    licenseTypeId: license.data.id, licenseName: license.data.name, amountCents,
+    priceLabel: `${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amountCents / 100)} USD`
+  };
+}
 
 async function signIn(context, credentials) {
   const page = await context.newPage();

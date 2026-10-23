@@ -1,4 +1,8 @@
-import { notFound } from "next/navigation";
+import { LicenseReview } from "@/components/checkout/license-review";
+import { continueLicenseReviewAction } from "@/services/licensing/actions";
+import { loadBuyerCheckoutReview } from "@/services/orders/license-offers";
+import { licenseDetailHref } from "@/lib/licenses/selection";
+import { notFound, redirect } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,15 +18,28 @@ import { getPaymentDisplayConfiguration } from "@/lib/server-env";
 export default async function CheckoutPage(
   props: {
     params: Promise<{ trackSlug: string }>;
-    searchParams?: Promise<{ error?: string; quote?: string }>;
+    searchParams?: Promise<{ error?: string; quote?: string; licenseTypeId?: string | string[]; details?: string; revision?: string; review?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
+  // A quoted transaction resumes its original immutable schedule. An unquoted
+  // GET only reviews a buyer-selected offer and never creates an order.
+  const review = searchParams?.quote ? null : await loadBuyerCheckoutReview(params.trackSlug, searchParams?.licenseTypeId);
+  if (!searchParams?.quote && !review) redirect(licenseDetailHref(params.trackSlug, null, true));
+  const payment = getPaymentDisplayConfiguration();
+  if (!searchParams?.quote && (searchParams?.details !== "1" || searchParams?.revision !== review?.offer.revision)) {
+    return <div className="mx-auto max-w-2xl space-y-6"><h1 className="text-3xl font-semibold">Review your license</h1>
+      <p>{review!.trackTitle}</p>
+      {searchParams?.error ? <p role="alert">Review your selection and try again when checkout is available.</p> : null}
+      <LicenseReview key={review!.offer.revision} review={review!} paymentAvailable={payment.checkoutAvailable}
+        testPayment={payment.paymentMode === "test"} changed={searchParams?.review === "changed"}
+        action={continueLicenseReviewAction}/>
+    </div>;
+  }
   const user = await requireSession("buyer");
   const track = await getBuyerTrackBySlug(params.trackSlug, user.id);
   if (!track) notFound();
-  const payment = getPaymentDisplayConfiguration();
   const testPayment = payment.paymentMode === "test";
   let quote: PurchaseQuote | null = null;
   let quoteError = false;
@@ -50,7 +67,7 @@ export default async function CheckoutPage(
         </div>
       ) : null}
       {searchParams?.error ? (
-        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">{searchParams.error}</div>
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">Unable to complete this step. Review your selection or resume the original transaction from your purchases.</div>
       ) : null}
       {quoteError ? <p role="alert">This transaction review is unavailable for your account. Prepare a new review or contact support to recover an existing purchase.</p> : null}
       <div className={quote ? "space-y-6" : "grid gap-6 lg:grid-cols-[1fr,360px]"}>
@@ -60,7 +77,7 @@ export default async function CheckoutPage(
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">{track.description}</p>
-            {track.license_options.map((option) => (
+            {track.license_options.filter(option => option.id === review?.offer.licenseTypeId).map((option) => (
               <div key={option.id} className="rounded-md border border-border p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -86,7 +103,7 @@ export default async function CheckoutPage(
               {choices.length === 0 ? <p role="status" className="text-sm">No current reviewed rights and legal offer is available. Payment is blocked pending review.</p> : null}
               <fieldset disabled={!payment.checkoutAvailable || choices.length === 0} className="space-y-3">
                 <legend className="sr-only">Choose a license</legend>
-                {track.license_options.map((option) => (
+                {track.license_options.filter(option => option.id === review?.offer.licenseTypeId).map((option) => (
                   <label
                     key={option.id}
                     className="flex cursor-pointer items-center justify-between rounded-md border border-border p-4 text-sm"
@@ -99,15 +116,9 @@ export default async function CheckoutPage(
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="font-medium">{formatCurrency(option.price_override ?? option.base_price)}</span>
-                      <input
-                        type="radio"
-                        name="licenseTypeId"
-                        value={option.id}
-                        disabled={!choices.some(c => c.licenseId === option.id)}
-                        defaultChecked={option.id === track.license_options.find(o => choices.some(c => c.licenseId === o.id))?.id}
-                        aria-label={option.name}
-                        data-testid={`license-radio-${option.slug || option.id}`}
-                      />
+                      <input type="hidden" name="licenseTypeId" value={option.id}/>
+                      <input type="hidden" name="reviewRevision" value={review?.offer.revision}/>
+
                     </div>
                   </label>
                 ))}

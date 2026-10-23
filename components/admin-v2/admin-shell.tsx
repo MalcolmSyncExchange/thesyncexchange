@@ -44,7 +44,7 @@ const groups: Array<{ label: string; destinations: Destination[] }> = [
     destinations: [
       { label: "Media Operations", icon: AudioLines },
       { label: "Compliance", href: "/admin/compliance", icon: ShieldCheck },
-      { label: "Reports", href: "/admin/analytics", icon: FileText },
+      { label: "SEC Intelligence", href: "/admin/analytics", icon: FileText },
       { label: "Audit Log", icon: ClipboardList },
       { label: "System Health", icon: Activity }
     ]

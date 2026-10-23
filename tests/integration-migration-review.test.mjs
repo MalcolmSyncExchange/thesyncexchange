@@ -20,7 +20,7 @@ test('IR-MIG-01 additive remediation preserves every public RPC OID/owner/grant/
   for(const file of [first,second])await db.exec(source('supabase/migrations/'+file));
   assert.deepEqual(await publicContracts(db),contracts);assert.deepEqual(await roleAndStorage(db),roles);assert.deepEqual(await recordState(db),records);
   for(const role of ['anon','authenticated','service_role'])assert.equal((await db.query("select has_function_privilege('"+role+"','finance_private.adverse_provider_summary(text,jsonb)','execute') allowed")).rows[0].allowed,false);
-  assert.equal((await db.query("select to_regclass('public.analytics_outbox') value")).rows[0].value,null);
+  assert.equal((await db.query("select to_regclass('public.analytics_outbox') value")).rows[0].value,'analytics_outbox');
  }finally{await db.close();}
 });
 

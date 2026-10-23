@@ -1,24 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readdirSync} from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
 import {adaptMigrationForPGlite,database,fixtureBootstrapSql,pgliteDigestFixtureSql,snapshot,source,root} from './helpers/artist-baseline-db.mjs';
 import {compare} from '../scripts/artist-baseline/compare.mjs';
-test('lightweight digest shim is isolated from the production public schema',()=>{
+test('Storage migration fails closed when the provider has not enabled RLS',async()=>{
+ const db=new PGlite();
+ try {
+  await db.exec('create schema storage; create table storage.objects(id uuid)');
+  await assert.rejects(db.exec(source('supabase/migrations/0011_storage_object_policies.sql')),/Storage prerequisite missing/);
+  assert.equal((await db.query("select relrowsecurity from pg_class where oid='storage.objects'::regclass")).rows[0].relrowsecurity,false);
+  assert.equal((await db.query("select count(*)::int n from pg_policies where schemaname='storage'")).rows[0].n,0);
+ } finally {await db.close();}
+});
+test('lightweight digest adapter preserves the hosted schema and leaves migration calls unchanged',()=>{
  const migration=source('supabase/migrations/20261004023241_gate_d_acceptance_functions.sql');
  assert.doesNotMatch(fixtureBootstrapSql,/public\.digest/i);
  assert.doesNotMatch(pgliteDigestFixtureSql,/public\.digest/i);
- assert.match(pgliteDigestFixtureSql,/fixture_support\.digest/i);
- assert.match(migration,/public\.digest/i);
- assert.doesNotMatch(adaptMigrationForPGlite(migration),/public\.digest/i);
- assert.match(adaptMigrationForPGlite(migration),/fixture_support\.digest/i);
+ assert.match(pgliteDigestFixtureSql,/extensions\.digest/i);
+ assert.doesNotMatch(pgliteDigestFixtureSql,/md5|fixture_support/i);
+ assert.doesNotMatch(migration,/public\.digest/i);
+ assert.equal((migration.match(/extensions\.digest\(/g)||[]).length,2);
+ assert.equal(adaptMigrationForPGlite(migration),migration);
 });
 test('replayed repository domain schema matches captured production, without implying complete migration history',async()=>{
  const db=await database('historical-repository',{seed:false});
  try {
   assert.deepEqual((await db.query(`select
     to_regprocedure('public.digest(text,text)') is not null public_digest,
-    to_regprocedure('fixture_support.digest(text,text)') is not null fixture_digest`)).rows[0],
-    {public_digest:false,fixture_digest:true});
+    to_regprocedure('extensions.digest(text,text)') is not null extensions_digest`)).rows[0],
+    {public_digest:false,extensions_digest:true});
+  assert.equal((await db.query("select encode(extensions.digest('abc','sha256'),'hex') hash")).rows[0].hash,
+    'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  await assert.rejects(db.query("select public.digest('abc','sha256')"),/does not exist/);
+  await assert.rejects(db.query("select extensions.digest('abc','md5')"),/Unsupported fixture digest algorithm/);
   const repo=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
   const diff=compare(repo,snapshot('production'));
   for(const [category,d] of Object.entries(diff)) assert.deepEqual(d,{onlyLeft:[],onlyRight:[],changed:[]},category);
@@ -51,5 +66,15 @@ test('captured evidence and historical SQL match the recorded SHA-256 provenance
  const provenance=snapshot('provenance');
  assert.equal(hash('scripts/artist-baseline/inventory.sql'),provenance.querySha256);
  for(const [name,expected] of Object.entries(provenance.snapshots)) assert.equal(hash(`tests/fixtures/artist-baseline/${name}.json`),expected,name);
- for(const [path,expected] of Object.entries(provenance.repositorySqlSha256)) assert.equal(hash(path),expected,path);
+ for(const [path,expected] of Object.entries(provenance.repositorySqlSha256)) {
+  if(path==='supabase/migrations/0011_storage_object_policies.sql') {
+   // Preserve the original capture hash: only the provider RLS prerequisite
+   // changed. Every byte of the historical application policy body must match.
+   const current=source(path);
+   assert.doesNotMatch(current,/alter\s+table\s+storage\.objects/i);
+   assert.match(current,/Storage prerequisite missing/);
+   const historical='alter table storage.objects enable row level security;\n\n'+current.slice(current.indexOf('drop policy'));
+   assert.equal(createHash('sha256').update(historical).digest('hex'),expected,path);
+  } else assert.equal(hash(path),expected,path);
+ }
 });

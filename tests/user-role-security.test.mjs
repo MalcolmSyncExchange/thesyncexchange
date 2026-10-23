@@ -73,7 +73,8 @@ test("signup and onboarding role assignment require trusted server role writes",
 });
 
 test("session role resolution is database backed and ignores mutable user metadata roles", () => {
-  assert.match(sessionSource, /const role = resolveUserRole\(userRow\?\.role\) \|\| detectPersistedRole/);
+  assert.match(sessionSource, /const role = resolveUserRole\(userRow\?\.role\);/);
+  assert.doesNotMatch(sessionSource, /detectPersistedRole/);
   assert.doesNotMatch(sessionSource, /resolveUserRole\(user\.user_metadata\?\.role\)/);
   assert.doesNotMatch(sessionSource, /fallbackRole/);
 });

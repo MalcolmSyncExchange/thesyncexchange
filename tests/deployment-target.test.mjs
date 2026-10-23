@@ -73,7 +73,7 @@ function validateStripeEnvironment({ context, secretKey, publishableKey, payment
 
 function buildConfig(variables, phase = "phase-production-build") {
   const environment = { ...process.env };
-  for (const key of ["CONTEXT", "VERCEL_ENV", "NETLIFY", "SITE_ID", "VERCEL", "TSE_BUILD_DEPLOYMENT_TARGET", "SYNC_EXCHANGE_PAYMENT_MODE", "TSE_BUILD_PREVIEW_PAYMENT_MODE"]) delete environment[key];
+  for (const key of ["SYNC_EXCHANGE_DEPLOYMENT_CLASS", "NETLIFY_LOCAL", "CONTEXT", "VERCEL_ENV", "NETLIFY", "SITE_ID", "VERCEL", "TSE_BUILD_DEPLOYMENT_TARGET", "SYNC_EXCHANGE_PAYMENT_MODE", "TSE_BUILD_PREVIEW_PAYMENT_MODE"]) delete environment[key];
   return JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e",
     `const {default: config} = await import("./next.config.mjs"); console.log(JSON.stringify(config(${JSON.stringify(phase)}).env));`
   ], { cwd: root, env: { ...environment, ...variables }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
@@ -100,12 +100,12 @@ test("Vercel production, preview and development remain supported", () => {
 });
 
 test("Next config embeds non-secret target and explicit preview payment mode, ignoring an externally supplied build stamp", () => {
-  assert.deepEqual(buildConfig({ CONTEXT: "branch-deploy", TSE_BUILD_DEPLOYMENT_TARGET: "production" }), {
-    TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: ""
+  assert.deepEqual(buildConfig({ CONTEXT: "branch-deploy", TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "production" }), {
+    TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: ""
   });
-  assert.deepEqual(buildConfig({ CONTEXT: "production", SYNC_EXCHANGE_PAYMENT_MODE: "live" }), { TSE_BUILD_DEPLOYMENT_TARGET: "production", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
-  assert.deepEqual(buildConfig({}), { TSE_BUILD_DEPLOYMENT_TARGET: "local", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
-  assert.deepEqual(buildConfig({ CONTEXT: "deploy-preview", SYNC_EXCHANGE_PAYMENT_MODE: "test" }), { TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: "test" });
+  assert.deepEqual(buildConfig({ CONTEXT: "production", SYNC_EXCHANGE_PAYMENT_MODE: "live" }), { TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "production", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
+  assert.deepEqual(buildConfig({}), { TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "local", TSE_BUILD_PREVIEW_PAYMENT_MODE: "" });
+  assert.deepEqual(buildConfig({ CONTEXT: "deploy-preview", SYNC_EXCHANGE_PAYMENT_MODE: "test" }), { TSE_BUILD_NETLIFY_SITE_ID: "", TSE_BUILD_DEPLOYMENT_TARGET: "preview", TSE_BUILD_PREVIEW_PAYMENT_MODE: "test" });
 });
 
 test("actual application keeps the built preview/production target when runtime CONTEXT disappears", () => {
@@ -375,4 +375,15 @@ test("billing portal is explicit, fail closed, and always disabled in production
   assert.equal(productionBeta.enabled, false);
   assert.equal(productionBeta.releaseMode, "production_beta");
   assert.equal(productionBeta.reason, "production_beta");
+});
+
+test("build site identity is derived from platform SITE_ID and ignores a supplied stamp",()=>{
+ const c=buildConfig({NETLIFY:"true",CONTEXT:"production",SITE_ID:"actual-production",TSE_BUILD_NETLIFY_SITE_ID:"d8e851a6-ab37-4b0e-9403-9b2c1be65f13"});
+ assert.equal(c.TSE_BUILD_NETLIFY_SITE_ID,"actual-production");
+});
+
+test("CLI NETLIFY_LOCAL stamps the reserved site identity; dedicated staging cannot build without matching identity",()=>{
+ const vars={NETLIFY_LOCAL:"true",CONTEXT:"production",SITE_ID:"d8e851a6-ab37-4b0e-9403-9b2c1be65f13",SYNC_EXCHANGE_DEPLOYMENT_CLASS:"dedicated-staging"};
+ assert.equal(buildConfig(vars).TSE_BUILD_NETLIFY_SITE_ID,vars.SITE_ID);
+ for(const overrides of [{SITE_ID:undefined},{SITE_ID:"actual-production"},{NETLIFY_LOCAL:undefined},{CONTEXT:"deploy-preview"}])assert.throws(()=>buildConfig({...vars,...overrides}));
 });

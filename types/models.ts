@@ -119,7 +119,12 @@ export interface Track {
   created_at: string;
   updated_at: string;
   rights_holders: RightsHolder[];
-  license_options: Array<LicenseType & { price_override?: number | null }>;
+  license_options: Array<LicenseType & {
+    price_override?: number | null;
+    track_license_option_id?: string;
+    offer_active?: boolean;
+    amount_cents?: number;
+  }>;
   is_favorite?: boolean;
 }
 
@@ -245,6 +250,7 @@ export interface SessionUser {
   onboardingStartedAt?: string | null;
   onboardingCompletedAt?: string | null;
   onboardingData?: Record<string, unknown> | null;
+  onboardingUpdatedAt?: string | null;
 }
 
 export type ArtistPublicProfile = Omit<ArtistProfile, "payout_email">;

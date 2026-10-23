@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "project": 657650,
+  "matchingRows": 1,
+  "event": {
+    "uuid": "f7d9bd71-58ce-4770-a970-725c7b11ac6a",
+    "event": "submission_started",
+    "distinct_id": "9e61c9ea-ed51-4328-8937-0b989dece2c9",
+    "timestamp": "2026-10-14T22:43:08.889000Z",
+    "is_test": true,
+    "environment": "preview",
+    "authorization_id": "a2926e46-df3b-4631-807e-4643e1f8c1f5"
+  },
+  "checks": {
+    "uuid": true,
+    "eventName": true,
+    "Artist": true,
+    "testLabel": true,
+    "previewEnvironment": true,
+    "timestampAtMillisecondPrecision": true
+  },
+  "timestampPrecision": "PostHog query timestamp matches Supabase occurrence at millisecond precision; Supabase retains additional microseconds.",
+  "queryContext": "PostHog connector active staging project 657650; exact UUID lookup with LIMIT 2",
+  "verifiedAt": "2026-10-14T22:44:09.192Z"
+}

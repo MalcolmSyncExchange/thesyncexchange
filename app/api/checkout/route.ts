@@ -1,3 +1,5 @@
+import { captureCheckoutStarted } from "@/services/analytics/checkout";
+import { captureForUser } from "@/services/analytics/actor";
 import { NextResponse } from "next/server";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
@@ -60,6 +62,7 @@ export async function POST(request: Request) {
   try {
     trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
   } catch (error) {
+    await captureForUser(user.id, "funnel_step_failed", { step: "checkout", error_code: "checkout_failed", retryable: true });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unable to validate this checkout."
@@ -80,6 +83,7 @@ export async function POST(request: Request) {
   try {
     assertStripeServerConfiguration("Stripe checkout API", { requireWebhook: true });
   } catch (error) {
+    await captureForUser(user.id, "funnel_step_failed", { step: "checkout", error_code: "checkout_failed", retryable: true });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Stripe is not configured for this environment."
@@ -139,6 +143,7 @@ export async function POST(request: Request) {
   try {
     await preparePurchaseCompletionCheckout(orderId);
   } catch (error) {
+    await captureForUser(user.id, "funnel_step_failed", { step: "checkout", error_code: "checkout_failed", retryable: true });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to prepare this TEST checkout." },
       { status: 503 }
@@ -208,6 +213,7 @@ export async function POST(request: Request) {
     }
   }).catch(() => undefined);
 
+  await captureCheckoutStarted(user.id, orderId, trustedCheckout.order.track_id, trustedCheckout.licenseType.slug, session);
   return NextResponse.json({
     url: session.url,
     orderId,

@@ -3,9 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {readdirSync} from 'node:fs';
-import {fixtureBootstrapSql,nativeCryptoBootstrapSql,seedDatabase,ids,root,source} from './helpers/artist-baseline-db.mjs';
+import {fixtureBootstrapSql,postgresPgcryptoBootstrapSql,seedDatabase,ids,root,source} from './helpers/artist-baseline-db.mjs';
 
 function docker(args,input='') {
   return new Promise((resolve,reject)=>{
@@ -16,7 +16,7 @@ function docker(args,input='') {
   });
 }
 
-test('two PostgreSQL connections serialize one reservation, recover one attempt, and reject the stale lease', {timeout:60000},async()=>{
+test('fresh non-analytics baseline uses hosted pgcrypto for Gate D digest creation/retry and preserves reservation fencing', {timeout:60000},async t=>{
   const name=`tse-gate-d-${randomUUID()}`;let owned=false;
   const sql=text=>docker(['exec','-i',name,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres'],text);
   const waitFor=async predicate=>{for(let i=0;i<80;i++){if(await predicate())return;await new Promise(r=>setTimeout(r,50));}throw Error('Local concurrency barrier timed out');};
@@ -34,10 +34,48 @@ test('two PostgreSQL connections serialize one reservation, recover one attempt,
       '-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17']);owned=true;
     await waitFor(async()=>{try{await docker(['exec',name,'pg_isready','-h','127.0.0.1','-U','postgres']);return true;}catch{return false;}});
 
+    const excluded=new Set(['20260915072720_analytics_purchase_outbox.sql','20261010060000_analytics_verified_purchase_evidence.sql']);
+    const manifest=JSON.parse(source('docs/security-pr2/migration-manifest.json')).order;
+    const files=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')&&!excluded.has(f)).sort();
+    assert.equal(files.length,31);
+    assert.deepEqual(manifest.map(m=>m.file),files,'Replay the complete reviewed non-analytics baseline in exact order');
+    await sql([fixtureBootstrapSql,postgresPgcryptoBootstrapSql].join('\n'));
+    for(const migration of manifest) {
+      const text=source(`supabase/migrations/${migration.file}`);
+      assert.equal(createHash('sha256').update(text).digest('hex'),migration.sha256,migration.file);
+      await sql(text); // Exact source SQL: no digest shims or migration rewriting.
+      t.diagnostic(`Applied ${migration.file}`);
+    }
+    const cryptoState=JSON.parse(await sql(`select json_build_object(
+      'schema',n.nspname,'version',e.extversion,'language',l.lanname,
+      'extension_owned',exists(select 1 from pg_depend d where d.classid='pg_proc'::regclass
+        and d.objid=p.oid and d.refclassid='pg_extension'::regclass and d.refobjid=e.oid and d.deptype='e'),
+      'public_digest',to_regprocedure('public.digest(text,text)') is not null,
+      'core_uuid',to_regprocedure('pg_catalog.gen_random_uuid()') is not null)
+      from pg_extension e join pg_namespace n on n.oid=e.extnamespace
+      join pg_proc p on p.oid='extensions.digest(text,text)'::regprocedure
+      join pg_language l on l.oid=p.prolang where e.extname='pgcrypto';`));
+    assert.deepEqual(cryptoState,{schema:'extensions',version:'1.3',language:'c',extension_owned:true,public_digest:false,core_uuid:true});
+    assert.equal(await sql("select encode(extensions.digest('abc','sha256'),'hex')"),
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    await assert.rejects(sql("select public.digest('abc','sha256')"),/does not exist/);
+    assert.deepEqual(JSON.parse(await sql(`select json_build_object(
+      'users',(select count(*) from auth.users),'tracks',(select count(*) from tracks),
+      'orders',(select count(*) from orders),'payment_events',(select count(*) from commerce_private.payment_events),
+      'fulfillment_jobs',(select count(*) from commerce_private.fulfillment_jobs),
+      'acceptance_grants',(select count(*) from commerce_private.acceptance_grants),
+      'analytics_tables',(select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname='public' and c.relname like '%analytics%'),
+      'analytics_rpcs',(select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+        where n.nspname='public' and p.proname like '%analytics%'),
+      'capabilities_off',(select not (foundation_enabled or asset_preparation_enabled or receipt_generation_enabled
+        or entitlement_activation_enabled or transaction_projection_enabled or payment_adapter_enabled)
+        from commerce_private.capabilities));`)),
+      {users:0,tracks:0,orders:0,payment_events:0,fulfillment_jobs:0,acceptance_grants:0,analytics_tables:0,analytics_rpcs:0,capabilities_off:true});
+    t.diagnostic('31 source migrations replayed without rewriting; real pgcrypto in extensions; empty application data; analytics absent; capabilities OFF');
     const seed=[];await seedDatabase({exec:async statement=>seed.push(statement+';')});
-    const migrations=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort().map(f=>source(`supabase/migrations/${f}`));
-    await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...migrations,...seed].join('\n'));
-    assert.equal(await sql("select count(*) from pg_extension where extname='pgcrypto'"),'1');
+    // Each psql invocation is a new session; set the trusted fixture actor again.
+    await sql(["select set_config('request.jwt.claim.role','service_role',false);",...seed].join('\n'));
     await sql(`
       select set_config('request.jwt.claim.role','service_role',false);
       insert into auth.users(id,email) values('${qaBuyer}','qa-buyer@thesyncexchange.com');
@@ -93,6 +131,13 @@ test('two PostgreSQL connections serialize one reservation, recover one attempt,
     const currentPrepared=(await sql(`set role service_role; select set_config('request.jwt.claim.role','service_role',false);
       select reservation_lease_token||'|'||stripe_parameters_sha256||'|'||provider_expires_at
       from public.gate_d_prepare_checkout('${grantId}','${current[1]}',${current[2]},'https://example.invalid');`)).split('\n').at(-1).split('|');
+    const canonical=await sql(`select stripe_request_spec from commerce_private.acceptance_grants where id='${grantId}'`);
+    assert.equal(currentPrepared[1],createHash('sha256').update(canonical).digest('hex'));
+    const repeated=(await sql(`set role service_role; select set_config('request.jwt.claim.role','service_role',false);
+      select stripe_parameters_sha256 from public.gate_d_prepare_checkout(
+        '${grantId}','${current[1]}',${current[2]},'https://example.invalid');`)).split('\n').at(-1);
+    assert.equal(repeated,currentPrepared[1],'The second digest branch validates the frozen parameters');
+    t.diagnostic('Gate D first preparation and identical retry both match independent Node SHA-256 with public.digest absent');
     await assert.rejects(sql(`set role service_role; select set_config('request.jwt.claim.role','service_role',false);
       select public.gate_d_bind_checkout('${grantId}','${current[1]}','${stale[0]}',${current[2]},
         '${currentPrepared[1]}','cs_test_stalelease','${currentPrepared[2]}');`),/Stale or mismatched Gate D checkout binding/);

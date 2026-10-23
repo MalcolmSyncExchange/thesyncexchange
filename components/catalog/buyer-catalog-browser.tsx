@@ -1,8 +1,10 @@
 "use client";
 
+import { filterProperties } from "@/lib/analytics/schema";
+import { useAnalytics } from "@/components/analytics/provider";
 import styles from "@/components/buyer/buyer-workspace.module.css";
 import { LayoutGrid, Music2, Rows3, SlidersHorizontal, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +17,22 @@ const selectStyle = "h-11 w-full rounded-md border border-input bg-background px
 export function BuyerCatalogBrowser({ tracks, basePath, interests }: { tracks: BuyerTrack[]; basePath: string; interests?: { genres: string[]; moods: string[] } }) {
   const { filters, setFilters } = useBuyerDiscovery();
   const filteredTracks = useMemo(() => filterCatalog(tracks, filters), [tracks, filters]);
+  const capture = useAnalytics();
+  // Fingerprint remains local; only booleans, counts and fixed filter names leave the page.
+  const fingerprint = JSON.stringify([filters.query, filters.genre, filters.mood, filters.licenseType, filters.vocalProfile, filters.explicitFilter, filters.priceBand, filters.minBpm, filters.maxBpm, filters.sort]);
+  const initialFingerprint = useRef(fingerprint);
+  useEffect(() => {
+    if (fingerprint === initialFingerprint.current) return;
+    const timer = setTimeout(() => {
+      initialFingerprint.current = fingerprint;
+      const filterTypes = (["genre", "mood", "licenseType", "vocalProfile", "explicitFilter", "priceBand", "minBpm", "maxBpm"] as const)
+        .filter(key => filters[key] !== defaultCatalogFilters[key]);
+      const safe = filterProperties("catalog_searched", { search_id: crypto.randomUUID(), result_count: filteredTracks.length,
+        has_query: Boolean(filters.query.trim()), filter_count: filterTypes.length, filter_types: filterTypes, sort: filters.sort });
+      if (safe) capture("catalog_searched", safe);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [capture, fingerprint, filters, filteredTracks.length]);
   const [open, setOpen] = useState(false);
   const results = useRef<HTMLHeadingElement>(null);
   const update = <K extends keyof CatalogFilters>(key: K, value: CatalogFilters[K]) => setFilters((current) => ({ ...current, [key]: value }));
@@ -92,7 +110,7 @@ export function BuyerCatalogBrowser({ tracks, basePath, interests }: { tracks: B
         </div>
       </div>
       {filteredTracks.length ? <div className={filters.layout === "grid" ? "grid gap-5 md:grid-cols-2 xl:grid-cols-3" : styles.trackList}>
-        {filteredTracks.map(track => <BuyerTrackCard key={track.id} track={track} href={`${basePath}/${track.slug}`} layout={filters.layout} licenseType={filters.licenseType} />)}
+        {filteredTracks.map(track => <BuyerTrackCard previewSurface="catalog" key={track.id} track={track} href={`${basePath}/${track.slug}`} layout={filters.layout} licenseType={filters.licenseType} />)}
       </div> : <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
         <h3 className="text-lg font-semibold">No tracks match your search</h3>
         <p className="my-3 text-sm text-muted-foreground">Try a different mood, widen your budget, or start again.</p>

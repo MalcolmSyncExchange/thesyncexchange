@@ -1,0 +1,13 @@
+import { notFound } from "next/navigation";
+import { IntelligenceDashboard, type IntelligenceView } from "@/components/admin-v2/intelligence-dashboard";
+import { buildSECReadModels } from "@/lib/analytics/intelligence/read-models";
+import { dashboardRequest } from "@/lib/analytics/intelligence/dashboard";
+import { eventSchemas, type EventName } from "@/lib/analytics/schema";
+export default async function Fixture({ searchParams }: { searchParams: Promise<Record<string,string|undefined>> }) {
+ const params = await searchParams;
+ const view = (["overview","funnels","marketplace","event-health"].includes(params.view ?? "") ? params.view : "overview") as IntelligenceView;
+ if (process.env.SYNC_EXCHANGE_DEMO_MODE !== "true" || process.env.NODE_ENV !== "development") notFound();
+ const request=dashboardRequest({start:"2026-01-01",end:"2026-01-04",compare:"yes"},new Date("2026-02-01"));
+ const data=buildSECReadModels({state:"available",type:"fixture",observations:[{eventId:"event",actorId:"artist",actorRole:"artist",event:"submission_completed",occurredAt:"2026-01-02T12:00:00Z",environment:"preview",isTest:false,isInternal:false}],instrumentedEvents:Object.keys(eventSchemas) as EventName[],queriedRange:{startInclusive:"2025-12-01",endExclusive:"2026-02-01"},observedThrough:"2025-12-01",coverageVerified:false,lastUpdatedAt:null},request);
+ return <main className="p-6"><IntelligenceDashboard data={data} view={view} query="?start=2026-01-01&end=2026-01-04&interval=day&compare=yes" /></main>;
+}

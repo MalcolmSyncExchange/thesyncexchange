@@ -1,0 +1,38 @@
+// Fresh Unix-only local cluster; accepts no hosted URL or credentials.
+import{mkdtempSync,mkdirSync,readFileSync,readdirSync,rmSync}from'node:fs';import{tmpdir}from'node:os';import{join}from'node:path';import{execFile}from'node:child_process';import{promisify}from'node:util';import assert from'node:assert/strict';
+import{fixtureBootstrapSql,postgresPgcryptoBootstrapSql,seedDatabase,ids}from'./helpers/artist-baseline-db.mjs';
+import{preservationQuery,databaseSources}from'../scripts/diagnostics/staging-preservation-query.mjs';
+import{createStagingPreservationCollector}from'../scripts/diagnostics/staging-preservation-collector.mjs';import{comparePreservationSnapshots}from'../scripts/diagnostics/postflight-preservation.mjs';
+const run=promisify(execFile),temporary=mkdtempSync(join(tmpdir(),'tse-execution-native-')),data=join(temporary,'data'),socket=join(temporary,'socket');mkdirSync(socket,{mode:0o700});let started=false;
+const args=['-h',socket,'-p','55559','-U','postgres','-d','postgres','-X','-q','-A','-t','-v','ON_ERROR_STOP=1'];const sql=async text=>(await run('psql',[...args,'-c',text],{maxBuffer:8*1024*1024})).stdout;
+try{
+ await run('initdb',['-D',data,'-U','postgres','--auth=trust','--no-locale']);await run('pg_ctl',['-D',data,'-l',join(temporary,'server.log'),'-o',`-k ${socket} -p 55559 -h ''`,'start']);started=true;
+ await sql(fixtureBootstrapSql+postgresPgcryptoBootstrapSql);
+ await sql("alter table auth.users add column last_sign_in_at timestamptz,add column updated_at timestamptz;alter table auth.sessions add column created_at timestamptz default now(),add column refresh_token text;create table auth.identities(id uuid primary key,user_id uuid,last_sign_in_at timestamptz,updated_at timestamptz);create schema supabase_migrations;create table supabase_migrations.schema_migrations(version text primary key,name text,statements text[]);");
+ const files=readdirSync(new URL('../supabase/migrations/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort();
+ for(const [index,file] of files.entries()){await sql(readFileSync(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));await sql(`insert into supabase_migrations.schema_migrations values('local-${index}','${file.slice(0,-4)}',array['local fixture applied']);`);}
+ await seedDatabase({exec:async text=>sql("select set_config('request.jwt.claim.role','service_role',false);"+text)});
+ const authorization='a2926e46-df3b-4631-807e-4643e1f8c1f5',legacy='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',session='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+ await sql(`insert into staging_analytics_validation(id,artist_id,event,created_at,expires_at)values('${legacy}','${ids.a}','submission_started','2020-01-01','2020-01-01 00:05');insert into staging_analytics_validation(id,artist_id,event,created_at,expires_at)values('ffffffff-ffff-4fff-8fff-ffffffffffff','${ids.a}','submission_started','2020-01-01','2020-01-01 00:05');update staging_analytics_validation_slot set authorization_id='${legacy}';`);
+ for(let i=0;i<5;i++)await sql(`insert into analytics_outbox(dedupe_key,environment,event,actor_id,actor_role,properties,is_internal,is_test,delivery_status,attempt_count,delivered_at)values('historical-${i}','preview','submission_started','${ids.a}','artist','{}',false,true,'delivered',1,clock_timestamp());`);
+ const reader={verify:async()=>{},close:()=>{},database:async (admin,auth)=>[{snapshot:JSON.parse((await sql(preservationQuery(admin,auth))).trim())}],environment:async()=>({success:true,count:1,complete:true,readAt:new Date().toISOString(),rows:[{id:'ANALYTICS_ENABLED',value:'false'}]})};
+ const collector=createStagingPreservationCollector({reader,fingerprintKey:Buffer.alloc(32,1)}),options={approvedAdminId:ids.admin,mode:'BOUNDED_EVENT_EXECUTION',executionAuthorization:authorization};
+ const before=await collector.collect(options);assert.equal(before.diagnostic.status,'passed');const executionStartedAt=new Date().toISOString();
+ const service=text=>sql(`begin;set local role service_role;select set_config('request.jwt.claims','{"ref":"oppijylbkcbiqfuvckgj","role":"service_role"}',true);select set_config('request.jwt.claim.role','service_role',true);${text};commit;`);
+ await service(`select arm_staging_analytics_validation('${authorization}','${ids.a}','${ids.admin}','submission_started')`);
+ const loginStartedAt=new Date().toISOString();await sql(`insert into auth.sessions(id,user_id,created_at,refresh_token)values('${session}','${ids.admin}',clock_timestamp(),'local fixture only');update auth.users set last_sign_in_at=clock_timestamp(),updated_at=clock_timestamp() where id='${ids.admin}';`);const loginFinishedAt=new Date().toISOString();
+ assert.equal((await service(`select count(*) from claim_staging_analytics_validation('${authorization}','${ids.a}','submission_started','${ids.b}')`)).trim().split('\n').at(-1),'0');
+ assert.equal((await service(`select count(*) from claim_staging_analytics_validation('${authorization}','${ids.b}','submission_started','${ids.admin}')`)).trim().split('\n').at(-1),'0');
+ const claim=`select row_to_json(t) from claim_staging_analytics_validation('${authorization}','${ids.a}','submission_started','${ids.admin}') t`;
+ const results=await Promise.all([service(claim),service(claim)]);const rows=results.flatMap(x=>x.split('\n').filter(x=>x.startsWith('{"id"')).map(x=>JSON.parse(x)));assert.equal(rows.length,1);const event=rows[0];assert.equal(event.attempt_count,1);
+ assert.equal((await service(`select count(*) from claim_staging_analytics_validation('${authorization}','${ids.a}','submission_started','${ids.admin}')`)).trim().split('\n').at(-1),'0');
+ const heldEnd=new Date().toISOString(),held=await collector.collect(options);assert.equal(held.diagnostic.status,'passed');
+ const auth={mode:'BOUNDED_EVENT_EXECUTION',approvedAdminId:ids.admin,environmentId:'oppijylbkcbiqfuvckgj',expectedNewSessions:1,approvedSessionId:session,loginStartedAt,loginFinishedAt,executionAuthorization:authorization,artistId:ids.a,eventId:event.id,executionStartedAt};
+ const heldResult=comparePreservationSnapshots(before.snapshot,held.snapshot,{...auth,executionFinishedAt:heldEnd});assert.equal(heldResult.status,'passed',JSON.stringify(heldResult.assertions.filter(x=>!x.passed)));
+ await service(`select finish_staging_analytics_validation('${authorization}','${event.lease_id}',true)`);
+ const executionFinishedAt=new Date().toISOString(),after=await collector.collect(options);assert.equal(after.diagnostic.status,'passed');
+ const result=comparePreservationSnapshots(before.snapshot,after.snapshot,{...auth,executionFinishedAt});assert.equal(result.status,'passed',JSON.stringify(result.assertions.filter(x=>!x.passed)));
+ await assert.rejects(sql(`update staging_analytics_validation set expires_at=expires_at+interval '1 second' where id='${legacy}'`));
+ await sql(`select set_config('request.jwt.claim.role','service_role',false);update public.user_profiles set full_name='Unexpected local fixture mutation' where id='${ids.a}';`);const bad=await collector.collect(options);assert.equal(comparePreservationSnapshots(before.snapshot,bad.snapshot,{...auth,executionFinishedAt}).assertions.find(x=>x.assertion==='public.user_profiles.existing_records').passed,false);
+ console.log(JSON.stringify({status:'PASS',localOnly:true,nativePostgres:true,migrations:files.length,concurrentClaims:2,eventsCreated:1,transportAttemptCount:event.attempt_count,historicalEvents:5,heldPreservation:'PASS',acceptedPreservation:'PASS',historicalGrantImmutable:true,unexpectedProfileMutationRejected:true}));
+}finally{if(started)await run('pg_ctl',['-D',data,'-m','immediate','stop']);rmSync(temporary,{recursive:true,force:true});}

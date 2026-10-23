@@ -1,5 +1,8 @@
 "use server";
 
+import { captureCheckoutStarted } from "@/services/analytics/checkout";
+import { captureForUser } from "@/services/analytics/actor";
+
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
@@ -49,7 +52,6 @@ export async function createOrderAction(formData: FormData) {
     redirect(`/buyer/checkout/${trackSlug}?error=Selected%20license%20option%20is%20not%20available.`);
   }
 
-  const amountPaid = selectedLicense.price_override ?? selectedLicense.base_price;
 
   if (!hasSupabaseEnv || env.demoMode) {
     const orderId = `ord_demo_${Date.now()}`;
@@ -175,9 +177,11 @@ export async function createOrderAction(formData: FormData) {
       throw new Error("Stripe did not return a hosted checkout URL.");
     }
 
+    await captureCheckoutStarted(user.id, orderId, trackId, selectedLicense.slug, session);
     redirect(session.url);
   } catch (checkoutError) {
     unstable_rethrow(checkoutError);
+    await captureForUser(user.id, "funnel_step_failed", { step: "checkout", error_code: "checkout_failed", retryable: true });
 
     // Accepted legal evidence is retained even if preparation fails before the
     // provider call. Retry the original accepted quote; never delete its order.

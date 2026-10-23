@@ -6,6 +6,8 @@ export const snapshot = name => JSON.parse(source(`tests/fixtures/artist-baselin
 export const ids = { a:'11111111-1111-4111-8111-111111111111', b:'22222222-2222-4222-8222-222222222222', buyer:'33333333-3333-4333-8333-333333333333', admin:'44444444-4444-4444-8444-444444444444', draft:'55555555-5555-4555-8555-555555555555', live:'66666666-6666-4666-8666-666666666666', otherTrack:'77777777-7777-4777-8777-777777777777', order:'88888888-8888-4888-8888-888888888888', license:'99999999-9999-4999-8999-999999999999' };
 export const quote = x => `'${String(x).replaceAll("'","''")}'`;
 export const ident = x => `"${String(x).replaceAll('"','""')}"`;
+// Lightweight policy/row tests only. Platform ownership compatibility must also
+// pass managed-storage-baseline.test.mjs using real Supabase supautils.
 export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls; create role supabase_storage_admin;
    create schema auth; create schema storage;
    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');
@@ -18,24 +20,32 @@ export const fixtureBootstrapSql = `create role anon; create role authenticated;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
    create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,version text,owner uuid,owner_id text,unique(bucket_id,name));
+   alter table storage.objects enable row level security;
+   alter table storage.buckets enable row level security;
    grant usage on schema public,auth,storage to anon,authenticated,service_role;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
    select set_config('request.jwt.claim.role','service_role',false);`;
-// Native suites use real pgcrypto in the provider namespace. No hosted connection.
-export const nativeCryptoBootstrapSql = `create schema extensions; create extension pgcrypto with schema extensions;
- create function public.digest(text,text) returns bytea language sql immutable as $$ select extensions.digest($1,$2) $$;`;
-export const pgliteDigestFixtureSql = `create schema fixture_support;
-   create function fixture_support.digest(value text,algorithm text) returns bytea language sql immutable as $$
-     select decode(repeat(md5(value),2),'hex') where algorithm='sha256'
+// Vanilla PostgreSQL test containers start without Supabase's preinstalled
+// extension. Install it directly in the hosted schema before replaying SQL;
+// never relocate it or create a public compatibility function.
+export const postgresPgcryptoBootstrapSql = `create schema extensions;
+   create extension pgcrypto with schema extensions;`;
+export const nativeCryptoBootstrapSql = postgresPgcryptoBootstrapSql;
+// PGlite cannot load pgcrypto. This explicit SHA-256-only test adapter uses
+// PostgreSQL's real core hash and the hosted signature/schema. Migration calls
+// are never rewritten. Real extension/runtime proof lives in gate-d-concurrency.
+export const pgliteDigestFixtureSql = `create schema extensions;
+   create function extensions.digest(value text,algorithm text) returns bytea language plpgsql immutable strict as $$
+   begin
+     if algorithm <> 'sha256' then raise exception 'Unsupported fixture digest algorithm'; end if;
+     return pg_catalog.sha256(pg_catalog.convert_to(value,'UTF8'));
+   end
    $$;`;
 export const adaptMigrationForPGlite = sql => sql
   .replace(/create extension if not exists "pgcrypto";/gi,'')
-
-  // PGlite cannot install pgcrypto: only this isolated test adapter omits the
-  // provider extension preflight. Native PG17 runs unmodified dependency SQL.
-  .replace(/  if pg_catalog\.to_regprocedure\('extensions\.digest\(text,text\)'\)[\s\S]*?end if;/,'')
-  .replace(/\b(public|extensions)\.digest\s*\(/gi,'fixture_support.digest(');
+  // Only PGlite lacks extension metadata; native replay uses exact source SQL.
+  .replace(/  if pg_catalog\.to_regprocedure\('extensions\.digest\(text,text\)'\)[\s\S]*?end if;/,'');
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
@@ -44,7 +54,7 @@ export async function database(target='repository', {seed=true}={}) {
   await db.exec(`${fixtureBootstrapSql}\n${pgliteDigestFixtureSql}`);
   for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
    (target==='repository' || (target==='pr27' && x<'20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
-   // PGlite has no pgcrypto. Its isolated shim must never shadow the production public.digest function.
+   // Only extension installation is omitted; function names/bodies are unchanged.
    const sql=adaptMigrationForPGlite(source(`supabase/migrations/${file}`));
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }
   }

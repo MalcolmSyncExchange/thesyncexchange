@@ -31,7 +31,9 @@ test('PR21 reconciliation remains intact with the additive purchase foundation a
     '20261022180614_secure_asset_delivery.sql',
     '20261022191602_immutable_source_integration.sql',
     '20261022210225_financial_ledger_reconciliation.sql',
-    '20261022213225_financial_ingestion_recovery.sql'
+    '20261022213225_financial_ingestion_recovery.sql',
+    '20261023000941_authenticated_adverse_financial_evidence.sql',
+    '20261023001622_verified_provider_fee_bounds.sql'
   ]);
 });
 

@@ -16,6 +16,7 @@ async function execute(bin,args){return new Promise(resolve=>{
 });}
 const git=async args=>(await execute('git',args)).text.trim();
 const candidate=await git(['rev-parse','HEAD']),tree=await git(['rev-parse','HEAD^{tree}']);
+const generatedPath=join(root,'next-env.d.ts'),generatedBefore=await readFile(generatedPath,'utf8');
 if(await git(['status','--porcelain','--untracked-files=no']))throw Error('Freeze and commit tracked candidate changes before qualification');
 const p=JSON.parse(await readFile(join(root,'package.json'),'utf8'));
 const registered=new Set(p.scripts['test:unit'].match(/tests\/[\w-]+\.test\.mjs/g));
@@ -52,6 +53,10 @@ for(const [id,bin,args]of commands){
  report.commands.push({id,command:[bin,...args],exitCode:result.exitCode,status:result.exitCode===0?'PASS':'FAIL',tests:number('tests'),pass:number('pass'),fail:number('fail'),skipped:number('skipped'),startedAt:result.startedAt,finishedAt:result.finishedAt,log,sha256:createHash('sha256').update(result.text).digest('hex')});
  await writeFile(join(output,'qualification-results.json'),JSON.stringify(report,null,2));process.stdout.write(id+': '+report.commands.at(-1).status+'\n');
 }
+// Next's production build rewrites only its generated type import paths. Restore
+// this runner's known generated edit, never an unexpected or unrelated change.
+const generatedAfter=await readFile(generatedPath,'utf8');
+if(generatedAfter!==generatedBefore&&generatedAfter===generatedBefore.replaceAll('./.next/dev/types/','./.next/types/')){await writeFile(generatedPath,generatedBefore);report.generatedCleanup={path:'next-env.d.ts',reason:'Restored only the known Next-generated import rewrite',beforeSha256:createHash('sha256').update(generatedBefore).digest('hex'),generatedSha256:createHash('sha256').update(generatedAfter).digest('hex')};}
 report.finishedAt=new Date().toISOString();report.finalCandidate=await git(['rev-parse','HEAD']);report.trackedStatus=await git(['status','--porcelain','--untracked-files=no']);report.untrackedStatus=await git(['ls-files','--others','--exclude-standard']);
 await writeFile(join(output,'qualification-results.json'),JSON.stringify(report,null,2));
 process.exitCode=report.commands.some(c=>c.status==='FAIL')||report.notRun.length||report.trackedStatus?1:0;

@@ -12,7 +12,7 @@
     "Native migration and legacy concurrency runners; isolated media fixture socket/order"
   ],
   "verified": {
-    "unit": 1331,
+    "unit": 1370,
     "securityArtistMediaContract": 160,
     "nativeReplayLifecycleSuites": 7,
     "nativeLegacyEquivalents": 2,
@@ -20,7 +20,8 @@
     "chromiumCombinedChecks": 7,
     "typecheck": "PASS",
     "build": "PASS",
-    "lint": "0 errors / existing 1 warning"
+    "lint": "0 errors / existing 1 warning",
+    "signupDiagnosticCases": 39
   },
   "limitations": [
     "Additional suite:197 pass,8 codec/tool failures,1 Linux-only skip; do not mark these cases complete",
@@ -31,5 +32,10 @@
     "PostHog PH2-CORE-EVIDENCE-001 remains OPEN; core acceptance is not full Phase 2 acceptance"
   ],
   "recommendation": "Source candidate assembled; NO-GO for hosted execution until preflight gates and separate founder authorization. Private Beta is not approved.",
-  "restrictions": "No push, shared merge, deploy, hosted SQL/Storage/config, analytics/commerce activation or real transactions."
+  "restrictions": "No push, shared merge, deploy, hosted SQL/Storage/config, analytics/commerce activation or real transactions.",
+  "signupSourcePatches": {
+    "c4bfc3c": "48cbd9f3190bffcb38f48e387e9f5f4eafa192fa",
+    "33f6d49": "0abd35934275b12eb1835a4ed1f23c68c4c9dd85"
+  },
+  "runtimeQualification": "No staged or hosted acceptance inferred; media policy/codec/container tests remain blocked."
 }

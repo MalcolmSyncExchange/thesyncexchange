@@ -10,6 +10,6 @@ try{
  await mkdir(socket,{mode:0o700});await command('initdb',['-D',data,'-U','slice3_fixture_admin','--auth=trust','--encoding=UTF8','--no-locale']);
  await command('pg_ctl',['-D',data,'-l',join(dir,'postgres.log'),'-o',`-c listen_addresses= -c unix_socket_directories=${socket} -c max_connections=30 -c shared_buffers=16MB`,'-w','start']);running=true;
  const child=spawn(process.execPath,['--test','--experimental-strip-types','--test-concurrency=1',
- 'tests/submission-media-postgres.test.mjs','tests/media-execution-postgres.test.mjs','tests/media-broker-transport.test.mjs'],{env:{PATH:process.env.PATH,LC_ALL:'C',TSE_MEDIA_TEST_SOCKET:socket},stdio:'inherit'});
+ 'tests/submission-media-postgres.test.mjs','tests/media-execution-postgres.test.mjs','tests/media-broker-transport.test.mjs','tests/media-worker-postgres.test.mjs'],{env:{PATH:process.env.PATH,LC_ALL:'C',TSE_MEDIA_TEST_SOCKET:socket},stdio:'inherit'});
  process.exitCode=await new Promise((resolve,reject)=>{child.on('error',reject);child.on('close',resolve);});
 }finally{if(running)await command('pg_ctl',['-D',data,'-m','immediate','-w','stop']);await rm(dir,{recursive:true,force:true});}

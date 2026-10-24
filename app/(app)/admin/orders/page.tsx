@@ -17,6 +17,7 @@ export default async function AdminOrdersPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-semibold">License and order management</h1>
+      <a href="/admin/delivery" className="text-sm underline">Secure delivery operations</a>
       <a href="/admin/payments" className="text-sm underline">Payment evidence and checkout recovery</a>
       <a href="/admin/finance" className="text-sm underline">Financial processing and reconciliation operations</a>
       <div className="space-y-4">

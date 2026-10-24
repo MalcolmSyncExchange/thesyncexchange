@@ -17,7 +17,7 @@ const count=async(db,table)=>(await db.query('select count(*)::int n from '+tabl
 const balance=async(db,order,key)=>BigInt((await db.query(`select finance_private.balance('${order}',${quote(key)}) n`)).rows[0].n);
 const assertBalanced=async db=>assert.equal((await db.query('select count(*)::int n from(select journal_id from finance_private.lines group by journal_id having sum(signed_minor)<>0 or count(*)<2) q')).rows[0].n,0);
 const transfer=(db,c,read=async()=>deliveryBytes)=>deliverAsset(new Request('http://localhost/download',{method:'POST',headers:{origin:'http://localhost'}}),c.order,c.entitlement,{
- randomUUID,authenticate:async()=>{await asActor(db,ids.buyer,()=>call(db,'verify_asset_download_session',[]),'authenticated',c.session);return {id:ids.buyer,role:'buyer'};},
+ appOrigin:'http://localhost',randomUUID,authenticate:async()=>{await asActor(db,ids.buyer,()=>call(db,'verify_asset_download_session',[]),'authenticated',c.session);return {id:ids.buyer,role:'buyer'};},
  ownsOrder:async buyer=>asActor(db,buyer,async()=>Boolean((await db.query(`select id from orders where id='${c.order}'`)).rows.length)),
  deny:async()=>{},begin:async(_b,_o,_e,key)=>beginDownload(c,key),read,finish:async(_b,id,outcome)=>finishDownload(c,{authorizationId:id},outcome)
 });

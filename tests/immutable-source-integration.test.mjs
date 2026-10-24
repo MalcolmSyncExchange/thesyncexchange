@@ -126,7 +126,7 @@ test('PK04 reuses canonical media and preserves exact PK07/03/06/08 guards and O
 test('actual delivery handler returns only hash-verified licensed bytes after database authorization and final recheck',()=>fixture(async db=>{
  const c=await seedDelivery(db);
  const response=await deliverAsset(new Request('http://localhost/download',{method:'POST',headers:{origin:'http://localhost'}}),c.order,c.entitlement,{
-  randomUUID,authenticate:async()=>{await asActor(db,ids.buyer,()=>call(db,'verify_asset_download_session',[]),'authenticated',c.session);return {id:ids.buyer,role:'buyer'};},
+  appOrigin:'http://localhost',randomUUID,authenticate:async()=>{await asActor(db,ids.buyer,()=>call(db,'verify_asset_download_session',[]),'authenticated',c.session);return {id:ids.buyer,role:'buyer'};},
   ownsOrder:async buyer=>asActor(db,buyer,async()=>Boolean((await db.query(`select id from orders where id='${c.order}'`)).rows.length)),
   deny:async()=>{throw Error('Unexpected denial');},begin:async(_b,_o,_e,key)=>beginDownload(c,key),
   read:async()=>deliveryBytes,finish:async(_b,id,outcome)=>finishDownload(c,{authorizationId:id},outcome)

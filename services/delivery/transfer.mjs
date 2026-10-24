@@ -25,12 +25,12 @@ export function verifyArtifact(bytes, expected) {
 /** The only fetch target is the configured project, never a supplied URL.
  * Read at most the sealed size, reject redirects, and cancel on timeout/abort.
  * Neither provider credentials nor signed URLs enter the response or audit. */
-export async function fetchPrivateArtifact({ projectUrl, serviceKey, bucket, path, byteSize, signal, fetcher = fetch }) {
+export async function openPrivateArtifact({ projectUrl, serviceKey, bucket, path, byteSize, signal, fetcher = fetch }) {
   if (!serviceKey || !Number.isSafeInteger(byteSize) || byteSize < 1 || byteSize > MAX_ASSET_BYTES ||
       !/^[a-z0-9-]{1,63}$/.test(bucket) || !path || path.startsWith('/') || /[%\\?#\u0000-\u001f]/.test(path) ||
       path.split('/').some(s => !s || s === '.' || s === '..')) throw new DeliveryFailure('integrity_failed');
   const base = new URL(projectUrl);
-  if (!['https:', 'http:'].includes(base.protocol) || base.username || base.password || base.search || base.hash || base.pathname !== '/') {
+  if (!(base.protocol === 'https:' || (base.protocol === 'http:' && ['127.0.0.1','localhost','[::1]'].includes(base.hostname))) || base.username || base.password || base.search || base.hash || base.pathname !== '/') {
     throw new DeliveryFailure('storage_failed');
   }
   const abort = signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000);
@@ -43,6 +43,11 @@ export async function fetchPrivateArtifact({ projectUrl, serviceKey, bucket, pat
   if (!response.ok || !response.body) { await response.body?.cancel(); throw new DeliveryFailure('storage_failed'); }
   const length = response.headers.get('content-length');
   if (length !== null && Number(length) !== byteSize) { await response.body.cancel(); throw new DeliveryFailure('integrity_failed'); }
+  return response;
+}
+export async function fetchPrivateArtifact(input) {
+  const {byteSize,signal}=input;
+  const response=await openPrivateArtifact(input);
   const reader = response.body.getReader();
   const bytes = new Uint8Array(byteSize);
   let size = 0;
@@ -50,7 +55,7 @@ export async function fetchPrivateArtifact({ projectUrl, serviceKey, bucket, pat
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      if (abort.aborted) throw new DeliveryFailure(signal?.aborted ? 'aborted' : 'storage_failed');
+      if (signal?.aborted) throw new DeliveryFailure(signal?.aborted ? 'aborted' : 'storage_failed');
       if (size + value.byteLength > byteSize) throw new DeliveryFailure('integrity_failed');
       bytes.set(value, size); size += value.byteLength;
     }
@@ -66,7 +71,7 @@ export async function fetchPrivateArtifact({ projectUrl, serviceKey, bucket, pat
 export async function deliverAsset(request, orderId, entitlementId, dependencies) {
   const json = (error, status) => Response.json({ error }, { status, headers: privateDeliveryHeaders });
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { ...privateDeliveryHeaders, Allow: 'POST' } });
-  if (request.headers.get('origin') !== new URL(request.url).origin ||
+  if (!dependencies.appOrigin || request.headers.get('origin') !== dependencies.appOrigin ||
       ![null, 'same-origin', 'none'].includes(request.headers.get('sec-fetch-site'))) return json('Forbidden.', 403);
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuid.test(orderId) || !uuid.test(entitlementId)) return json('Download unavailable.', 404);
@@ -95,7 +100,8 @@ export async function deliverAsset(request, orderId, entitlementId, dependencies
     if (!await dependencies.finish(actor.id, authorization.authorizationId, 'bytes_prepared')) return json('Download authorization expired or access changed. Refresh your purchase.', 409);
     const extension = { 'audio/wav':'wav', 'audio/x-wav':'wav', 'audio/mpeg':'mp3', 'audio/aiff':'aiff', 'audio/flac':'flac', 'application/zip':'zip', 'application/pdf':'pdf' }[authorization.mimeType];
     if (!extension) return json('Download unavailable.', 503);
-    return new Response(bytes, { headers: { ...privateDeliveryHeaders, 'Content-Type': authorization.mimeType,
+    const responseBody = dependencies.stream ? await dependencies.stream(bytes, actor.id, authorization, request.signal) : bytes;
+    return new Response(responseBody, { headers: { ...privateDeliveryHeaders, 'Content-Type': authorization.mimeType,
       'Content-Length': String(bytes.byteLength), 'Content-Disposition': `attachment; filename="tse-${authorization.kind}-${authorization.assetVersionId}.${extension}"` } });
   } catch (error) {
     if (actor && authorization?.allowed) {

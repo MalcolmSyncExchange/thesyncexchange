@@ -22,11 +22,11 @@ test('redeemed/expired/revoked tickets, provider outage and integrity or audit f
 });
 test('actual local HTTP broker delivers a file above the Netlify inline ceiling, without real provider or database calls',async()=>{
  const large=new Uint8Array(4_000_001).fill(67);let redeemed=false;let audit=0;
- const metadata={...asset,byteSize:large.length,sha256:createHash('sha256').update(large).digest('hex'),bucket:'purchase-assets',path:'synthetic/master'};
+ const metadata={...asset,expiresAt:new Date(Date.now()+60000).toISOString(),byteSize:large.length,sha256:createHash('sha256').update(large).digest('hex'),bucket:'purchase-assets',path:'synthetic/master'};
  const server=createDeliveryBroker({appOrigin:origin,projectUrl:'https://synthetic.invalid',serviceKey:'synthetic-only',
   fetcher:async()=>new Response(large),rpcClient:{rpc:async(name)=>{
    if(name==='redeem_asset_delivery_ticket'){const value=redeemed?{allowed:false}:metadata;redeemed=true;return {data:value,error:null};}
-   if(name==='finish_asset_download'){audit++;return {data:true,error:null};}throw Error('Unexpected RPC');
+   if(name==='finish_asset_download'){audit++;return {data:true,error:null};}if(['check_asset_transfer','record_asset_transfer'].includes(name))return {data:true,error:null};throw Error('Unexpected RPC');
   }}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  try{

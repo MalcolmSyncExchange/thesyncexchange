@@ -7,7 +7,7 @@ const asset={allowed:true,authorizationId:randomUUID(),expiresAt:'2099-01-01',bu
 function harness(overrides={}) {
  const calls=[];
  const wrap=(name,fn)=>async(...args)=>{calls.push(name);return fn(...args);};
- const d={randomUUID,authenticate:wrap('auth',()=>({id:'buyer',role:'buyer'})),ownsOrder:wrap('scope',()=>true),deny:wrap('denial',()=>{}),
+ const d={appOrigin:'https://app.example',randomUUID,authenticate:wrap('auth',()=>({id:'buyer',role:'buyer'})),ownsOrder:wrap('scope',()=>true),deny:wrap('denial',()=>{}),
   begin:wrap('authorize',()=>asset),read:wrap('storage',()=>body),finish:wrap('audit',()=>true),...overrides};
  const request=(method='POST',headers={},signal)=>deliverAsset(new Request(`https://app.example/api/orders/${order}/assets/${entitlement}/download`,{method,headers:{origin:'https://app.example','sec-fetch-site':'same-origin',...headers},signal}),order,entitlement,d);
  return {calls,request,d};
@@ -17,6 +17,7 @@ test('only explicit same-origin POST starts authorization; probes and forged ori
  for(const method of ['GET','HEAD','OPTIONS'])assert.equal((await h.request(method)).status,405);
  for(const headers of [{origin:'https://evil.example'},{origin:''},{'sec-fetch-site':'cross-site'}])assert.equal((await h.request('POST',headers)).status,403);
  assert.deepEqual(h.calls,[]);
+ assert.equal((await harness({appOrigin:undefined}).request()).status,403);
  assert.equal((await h.request('POST',{range:'bytes=0-2'})).status,416);assert.deepEqual(h.calls,[]);
 });
 test('identity and RLS scope precede privileged authorization and Storage; failed scope uses only authenticated denial audit',async()=>{

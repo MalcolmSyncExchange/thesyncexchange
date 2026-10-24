@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DeliveryPanel } from "@/components/orders/delivery-panel";
 import { PaymentPanel } from "@/components/orders/payment-panel";
 import Image from "next/image";
 import {
@@ -430,6 +431,7 @@ export function PurchaseDetail({ purchase: p, assets = [], assetsUnavailable = f
             <p className={styles.eyebrow}>Included delivery</p>
             <h2>Included files</h2>
             <LicensedAssets orderId={p.id} assets={assets} unavailable={assetsUnavailable}/>
+            <DeliveryPanel orderId={p.id}/>
           </section>
           <section className={styles.section}>
             <p className={styles.eyebrow}>Order activity</p>

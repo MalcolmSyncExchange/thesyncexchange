@@ -5,9 +5,10 @@ import { serverEnv } from "@/lib/server-env";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import { guardedArtifactStream } from "./stream.mjs";
 import { deliverAsset, fetchPrivateArtifact, type Authorization } from "./transfer.mjs";
 
-export type BuyerAsset = { id: string; kind: string; label: string; byteSize: number; state: string; available: boolean };
+export type BuyerAsset = { id: string; kind: string; label: string; byteSize: number; state: string; available: boolean; availabilityReason?: string };
 type RpcClient = { rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }> };
 async function rpc<T>(client: unknown, name: string, args: Record<string, unknown>) {
   const { data, error } = await (client as RpcClient).rpc(name, args);
@@ -26,6 +27,7 @@ export async function handleAssetDownload(request: Request, orderId: string, ent
   let scoped: Awaited<ReturnType<typeof createServerSupabaseClient>>;
   let privileged: ReturnType<typeof createAdminSupabaseClient>;
   return deliverAsset(request, orderId, entitlementId, {
+    appOrigin: new URL(env.appUrl).origin,
     randomUUID,
     authenticate: async () => {
       scoped = await createServerSupabaseClient();
@@ -59,6 +61,13 @@ export async function handleAssetDownload(request: Request, orderId: string, ent
       if (error) throw new Error("Secure delivery is unavailable.");
       return { brokerUrl, ticket };
     },
+    stream: (bytes, buyerId, authorization, signal) => guardedArtifactStream({
+      size: bytes.byteLength, read: async (offset, length) => bytes.subarray(offset, offset + length), close: async () => {}
+    }, authorization, {
+      signal,
+      check: () => rpc<boolean>(privileged, "check_asset_transfer", { p_buyer: buyerId, p_authorization: authorization.authorizationId }),
+      record: (outcome, count) => rpc<boolean>(privileged, "record_asset_transfer", { p_buyer: buyerId, p_authorization: authorization.authorizationId, p_outcome: outcome, p_bytes: count })
+    }),
     finish: (buyerId, authorizationId, outcome) => rpc<boolean>(privileged, "finish_asset_download", {
       p_buyer: buyerId, p_authorization: authorizationId, p_outcome: outcome
     })

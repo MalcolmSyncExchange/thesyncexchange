@@ -12,6 +12,7 @@ import * as transport from '../lib/analytics/transport.ts';
 import * as triggers from '../lib/analytics/triggers.ts';
 import * as selection from '../lib/licenses/selection.ts';
 import * as eligibility from '../lib/buyer-catalog-eligibility.ts';
+import * as marketplace from '../lib/buyer-marketplace.ts';
 import { reconcileAppUserProfile } from '../services/auth/reconcile-app-user.mjs';
 const require = createRequire(import.meta.url);
 const id = '11111111-1111-4111-8111-111111111111';
@@ -168,24 +169,16 @@ function findElement(tree,predicate) {
   if(predicate(tree))return tree;
   return findElement(tree.props?.children,predicate);
 }
-test('real catalog component debounces search changes and sends only counts and controlled sort',()=>{
-  const runner=hookRunner();const events=[];let filters={query:'',genre:'all',mood:'all',licenseType:'all',vocalProfile:'all',explicitFilter:'all',priceBand:'all',minBpm:'',maxBpm:'',sort:'featured',layout:'list'};
-  const timers=new Map();let next=0;const capture=(...args)=>events.push(args);
-  const Browser=load('components/catalog/buyer-catalog-browser.tsx',{
-    react:runner.hooks,'@/lib/analytics/schema':schema,'@/components/buyer/buyer-workspace.module.css':{},'@/components/ui/first-use-state':{FirstUseState:'empty'},'@/components/analytics/provider':{useAnalytics:()=>capture},'lucide-react':{LayoutGrid:'grid',Rows3:'rows',SlidersHorizontal:'sliders',X:'x'},
-    '@/components/catalog/buyer-track-card':{BuyerTrackCard:'card'},'@/components/ui/button':{Button:'button'},'@/components/ui/input':{Input:'input'},
-    '@/components/audio/buyer-discovery-provider':{useBuyerDiscovery:()=>({filters,setFilters(){}})},'@/lib/catalog-discovery':{filterCatalog:()=>[],defaultCatalogFilters:filters}
-  },{setTimeout(fn){const n=++next;timers.set(n,fn);return n;},clearTimeout(n){timers.delete(n);}}).BuyerCatalogBrowser;
-  runner.render(Browser,{tracks:[{id:other,genre:'Pop',mood:[],license_options:[]}],basePath:'/buyer/catalog'});assert.equal(timers.size,0);
-  filters={...filters,query:'private search'};runner.render(Browser,{tracks:[{id:other,genre:'Pop',mood:[],license_options:[]}],basePath:'/buyer/catalog'});
-  filters={...filters,query:'private search continued'};runner.render(Browser,{tracks:[{id:other,genre:'Pop',mood:[],license_options:[]}],basePath:'/buyer/catalog'});
-  assert.equal(timers.size,1);for(const fn of timers.values())fn();timers.clear();
-  assert.equal(events.length,1);assert.equal(events[0][1].result_count,0);assert.equal(events[0][1].has_query,true);assert.ok(!JSON.stringify(events).includes('private'));
-  filters={...filters,layout:'grid'};runner.render(Browser,{tracks:[{id:other,genre:'Pop',mood:[],license_options:[]}],basePath:'/buyer/catalog'});assert.equal(timers.size,0);
-  filters={...filters,genre:'Private genre',minBpm:'120',sort:'price-low'};runner.render(Browser,{tracks:[{id:other,genre:'Pop',mood:[],license_options:[]}],basePath:'/buyer/catalog'});for(const fn of timers.values())fn();timers.clear();
-  assert.deepEqual(plain(events[1][1].filter_types),['genre','minBpm']);assert.equal(events[1][1].filter_count,2);assert.equal(events[1][1].sort,'price-low');assert.ok(!JSON.stringify(events).includes('Private genre'));
-  const empty=runner.render(Browser,{tracks:[],basePath:'/buyer/catalog'});assert.equal(empty.type,'empty');
+test('real catalog component debounces committed server search changes and sends only counts and controlled sort',()=>{
+ const runner=hookRunner();runner.hooks.useTransition=()=>[false,fn=>fn()];const events=[],timers=new Map();let next=0;const capture=(...args)=>events.push(args);
+ const Browser=load('components/catalog/buyer-catalog-browser.tsx',{react:runner.hooks,'next/link':{default:'link'},'next/navigation':{useRouter:()=>({push(){}})},'@/lib/analytics/schema':schema,'@/components/buyer/buyer-workspace.module.css':{},'@/components/analytics/provider':{useAnalytics:()=>capture},'lucide-react':{LayoutGrid:'grid',Rows3:'rows',SlidersHorizontal:'sliders',Music2:'music'},'./buyer-track-card':{BuyerTrackCard:'card'},'@/components/ui/button':{Button:'button'},'@/components/ui/input':{Input:'input'},'@/components/audio/buyer-discovery-provider':{BuyerPreviewQueue:'queue'},'@/lib/buyer-marketplace':marketplace},{setTimeout(fn){const n=++next;timers.set(n,fn);return n;},clearTimeout(n){timers.delete(n);}}).BuyerCatalogBrowser;
+ const data={items:[],total:0,page:1,page_size:20,page_count:0},render=params=>runner.render(Browser,{data,facets:{},params,basePath:'/buyer/catalog'});
+ render({sort:'featured'});assert.equal(timers.size,0);
+ render({query:'private search',sort:'featured'});render({query:'private search continued',sort:'featured'});assert.equal(timers.size,1);for(const fn of timers.values())fn();timers.clear();assert.equal(events.length,1);assert.equal(events[0][1].result_count,0);assert.equal(events[0][1].has_query,true);assert.ok(!JSON.stringify(events).includes('private'));
+ render({query:'private search continued',sort:'featured',layout:'grid',page:'2'});assert.equal(timers.size,0);
+ render({query:'private search continued',genre:'Private genre',bpmMin:'120',sort:'price'});for(const fn of timers.values())fn();timers.clear();assert.deepEqual(plain(events[1][1].filter_types),['genre','minBpm']);assert.equal(events[1][1].filter_count,2);assert.equal(events[1][1].sort,'price-low');assert.ok(!JSON.stringify(events).includes('Private genre'));
 });
+test('new marketplace filter and sort enums remain closed and never transmit filter values',()=>{for(const sort of ['featured','price-low','tempo-high','relevance','title','newest','bpm','duration']){const safe=schema.filterProperties('catalog_searched',{search_id:id,result_count:1,has_query:true,filter_count:3,filter_types:['subgenre','key','minDuration'],sort,query:'PRIVATE SEARCH',artist:'PRIVATE ARTIST',language:'PRIVATE LANGUAGE'});assert.ok(safe);assert.ok(!JSON.stringify(safe).includes('PRIVATE'));}assert.equal(schema.filterProperties('catalog_searched',{search_id:id,result_count:1,has_query:true,filter_count:1,filter_types:['PRIVATE FILTER'],sort:'relevance'}),null);});
 test('track-detail selection captures only explicit safe properties with payments disabled',()=>{
   const runner=hookRunner();const events=[];
   const Component=load('components/catalog/buyer-license-selector.tsx',{react:runner.hooks,'next/link':{default:'link'},'next/navigation':{useRouter:()=>({replace(){}})},'@/components/analytics/provider':{useAnalytics:()=> (...args)=>events.push(args)},'@/components/ui/button':{Button:'button'},'./license-option-card':{LicenseOptionCard:'license-card'},'@/lib/licenses/selection':selection,'@/lib/analytics/schema':schema},{window:{sessionStorage:{setItem(){}}}}).BuyerLicenseSelector;

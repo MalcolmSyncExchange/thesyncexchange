@@ -3,9 +3,9 @@
 import { useAnalytics } from "@/components/analytics/provider";
 import { previewTracker, type PreviewSurface } from "@/lib/analytics/triggers";
 
-import { createContext, useContext, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 
-import { PreviewAudioButton, PreviewAudioProvider, type PreviewAudioTrack } from "@/components/audio/preview-audio-provider";
+import { PreviewAudioButton, PreviewAudioProvider, usePreviewAudio, type PreviewAudioTrack } from "@/components/audio/preview-audio-provider";
 import { defaultCatalogFilters, type CatalogFilters } from "@/lib/catalog-discovery";
 import type { BuyerTrack } from "@/types/models";
 
@@ -31,7 +31,12 @@ export function BuyerDiscoveryProvider({ children }: { children: ReactNode }) {
 }
 
 export function PreviewButton({ track, surface = "buyer_workspace" }: { track: BuyerTrack; surface?: PreviewSurface }) {
-  const previewTrack: PreviewAudioTrack = {
+  const previewTrack=buyerPreviewTrack(track,surface);
+  return <PreviewAudioButton track={previewTrack} />;
+}
+
+function buyerPreviewTrack(track:BuyerTrack,surface:PreviewSurface="catalog"):PreviewAudioTrack {
+  return {
     id: track.id,
     discoverySurface: surface,
     slug: track.slug,
@@ -43,5 +48,5 @@ export function PreviewButton({ track, surface = "buyer_workspace" }: { track: B
     durationSeconds: track.duration_seconds,
     href: `/buyer/catalog/${track.slug}`
   };
-  return <PreviewAudioButton track={previewTrack} />;
-}
+ }
+export function BuyerPreviewQueue({tracks}:{tracks:BuyerTrack[]}){const {setQueue}=usePreviewAudio();useEffect(()=>{setQueue(tracks.map(t=>buyerPreviewTrack(t)));return()=>setQueue([]);},[tracks,setQueue]);return null;}

@@ -9,6 +9,7 @@ export interface LicenseTypeDefinition {
 }
 
 export interface TrackLicenseOffer extends LicenseTypeDefinition {
+  reviewedScope?: import("../../types/models.ts").ReviewedLicenseScope;
   trackId: string;
   trackLicenseOptionId: string | null; // Demo data has no persisted option row.
   amountCents: number;

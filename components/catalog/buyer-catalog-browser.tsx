@@ -1,121 +1,52 @@
 "use client";
-
-import { filterProperties } from "@/lib/analytics/schema";
-import { useAnalytics } from "@/components/analytics/provider";
+import Link from "next/link";
+import {useEffect,useRef,useState,useTransition,type FormEvent} from "react";
+import {useRouter} from "next/navigation";
+import {LayoutGrid,Rows3,SlidersHorizontal,Music2} from "lucide-react";
+import {BuyerTrackCard} from "./buyer-track-card";
+import {BuyerPreviewQueue} from "@/components/audio/buyer-discovery-provider";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {useAnalytics} from "@/components/analytics/provider";
+import {filterProperties} from "@/lib/analytics/schema";
+import {marketplaceHref,parseMarketplaceParams,type MarketplacePage,type MarketplaceFacets,type MarketplaceParams} from "@/lib/buyer-marketplace";
 import styles from "@/components/buyer/buyer-workspace.module.css";
-import { LayoutGrid, Music2, Rows3, SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { BuyerTrackCard } from "@/components/catalog/buyer-track-card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FirstUseState } from "@/components/ui/first-use-state";
-import { useBuyerDiscovery } from "@/components/audio/buyer-discovery-provider";
-import { filterCatalog, defaultCatalogFilters, type CatalogFilters } from "@/lib/catalog-discovery";
-import type { BuyerTrack } from "@/types/models";
-
-const selectStyle = "h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
-export function BuyerCatalogBrowser({ tracks, basePath, interests }: { tracks: BuyerTrack[]; basePath: string; interests?: { genres: string[]; moods: string[] } }) {
-  const { filters, setFilters } = useBuyerDiscovery();
-  const filteredTracks = useMemo(() => filterCatalog(tracks, filters), [tracks, filters]);
-  const capture = useAnalytics();
-  // Fingerprint remains local; only booleans, counts and fixed filter names leave the page.
-  const fingerprint = JSON.stringify([filters.query, filters.genre, filters.mood, filters.licenseType, filters.vocalProfile, filters.explicitFilter, filters.priceBand, filters.minBpm, filters.maxBpm, filters.sort]);
-  const initialFingerprint = useRef(fingerprint);
-  useEffect(() => {
-    if (fingerprint === initialFingerprint.current) return;
-    const timer = setTimeout(() => {
-      initialFingerprint.current = fingerprint;
-      const filterTypes = (["genre", "mood", "licenseType", "vocalProfile", "explicitFilter", "priceBand", "minBpm", "maxBpm"] as const)
-        .filter(key => filters[key] !== defaultCatalogFilters[key]);
-      const safe = filterProperties("catalog_searched", { search_id: crypto.randomUUID(), result_count: filteredTracks.length,
-        has_query: Boolean(filters.query.trim()), filter_count: filterTypes.length, filter_types: filterTypes, sort: filters.sort });
-      if (safe) capture("catalog_searched", safe);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [capture, fingerprint, filters, filteredTracks.length]);
-  const [open, setOpen] = useState(false);
-  const results = useRef<HTMLHeadingElement>(null);
-  const update = <K extends keyof CatalogFilters>(key: K, value: CatalogFilters[K]) => setFilters((current) => ({ ...current, [key]: value }));
-  const fields = [
-    { key: "genre", label: "Genre", options: [...new Set(tracks.map(t => t.genre))].sort().map(v => [v, v]) },
-    { key: "mood", label: "Mood", options: [...new Set(tracks.flatMap(t => t.mood))].sort().map(v => [v, v]) },
-    { key: "licenseType", label: "License type", options: [...new Map(tracks.flatMap(t => t.license_options.filter(o => o.active !== false).map(o => [o.slug, o.name]))).entries()] },
-    { key: "vocalProfile", label: "Vocals", options: [["vocals", "Vocals"], ["instrumental", "Instrumental"]] },
-    { key: "explicitFilter", label: "Explicitness", options: [["clean", "Non-explicit"], ["explicit", "Explicit"]] },
-    { key: "priceBand", label: "License budget", options: [["under-2000", "Under $2K"], ["2000-5000", "$2K to $5K"], ["5000-plus", "Over $5K"]] }
-  ] as const;
-  const chips = fields.filter(field => filters[field.key] !== "all").map(field => ({
-    key: field.key as keyof CatalogFilters,
-    label: `${field.label}: ${field.options.find(option => option[0] === filters[field.key])?.[1] || filters[field.key]}`
-  }));
-  if (filters.minBpm) chips.push({ key: "minBpm", label: `Min ${filters.minBpm} BPM` });
-  if (filters.maxBpm) chips.push({ key: "maxBpm", label: `Max ${filters.maxBpm} BPM` });
-  const tempoError = filters.minBpm !== "" && filters.maxBpm !== "" && Number(filters.minBpm) > Number(filters.maxBpm);
-  const suggestions = fields.slice(0, 2).flatMap(field => field.options.filter(([value]) =>
-    (field.key === "genre" ? interests?.genres : interests?.moods)?.some(interest => interest.toLowerCase() === value.toLowerCase())
-  ).map(([value]) => ({ key: field.key, value })));
-  if (tracks.length === 0) {
-    return <FirstUseState
-      icon={Music2}
-      eyebrow="Music discovery · no tracks available"
-      title="New music is on its way."
-      description="There are no tracks ready to browse yet. When eligible music is available, you can search, listen to previews, and review license options here."
-    />;
-  }
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[180px] flex-1 space-y-2">
-          <label htmlFor="catalog-search" className="text-sm font-medium">Find your next track</label>
-          <Input id="catalog-search" type="search" className="h-11" value={filters.query} onChange={e => update("query", e.target.value)} placeholder="Track, artist, genre or mood" />
-        </div>
-        <Button type="button" variant="outline" className="h-11" aria-expanded={open} aria-controls="catalog-filters" onClick={() => setOpen(!open)}>
-          <SlidersHorizontal aria-hidden="true" className="h-4 w-4" /> Filters{chips.length ? ` (${chips.length})` : ""}
-        </Button>
-      </div>
-      {suggestions.length ? <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">Start with a saved interest. Select one to filter this search.</p>
-        <div className="flex flex-wrap gap-2">{suggestions.map(({ key, value }) => <Button key={`${key}-${value}`} type="button" variant="outline" className="min-h-11" aria-pressed={filters[key] === value} onClick={() => update(key, filters[key] === value ? "all" : value)}>{value}</Button>)}</div>
-      </div> : null}
-      <div id="catalog-filters" hidden={!open}>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {fields.map(field => <div key={field.key} className="space-y-2">
-              <label htmlFor={`filter-${field.key}`} className="text-sm font-medium">{field.label}</label>
-              <select id={`filter-${field.key}`} className={selectStyle} value={filters[field.key]} onChange={e => update(field.key, e.target.value)}>
-                <option value="all">All</option>
-                {field.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </div>)}
-            <div className="space-y-2"><label htmlFor="min-bpm" className="text-sm font-medium">Minimum BPM</label><Input id="min-bpm" type="number" min={0} className="h-11" value={filters.minBpm} onChange={e => update("minBpm", e.target.value)} aria-invalid={tempoError} aria-describedby={tempoError ? "tempo-error" : undefined} /></div>
-            <div className="space-y-2"><label htmlFor="max-bpm" className="text-sm font-medium">Maximum BPM</label><Input id="max-bpm" type="number" min={0} className="h-11" value={filters.maxBpm} onChange={e => update("maxBpm", e.target.value)} aria-invalid={tempoError} aria-describedby={tempoError ? "tempo-error" : undefined} /></div>
-          </div>
-          {tempoError ? <p id="tempo-error" role="alert" className="mt-3 text-sm text-destructive">Minimum BPM must not exceed maximum BPM.</p> : null}
-          <Button type="button" className="mt-4" onClick={() => { setOpen(false); results.current?.focus(); }}>Show {filteredTracks.length} tracks</Button>
-        </div>
-      </div>
-      {chips.length ? <div className="flex flex-wrap gap-2" aria-label="Active filters">
-        {chips.map(chip => <Button type="button" key={chip.key} variant="secondary" className="min-h-11 text-xs" aria-label={`Remove ${chip.label}`} onClick={() => update(chip.key, defaultCatalogFilters[chip.key])}>{chip.label}<X aria-hidden="true" className="h-3 w-3" /></Button>)}
-        <Button type="button" variant="ghost" onClick={() => setFilters(current => ({ ...defaultCatalogFilters, query: current.query, layout: current.layout, sort: current.sort }))}>Clear filters</Button>
-      </div> : null}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 ref={results} tabIndex={-1} className="text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" aria-live="polite" aria-atomic="true">{filteredTracks.length} {filteredTracks.length === 1 ? "track" : "tracks"} available</h2>
-        <div className="flex items-center gap-2">
-          <label htmlFor="catalog-sort" className="sr-only">Sort tracks</label>
-          <select id="catalog-sort" value={filters.sort} onChange={e => update("sort", e.target.value)} className={`${selectStyle} max-w-[185px]`}>
-            <option value="featured">Featured first</option><option value="price-low">Price: low to high</option><option value="tempo-high">Tempo: high to low</option>
-          </select>
-          <Button type="button" variant={filters.layout === "list" ? "secondary" : "ghost"} className="h-11 w-11 p-0" aria-label="List view" aria-pressed={filters.layout === "list"} onClick={() => update("layout", "list")}><Rows3 className="h-4 w-4" aria-hidden="true" /></Button>
-          <Button type="button" variant={filters.layout === "grid" ? "secondary" : "ghost"} className="h-11 w-11 p-0" aria-label="Grid view" aria-pressed={filters.layout === "grid"} onClick={() => update("layout", "grid")}><LayoutGrid className="h-4 w-4" aria-hidden="true" /></Button>
-        </div>
-      </div>
-      {filteredTracks.length ? <div className={filters.layout === "grid" ? "grid gap-5 md:grid-cols-2 xl:grid-cols-3" : styles.trackList}>
-        {filteredTracks.map(track => <BuyerTrackCard previewSurface="catalog" key={track.id} track={track} href={`${basePath}/${track.slug}`} layout={filters.layout} licenseType={filters.licenseType} />)}
-      </div> : <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
-        <h3 className="text-lg font-semibold">No tracks match your search</h3>
-        <p className="my-3 text-sm text-muted-foreground">Try a different mood, widen your budget, or start again.</p>
-        <Button type="button" variant="outline" onClick={() => setFilters(current => ({ ...defaultCatalogFilters, layout: current.layout }))}>Reset search and filters</Button>
-      </div>}
-    </div>
-  );
+const selectStyle="h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring";
+export function BuyerCatalogBrowser({data,facets,params={},basePath="/buyer/catalog",interests,demo=false}:{data:MarketplacePage;facets:MarketplaceFacets;params?:MarketplaceParams;basePath?:string;demo?:boolean;interests?:{genres:string[];moods:string[]}}){
+ const router=useRouter(),capture=useAnalytics(),[pending,start]=useTransition(),[open,setOpen]=useState(false),form=useRef<HTMLFormElement>(null),results=useRef<HTMLHeadingElement>(null);
+ const parsed=parseMarketplaceParams(params,demo),value=(key:string)=>typeof params[key]==="string"?params[key] as string:"";
+ const signature=JSON.stringify(params),searchSignature=JSON.stringify([parsed.filters,parsed.sort]),prior=useRef(searchSignature);
+ useEffect(()=>{
+  if(prior.current===searchSignature)return;
+  const timer=setTimeout(()=>{prior.current=searchSignature;const [filters,sortValue]=JSON.parse(searchSignature) as [Record<string,string|number>,string];
+   const names=(["genre","mood","licenseType","vocalProfile","explicitFilter","minBpm","maxBpm","subgenre","key","language","minDuration","maxDuration","artist","title","keyword","savedOnly"] as const).filter(k=>Boolean(filters[({licenseType:"license",vocalProfile:"vocal",explicitFilter:"explicit",minBpm:"bpmMin",maxBpm:"bpmMax",minDuration:"durationMin",maxDuration:"durationMax"} as Record<string,string>)[k]||k]));
+   const sort=sortValue==="price"?"price-low":sortValue;
+   if(sort){const safe=filterProperties("catalog_searched",{search_id:crypto.randomUUID(),result_count:data.total,has_query:Boolean(filters.query),filter_count:names.length,filter_types:names,sort});if(safe)capture("catalog_searched",safe);}
+  },500);return()=>clearTimeout(timer);
+ },[searchSignature,capture,data.total]);
+ function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();const next:MarketplaceParams={};for(const [k,v]of new FormData(event.currentTarget))if(typeof v==="string"&&v&&v!=="all")next[k]=v;start(()=>router.push(marketplaceHref(basePath,next),{scroll:false}));setOpen(false);results.current?.focus();}
+ const fields=[
+  {key:"genre",label:"Genre",options:(facets.genre||[]).map(v=>[v,v])},{key:"subgenre",label:"Subgenre",options:(facets.subgenre||[]).map(v=>[v,v])},{key:"mood",label:"Mood",options:(facets.mood||[]).map(v=>[v,v])},{key:"key",label:"Musical key",options:(facets.musicalKey||[]).map(v=>[v,v])},{key:"language",label:"Language",options:(facets.language||[]).map(v=>[v,v])},{key:"license",label:"License type",options:(facets.licenses||[]).map(v=>[v.id,v.name])},{key:"vocal",label:"Vocals",options:[["instrumental","Instrumental"],["vocal","Vocal"],["mixed","Mixed"]]},{key:"explicit",label:"Explicit content",options:[["clean","Clean"],["explicit","Explicit"]]}
+ ];
+ const numeric=[{key:"bpmMin",label:"Minimum BPM",max:400},{key:"bpmMax",label:"Maximum BPM",max:400},{key:"durationMin",label:"Minimum duration (seconds)",max:36000},{key:"durationMax",label:"Maximum duration (seconds)",max:36000}];
+ const active=[...fields,...numeric,{key:"artist",label:"Artist"},{key:"title",label:"Track title"},{key:"keyword",label:"Keyword"}].filter(f=>value(f.key)&&value(f.key)!=="all");
+ return <div className="space-y-5" aria-busy={pending}>
+  <BuyerPreviewQueue tracks={data.items}/>
+  <form key={signature} ref={form} method="get" action={basePath} onSubmit={submit} aria-label="Search eligible music" className="space-y-4">
+   {["artistId","savedOnly","exclude"].filter(k=>value(k)).map(k=><input key={k} type="hidden" name={k} value={value(k)}/>)}
+   <input type="hidden" name="layout" value={parsed.layout}/>
+   <div className="flex flex-wrap items-end gap-3"><div className="min-w-0 flex-1 basis-52 space-y-2"><label htmlFor="catalog-search" className="text-sm font-medium">Find your next track</label><Input id="catalog-search" name="query" type="search" maxLength={200} defaultValue={value("query")} className="h-11" placeholder="Track title, artist or keywords"/></div><Button type="submit" className="min-h-11" disabled={pending}>Search</Button><Button type="button" variant="outline" className="min-h-11" aria-expanded={open} aria-controls="catalog-filters" onClick={()=>setOpen(!open)}><SlidersHorizontal aria-hidden="true" className="h-4 w-4"/>Filters{active.length?` (${active.length})`:""}</Button></div>
+   {interests?<div className="flex flex-wrap gap-2">{(facets.genre||[]).filter(g=>interests.genres.some(i=>i.toLowerCase()===g.toLowerCase())).map(g=><Link key={g} className="rounded-md border border-border px-3 py-3 text-sm" href={marketplaceHref(basePath,params,{genre:g,page:undefined})}>Explore {g}</Link>)}</div>:null}
+   <div id="catalog-filters" hidden={!open} className="rounded-lg border border-border bg-card p-4"><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    {fields.map(f=><label key={f.key} className="space-y-2 text-sm font-medium" htmlFor={`filter-${f.key}`}><span>{f.label}</span><select id={`filter-${f.key}`} name={f.key} aria-label={f.label} defaultValue={value(f.key)||"all"} className={selectStyle}><option value="all">All</option>{value(f.key)&&value(f.key)!=="all"&&!f.options.some(o=>o[0]===value(f.key))?<option value={value(f.key)}>{value(f.key)} (unavailable)</option>:null}{f.options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>)}
+    {numeric.map(f=><label key={f.key} htmlFor={`filter-${f.key}`} className="space-y-2 text-sm font-medium"><span>{f.label}</span><Input id={`filter-${f.key}`} name={f.key} type="number" min={0} max={f.max} step={1} defaultValue={value(f.key)} className="h-11"/></label>)}
+    {[['artist','Artist name'],['title','Track title'],['keyword','Exact keyword']].map(([k,l])=><label key={k} htmlFor={`filter-${k}`} className="space-y-2 text-sm font-medium"><span>{l}</span><Input id={`filter-${k}`} name={k} maxLength={200} defaultValue={value(k)} className="h-11"/></label>)}
+   </div><p className="mt-3 text-xs text-muted-foreground">Filters combine. Duration is measured in seconds. Unknown classifications do not match Clean, Vocal or Instrumental.</p><Button className="mt-4 min-h-11" type="submit" disabled={pending}>Apply filters</Button></div>
+   <div className="flex flex-wrap items-center justify-between gap-3"><h2 ref={results} tabIndex={-1} className="text-sm font-medium" aria-live="polite" aria-atomic="true">{pending?"Loading music…":`${data.total} ${data.total===1?"track":"tracks"} available`}</h2><div className="flex max-w-full flex-wrap items-center gap-2"><label htmlFor="catalog-sort" className="sr-only">Sort tracks</label><select id="catalog-sort" name="sort" defaultValue={parsed.sort} className={`${selectStyle} !w-auto max-w-48`} onChange={()=>form.current?.requestSubmit()}>{[["relevance","Relevance"],["featured","Featured first"],["title","Title A–Z"],["newest","Recently approved"],["price","Price: low to high"],["bpm","Tempo: low to high"],["tempo-high","Tempo: high to low"],["duration","Shortest first"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><label htmlFor="catalog-size" className="sr-only">Results per page</label><select id="catalog-size" name="size" defaultValue={parsed.size} aria-label="Results per page" className={`${selectStyle} !w-auto max-w-28`} onChange={()=>form.current?.requestSubmit()}>{[10,20,50].map(n=><option key={n} value={n}>{n} per page</option>)}</select>{([['list',Rows3],['grid',LayoutGrid]] as const).map(([layout,Icon])=><Button key={layout} asChild variant={parsed.layout===layout?"secondary":"ghost"} className="h-11 w-11 p-0"><Link aria-label={`${layout==="list"?"List":"Grid"} view`} aria-current={parsed.layout===layout?"true":undefined} href={marketplaceHref(basePath,params,{layout})}><Icon aria-hidden="true" className="h-4 w-4"/></Link></Button>)}</div></div>
+  </form>
+  {active.length?<div className="flex flex-wrap gap-2" aria-label="Active filters">{active.map(f=><Link key={f.key} className="rounded-md border border-border px-3 py-3 text-xs" aria-label={`Remove ${f.label} filter`} href={marketplaceHref(basePath,params,{[f.key]:undefined,page:undefined})}>{f.label}: {fields.find(v=>v.key===f.key)?.options.find(o=>o[0]===value(f.key))?.[1]||value(f.key)} ×</Link>)}<Link className="px-3 py-3 text-sm underline" href={marketplaceHref(basePath,params,Object.fromEntries(active.map(f=>[f.key,undefined]).concat([["page",undefined]])))}>Clear filters</Link></div>:null}
+  {parsed.invalid?<p role="alert" className="rounded-md border border-destructive p-4 text-sm">Check the search filters. Minimum values must not exceed maximum values; BPM must be 0–400 and duration 0–36,000 seconds.</p>:null}
+  {data.items.length?<div className={parsed.layout==="grid"?"grid gap-5 md:grid-cols-2 xl:grid-cols-3":styles.trackList}>{data.items.map(track=><BuyerTrackCard key={track.id} track={track} href={`/buyer/catalog/${track.slug}`} layout={parsed.layout} previewSurface="catalog" licenseType={value("license")||"all"}/>)}</div>:<div className="rounded-lg border border-dashed border-border px-6 py-10 text-center"><Music2 aria-hidden="true" className="mx-auto mb-3 h-8 w-8 text-muted-foreground"/><h3 className="text-lg font-semibold">{Object.keys(parsed.filters).length?"No tracks match your search":"New music is on its way."}</h3><p className="my-3 text-sm text-muted-foreground">{data.total>0?"This page is no longer available. Return to the first page.":"Try fewer filters, or return when more eligible music is available."} Only currently approved, rights-cleared music appears here.</p><Button asChild variant="outline"><Link href={marketplaceHref(basePath,{artistId:value("artistId"),savedOnly:value("savedOnly")})}>Reset search and filters</Link></Button></div>}
+  {data.page_count>1||data.page>1?<nav aria-label="Catalog pages" className="flex flex-wrap items-center justify-between gap-3"><Button asChild variant="outline" disabled={data.page<=1}><Link aria-disabled={data.page<=1} tabIndex={data.page<=1?-1:undefined} href={marketplaceHref(basePath,params,{page:String(Math.max(1,data.page-1))})}>Previous page</Link></Button><span className="text-sm">Page {data.page} of {Math.max(1,data.page_count)}</span>{data.page<data.page_count?<Button asChild variant="outline"><Link href={marketplaceHref(basePath,params,{page:String(data.page+1)})}>Next page</Link></Button>:<span/>}</nav>:null}
+ </div>;
 }

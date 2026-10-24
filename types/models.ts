@@ -69,6 +69,7 @@ export interface RightsHolder {
 }
 
 export interface LicenseType {
+  reviewed_scope?: ReviewedLicenseScope;
   id: string;
   name: string;
   slug: string;
@@ -256,5 +257,6 @@ export interface SessionUser {
 
 export type ArtistPublicProfile = Omit<ArtistProfile, "payout_email">;
 export interface ArtistFinance { payout_email: string | null; legal_entity: null; }
+export type ReviewedLicenseScope = { uses: string[]; territories: string[]; restrictions: string[]; excludedUses: string[]; deliverables: {kind: string; label: string}[]; noncommercialTest: boolean };
 export type BuyerRightsCredit = Pick<RightsHolder, "id" | "track_id" | "name" | "role_type" | "ownership_percent">;
-export type BuyerTrack = Omit<Track, "artist_user_id" | "audio_file_path" | "approved_at" | "approved_by" | "rights_holders"> & { artist_id?: string; rights_holders: BuyerRightsCredit[] };
+export type BuyerTrack = Omit<Track, "artist_user_id" | "audio_file_path" | "approved_at" | "approved_by" | "rights_holders"> & { artist_id?: string; catalog_metadata?: { credits: {name: string; role: string}[]; releaseTitle: string; releaseStatus: string; releaseDate: string; language: string; vocal: string; explicit: string; keywords: string[] }; rights_holders: BuyerRightsCredit[] };

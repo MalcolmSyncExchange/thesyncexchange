@@ -15,7 +15,7 @@ export function BuyerSearch() {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFilters(current => ({...defaultCatalogFilters, layout: current.layout, query: query.trim()}));
-    router.push("/buyer/catalog");
+    router.push(`/buyer/catalog?query=${encodeURIComponent(query.trim())}`);
   }
   return <form onSubmit={submit} role="search" className={styles.search}>
     <label htmlFor="buyer-overview-search" className="sr-only">Search music by track, artist, genre or mood</label>

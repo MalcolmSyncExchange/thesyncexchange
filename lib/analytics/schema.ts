@@ -9,7 +9,7 @@ export const eventSchemas = {
   onboarding_completed: z.object({}),
   submission_started: z.object({ submission_attempt_id: id, surface }),
   submission_completed: z.object({ submission_attempt_id: id.optional(), track_id: id, is_resubmission: z.boolean() }),
-  catalog_searched: z.object({ search_id: id, result_count: z.number().int().min(0).max(100000), has_query: z.boolean(), filter_count: z.number().int().min(0).max(8), filter_types: z.array(z.enum(["genre", "mood", "licenseType", "vocalProfile", "explicitFilter", "priceBand", "minBpm", "maxBpm"])).max(8), sort: z.enum(["featured", "price-low", "tempo-high"]) }),
+  catalog_searched: z.object({ search_id: id, result_count: z.number().int().min(0).max(100000), has_query: z.boolean(), filter_count: z.number().int().min(0).max(17), filter_types: z.array(z.enum(["genre", "mood", "licenseType", "vocalProfile", "explicitFilter", "priceBand", "minBpm", "maxBpm", "subgenre", "key", "language", "minDuration", "maxDuration", "artist", "title", "keyword", "savedOnly"])).max(17), sort: z.enum(["featured", "price-low", "tempo-high", "relevance", "title", "newest", "bpm", "duration"]) }),
   track_preview_started: z.object({ track_id: id, surface: z.enum(["catalog", "track_detail", "buyer_workspace"]) }),
   license_selected: z.object({ track_id: id, license_type: license, selection_method: z.enum(["explicit", "default_accepted"]) }),
   checkout_started: z.object({ order_id: id, track_id: id, license_type: license, checkout_attempt_id: id }),

@@ -10,8 +10,8 @@ import { filterProperties } from "@/lib/analytics/schema";
 
 export const PAYMENT_UNAVAILABLE_MESSAGE = "Checkout is temporarily unavailable. You can still compare and select a license. No order has been created.";
 
-export function BuyerLicenseSelector({ trackId, trackSlug, offers, initialLicenseTypeId, paymentAvailable, invalidSelection = false }: {
-  trackId: string; trackSlug: string; offers: TrackLicenseOffer[]; initialLicenseTypeId?: string | null; paymentAvailable: boolean; invalidSelection?: boolean;
+export function BuyerLicenseSelector({ trackId, trackSlug, offers, initialLicenseTypeId, paymentAvailable, invalidSelection = false, noncommercialDemo = false }: {
+  trackId: string; trackSlug: string; offers: TrackLicenseOffer[]; initialLicenseTypeId?: string | null; paymentAvailable: boolean; invalidSelection?: boolean; noncommercialDemo?: boolean;
 }) {
   const initial = offers.find(offer => offer.licenseTypeId === initialLicenseTypeId)?.licenseTypeId || null;
   const [selected, setSelected] = useState<string | null>(initial);
@@ -36,6 +36,7 @@ export function BuyerLicenseSelector({ trackId, trackSlug, offers, initialLicens
   return <section id="licenses" aria-labelledby="license-heading" className="scroll-mt-6 space-y-4" data-testid="buyer-license-selector">
     <h2 id="license-heading" className="text-xl font-semibold">Choose a license</h2>
     <p className="text-sm text-muted-foreground">Compare the available uses and choose the license for your project. Selection does not reserve a price or grant rights.</p>
+    {noncommercialDemo?<p role="status" className="text-sm font-medium">Noncommercial demonstration offers. Prices and terms are illustrative; no commercial rights are granted.</p>:null}
     {invalidSelection ? <p role="alert" className="text-sm">That license selection is unavailable. Please choose an available license below.</p> : null}
     {!paymentAvailable ? <p role="status" className="rounded-md border border-border p-3 text-sm">{PAYMENT_UNAVAILABLE_MESSAGE} You can continue to a read-only review; payment will remain unavailable.</p> : null}
     <fieldset className="min-w-0 space-y-3">

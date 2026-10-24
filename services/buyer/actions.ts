@@ -222,30 +222,19 @@ export async function toggleFavoriteAction(formData: FormData) {
     revalidatePath("/buyer/dashboard");
     revalidatePath("/buyer/favorites");
     revalidatePath("/buyer/catalog");
-    if (revalidatePathname) revalidatePath(revalidatePathname);
+    if (/^\/buyer\/(?:catalog|favorites|artists)(?:\/[a-zA-Z0-9_-]+)?$/.test(revalidatePathname)) revalidatePath(revalidatePathname);
     return;
   }
 
-  const supabase = await createPrivilegedSupabaseClient();
-
-  if (nextValue === "true") {
-    const { error } = await supabase.from("favorites").upsert(
-      {
-        buyer_user_id: user.id,
-        track_id: trackId
-      },
-      { onConflict: "buyer_user_id,track_id" }
-    );
-    if (error) return { error: "Unable to save this favorite." };
-  } else {
-    const { error } = await supabase.from("favorites").delete().eq("buyer_user_id", user.id).eq("track_id", trackId);
-    if (error) return { error: "Unable to remove this favorite." };
-  }
+  if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(trackId) || !["true","false"].includes(nextValue)) return {error:"Invalid favorite selection."};
+  const supabase = await createServerSupabaseClient();
+  const {error}=await (supabase as unknown as {rpc:(name:string,args:Record<string,unknown>)=>PromiseLike<{error:unknown}>}).rpc("marketplace_set_favorite",{p_track:trackId,p_value:nextValue==="true"});
+  if(error)return {error:"Unable to update this favorite. The track may no longer be available."};
 
   revalidatePath("/buyer/dashboard");
   revalidatePath("/buyer/favorites");
   revalidatePath("/buyer/catalog");
-  if (revalidatePathname) revalidatePath(revalidatePathname);
+  if (/^\/buyer\/(?:catalog|favorites|artists)(?:\/[a-zA-Z0-9_-]+)?$/.test(revalidatePathname)) revalidatePath(revalidatePathname);
 }
 
 async function requireBuyerUser(): Promise<SessionUser> {

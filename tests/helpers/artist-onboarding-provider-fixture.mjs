@@ -6,7 +6,7 @@ export { anonKey, serviceKey };
 export async function startArtistFixture(options={}) {
  const db=await database('repository',{seed:false});let auth;let tail=Promise.resolve();const images=new Map();const failures=new Map();
  const serial=fn=>{const next=tail.then(fn);tail=next.catch(()=>{});return next;};
- const tables=['user_profiles','artist_profiles','artist_account_details','artist_account_acceptances','artist_account_events'];
+ const tables=['user_profiles','artist_profiles','artist_account_details','artist_account_acceptances','artist_account_events',...(options.tables||[])];
  const columns=new Map();for(const table of tables)columns.set(table,new Set((await db.query('select column_name from information_schema.columns where table_schema=$1 and table_name=$2',['public',table])).rows.map(r=>r.column_name)));
  const json=(res,data,status=200)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(data));};
  async function mirror() {
@@ -33,6 +33,7 @@ export async function startArtistFixture(options={}) {
      const operation=name.slice(4);const fail=failures.get(operation);if(fail?.when==='before'){failures.delete(operation);return json(res,{code:'08006',message:'Synthetic connection interrupted'},503),true;}
      const value=await execute(ctx,()=>rpc(ctx,operation));if(fail?.when==='after'){failures.delete(operation);return json(res,{code:'08006',message:'Synthetic response interrupted after commit'},503),true;}json(res,value);return true;
     }
+    if(options.rest&&await options.rest(req,res,ctx,{db,auth,images,execute,json}))return true;
     if(!tables.includes(name)){if(req.method!=='GET')throw Object.assign(Error('Unsupported fixture mutation'),{code:'42501'});json(res,[]);return true;}
     const allowed=columns.get(name),params=[],filters=[];
     for(const [key,value] of ctx.url.searchParams){if(['select','limit','order','offset'].includes(key))continue;if(!allowed.has(key))throw Object.assign(Error('Invalid fixture filter'),{code:'22023'});if(value==='is.null'){filters.push('t."'+key+'" is null');continue;}if(!value.startsWith('eq.'))throw Object.assign(Error('Invalid fixture filter'),{code:'22023'});params.push(value.slice(3));filters.push('t."'+key+'"=$'+params.length);}

@@ -19,7 +19,7 @@ export function getTrackLicenseOffers(track: BuyerTrack): TrackLicenseOffer[] {
       trackId: track.id, trackLicenseOptionId: option.track_license_option_id || null,
       licenseTypeId: option.id, slug: option.slug, name: option.name,
       description: option.description, termsSummary: option.terms_summary, exclusive: option.exclusive,
-      amountCents, currency: CHECKOUT_CURRENCY
+      amountCents, currency: CHECKOUT_CURRENCY, ...(option.reviewed_scope ? {reviewedScope: option.reviewed_scope} : {})
     };
     return [{ ...data, revision: createHash("sha256").update(JSON.stringify(data)).digest("hex") }];
   });

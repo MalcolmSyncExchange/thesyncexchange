@@ -1,4 +1,5 @@
 import Image from "next/image";
+import {BuyerPreviewQueue} from "@/components/audio/buyer-discovery-provider";
 import Link from "next/link";
 import { ArrowRight, ChevronRight, Music2 } from "lucide-react";
 import { BuyerSearch } from "@/components/buyer/buyer-search";
@@ -12,9 +13,9 @@ import styles from "@/components/buyer/buyer-workspace.module.css";
 
 export default async function BuyerDashboardPage() {
   const user = await requireSession("buyer");
-  const { favorites, orders, featuredTracks, catalogCount } = await getBuyerDashboardData(user.id);
+  const { favorites, favoriteCount, orders, featuredTracks, catalogCount } = await getBuyerDashboardData(user.id);
   const firstUse = catalogCount === 0 && favorites.length === 0 && orders.length === 0;
-  return <div className={styles.dashboard}>
+  return <div className={styles.dashboard}><BuyerPreviewQueue tracks={featuredTracks}/>
     <header><p className={surface.eyebrow}>Buyer overview</p><h1 className={surface.heading}>Your next project starts here.</h1><p className={surface.description}>{firstUse ? "Your music search and purchase records have a home here." : "Find a sound that fits. Pick up a shortlist. Bring your next idea to life."}</p>{!firstUse ? <BuyerSearch /> : null}</header>
     {firstUse ? <FirstUseState
       icon={Music2}
@@ -29,7 +30,7 @@ export default async function BuyerDashboardPage() {
         { title: "Keep your records", description: "Completed purchases appear in My Purchases." }
       ]}
     /> : <><div className={styles.metrics}>
-      {[["Saved tracks", favorites.length, "/buyer/favorites"],["Orders placed",orders.length,"/buyer/orders"],["Tracks to explore",catalogCount,"/buyer/catalog"]].map(([label,count,href])=><Link href={String(href)} key={label}><dl><dt>{label}</dt><dd>{count}</dd></dl></Link>)}
+      {[["Saved tracks", favoriteCount, "/buyer/favorites"],["Orders placed",orders.length,"/buyer/orders"],["Tracks to explore",catalogCount,"/buyer/catalog"]].map(([label,count,href])=><Link href={String(href)} key={label}><dl><dt>{label}</dt><dd>{count}</dd></dl></Link>)}
     </div>
     <div className={styles.columns}>
       <section className={styles.section} aria-labelledby="explore-title"><div className={styles.sectionHeader}><h2 id="explore-title">Explore the catalog</h2><Link href="/buyer/catalog">View all music<ArrowRight aria-hidden="true" size={16} /></Link></div>

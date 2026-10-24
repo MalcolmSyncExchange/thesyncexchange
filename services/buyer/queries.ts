@@ -1,107 +1,26 @@
 import { requireAccountScope } from "@/services/auth/authorization";
-import { toBuyerTrack } from "@/services/buyer/contract";
+import { getMarketplacePage } from "@/services/buyer/marketplace";
 import { isBuyerCatalogEligible } from "@/lib/buyer-catalog-eligibility";
-import { favorites as demoFavorites, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
-import { env, shouldUseDemoData } from "@/lib/env";
+import { licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
+import { shouldUseDemoData } from "@/lib/env";
 import { reportOperationalError } from "@/lib/monitoring";
-import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { hasAgreementBeenGenerated, hasExtendedOrderMetadata } from "@/lib/orders";
 import { getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { listGeneratedLicensesByOrderIds } from "@/services/generated-licenses/server";
-import { withTrackAudioAccess } from "@/services/storage/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { createServerSupabaseClient } from "@/services/supabase/server";
-import type { LicenseType, Order, BuyerRightsCredit, BuyerTrack, Track, TrackStatus } from "@/types/models";
+import type { LicenseType, Order, BuyerTrack, Track } from "@/types/models";
 
-export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<BuyerTrack[]> {
-  if (shouldUseDemoData()) {
-    const favoriteTrackIds = new Set(
-      demoFavorites.filter((favorite) => !buyerUserId || favorite.buyer_user_id === buyerUserId).map((favorite) => favorite.track_id)
-    );
-    return demoTracks.filter((track) => track.status === "approved")
-      .map((track) => ({ ...toBuyerTrack(track, favoriteTrackIds.has(track.id)), audio_file_url: track.audio_file_url || null }))
-      .filter((track) => isBuyerCatalogEligible({
-        status: track.status,
-        previewAvailable: Boolean(track.audio_file_url),
-        activeLicenseCount: track.license_options.filter(option => option.active !== false).length
-      }));
-  }
-
-  const { supabase } = await requireAccountScope("buyer", buyerUserId);
-  const trackResult = await supabase.from("buyer_catalog_public")
-    .select("id,artist_id,artist_name,title,slug,description,genre,subgenre,moods,bpm,musical_key,duration_seconds,instrumental,vocals,explicit,lyrics,release_year,cover_art_path,preview_file_path,waveform_path,featured,created_at,updated_at")
-    .order("featured", { ascending: false }).order("created_at", { ascending: false });
-
-  if (trackResult.error) {
-    reportOperationalError("buyer_catalog_tracks_load_failed", trackResult.error, {
-      buyerUserId: buyerUserId || null
-    });
-    throw new Error("Unable to load the approved catalog right now.");
-  }
-
-  const normalizedTrackRows = (trackResult.data || []) as any[];
-  // The database publication gate has already filtered rows. Each license must
-  // additionally have current reviewed terms, rights, source and deliverables.
-  const availableByTrack: Record<string, string[]> = {};
-  for (let i = 0; i < normalizedTrackRows.length; i += 1000) {
-    const { data, error } = await supabase.rpc("catalog_available_licenses" as never, { p_tracks: normalizedTrackRows.slice(i, i+1000).map(row => row.id) } as never);
-    if (error || !data) throw new Error("Unable to verify current catalog license availability.");
-    Object.assign(availableByTrack, data);
-  }
-  const trackIds = normalizedTrackRows.map(row => row.id);
-  const rightsHolderResult = trackIds.length
-    ? await supabase.from("track_rights_holders_public").select("id,track_id,name,role_type,ownership_percent").in("track_id", trackIds)
-    : { data: [], error: null };
-  const optionResult = trackIds.length
-    ? await supabase.from("track_license_options").select("id,track_id,license_type_id,price_cents,active,license_types(id,name,slug,description,exclusive,default_price_cents,terms_summary,active)").in("track_id", trackIds).eq("active", true)
-    : { data: [], error: null };
-  if (optionResult.error) throw new Error("Unable to load catalog license options.");
-  for (const row of normalizedTrackRows) row.track_license_options = (optionResult.data || []).filter(option => option.track_id === row.id && availableByTrack[row.id]?.includes(option.license_type_id));
-
-  if (rightsHolderResult.error) {
-    reportOperationalError("buyer_catalog_rights_holders_load_failed", rightsHolderResult.error, {
-      buyerUserId: buyerUserId || null,
-      trackCount: trackIds.length
-    });
-    throw new Error("Unable to load the approved catalog right now.");
-  }
-
-  const rightsHoldersByTrackId = groupRightsHoldersByTrackId(rightsHolderResult.data || []);
-  const favoritesByTrackId = buyerUserId ? await getFavoriteTrackIdSet(buyerUserId) : new Set<string>();
-
-  return normalizedTrackRows
-    .filter((row) => isBuyerCatalogEligible({
-      status: "approved",
-      previewAvailable: Boolean(row.preview_file_path),
-      activeLicenseCount: (row.track_license_options || []).filter((option: any) => option.active !== false && option.license_types?.active !== false).length
-    }))
-    .map((row) =>
-      mapTrack(row, row.artist_name || "Artist", rightsHoldersByTrackId.get(row.id) || [], favoritesByTrackId.has(row.id))
-    );
+/** Bounded compatibility entry point; discovery uses getMarketplacePage directly. */
+export async function getBuyerCatalogTracks(buyerUserId?:string):Promise<BuyerTrack[]>{
+ if(!buyerUserId)throw new Error("Buyer account scope is required.");
+ return (await getMarketplacePage(buyerUserId)).items.filter(track=>isBuyerCatalogEligible({status:track.status,previewAvailable:Boolean(track.audio_file_url),activeLicenseCount:track.license_options.length}));
 }
-
-export async function getBuyerTrackBySlug(slug: string, buyerUserId?: string) {
-  const tracks = await getBuyerCatalogTracks(buyerUserId);
-  const track = tracks.find((item) => item.slug === slug) || null;
-  if (!track || env.demoMode) {
-    return track;
-  }
-
-  return withTrackAudioAccess(track, "preview");
+export async function getBuyerTrackBySlug(slug:string,buyerUserId?:string){
+ if(!buyerUserId||slug.length>200)return null;return (await getMarketplacePage(buyerUserId,{slug})).items[0]||null;
 }
-
-export async function getBuyerFavorites(buyerUserId: string) {
-  if (shouldUseDemoData()) {
-    const favoriteTrackIds = new Set(demoFavorites.filter((favorite) => favorite.buyer_user_id === buyerUserId).map((favorite) => favorite.track_id));
-    return demoTracks
-      .filter((track) => favoriteTrackIds.has(track.id) && track.status === "approved")
-      .map((track) => toBuyerTrack(track, true));
-  }
-
-  const tracks = await getBuyerCatalogTracks(buyerUserId);
-  return tracks.filter((track) => track.is_favorite);
-}
+export async function getBuyerFavorites(buyerUserId:string){return (await getMarketplacePage(buyerUserId,{savedOnly:"true"})).items;}
 
 export async function getBuyerOrders(buyerUserId: string) {
   if (shouldUseDemoData()) {
@@ -155,16 +74,17 @@ export async function getBuyerOrders(buyerUserId: string) {
 
 export async function getBuyerDashboardData(buyerUserId: string) {
   const [catalog, favorites, orders] = await Promise.all([
-    getBuyerCatalogTracks(buyerUserId),
-    getBuyerFavorites(buyerUserId),
+    getMarketplacePage(buyerUserId),
+    getMarketplacePage(buyerUserId,{savedOnly:"true"}),
     getBuyerOrders(buyerUserId)
   ]);
 
   return {
-    favorites,
+    favorites: favorites.items,
+    favoriteCount: favorites.total,
     orders,
-    catalogCount: catalog.length,
-    featuredTracks: catalog.slice(0, 3)
+    catalogCount: catalog.total,
+    featuredTracks: catalog.items.slice(0, 3)
   };
 }
 
@@ -211,95 +131,6 @@ export async function getOrderById(orderId: string) {
 
   const generatedLicense = await listGeneratedLicensesByOrderIds(supabase, [row.id]).then((map) => map.get(row.id) || null);
   return enrichLiveOrder(row, generatedLicense);
-}
-
-async function getFavoriteTrackIdSet(buyerUserId: string) {
-  if (shouldUseDemoData()) {
-    return new Set(demoFavorites.filter((favorite) => favorite.buyer_user_id === buyerUserId).map((favorite) => favorite.track_id));
-  }
-
-  const { supabase } = await requireAccountScope("buyer", buyerUserId);
-  const favoritesResult = await supabase.from("favorites").select("track_id").eq("buyer_user_id", buyerUserId);
-
-  if (favoritesResult.error) {
-    reportOperationalError("buyer_favorites_load_failed", favoritesResult.error, {
-      buyerUserId
-    });
-    throw new Error("Unable to load buyer favorites right now.");
-  }
-
-  return new Set((favoritesResult.data || []).map((favorite: { track_id: string }) => favorite.track_id));
-}
-
-function mapTrack(row: any, artistName: string, rightsHolderRows: any[], isFavorite = false): BuyerTrack {
-  const rightsHolders: BuyerRightsCredit[] = rightsHolderRows.map((holder: any) => ({
-    id: holder.id,
-    track_id: holder.track_id,
-    name: holder.name,
-    role_type: holder.role_type,
-    ownership_percent: Number(holder.ownership_percent),
-  }));
-
-  const licenseOptions = (row.track_license_options || [])
-    .filter((option: any) => option.active !== false && option.license_types?.active !== false)
-    .map((option: any) => {
-      const license = option.license_types as LicenseType;
-      return {
-        id: license.id, name: license.name, slug: license.slug, description: license.description,
-        track_license_option_id: option.id, offer_active: option.active === true,
-        amount_cents: Number(option.price_cents ?? (option.license_types as any).default_price_cents),
-        exclusive: license.exclusive, terms_summary: license.terms_summary, active: license.active,
-        base_price: Number((option.license_types as any).default_price_cents || 0) / 100,
-        price_override: option.price_cents == null ? null : Number(option.price_cents) / 100
-      };
-    });
-
-  return {
-    id: row.id,
-    artist_id: row.artist_id,
-    artist_name: artistName,
-    title: row.title,
-    slug: row.slug,
-    description: row.description || "",
-    genre: row.genre,
-    subgenre: row.subgenre,
-    mood: row.moods || [],
-    bpm: row.bpm,
-    key: row.musical_key,
-    duration_seconds: row.duration_seconds,
-    instrumental: row.instrumental,
-    vocals: row.vocals,
-    explicit: row.explicit,
-    lyrics: row.lyrics,
-    release_year: row.release_year,
-    cover_art_path: row.cover_art_path,
-    preview_file_path: row.preview_file_path,
-    waveform_path: row.waveform_path,
-    waveform_preview_url: getPublicStorageUrl(storageBuckets.trackPreviews, row.waveform_path),
-    audio_file_url: getPublicStorageUrl(storageBuckets.trackPreviews, row.preview_file_path),
-    cover_art_url: getPublicStorageUrl(storageBuckets.coverArt, row.cover_art_path),
-    status: "approved" as TrackStatus,
-    featured: row.featured,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    rights_holders: rightsHolders,
-    license_options: licenseOptions,
-    is_favorite: isFavorite
-  };
-}
-
-function groupRightsHoldersByTrackId(rows: any[]) {
-  const grouped = new Map<string, any[]>();
-
-  for (const row of rows) {
-    const trackId = String(row.track_id || "");
-    if (!trackId) continue;
-    const current = grouped.get(trackId) || [];
-    current.push(row);
-    grouped.set(trackId, current);
-  }
-
-  return grouped;
 }
 
 function enrichOrder(order: Order, track: Pick<Track, "id" | "title" | "slug"> | null, license: LicenseType | null) {

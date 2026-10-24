@@ -8,6 +8,8 @@ import {
   Music2,
   Pause,
   Play,
+  SkipBack,
+  SkipForward,
   Volume1,
   Volume2,
   VolumeX,
@@ -42,6 +44,8 @@ export interface PreviewAudioTrack {
 }
 
 interface PreviewAudioContextValue {
+  queue: PreviewAudioTrack[];
+  setQueue: (tracks: PreviewAudioTrack[]) => void;
   active: PreviewAudioTrack | null;
   playing: boolean;
   loading: boolean;
@@ -70,6 +74,7 @@ export function PreviewAudioProvider({ children, playbackObserver }: {
   children: ReactNode;
   playbackObserver?: { requested: () => void; playing: (trackId: string, surface?: PreviewSurface) => void; failed: () => void };
 }) {
+  const [queue,setQueue]=useState<PreviewAudioTrack[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeIdRef = useRef<string | null>(null);
   const requestRef = useRef(0);
@@ -111,7 +116,7 @@ export function PreviewAudioProvider({ children, playbackObserver }: {
       audio.load();
       setActive(track);
       setTime(0);
-      setDuration(track.durationSeconds || 0);
+      setDuration(0);
     } else if (retryingFailedPreview) {
       // A preview fetch is safe to retry; this reloads only the current public preview.
       audio.load();
@@ -147,7 +152,7 @@ export function PreviewAudioProvider({ children, playbackObserver }: {
 
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !Number.isFinite(seconds)) return;
     const safeDuration = Number.isFinite(audio.duration) ? audio.duration : duration;
     const next = Math.max(0, Math.min(seconds, safeDuration || 0));
     audio.currentTime = next;
@@ -162,6 +167,7 @@ export function PreviewAudioProvider({ children, playbackObserver }: {
 
   const toggleMute = useCallback(() => setMuted(current => !current), []);
   const value = useMemo(() => ({
+    queue, setQueue,
     active,
     playing,
     loading,
@@ -175,7 +181,7 @@ export function PreviewAudioProvider({ children, playbackObserver }: {
     seek,
     setVolume,
     toggleMute
-  }), [active, close, duration, error, loading, muted, playing, seek, time, toggle, toggleMute, volume, setVolume]);
+  }), [queue, active, close, duration, error, loading, muted, playing, seek, time, toggle, toggleMute, volume, setVolume]);
 
   return (
     <PreviewAudioContext.Provider value={value}>
@@ -243,10 +249,12 @@ export function PreviewAudioButton({
 }
 
 function PersistentPreviewPlayer() {
-  const { active, playing, loading, error, time, duration, volume, muted, toggle, close, seek, setVolume, toggleMute } = usePreviewAudio();
+  const { queue, active, playing, loading, error, time, duration, volume, muted, toggle, close, seek, setVolume, toggleMute } = usePreviewAudio();
   const [volumeOpen, setVolumeOpen] = useState(false);
   if (!active) return null;
-  const total = duration || active.durationSeconds || 0;
+  const total = duration || 0;
+  const index=queue.findIndex(t=>t.id===active.id);
+  const previous=index>0?queue[index-1]:null,next=index>=0?queue[index+1]:null;
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.55 ? Volume1 : Volume2;
   const identity = (
     <>
@@ -260,13 +268,15 @@ function PersistentPreviewPlayer() {
       <div className={styles.inner}>
         <div className={styles.identity}>
           <div className={styles.artwork}>
-            {active.artworkUrl ? <Image src={active.artworkUrl} alt="" fill sizes="48px" className={styles.artworkImage} /> : <Music2 aria-hidden="true" />}
+            {active.artworkUrl ? <Image unoptimized src={active.artworkUrl} alt="" fill sizes="48px" className={styles.artworkImage} /> : <Music2 aria-hidden="true" />}
           </div>
           <div className={styles.trackText}>{active.href ? <Link href={active.href}>{identity}</Link> : identity}</div>
         </div>
+        <div className={styles.transport}><Button type="button" variant="ghost" className="h-11 w-11 p-0" aria-label="Previous preview" disabled={!previous?.previewUrl} onClick={()=>previous&&void toggle(previous)}><SkipBack aria-hidden="true"/></Button>
         <Button type="button" className={styles.playButton} aria-label={`${playing ? "Pause" : "Play"} ${active.title}`} onClick={() => void toggle(active)}>
           {loading ? <LoaderCircle aria-hidden="true" className={styles.spinner} /> : playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
         </Button>
+        <Button type="button" variant="ghost" className="h-11 w-11 p-0" aria-label="Next preview" disabled={!next?.previewUrl} onClick={()=>next&&void toggle(next)}><SkipForward aria-hidden="true"/></Button></div>
         <div className={styles.timeline}>
           {active.waveformUrl ? <Image src={active.waveformUrl} alt="" fill sizes="(max-width: 850px) 50vw, 600px" unoptimized className={styles.waveformImage} /> : null}
           <input

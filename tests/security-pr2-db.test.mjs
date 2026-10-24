@@ -39,8 +39,9 @@ test('profile, finance, buyer and rights boundaries run as real PostgreSQL roles
   const credits=JSON.stringify(await read(db,'select * from track_rights_holders_public'));
   for(const key of ['audio_file_path','artist_user_id','approved_by','approved_at','verification_status','payout_email']) assert.ok(!catalog.includes('"'+key+'"'));
   for(const key of ['email','user_id','approval_status','created_at','updated_at']) assert.ok(!credits.includes('"'+key+'"'));
-  await db.exec(`insert into favorites(buyer_user_id,track_id) values('${ids.buyer}','${ids.live}')`);
-  assert.equal((await read(db,'select * from favorites')).length,1);
+  // System06 rejects direct favorites for an unenrolled listing or inactive session.
+  await assert.rejects(db.exec(`insert into favorites(buyer_user_id,track_id) values('${ids.buyer}','${ids.live}')`),e=>e.code==='42501');
+  assert.equal((await read(db,'select * from favorites')).length,0);
  });
  await asActor(db,ids.admin,async()=>{
   await db.exec(`update rights_holders set name='Reviewed correction' where track_id='${ids.live}'`);

@@ -1,0 +1,7 @@
+Verify an email address change
+
+Confirm this requested email change. If unexpected, sign in through your usual account and contact support.
+
+{{ .SiteURL }}/auth/email-action?flow=email_change&type=email_change&token_hash={{ .TokenHash }}&next=/account/security
+
+Request a new link if it has expired.

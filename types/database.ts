@@ -715,6 +715,16 @@ export interface Database {
       };
     };
     Functions: {
+      notification_request_seal: {Args:{p_id:string;p_lease:string;p_hash:string};Returns:boolean};
+      notification_preferences: { Args: {p_operational?:boolean;p_marketing?:boolean;p_notice?:string}; Returns: Json };
+      collect_notification_events: {Args: {p_limit?:number}; Returns:number};
+      claim_notification: {Args: Record<string,never>; Returns:Json};
+      notification_send_allowed: {Args:{p_id:string;p_lease:string};Returns:boolean};
+      finish_notification: {Args:{p_id:string;p_lease:string;p_outcome:string;p_provider?:string|null};Returns:boolean};
+      ingest_notification_event: {Args:{p_event:string;p_hash:string;p_provider:string;p_kind:string;p_at:string};Returns:string};
+      notification_operations: {Args:Record<string,never>;Returns:Json};
+      notification_retry: {Args:{p_id:string;p_reason:string};Returns:boolean};
+      notification_retention: {Args:Record<string,never>;Returns:number};
       analytics_delivery_allowed: { Args: { p_id: string; p_lease: string }; Returns: boolean };
       analytics_preferences: { Args: { p_consent?: boolean; p_notice?: string }; Returns: Json };
       analytics_signup_consent: { Args: { p_user: string; p_notice: string; p_confirmation?: boolean }; Returns: undefined };

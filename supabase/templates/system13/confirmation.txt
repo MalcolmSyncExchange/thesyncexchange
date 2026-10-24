@@ -1,0 +1,7 @@
+Confirm your email
+
+Confirm your account email to continue. If you did not request this account, you can ignore this message.
+
+{{ .SiteURL }}/auth/email-action?flow=signup&type=signup&token_hash={{ .TokenHash }}&next=/login
+
+Request a new link if it has expired.

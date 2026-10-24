@@ -378,12 +378,11 @@ test("Apple and maskable icons use the approved opaque brand treatment", async (
   }
 });
 
-test("verified legacy brand files remain removed", async () => {
+test("retired website brand files remain removed; founder-approved transactional light logo is permitted", async () => {
 
   for (const path of [
     "public/favicon.svg",
     "public/brand/the-sync-exchange/logos/Primary_Logo_Dark_Mode.png",
-    "public/brand/the-sync-exchange/logos/Primary_Logo_Light_Mode.png",
     "public/brand/the-sync-exchange/logos/Icon_Gold.png",
     "public/brand/the-sync-exchange/app/AppIcon_1024.png",
     "public/brand/the-sync-exchange/app/AppIcon_512.png",

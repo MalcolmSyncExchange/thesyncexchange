@@ -37,7 +37,7 @@ export const MIN_ACCOUNT_PASSWORD_LENGTH = 12;
 export const defaultBuyerNotificationPreferences: BuyerNotificationPreferences = {
   purchaseReceipts: true,
   licenseAgreementReady: true,
-  platformUpdates: true,
+  platformUpdates: false,
   securityAlerts: true
 };
 
@@ -195,8 +195,8 @@ export function assertAuthenticatedBuyerSettingsUser(
 
 export function normalizeNotificationPreferences(input: Partial<BuyerNotificationPreferences> | null | undefined): BuyerNotificationPreferences {
   return {
-    purchaseReceipts: input?.purchaseReceipts ?? defaultBuyerNotificationPreferences.purchaseReceipts,
-    licenseAgreementReady: input?.licenseAgreementReady ?? defaultBuyerNotificationPreferences.licenseAgreementReady,
+    purchaseReceipts: true,
+    licenseAgreementReady: true,
     platformUpdates: input?.platformUpdates ?? defaultBuyerNotificationPreferences.platformUpdates,
     securityAlerts: true
   };

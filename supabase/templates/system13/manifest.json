@@ -1,0 +1,89 @@
+{
+  "status": "Local source only. Provider installation and security-email toggles require hosted authorization.",
+  "tokenOwner": "Supabase Auth; no action tokens enter the application email queue.",
+  "providerTextSupport": "Plain-text sources supplied for review; provider SMTP MIME/text rendering must be verified in hosted acceptance.",
+  "templates": [
+    {
+      "name": "confirmation",
+      "flow": "signup",
+      "html": "confirmation.html",
+      "text": "confirmation.txt",
+      "owner": "Supabase Auth",
+      "activated": false
+    },
+    {
+      "name": "recovery",
+      "flow": "recovery",
+      "html": "recovery.html",
+      "text": "recovery.txt",
+      "owner": "Supabase Auth",
+      "activated": false
+    },
+    {
+      "name": "email_change",
+      "flow": "email_change",
+      "html": "email_change.html",
+      "text": "email_change.txt",
+      "owner": "Supabase Auth",
+      "activated": false
+    },
+    {
+      "name": "magic_link",
+      "flow": "magiclink",
+      "html": "magic_link.html",
+      "text": "magic_link.txt",
+      "owner": "Supabase Auth",
+      "activated": false
+    },
+    {
+      "name": "invite",
+      "flow": "invite",
+      "html": "invite.html",
+      "text": "invite.txt",
+      "owner": "Supabase Auth",
+      "activated": false
+    },
+    {
+      "name": "password_changed_notification",
+      "html": "password_changed_notification.html",
+      "text": "password_changed_notification.txt",
+      "owner": "Supabase Auth security notification",
+      "activated": false
+    },
+    {
+      "name": "email_changed_notification",
+      "html": "email_changed_notification.html",
+      "text": "email_changed_notification.txt",
+      "owner": "Supabase Auth security notification",
+      "activated": false
+    },
+    {
+      "name": "mfa_factor_enrolled_notification",
+      "html": "mfa_factor_enrolled_notification.html",
+      "text": "mfa_factor_enrolled_notification.txt",
+      "owner": "Supabase Auth security notification",
+      "activated": false
+    },
+    {
+      "name": "mfa_factor_unenrolled_notification",
+      "html": "mfa_factor_unenrolled_notification.html",
+      "text": "mfa_factor_unenrolled_notification.txt",
+      "owner": "Supabase Auth security notification",
+      "activated": false
+    },
+    {
+      "name": "identity_linked_notification",
+      "html": "identity_linked_notification.html",
+      "text": "identity_linked_notification.txt",
+      "owner": "Supabase Auth security notification",
+      "activated": false
+    },
+    {
+      "name": "identity_unlinked_notification",
+      "html": "identity_unlinked_notification.html",
+      "text": "identity_unlinked_notification.txt",
+      "owner": "Supabase Auth security notification",
+      "activated": false
+    }
+  ]
+}

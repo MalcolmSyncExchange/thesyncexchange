@@ -33,7 +33,7 @@ export default async function BuyerSettingsPage() {
 
   const [{ data: buyerProfile }, notificationPreferences, teamInvites, orders, invoices] = await Promise.all([
     user?.id ? supabase.from("buyer_profiles").select("company_name, billing_email").eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null }),
-    loadNotificationPreferences(supabase, sessionUser.id),
+    loadNotificationPreferences(supabase),
     loadTeamInvites(supabase, sessionUser.id),
     getBuyerOrders(sessionUser.id),
     loadBuyerInvoices()
@@ -53,18 +53,11 @@ export default async function BuyerSettingsPage() {
   );
 }
 
-async function loadNotificationPreferences(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>, userId: string) {
-  const { data, error } = await supabase
-    .from("buyer_notification_preferences")
-    .select("purchase_receipts, license_agreement_ready, platform_updates, security_alerts")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error && !isMissingRelationError(error, "buyer_notification_preferences") && !isSchemaCacheTableError(error, "buyer_notification_preferences")) {
-    throw error;
-  }
-
-  return mapNotificationPreferencesRow(data);
+async function loadNotificationPreferences(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
+  const {data,error}=await supabase.rpc("notification_preferences");
+  if(error)throw Error("Notification preferences unavailable");
+  const canonical=data as {marketing?:boolean}|null;
+  return mapNotificationPreferencesRow({purchase_receipts:true,license_agreement_ready:true,security_alerts:true,platform_updates:canonical?.marketing===true});
 }
 
 async function loadTeamInvites(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>, userId: string) {

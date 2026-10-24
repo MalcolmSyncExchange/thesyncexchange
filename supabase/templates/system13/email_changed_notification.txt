@@ -1,0 +1,5 @@
+Your account email was changed
+
+An account email change was recorded. If unexpected, open Account Security using your usual account access and contact support. This message does not contain a password, verification code or private key.
+
+{{ .SiteURL }}/account/security

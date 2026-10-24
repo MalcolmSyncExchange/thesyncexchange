@@ -492,7 +492,7 @@ export function BuyerSettingsForm({
       <Card id="account-notifications" className="scroll-mt-6 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle>Notifications</CardTitle>
-          <CardDescription>Control the workspace updates that should reach your team.</CardDescription>
+          <CardDescription>Essential account and transaction notices remain required. Manage optional updates separately.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={saveNotifications} className="space-y-5">
@@ -517,7 +517,8 @@ export function BuyerSettingsForm({
                 <label key={item.key} className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
                   <input
                     type="checkbox"
-                    checked={notifications[item.key]}
+                    checked={item.key === "platformUpdates" ? notifications[item.key] : true}
+                    disabled={item.key !== "platformUpdates"}
                     onChange={(event) =>
                       setNotifications((current) => ({
                         ...current,
@@ -540,6 +541,7 @@ export function BuyerSettingsForm({
                 </span>
               </label>
             </div>
+            <a className="block underline" href="/account/notifications">Manage all email preferences and unsubscribe from optional updates</a>
             <FormFeedback feedback={notificationFeedback} />
             <Button type="submit" disabled={!notificationDirty || notificationSaving}>
               {notificationSaving ? "Saving Preferences..." : "Save Notifications"}

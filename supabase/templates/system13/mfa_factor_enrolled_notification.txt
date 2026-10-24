@@ -1,0 +1,5 @@
+Authenticator added
+
+A multi-factor authentication factor was added to your account. If unexpected, open Account Security using your usual account access and contact support. This message does not contain a password, verification code or private key.
+
+{{ .SiteURL }}/account/security

@@ -62,7 +62,7 @@ create function sec_private.step_up() returns void language plpgsql stable secur
  and (a->>'timestamp') ~ '^[0-9]{1,12}$' and (a->>'timestamp')::bigint between extract(epoch from statement_timestamp())::bigint-300 and extract(epoch from statement_timestamp())::bigint+30)
  then raise exception 'Fresh MFA step-up required' using errcode='42501';end if;
 end$$;
-create function sec_private.log(p_action text,p_module text,p_id text,p_before jsonb,p_after jsonb,p_reason text,p_request text,p_outcome text default 'applied') returns void language plpgsql security definer set search_path='' as $$declare a jsonb;t timestamptz:=clock_timestamp();v jsonb;begin
+create function sec_private.log(p_action text,p_module text,p_id text,p_before jsonb,p_after jsonb,p_reason text,p_request text,p_outcome text default 'applied') returns void language plpgsql security definer set search_path='' set timezone='UTC' as $$declare a jsonb;t timestamptz:=clock_timestamp();v jsonb;begin
  a:=jsonb_build_object('role',public.current_app_role(),'aal',auth.jwt()->>'aal','sessionHash',encode(extensions.digest(coalesce(auth.jwt()->>'session_id',''),'sha256'),'hex'),'sourceRole',auth.role());
  v:=jsonb_build_object('actor',auth.uid(),'action',p_action,'module',p_module,'id',p_id,'before',p_before,'after',p_after,'authorization',a,'reason',p_reason,'request',p_request,'outcome',p_outcome,'at',t);
  insert into sec_private.audit(actor_id,action,entity_type,entity_id,before_state,after_state,auth_evidence,reason,outcome,request_id,recorded_at,digest)
@@ -330,9 +330,9 @@ end$$;
 create function sec_private.bridge_audit() returns trigger language plpgsql security definer set search_path='' as $$declare v jsonb;b jsonb:=null;begin
  v:=case when tg_op='DELETE' then to_jsonb(old) else to_jsonb(new) end;
  if tg_op in('UPDATE','DELETE') then b:=jsonb_build_object('sha256',encode(extensions.digest(to_jsonb(old)::text,'sha256'),'hex'));end if;
- perform sec_private.log(coalesce(v->>'action',v->>'command',tg_op),tg_table_schema||'.'||tg_table_name,coalesce(v->>'id',v->>'order_id',v->>'track_id','record'),b,case when tg_op='DELETE' then null else jsonb_build_object('sha256',encode(extensions.digest(v::text,'sha256'),'hex'),'reference',coalesce(v->>'request_id',v->>'id'),'recordAction',v->>'action','recordActor',coalesce(v->>'actor_id',v->>'reviewer_id')) end,left(coalesce(v->>'reason',v->>'note',v#>>'{metadata,note}','Existing domain command'),2000),coalesce(v->>'request_id',v->>'id'));return case when tg_op='DELETE' then old else new end;
+ perform sec_private.log(coalesce(v->>'action',v->>'command',v->>'event_type',tg_op),tg_table_schema||'.'||tg_table_name,coalesce(v->>'id',v->>'order_id',v->>'track_id','record'),b,case when tg_op='DELETE' then null else jsonb_build_object('sha256',encode(extensions.digest(v::text,'sha256'),'hex'),'reference',coalesce(v->>'request_id',v->>'id'),'recordAction',v->>'action','recordActor',coalesce(v->>'actor_id',v->>'reviewer_id')) end,left(coalesce(v->>'reason',v->>'note',v#>>'{metadata,note}','Existing domain command'),2000),coalesce(v->>'request_id',v->>'id'));return case when tg_op='DELETE' then old else new end;
 end$$;
-do $$declare t text;begin foreach t in array array['rights_private.events','catalog_private.events','licensing_private.lifecycle_events','commerce_private.delivery_operator_events','finance_private.payout_events','finance_private.payee_bindings','finance_private.policy_actions','finance_private.provider_operator_actions','finance_private.journals','public.track_audit_log','public.review_notes'] loop
+do $$declare t text;begin foreach t in array array['submission_media.events','checkout_recovery.operator_requests','public.order_activity_log','rights_private.events','catalog_private.events','licensing_private.lifecycle_events','commerce_private.delivery_operator_events','finance_private.payout_events','finance_private.payee_bindings','finance_private.policy_actions','finance_private.provider_operator_actions','finance_private.journals','public.track_audit_log','public.review_notes'] loop
  if to_regclass(t) is not null then execute format('create trigger sec_domain_audit after insert on %s for each row execute function sec_private.bridge_audit()',t);end if;
  end loop;end$$;
 revoke all on all functions in schema sec_private from public,anon,authenticated,service_role;
@@ -359,7 +359,7 @@ create function public.sec_admit() returns boolean language plpgsql security def
  insert into sec_private.admission values(auth.uid(),w,1) on conflict(user_id,window_start) do update set attempts=least(sec_private.admission.attempts+1,121) returning attempts into n;return n<=120;
 end$$;
 revoke all on function public.sec_admit() from public,anon,service_role;grant execute on function public.sec_admit() to authenticated;
-create function public.sec_audit_manifest(p_after bigint default 0) returns jsonb language plpgsql stable security definer set search_path='' as $$declare rows jsonb;begin
+create function public.sec_audit_manifest(p_after bigint default 0) returns jsonb language plpgsql stable security definer set search_path='' set timezone='UTC' as $$declare rows jsonb;begin
  if not sec_private.can('audit') then raise exception 'SEC audit permission required' using errcode='42501';end if;
  if p_after is null or p_after<0 then raise exception 'Bounded audit cursor required';end if;
  select coalesce(jsonb_agg(jsonb_build_object('id',x.id,'digest',x.digest,'verified',x.digest=encode(extensions.digest(jsonb_build_object('actor',x.actor_id,'action',x.action,'module',x.entity_type,'id',x.entity_id,'before',x.before_state,'after',x.after_state,'authorization',x.auth_evidence,'reason',x.reason,'request',x.request_id,'outcome',x.outcome,'at',x.recorded_at)::text,'sha256'),'hex')) order by x.id),'[]') into rows from(select * from sec_private.audit where id>p_after order by id limit 100)x;
@@ -384,6 +384,7 @@ create function sec_private.assignee_allowed(p_user uuid,p_cap text) returns boo
 $$;
 revoke all on function sec_private.assignee_allowed(uuid,text) from public,anon,authenticated,service_role;
 -- Legacy UI mutations now retain the verified SSR actor. Capture their business mutation atomically as well as their explanatory records.
+create trigger sec_checkout_recovery_audit after update on checkout_recovery.operator_requests for each row execute function sec_private.bridge_audit();
 create trigger sec_track_mutation_audit after update on public.tracks for each row when(old is distinct from new) execute function sec_private.bridge_audit();
 create trigger sec_flag_mutation_audit after insert or update on public.admin_flags for each row execute function sec_private.bridge_audit();
 create trigger sec_legacy_track_audit_changes after update or delete on public.track_audit_log for each row execute function sec_private.bridge_audit();

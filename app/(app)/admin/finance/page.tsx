@@ -11,6 +11,7 @@ export default async function FinancialOperationsPage(){
   const {data,error}=await(client as unknown as {rpc(name:string,args:object):PromiseLike<{data:Operations;error:unknown}>}).rpc("read_financial_provider_operations",{});
   if(error||!data)return <div><h1 className="text-3xl font-semibold">Financial operations</h1><p className="mt-4">Financial evidence is unavailable. Review configuration and migration compatibility before processing.</p></div>;
   return <div className="space-y-6"><h1 className="text-3xl font-semibold">Financial operations</h1>
+    <a className="inline-flex min-h-11 items-center underline" href="/admin/accounting">Open financial accounting and payout obligations</a>
     <p>TEST evidence only. Real financial operations remain disabled. Retry and acknowledgment preserve original evidence and existing access holds.</p>
     <dl className="flex flex-wrap gap-4">{Object.entries(data.counts).map(([state,count])=><div key={state}><dt>{state}</dt><dd className="text-xl font-semibold">{count}</dd></div>)}</dl>
     <p>Oldest pending: {data.oldestPendingSeconds} seconds. Ingestion {data.capabilities.ingestion?"enabled":"disabled"}; worker {data.capabilities.worker?"enabled":"disabled"}. External alerts: {data.externalAlertDelivery}.</p>

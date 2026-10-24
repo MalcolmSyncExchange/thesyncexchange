@@ -19,6 +19,7 @@ const artistNavigation = [
   { href: "/artist/submit", label: "Submit music", icon: Upload },
   { href: "/artist/rights-holders", label: "Rights holders", icon: Users },
   { href: "/artist/licenses", label: "Licensing activity", icon: ReceiptText },
+  { href: "/artist/earnings", label: "Earnings", icon: CreditCard },
   { href: "/artist/payout-settings", label: "Payout settings", icon: CreditCard }
 ];
 

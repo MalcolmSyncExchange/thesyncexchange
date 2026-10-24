@@ -32,6 +32,7 @@ const groups: Array<{ label: string; destinations: Destination[] }> = [
       { label: "Admin Access", icon: ShieldCheck },
       { label: "Orders & Licenses", href: "/admin/orders", icon: BookOpenCheck },
       { label: "License oversight", href: "/admin/licenses", icon: BookOpenCheck },
+      { label: "Financial accounting", href: "/admin/accounting", icon: FileText },
       { label: "Refunds", icon: ArrowRight },
       { label: "Deals & Requests", icon: FileText },
       { label: "Conversations", icon: FileText },

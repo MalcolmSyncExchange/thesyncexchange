@@ -1,3 +1,4 @@
+import { ArtistIdentityFields, ArtistDeclarationFields, ArtistNoticeField } from "@/components/artist/profile/artist-account-fields";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Building2, CheckCircle2, Disc3, Globe2, Search, ShieldCheck, UploadCloud, Wallet } from "lucide-react";
@@ -28,6 +29,7 @@ export function ArtistOnboardingFlow({
   values,
   error,
   cleanupPending,
+  saved,
   saveAction,
   finishAction
 }: {
@@ -35,6 +37,7 @@ export function ArtistOnboardingFlow({
   values: ArtistOnboardingValues;
   error?: string;
   cleanupPending?: boolean;
+  saved?: boolean;
   saveAction: (formData: FormData) => Promise<void>;
   finishAction: (formData: FormData) => Promise<void>;
 }) {
@@ -48,6 +51,7 @@ export function ArtistOnboardingFlow({
     >
       <div className="mx-auto w-full max-w-3xl space-y-8">
         {error ? <FormError error={error} /> : null}
+        {saved ? <p role="status" className="rounded-lg border border-accent p-4">Your completed step is saved. You can leave and resume from this point after signing in. Unsaved edits are not stored.</p> : null}
         {cleanupPending ? <p role="status">Your profile was saved. Cleanup of the previous image is pending.</p> : null}
         {step === "basics" ? <ArtistBasicsStep action={saveAction} values={values} /> : null}
         {step === "profile" ? <ArtistProfileStep action={saveAction} values={values} /> : null}
@@ -162,7 +166,7 @@ function ArtistBasicsStep({
       <StepHeader
         eyebrow="Step 1"
         title="Account basics"
-        description="Start with the identity buyers and admins will see throughout your artist workspace."
+        description="Choose your public artist identity and provide the private account details needed for later review."
       />
       <SurfaceSection>
         <div className="grid gap-6 md:grid-cols-2">
@@ -181,13 +185,15 @@ function ArtistBasicsStep({
           description={
             hasAvatar
               ? "Your artist profile already has a visual anchor. Uploading a new image here will replace it."
-              : "Leave this blank for now if you want to move quickly. You can add an image before finishing setup. Profile editing after setup is not available yet."
+              : "Leave this blank for now if you want to move quickly. You can add an image before finishing setup. You can also edit your profile after setup."
           }
           tone={hasAvatar ? "ready" : "empty"}
           icon={<Globe2 className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions submitLabel="Continue to Profile" pendingLabel="Saving Basics..." />
+      <ArtistIdentityFields values={values} />
+      {values.avatarPath ? <label className="flex gap-3 text-sm"><input type="checkbox" name="removeAvatar" />Remove current profile image (leave upload blank)</label> : null}
+      <FormActions saveResume submitLabel="Continue to Profile" pendingLabel="Saving Basics..." />
     </form>
   );
 }
@@ -249,7 +255,7 @@ function ArtistProfileStep({
           icon={<ShieldCheck className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions backHref="/onboarding/artist?step=basics" submitLabel="Continue to Licensing" pendingLabel="Saving Profile..." />
+      <FormActions saveResume backHref="/onboarding/artist?step=basics" submitLabel="Continue to Licensing" pendingLabel="Saving Profile..." />
     </form>
   );
 }
@@ -270,17 +276,16 @@ function ArtistLicensingStep({
       <StepHeader
         eyebrow="Step 3"
         title="Licensing setup"
-        description="Set the payout destination and capture any default licensing preferences you want the team to see early."
+        description="Prepare separate master/publishing declarations and acknowledge the account requirements. Payout setup can wait."
       />
       <SurfaceSection>
-        <Field label="Payout email" htmlFor="payoutEmail">
+        <Field label="Payout contact email" htmlFor="payoutEmail" optional>
           <Input
             id="payoutEmail"
             name="payoutEmail" maxLength={254}
             type="email"
             defaultValue={values.payoutEmail}
-            placeholder="royalties@example.com"
-            required
+            placeholder="Optional — configure payouts later"
             className="h-11"
           />
         </Field>
@@ -310,7 +315,9 @@ function ArtistLicensingStep({
           icon={<ShieldCheck className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions
+      <ArtistDeclarationFields values={values} />
+      <ArtistNoticeField accepted={values.noticeAccepted} />
+      <FormActions saveResume
         backHref="/onboarding/artist?step=profile"
         submitLabel="Continue to First Track"
         pendingLabel="Saving Licensing Setup..."
@@ -353,7 +360,7 @@ function ArtistFirstTrackStep({
           icon={<Disc3 className="h-4 w-4" />}
         />
       </SurfaceSection>
-      <FormActions backHref="/onboarding/artist?step=licensing" submitLabel="Review Completion" pendingLabel="Saving Preference..." />
+      <FormActions saveResume backHref="/onboarding/artist?step=licensing" submitLabel="Review Completion" pendingLabel="Saving Preference..." />
     </form>
   );
 }
@@ -375,12 +382,13 @@ function ArtistCompletionStep({
       description="Your saved details are below. Go back to correct your profile or licensing contact, then finish setup to enter your workspace."
       stats={[
         { label: "Profile", value: values.artistName || "Artist identity ready" },
-        { label: "Payout", value: values.payoutEmail || "Stored" },
+        { label: "Private account", value: values.legalName && values.country && values.contactEmail ? "Details saved" : "Needs identity details" },
+        { label: "Rights preparation", value: values.noticeAccepted ? "Declaration acknowledged" : "Needs acknowledgment" },
         { label: "Next move", value: primaryDestination === "submit" ? "Upload first track" : "Open dashboard" }
       ]}
       checklist={[
         "Full artist identity and public profile context",
-        "Payout destination and initial licensing posture",
+        "Private identity, separate rights declarations and account acknowledgment",
         "Saved setup state for future catalog and submission work"
       ]}
     >
@@ -723,9 +731,11 @@ function CompletionSection({
 function FormActions({
   backHref,
   submitLabel,
-  pendingLabel
+  pendingLabel,
+  saveResume = false
 }: {
   backHref?: string;
+  saveResume?: boolean;
   submitLabel: string;
   pendingLabel: string;
 }) {
@@ -740,7 +750,7 @@ function FormActions({
           <span className="text-sm text-muted-foreground">Progress is saved after each step.</span>
         )}
       </div>
-      <FormSubmitButton pendingLabel={pendingLabel}>{submitLabel}</FormSubmitButton>
+      <div className="flex flex-wrap gap-3">{saveResume ? <FormSubmitButton name="intent" value="pause" variant="outline" pendingLabel="Saving...">Save and pause</FormSubmitButton> : null}<FormSubmitButton pendingLabel={pendingLabel}>{submitLabel}</FormSubmitButton></div>
     </div>
   );
 }

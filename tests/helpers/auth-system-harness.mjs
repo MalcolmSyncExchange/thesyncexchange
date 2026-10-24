@@ -1,3 +1,4 @@
+import * as artistAccountContract from '../../lib/artist/account-contract.ts';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
@@ -64,7 +65,7 @@ export function authHarness(options={}){
   '@/lib/env':{env,hasSupabaseEnv:true,getDeploymentTarget:()=> 'local'},'@/lib/health/payment-readiness':{isDedicatedStagingIdentity:()=>false},
   '@/lib/monitoring':{reportOperationalError:(...v)=>state.events.push(v),reportOperationalEvent:(...v)=>state.events.push(v)},
   '@/lib/storage':{resolvePublicStorageAssetUrl:()=>null,storageBuckets:{avatars:'avatars'}},'@/lib/demo-data':{demoSessionUsers:{}},
-  '@/services/auth/security':security,'@/services/auth/auth-flow':flow,
+  '@/lib/artist/account-contract':artistAccountContract,'@/services/auth/security':security,'@/services/auth/auth-flow':flow,
   '@/services/auth/onboarding-completion':{inferOnboardingCompletionState},'@/services/auth/reconcile-app-user.mjs':{reconcileAppUserProfile},
   '@/services/auth/user-profiles':{selectUserProfileCompat:async(db,id)=>db.from('user_profiles').select('*').eq('id',id).maybeSingle(),upsertUserProfileCompat:()=>{throw Error('Unexpected overwriting profile upsert');}},
   '@/services/supabase/server':{createServerSupabaseClient:async()=>client},'@/services/supabase/admin':{createAdminSupabaseClient:()=>options.noAdmin?null:client},

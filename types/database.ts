@@ -3,6 +3,9 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
   public: {
     Tables: {
+      artist_account_details: { Row: { user_id: string; identity: Json; declarations: Json; updated_at: string }; Insert: { user_id: string; identity?: Json; declarations?: Json; updated_at?: string }; Update: { identity?: Json; declarations?: Json; updated_at?: string }; Relationships: [] };
+      artist_account_acceptances: { Row: { id: number; user_id: string; notice_version: string; notice_snapshot: Json; accepted_at: string }; Insert: { user_id: string; notice_version: string; notice_snapshot: Json }; Update: never; Relationships: [] };
+      artist_account_events: { Row: { id: number; user_id: string; actor_id: string | null; action: string; snapshot: Json; created_at: string }; Insert: { user_id: string; actor_id?: string | null; action: string; snapshot: Json }; Update: never; Relationships: [] };
       analytics_outbox: {
         Row: { id: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at: string; delivered_at: string | null; lease_id: string | null; lease_until: string | null; delivery_status: string; attempt_count: number; delivery_cycle: number; last_attempt_at: string | null; next_retry_at: string | null; failure_category: string | null };
         Insert: { id?: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at?: string; delivered_at?: string | null; lease_id?: string | null; lease_until?: string | null; delivery_status?: string; attempt_count?: number; delivery_cycle?: number; last_attempt_at?: string | null; next_retry_at?: string | null; failure_category?: string | null };
@@ -712,6 +715,7 @@ export interface Database {
       };
     };
     Functions: {
+      save_artist_account_step: { Args: { p_actor: string; p_expected: string; p_step: string; p_public: Json; p_private: Json; p_avatar?: string | null; p_remove_avatar?: boolean; p_notice_version?: string | null; p_accept?: boolean }; Returns: string };
       claim_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_event: string; p_operator: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
       arm_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_operator: string; p_event: string }; Returns: { id: string; created_at: string; expires_at: string }[] };
       get_staging_analytics_validation_readiness: { Args: { p_authorization: string; p_artist: string; p_operator: string }; Returns: { authorization_matches: boolean; artist_matches: boolean; operator_matches: boolean; grant_usable: boolean }[] };

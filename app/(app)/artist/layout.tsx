@@ -10,5 +10,5 @@ export const dynamic = "force-dynamic";
 
 export default async function ArtistLayout({ children }: { children: ReactNode }) {
   const user = await requireSession("artist");
-  return <AnalyticsProvider key={user.id} userId={user.id} enabled={!!analyticsConfig()}><PreviewAudioProvider><ArtistWorkspaceShell user={user}>{children}</ArtistWorkspaceShell></PreviewAudioProvider></AnalyticsProvider>;
+  return <AnalyticsProvider key={user.id} userId={user.id} enabled={!!analyticsConfig()}><PreviewAudioProvider><ArtistWorkspaceShell user={{ fullName: user.fullName }}>{children}</ArtistWorkspaceShell></PreviewAudioProvider></AnalyticsProvider>;
 }

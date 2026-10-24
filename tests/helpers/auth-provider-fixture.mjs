@@ -2,7 +2,7 @@
 import http from 'node:http';
 import {randomUUID,randomBytes,createHmac} from 'node:crypto';
 export const anonKey='SYNTHETIC_LOCAL_ANON_KEY',serviceKey='SYNTHETIC_LOCAL_SERVICE_KEY';
-export async function startAuthFixture(){
+export async function startAuthFixture(options={}){
  const accounts=new Map(),profiles=new Map(),sessions=new Map(),refresh=new Map(),tokens=new Map(),calls=[];const signing=randomBytes(32);
  const seed=(email,role,{confirmed=true,complete=false,factors=[]}={})=>{
   const id=randomUUID();const record={id,email,password:'SyntheticPassword!123',confirmed,factors,fullName:'Synthetic '+role};accounts.set(email,record);profiles.set(id,{id,email,role,full_name:record.fullName,onboarding_step:complete?'complete':'basics',onboarding_started_at:new Date().toISOString(),onboarding_completed_at:complete?new Date().toISOString():null,onboarding_payload:{}});return record;
@@ -20,6 +20,7 @@ export async function startAuthFixture(){
   const json=(value,status=200)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store','access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,PATCH,DELETE,OPTIONS'});res.end(JSON.stringify(value));};
   const error=(code,status=400)=>json({code,msg:'Synthetic auth request failed',message:'Synthetic auth request failed',error_code:code},status);
   if(req.method==='OPTIONS')return json({});
+  if(options.rawHandler && await options.rawHandler(req,res,{url,session:getSession(req),service:req.headers.apikey===serviceKey}))return;
   const body=['POST','PATCH','PUT'].includes(req.method)?await readJson(req):{};
   const current=getSession(req),active=current?.active?current:null;calls.at(-1).sessionLevel=active?.aal||null;
   if(route.endsWith('/verify')&&route.includes('/factors/'))calls.at(-1).acceptedSyntheticCode=body.code==='123456';
@@ -51,6 +52,7 @@ export async function startAuthFixture(){
    if(route.endsWith('/verify')){if(body.code!=='123456')return error('mfa_verification_failed');f.status='verified';return json(session(active.account,'aal2'));}
   }
   if(route==='/rest/v1/rpc/auth_session_is_active')return json(Boolean(active));
+  if(route.startsWith('/rest/v1/') && options.restHandler && await options.restHandler(req,res,{url,body,session:active,service:req.headers.apikey===serviceKey}))return;
   if(route.startsWith('/rest/v1/')){
    const table=route.slice('/rest/v1/'.length);const privileged=req.headers.apikey===serviceKey;
    if(table==='user_profiles'){

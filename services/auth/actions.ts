@@ -1,5 +1,7 @@
 "use server";
 
+import { parseArtistIdentity, parseArtistDeclarations } from "@/lib/artist/account-contract";
+
 import { isDedicatedStagingIdentity } from "@/lib/health/payment-readiness";
 
 import { captureForUser, capturePersistedSignup } from "@/services/analytics/actor";
@@ -579,6 +581,8 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
       await persistArtistOnboarding({
         user: { ...user, onboardingUpdatedAt: expectedVersion },
         step,
+        privateData: parseArtistIdentity(formData),
+        removeAvatar: formData.get("removeAvatar") === "on",
         nextStep: getNextArtistStep("basics"),
         avatar: uploadedAvatar || undefined,
         beforeUserProfileWrite: uploadedAvatar ? (started = true) => { avatarReferenceWriteStarted = started; } : undefined,
@@ -595,7 +599,7 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
         }
       });
       nextPath = "/onboarding/artist?step=profile";
-      if (uploadedAvatar?.path && user.avatarPath && user.avatarPath !== uploadedAvatar.path) {
+      if ((uploadedAvatar?.path || formData.get("removeAvatar") === "on") && user.avatarPath && user.avatarPath !== uploadedAvatar?.path) {
         try {
           await deleteOwnAvatar(user.avatarPath);
         } catch {
@@ -640,6 +644,9 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
       await persistArtistOnboarding({
         user: { ...user, onboardingUpdatedAt: expectedVersion },
         step,
+        privateData: parseArtistDeclarations(formData),
+        noticeVersion: String(formData.get("noticeVersion") || ""),
+        acceptNotice: formData.get("acceptNotice") === "on",
         nextStep: getNextArtistStep("licensing"),
         payload,
         profileUpdates: {
@@ -683,12 +690,13 @@ export async function saveArtistOnboardingStepAction(formData: FormData) {
     redirect(`/onboarding/artist?step=${encodeURIComponent(step)}&error=${encodeURIComponent(getArtistSaveErrorMessage(error))}`);
   }
 
+  if (formData.get("intent") === "pause") nextPath = "/onboarding/artist?saved=1";
   redirect(nextPath);
 }
 
 export async function finishArtistOnboardingAction(formData: FormData) {
   const user = await requireAuthenticatedUser("artist");
-  const destination = String(formData.get("destination") || "dashboard") === "submit" ? "/artist/submit" : "/dashboard/artist";
+  const destination = String(formData.get("destination") || "dashboard") === "submit" ? "/artist/submit" : "/artist/dashboard?setup=complete";
   try {
     const expectedVersion = hasSupabaseEnv && !env.demoMode ? parseArtistOnboardingVersion(formData.get("onboardingVersion")) : user.onboardingUpdatedAt;
     if (!user.onboardingCompletedAt) {
@@ -703,6 +711,38 @@ export async function finishArtistOnboardingAction(formData: FormData) {
   }
   await captureForUser(user.id, "onboarding_completed", {}, `onboarding_completed:${user.id}`);
   redirect(destination);
+}
+
+
+export async function saveArtistProfileAction(formData: FormData) {
+  const user = await requireAuthenticatedUser("artist");
+  let uploaded: { path: string; publicUrl: string | null } | null = null;
+  let uncertain = false;
+  try {
+    if (!hasSupabaseEnv || env.demoMode) throw new Error("Profile editing requires configured authentication.");
+    const expected = parseArtistOnboardingVersion(formData.get("onboardingVersion"));
+    const basics = parseArtistBasics(formData), profile = parseArtistProfile(formData);
+    const preferences = parseArtistLicensing(formData).defaultLicensingPreferences || "";
+    const identity = parseArtistIdentity(formData), declarations = parseArtistDeclarations(formData);
+    uploaded = await uploadArtistAvatarIfPresent(user.id, formData);
+    const client = getTrustedRoleMutationClient(); uncertain = true;
+    const { error } = await client.rpc("save_artist_account_step", {
+      p_actor: user.id, p_expected: expected, p_step: "edit",
+      p_public: { ...basics, ...profile, defaultLicensingPreferences: preferences } as import("@/types/database").Json,
+      p_private: { identity, declarations } as import("@/types/database").Json,
+      p_avatar: uploaded?.path || null, p_remove_avatar: formData.get("removeAvatar") === "on",
+      p_notice_version: String(formData.get("noticeVersion") || ""), p_accept: formData.get("acceptNotice") === "on"
+    });
+    if (error) { if (["22023", "42501", "PT409"].includes(error.code)) uncertain = false; throw error; }
+    if (user.avatarPath && (uploaded?.path || formData.get("removeAvatar") === "on")) {
+      try { await deleteOwnAvatar(user.avatarPath); } catch { reportOperationalEvent("avatar_cleanup_pending", "Previous image retained for cleanup.", { userId: user.id }); }
+    }
+  } catch (error) {
+    unstable_rethrow(error);
+    if (uploaded && !uncertain) { try { await deleteOwnAvatar(uploaded.path); } catch { /* Retain private cleanup evidence, never delete an uncertain active reference. */ } }
+    redirect("/artist/profile?error=" + encodeURIComponent(getArtistSaveErrorMessage(error)));
+  }
+  redirect("/artist/profile?saved=1");
 }
 
 export async function saveBuyerOnboardingStepAction(formData: FormData) {
@@ -858,7 +898,8 @@ async function persistArtistOnboarding({
   payload,
   userUpdates,
   profileUpdates,
-  beforeUserProfileWrite
+  beforeUserProfileWrite,
+  privateData = {}, removeAvatar = false, noticeVersion, acceptNotice = false
 }: {
   user: SessionUser;
   step: string;
@@ -868,6 +909,7 @@ async function persistArtistOnboarding({
   userUpdates?: Record<string, unknown>;
   profileUpdates?: Record<string, unknown>;
   beforeUserProfileWrite?: (started?: boolean) => void;
+  privateData?: Record<string, unknown>; removeAvatar?: boolean; noticeVersion?: string; acceptNotice?: boolean;
 }) {
   const now = new Date().toISOString();
 
@@ -880,9 +922,12 @@ async function persistArtistOnboarding({
     };
     const data = Object.fromEntries((fields[step] || []).filter((key) => payload[key] !== undefined).map((key) => [key, payload[key]]));
     beforeUserProfileWrite?.();
-    const { error } = await client.rpc("save_artist_onboarding_atomic", {
-      p_actor_id: user.id, p_expected_updated_at: user.onboardingUpdatedAt,
-      p_step: step, p_data: data as import("@/types/database").Json, p_avatar_path: avatar?.path || null
+    const { error } = await client.rpc("save_artist_account_step", {
+      p_actor: user.id, p_expected: user.onboardingUpdatedAt,
+      p_step: step, p_public: data as import("@/types/database").Json,
+      p_private: privateData as import("@/types/database").Json,
+      p_avatar: avatar?.path || null, p_remove_avatar: removeAvatar,
+      p_notice_version: noticeVersion || null, p_accept: acceptNotice
     });
     if (error) {
       // PostgreSQL validation/conflict failures prove rollback; transport failures do not.
@@ -892,6 +937,7 @@ async function persistArtistOnboarding({
     return;
   }
 
+  if (Object.keys(privateData).length) throw new Error("Private artist preparation requires configured authentication.");
   const savedNextStep = getArtistStepIndex(user.onboardingStep) > getArtistStepIndex(nextStep) ? user.onboardingStep || nextStep : nextStep;
   await upsertDemoDirectoryUser({
     id: user.id,
@@ -1095,7 +1141,16 @@ async function getDemoArtistProfileSnapshot(userId: string) {
 
 function getArtistSaveErrorMessage(error: unknown) {
   if (error instanceof ZodError) return getValidationErrorMessage(error);
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error && [
+    "Profile image must be between 1 byte and 10MB.",
+    "Choose a JPG, PNG or WebP profile image.",
+    "Choose a valid, static JPG, PNG or WebP image under 10MB and 16 megapixels.",
+    "Finish each onboarding step before completing setup.",
+    "Reload onboarding before saving this step.",
+    "Reload onboarding before completing setup.",
+    "Profile editing requires configured authentication.",
+    "Private artist preparation requires configured authentication."
+  ].includes(error.message)) return error.message;
   const code = (error as { code?: string } | null)?.code;
   if (code === "PT409") return "Your onboarding changed. Reload before saving again.";
   if (code === "22023") return "Review the required fields and complete each step before continuing.";

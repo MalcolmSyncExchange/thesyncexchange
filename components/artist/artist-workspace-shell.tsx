@@ -50,7 +50,7 @@ function AccountLinks({ pathname, onNavigate, kind }: { pathname: string; onNavi
     </div>;
   }
 
-function WorkspaceShell({ user, children, kind }: { user: SessionUser; children: ReactNode; kind: WorkspaceKind }) {
+function WorkspaceShell({ user, children, kind }: { user: Pick<SessionUser, "fullName">; children: ReactNode; kind: WorkspaceKind }) {
   const label = kind === "artist" ? "Artist workspace" : "Buyer workspace";
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -107,10 +107,10 @@ function WorkspaceShell({ user, children, kind }: { user: SessionUser; children:
   </div>;
 }
 
-export function ArtistWorkspaceShell(props: { user: SessionUser; children: ReactNode }) {
+export function ArtistWorkspaceShell(props: { user: Pick<SessionUser, "fullName">; children: ReactNode }) {
   return <WorkspaceShell {...props} kind="artist" />;
 }
 
-export function BuyerWorkspaceShell(props: { user: SessionUser; children: ReactNode }) {
+export function BuyerWorkspaceShell(props: { user: Pick<SessionUser, "fullName">; children: ReactNode }) {
   return <WorkspaceShell {...props} kind="buyer" />;
 }

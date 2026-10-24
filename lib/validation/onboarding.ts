@@ -13,7 +13,7 @@ export const avatarAssetRule = {
 const optionalUrlField = z.string().trim().max(2048, "Keep links under 2048 characters.")
   .refine((value) => {
     if (!value) return true;
-    try { const url = new URL(value); return /^https?:$/.test(url.protocol) && Boolean(url.hostname) && !/\s/.test(value); }
+    try { const url = new URL(value); return /^https?:$/.test(url.protocol) && Boolean(url.hostname) && !url.username && !url.password && !/\s/.test(value); }
     catch { return false; }
   }, "Enter a valid full http:// or https:// URL.").optional();
 const optionalTextField = z.string().trim().optional().transform((value) => value || "");
@@ -36,7 +36,7 @@ export function assertArtistStepTransition(step: string, currentStep?: string | 
 export const artistOnboardingSteps: Array<{ id: ArtistOnboardingStep; label: string; summary: string }> = [
   { id: "basics", label: "Account basics", summary: "Identity, stage name, and profile media" },
   { id: "profile", label: "Professional profile", summary: "Bio, location, and public-facing context" },
-  { id: "licensing", label: "Licensing setup", summary: "Payout and default licensing preferences" },
+  { id: "licensing", label: "Licensing setup", summary: "Separate rights declarations, collaborators and acknowledgments" },
   { id: "first-track", label: "First track", summary: "Choose the handoff into submission or dashboard" },
   { id: "complete", label: "Complete", summary: "Review the setup and move into real work" }
 ];
@@ -68,7 +68,7 @@ export const artistProfileSchema = z.object({
 });
 
 export const artistLicensingSchema = z.object({
-  payoutEmail: z.string().trim().email("Enter a valid payout email.").max(254, "Keep your payout email under 254 characters."),
+  payoutEmail: z.union([z.literal(""), z.string().trim().email("Enter a valid payout email.").max(254, "Keep your payout email under 254 characters.")]).optional().default(""),
   defaultLicensingPreferences: optionalArtistText
 });
 
@@ -115,7 +115,7 @@ export function parseArtistProfile(formData: FormData) {
 
 export function parseArtistLicensing(formData: FormData) {
   return artistLicensingSchema.parse({
-    payoutEmail: formData.get("payoutEmail"),
+    payoutEmail: formData.get("payoutEmail") ?? "",
     defaultLicensingPreferences: formData.get("defaultLicensingPreferences") ?? undefined
   });
 }

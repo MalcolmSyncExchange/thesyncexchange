@@ -8,7 +8,7 @@ import { requireOnboardingSession } from "@/services/auth/session";
 
 export default async function ArtistOnboardingPage(
   props: {
-    searchParams?: Promise<{ error?: string; step?: string; cleanup?: string }>;
+    searchParams?: Promise<{ error?: string; step?: string; cleanup?: string; saved?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -21,6 +21,7 @@ export default async function ArtistOnboardingPage(
       step={state.currentStep}
       values={state.values}
       error={searchParams?.error}
+      saved={searchParams?.saved === "1"}
       cleanupPending={searchParams?.cleanup === "pending"}
       saveAction={saveArtistOnboardingStepAction}
       finishAction={finishArtistOnboardingAction}

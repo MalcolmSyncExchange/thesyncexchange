@@ -1,3 +1,5 @@
+import { getArtistAccountDetails } from "@/services/artist/account";
+import type { ArtistAccountValues } from "@/lib/artist/account-contract";
 import { getArtistFinance } from "@/services/artist/finance";
 import { artistProfileColumns } from "@/services/artist/profile-contract";
 import { buyerOnboardingSteps, artistOnboardingSteps, getArtistStepIndex, getBuyerStepIndex } from "@/lib/validation/onboarding";
@@ -6,7 +8,7 @@ import { getDemoArtistProfile, getDemoBuyerProfile } from "@/services/auth/demo-
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { ArtistOnboardingStep, BuyerOnboardingStep, SessionUser } from "@/types/models";
 
-export interface ArtistOnboardingValues {
+export interface ArtistOnboardingValues extends ArtistAccountValues {
   onboardingVersion: string;
   fullName: string;
   artistName: string;
@@ -37,6 +39,7 @@ export interface BuyerOnboardingValues {
 export async function getArtistOnboardingState(user: SessionUser, requestedStep?: string) {
   const profile = await getArtistProfile(user.id);
   const finance = await getArtistFinance(user.id);
+  const account = await getArtistAccountDetails(user.id, user.email);
   const payload = user.onboardingData || {};
   const socialLinks = toStringMap(profile?.social_links);
   const currentStep = resolveArtistStep(user.onboardingStep, requestedStep);
@@ -46,19 +49,20 @@ export async function getArtistOnboardingState(user: SessionUser, requestedStep?
     currentStepIndex: getArtistStepIndex(currentStep),
     steps: artistOnboardingSteps,
     values: {
+      ...account,
       onboardingVersion: user.onboardingUpdatedAt || "",
-      fullName: String(payload.fullName ?? user.fullName ?? ""),
-      artistName: String(payload.artistName ?? profile?.artist_name ?? ""),
+      fullName: String(user.fullName ?? payload.fullName ?? ""),
+      artistName: String(profile ? profile.artist_name ?? "" : payload.artistName ?? ""),
       avatarPath: String(payload.avatarPath ?? user.avatarPath ?? ""),
       avatarUrl: String(payload.avatarUrl ?? user.avatarUrl ?? ""),
-      bio: String(payload.bio ?? profile?.bio ?? ""),
-      location: String(payload.location ?? profile?.location ?? ""),
-      website: String(payload.website ?? profile?.website ?? ""),
-      instagram: String(payload.instagram ?? profile?.instagram_url ?? socialLinks.instagram ?? ""),
-      spotify: String(payload.spotify ?? profile?.spotify_url ?? socialLinks.spotify ?? ""),
-      youtube: String(payload.youtube ?? profile?.youtube_url ?? socialLinks.youtube ?? ""),
+      bio: String(profile ? profile.bio ?? "" : payload.bio ?? ""),
+      location: String(profile ? profile.location ?? "" : payload.location ?? ""),
+      website: String(profile ? profile.website ?? "" : payload.website ?? ""),
+      instagram: String(profile ? profile.instagram_url ?? socialLinks.instagram ?? "" : payload.instagram ?? ""),
+      spotify: String(profile ? profile.spotify_url ?? socialLinks.spotify ?? "" : payload.spotify ?? ""),
+      youtube: String(profile ? profile.youtube_url ?? socialLinks.youtube ?? "" : payload.youtube ?? ""),
       payoutEmail: String(finance.payout_email || ""),
-      defaultLicensingPreferences: String(payload.defaultLicensingPreferences ?? profile?.default_licensing_preferences ?? ""),
+      defaultLicensingPreferences: String(profile ? profile.default_licensing_preferences ?? "" : payload.defaultLicensingPreferences ?? ""),
       firstTrackChoice: payload.firstTrackChoice === "upload" ? "upload" : "later"
     } satisfies ArtistOnboardingValues
   };
@@ -127,7 +131,8 @@ async function getArtistProfile(userId: string) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const { data } = await supabase.from("artist_profiles").select(artistProfileColumns).eq("user_id", userId).maybeSingle();
+  const { data, error } = await supabase.from("artist_profiles").select(artistProfileColumns).eq("user_id", userId).maybeSingle();
+  if (error) throw new Error("Unable to load the saved artist profile.");
   return data;
 }
 

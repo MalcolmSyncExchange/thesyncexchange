@@ -43,6 +43,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
               Back to Track Management
             </Link>
             <h1 className="mt-3 text-3xl font-semibold">{track.title}</h1>
+            <Link className="mr-4 inline-block underline" href={"/admin/rights?track="+track.id}>Review master and publishing rights</Link>
             {mediaSubmission ? <Link className="mt-3 inline-block underline" href={"/admin/media?draft="+mediaSubmission}>Inspect private assets, processing and integrity</Link> : null}
             <p className="mt-2 text-muted-foreground">
               {track.artist_name} • {track.genre} • {track.subgenre}

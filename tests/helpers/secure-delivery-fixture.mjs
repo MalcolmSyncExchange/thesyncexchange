@@ -26,11 +26,11 @@ export async function deliveryAsset(db,kind='master',suffix=kind) {
  await db.exec(`insert into commerce_private.qa_fixture_designations(asset_version_id,buyer_user_id,approval_reference) values('${id}','${ids.buyer}','SYNTHETIC ONLY PK08')`);
  return id;
 }
-export async function seedDelivery(db,{paid=true,activate=true}={}) {
+export async function seedDelivery(db,{paid=true,activate=true,review:reviewOverride=null}={}) {
  await db.exec("insert into storage.buckets(id,name,public) values('track-audio','track-audio',false) on conflict(id) do nothing");
  await db.exec(`update commerce_private.capabilities set foundation_enabled=true,asset_preparation_enabled=true,payment_adapter_enabled=true,
  receipt_generation_enabled=true,entitlement_activation_enabled=true,transaction_projection_enabled=true,delivery_enabled=true`);
- const review=await seedLegalReview(db);
+ const review=reviewOverride||await seedLegalReview(db);
  const master=await deliveryAsset(db),instrumental=await deliveryAsset(db,'instrumental'),excluded=await deliveryAsset(db,'clean');
  await call(db,'review_license_deliverables',[ids.admin,review.offer,[{assetVersionId:master,label:'Synthetic WAV master'},{assetVersionId:instrumental,label:'Synthetic instrumental'}],'SYNTHETIC license-specific manifest review']);
  const q=await newQuote(db),accepted=await acceptQuote(db,q);

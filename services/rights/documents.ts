@@ -1,0 +1,27 @@
+import "server-only";
+import { z } from "zod";
+import { createHash } from "node:crypto";
+import { createAdminSupabaseClient } from "@/services/supabase/admin";
+import { mediaRpc, type MediaClient, UploadError } from "@/services/media/uploads";
+import { documentActor } from "./server";
+import { inspectRightsDocument } from "./document-content";
+import { readPrivateArtifact } from "@/services/delivery/server";
+import type { RightsState } from "@/lib/rights/contract";
+type Doc={id:string;track_id:string;bucket:string;path:string;bytes:number;type:string;state:string;sha256:string|null;version:string|null};
+function adminClient(){const a=createAdminSupabaseClient();if(!a)throw new UploadError(503,'DOCUMENT_UNAVAILABLE');return a;}
+async function locator(client:MediaClient,actor:string,id:string,outcome?:string){const d=await mediaRpc<Doc>(client,'rights_document_server',{p_actor:actor,p_document:id,...(outcome?{p_outcome:outcome}:{})});if(d.bucket!=='rights-evidence'||!Number.isSafeInteger(d.bytes)||d.bytes<1||d.bytes>3_000_000||!/^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/original$/.test(d.path)||!d.path.endsWith('/'+id+'/original'))throw new UploadError(403,'DOCUMENT_UNAVAILABLE');return d;}
+async function read(d:Doc,signal?:AbortSignal){if(d.state==='reserved'||!d.sha256||!d.version)throw new UploadError(409,'DOCUMENT_NOT_RECEIVED');const b=await readPrivateArtifact({bucket:d.bucket,path:d.path,byteSize:d.bytes,signal});if(createHash('sha256').update(b).digest('hex')!==d.sha256)throw new UploadError(503,'DOCUMENT_INTEGRITY_FAILED');return b;}
+export async function uploadRightsDocument(id:string,request:Request){z.string().uuid().parse(id);const {client,user}=await documentActor();const allowed=await mediaRpc<{bytes:number;type:string}>(client,'rights_document_access',{p_document:id,p_write:true});
+ const reader=request.body?.getReader();if(!reader)throw new UploadError(400,'DOCUMENT_REQUIRED');const chunks:Uint8Array[]=[];let size=0,timer:ReturnType<typeof setTimeout>|undefined;const deadline=new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new UploadError(408,'UPLOAD_TIMEOUT')),15000);});
+ try{for(;;){const r=await Promise.race([reader.read(),deadline]);if(r.done)break;size+=r.value.length;if(size>allowed.bytes||size>3_000_000)throw new UploadError(413,'DOCUMENT_TOO_LARGE');chunks.push(r.value);}}finally{clearTimeout(timer);await reader.cancel().catch(()=>{});reader.releaseLock();}
+ if(size!==allowed.bytes)throw new UploadError(400,'DOCUMENT_SIZE_MISMATCH');const bytes=Buffer.concat(chunks);let hash:string;try{hash=await inspectRightsDocument(bytes,allowed.type);}catch{throw new UploadError(400,'DOCUMENT_CONTENT_DENIED');}
+ // Privilege is created only after canonical identity, owned reservation and content checks.
+ const admin=adminClient(),privileged=admin as unknown as MediaClient;const d=await locator(privileged,user.id,id);const result=await admin.storage.from(d.bucket).upload(d.path,bytes,{contentType:allowed.type,upsert:false,cacheControl:'0'});
+ // A lost upload response/409 is reconciled by exact bytes, never by deleting or overwriting.
+ const actual=await readPrivateArtifact({bucket:d.bucket,path:d.path,byteSize:d.bytes,signal:request.signal});if(createHash('sha256').update(actual).digest('hex')!==hash)throw new UploadError(result.error?409:503,'DOCUMENT_INTEGRITY_FAILED');
+ await mediaRpc(client,'rights_document_access',{p_document:id,p_write:true});await mediaRpc(privileged,'rights_document_server',{p_actor:user.id,p_document:id,p_hash:hash});return {id,received:true,sha256:hash};
+}
+export async function downloadRightsDocument(id:string,signal:AbortSignal){z.string().uuid().parse(id);const {client,user}=await documentActor();await mediaRpc(client,'rights_document_access',{p_document:id,p_write:false});const privileged=adminClient() as unknown as MediaClient;const d=await locator(privileged,user.id,id,'authorized');
+ try{const bytes=await read(d,signal);await mediaRpc(client,'rights_document_access',{p_document:id,p_write:false});const latest=await locator(privileged,user.id,id);if(JSON.stringify(latest)!==JSON.stringify(d))throw new UploadError(403,'DOCUMENT_UNAVAILABLE');await locator(privileged,user.id,id,'delivered');return new Response(bytes,{headers:{'content-type':'application/octet-stream','content-disposition':`attachment; filename="rights-evidence-${id}.${d.type==='application/pdf'?'pdf':d.type==='image/png'?'png':'jpg'}"`,'content-length':String(bytes.length),'cache-control':'private, no-store, max-age=0','referrer-policy':'no-referrer','x-content-type-options':'nosniff','content-security-policy':"sandbox; default-src 'none'"}});}catch(e){await locator(privileged,user.id,id,'failed').catch(()=>{});throw e;}
+}
+export async function verifyRightsDocuments(client:MediaClient,actor:string,track:string){const state=await mediaRpc<RightsState>(client,'rights_read',{p_track:track,p_admin:true});if(!state.draft)throw new UploadError(400,'RIGHTS_REQUIRED');const ids=[...new Set([...state.draft.master,...state.draft.publishing].map(h=>h.documentId))];if(ids.length>20)throw new UploadError(400,'DOCUMENT_LIMIT');const privileged=adminClient() as unknown as MediaClient;for(const id of ids){await mediaRpc(client,'rights_document_access',{p_document:id,p_write:false});const d=await locator(privileged,actor,id,'authorized');try{const bytes=await read(d);await inspectRightsDocument(bytes,d.type);await locator(privileged,actor,id,'delivered');}catch(e){await locator(privileged,actor,id,'failed').catch(()=>{});throw e;}}}

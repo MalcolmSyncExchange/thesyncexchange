@@ -1,4 +1,4 @@
-import { FUNNELS, numberMetric, sourceMetric, type FunnelObservation, type FunnelName, type Metric, type SourceState } from "./contracts.ts";
+import { FUNNELS, numberMetric, sourceMetric, unavailableMetric, type FunnelObservation, type FunnelName, type Metric, type SourceState } from "./contracts.ts";
 import { assessFunnelCoverage, type FunnelCoverage } from "./coverage.ts";
 import { calculateFunnel, type FunnelReport } from "./funnel.ts";
 import { previousPeriod, timeBuckets, validateRange, type TimeRange, type Granularity } from "./time.ts";
@@ -62,9 +62,10 @@ function normalized(source: ReadSource, request: ReadRequest): ReadSource {
   }
   return { ...source, observations: [...byId.values()] };
 }
-export const SERIES_METRIC_IDS = ["active_artists", "repeat_artists", "active_buyers", "repeat_buyers", "signup_completed", "onboarding_started", "onboarding_completed", "submission_started", "submission_completed", "catalog_searched", "track_preview_started", "license_selected", "checkout_started", "purchase_verified", "resubmissions"] as const;
+export const SERIES_METRIC_IDS = ["active_artists", "repeat_artists", "active_buyers", "repeat_buyers", "signup_completed", "onboarding_started", "onboarding_completed", "submission_started", "submission_completed", "catalog_searched", "track_preview_started", "license_selected", "checkout_started", "purchase_verified", "resubmissions", "buyer_signups", "catalog_review_approval_percent", "published_tracks", "rights_approved", "catalog_published", "asset_delivery_completed", "asset_delivery_failed", "refund_verified", "dispute_verified"] as const;
 export function validateReportRequest(request: ReadRequest) {
   validateRange(request.range);
+  if (!["preview","production"].includes(request.environment)) throw new Error("analytics_invalid_environment");
   if (request.seriesMetric !== undefined && !SERIES_METRIC_IDS.some(id => id === request.seriesMetric)) throw new Error("analytics_invalid_series_metric");
   if (request.granularity === "hour" && Date.parse(request.range.endExclusive) - Date.parse(request.range.startInclusive) > 7 * 86400000)
     throw new Error("Hourly reports support at most seven days. Choose a shorter range or a daily interval.");
@@ -113,6 +114,13 @@ function aggregate(source: ReadSource, range: TimeRange, rows: readonly FunnelOb
     const role = ["signup_completed", "onboarding_started", "onboarding_completed", "submission_started", "submission_completed"].includes(event) ? "artist" : ["catalog_searched", "track_preview_started", "license_selected", "checkout_started", "purchase_verified"].includes(event) ? "buyer" : null;
     add(event, label, [event], () => rows.filter(row => row.event === event && (!role || row.actorRole === role)).length);
   }
+  for (const event of ["rights_approved", "catalog_published", "asset_delivery_completed", "asset_delivery_failed", "refund_verified", "dispute_verified"] as const)
+    add(event, event.replaceAll("_", " "), [event], () => rows.filter(row => row.event === event).length);
+  add("buyer_signups", "New Buyer registrations", ["signup_completed"], () => rows.filter(row => row.event === "signup_completed" && row.actorRole === "buyer").length);
+  const reviewed = rows.filter(row=>row.event==="catalog_reviewed");
+  add("catalog_review_approval_percent", "Catalog review approval % (decisions)", ["catalog_reviewed"], ()=>100*reviewed.filter(row=>row.reviewState==="approved").length/reviewed.length);
+  if ((!requestedMetric || requestedMetric==="catalog_review_approval_percent") && availability(source,["catalog_reviewed"],range)==="available" && (!reviewed.length || reviewed.some(row=>!row.reviewState))) result.set("catalog_review_approval_percent",{label:"Catalog review approval % (decisions)",metric:unavailableMetric(!reviewed.length?"not_applicable":"insufficient_evidence")});
+  add("published_tracks", "Unique tracks published in window", ["catalog_published"], ()=>new Set(rows.filter(row=>row.event==="catalog_published"&&row.trackId).map(row=>row.trackId)).size);
   const submissions = rows.filter(row => row.event === "submission_completed" && row.actorRole === "artist");
   add("resubmissions", "Resubmissions", ["submission_completed"], () => submissions.filter(row => row.isResubmission === true).length);
   if ((!requestedMetric || requestedMetric === "resubmissions") && submissions.some(row => row.isResubmission === undefined)) result.set("resubmissions", { label: "Resubmissions", metric: sourceMetric("insufficient_evidence") });

@@ -268,6 +268,9 @@ export async function signupAction(formData: FormData) {
           onboardingStartedAt: role ? now : null, onboardingCompletedAt: null,
           onboardingStep: role ? "basics" : null, onboardingData: {}
         });
+        if (formData.get("analyticsConsent") === "analytics-optional-v1") {
+          try { await createAdminSupabaseClient()?.rpc("analytics_signup_consent", { p_user: data.user.id, p_notice: "analytics-optional-v1", p_confirmation: !sessionUser }).abortSignal(AbortSignal.timeout(1500)); } catch { /* Optional consent cannot change signup outcome. */ }
+        }
         await capturePersistedSignup(data.user.id, !sessionUser);
       } catch {
         // Auth creation may have committed. Do not retry signup or report a false

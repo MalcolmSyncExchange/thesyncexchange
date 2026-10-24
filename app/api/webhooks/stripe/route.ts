@@ -200,7 +200,10 @@ export async function POST(request: Request) {
             verifiedEvent
           });
           // Ordinary marketplace only: paid persistence and evidence processing have succeeded.
-          if (verifiedEvent) await recordVerifiedPurchase(orderId, session, verifiedEvent.providerEventId);
+          if (verifiedEvent) {
+            try { await recordVerifiedPurchase(orderId, session, verifiedEvent.providerEventId); }
+            catch { /* System12 collector recovers from retained verified payment facts. Analytics cannot fail payment acknowledgement. */ }
+          }
           revalidateBuyerOrderPaths(orderId);
         }
         break;

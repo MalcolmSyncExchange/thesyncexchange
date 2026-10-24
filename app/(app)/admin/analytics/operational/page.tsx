@@ -1,38 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils";
-import { getPaymentRuntimeConfiguration } from "@/lib/server-env";
-import { getAdminAnalytics } from "@/services/admin/queries";
-
-export default async function AnalyticsPage() {
-  const analytics = await getAdminAnalytics();
-  const payment = getPaymentRuntimeConfiguration();
-
-  return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-semibold">Analytics overview</h1>
-      <div className="grid gap-6 md:grid-cols-3">
-        {[
-          ["Approved catalog", analytics.conversionLabel, "Approved tracks relative to the full track base."],
-          [
-            payment.paymentMode === "test" ? "Average sandbox order value" : "Average order value",
-            formatCurrency(analytics.averageOrderValue),
-            payment.paymentMode === "test"
-              ? "Stripe test-mode order value for beta validation; this is not live revenue."
-              : "Live order value across recorded license activity."
-          ],
-          ["Approval velocity", analytics.approvalVelocity, "Current review queue pressure based on pending submissions."]
-        ].map(([title, value, copy]) => (
-          <Card key={title}>
-            <CardHeader>
-              <CardTitle>{title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-semibold">{value}</p>
-              <p className="mt-3 text-sm text-muted-foreground">{copy}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
+import Link from "next/link";
+import { readAnalyticsOperations } from "@/services/analytics/operations";
+export default async function Page(){
+ const data=await readAnalyticsOperations("preview") as {domainHealth?:Record<string,number>;statuses?:Record<string,number>;failures?:Record<string,number>;retry_due?:number;retry_waiting?:number;oldestPendingSeconds?:number|null;lastCollectionAt?:string|null;deliveryEnabled?:boolean;retentionDays?:number;attention?:{id:string;event:string;delivery_status:string;failure_category:string;attempt_count:number}[]}|null;
+ return <section className="space-y-6"><h1 className="text-3xl font-semibold">Operational Reliability</h1><Link className="underline" href="/admin/analytics">SEC Intelligence</Link>{!data ? <p role="alert">Operational analytics unavailable. No queue totals inferred.</p> : <><p>Preview queue · Includes test and internal events · External ingestion acknowledgement does not prove reporting visibility.</p><p>Delivery {data.deliveryEnabled?"configured":"disabled"} · Local retention {data.retentionDays} days · Last collection {data.lastCollectionAt??"Not observed"}</p><div className="grid gap-4 sm:grid-cols-3">{Object.entries(data.statuses??{}).map(([state,n])=><article key={state} className="rounded-xl border bg-card p-5"><h2>{state.replaceAll("_"," ")}</h2><p className="text-3xl">{n}</p></article>)}</div><p>Retries due: {data.retry_due} · Waiting: {data.retry_waiting} · Oldest pending seconds: {data.oldestPendingSeconds??"Not applicable"}</p><h2 className="text-xl font-semibold">Safe failure classifications</h2>{Object.entries(data.failures??{}).map(([category,n])=><p key={category}>{category}: {n}</p>)}<h2 className="text-xl font-semibold">Domain recovery signals</h2>{Object.entries(data.domainHealth??{}).map(([name,n])=><p key={name}>{name}: {n}</p>)}<h2 className="text-xl font-semibold">Operator attention</h2>{data.attention?.length ? data.attention.map(r=><p key={r.id}>{r.event} · {r.delivery_status} · {r.failure_category} · attempts {r.attempt_count}</p>) : <p>No held or exhausted events in this queue.</p>}<p>Authenticated operator recovery remains available through the existing analytics retry API. No worker schedule or external alert is activated.</p></>}</section>;
 }

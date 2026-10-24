@@ -21,7 +21,8 @@ try {
  const page=await browser.newPage(); page.setDefaultTimeout(15000);
  await page.goto("http://127.0.0.1:3104/v2-sec-intelligence-fixture-local");
  await page.getByRole("heading",{name:"SEC Intelligence",exact:true}).waitFor();
- await page.locator("section select").selectOption("submission_completed");
+ await page.locator('[name="seriesMetric"]').selectOption("submission_completed");
+ await page.getByRole("button",{name:"Apply / refresh",exact:true}).click();
  const points=page.getByRole("button",{name:/2026-01-0[123]T/});
  assert.equal(await points.count(),3);
  await points.nth(1).hover();
@@ -39,4 +40,4 @@ try {
  assert.equal(await page.getByRole("navigation",{name:"SEC Intelligence"}).getByRole("link").count(),4);
  assert.equal(await page.locator('input[name="compare"]').isChecked(),true);
  console.log("PASS: hover, actual zero/nonzero values, focus, arrow navigation, previous-period values, provisional status, 390/1280px layout, navigation and date controls");
-} finally { await browser?.close(); server?.kill("SIGTERM"); await rm(fixture,{recursive:true,force:true}); }
+} finally { await browser?.close(); if(server&&server.exitCode===null){const stopped=new Promise(resolve=>server.once('exit',resolve));server.kill('SIGTERM');await stopped;} await rm(fixture,{recursive:true,force:true});await rm(new URL("../.next/dev/types/validator.ts",import.meta.url),{force:true}); }

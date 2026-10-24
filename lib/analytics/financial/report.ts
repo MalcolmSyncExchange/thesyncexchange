@@ -22,7 +22,7 @@ export type MoneyMetrics = { currency: string; verifiedPaidOrders: Metric<number
   grossMinor: Metric<number>; averageOrderMinor: Metric<number>; refundsMinor: Metric<number>; refundAdjustedMinor: Metric<number> };
 export type FinancialPeriod = { range: TimeRange; verifiedPaidOrders: Metric<number>; completedLicenses: Metric<number>;
   currencies: MoneyMetrics[]; byLicense: { category: PaymentFact["licenseCategory"]; currencies: MoneyMetrics[] }[] };
-export type FinancialReport = { version: 1; mode: PaymentMode; granularity: FinancialRequest["granularity"]; source: SourceState; reason: FinancialSource["reason"];
+export type FinancialReport = { booked?: import("./booked.ts").BookedFinance | null; version: 1; mode: PaymentMode; granularity: FinancialRequest["granularity"]; source: SourceState; reason: FinancialSource["reason"];
   current: FinancialPeriod; previous: FinancialPeriod | null; series: FinancialPeriod[];
   reconciliation: { state: ReconciliationState; count: number }[];
   commissionRevenueMinor: Metric<number>; artistGrossMinor: Metric<number>; artistNetMinor: Metric<number>;

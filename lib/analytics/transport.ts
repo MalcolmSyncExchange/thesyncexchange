@@ -8,7 +8,7 @@ export type DeliveryOutcome =
 export async function sendEvent(config: AnalyticsConfig, row: StoredEvent, request: typeof fetch = fetch): Promise<DeliveryOutcome> {
   const actor = { id: row.actor_id, role: row.actor_role };
   const properties = filterProperties(row.event, row.properties);
-  if (!validActor(actor) || !properties || row.environment !== config.environment || !Number.isFinite(Date.parse(row.occurred_at)))
+  if (!(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(row.id)) || !validActor(actor) || !properties || row.environment !== config.environment || !Number.isFinite(Date.parse(row.occurred_at)))
     return { kind: "configuration", category: "configuration_error" };
   try {
     const response = await request(`${config.host}/i/v0/e/`, {
@@ -16,7 +16,7 @@ export async function sendEvent(config: AnalyticsConfig, row: StoredEvent, reque
       signal: AbortSignal.timeout(3000),
       body: JSON.stringify({ api_key: config.token, uuid: row.id, event: row.event, distinct_id: actor.id, timestamp: row.occurred_at,
         properties: { ...properties, ...commonProperties(config, actor), is_internal: row.is_internal, is_test: row.is_test,
-          $geoip_disable: true, $ip: null, $process_person_profile: true } })
+          $geoip_disable: true, $ip: null, $process_person_profile: false } })
     });
     if (response.ok) return { kind: "accepted", meaning: "ingestion_only" };
     if (response.status === 429) return { kind: "retryable", category: "rate_limited" };

@@ -46,6 +46,7 @@ export function SignupForm({
 
         <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">{helper}</div>
 
+        <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="analyticsConsent" value="analytics-optional-v1" className="mt-1" /><span>Optional: share pseudonymous product activity to help improve TSE. No messages, audio, rights documents, or payment details. You can withdraw in <a href="/account/analytics" className="underline">Analytics preferences</a>. See our <a href="/privacy" className="underline">Privacy Policy</a>.</span></label>
         <FormSubmitButton className="w-full" pendingLabel="Creating Account...">
           Create Account
         </FormSubmitButton>

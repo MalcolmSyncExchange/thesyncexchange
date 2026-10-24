@@ -101,6 +101,7 @@ test('preview counts actual playing once, never click/resume; submissions start 
 function outboxHarness() {
   const rows=[]; const sent=[]; let transportWorks=true; let ackWorks=true; let lease=0;
   const db={rpc(name,args){ const run=()=>{
+    if(name==='analytics_delivery_allowed')return {data:true,error:null};
     if(name==='enqueue_analytics_event') {
       let row=rows.find(r=>r.dedupe_key===args.p_dedupe_key && r.environment===args.p_environment);
       if(!row) { row={id:webcrypto.randomUUID(),dedupe_key:args.p_dedupe_key,event:args.p_event,actor_id:args.p_actor_id,actor_role:args.p_actor_role,properties:args.p_properties,environment:args.p_environment,is_internal:args.p_is_internal,is_test:args.p_is_test,occurred_at:'2026-09-15T01:00:00Z',delivered_at:null,lease_id:null,attempt_count:0,delivery_status:'pending'}; rows.push(row); }

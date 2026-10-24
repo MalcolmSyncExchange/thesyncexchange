@@ -156,7 +156,7 @@ test('every non-null Connect context is rejected before Gate D classification or
  assert.equal(live.calls.length,0);
 });
 
-test('analytics follows ordinary paid evidence success only; durable enqueue failure remains retryable',async()=>{
+test('analytics follows verified ordinary payment only; optional failure never fails payment acknowledgement',async()=>{
  const session={id:'cs_test_fixture',client_reference_id:'order',payment_status:'paid',payment_intent:'pi_fixture',amount_total:5000,currency:'usd',livemode:false};
  const event={id:'evt_fixture',type:'checkout.session.completed',created:1790964000,livemode:false,data:{object:session}};
  for(const type of ['checkout.session.completed','checkout.session.async_payment_succeeded']) {
@@ -166,6 +166,6 @@ test('analytics follows ordinary paid evidence success only; durable enqueue fai
   const h=loadRoute({...event,data:{object:{...session,...change}}});await send(h.POST);assert.equal(h.analytics.length,0);
  }
  const failed=loadRoute(event,{syncFailure:true});assert.equal((await send(failed.POST)).status,500);assert.equal(failed.analytics.length,0);
- const enqueue=loadRoute(event,{analyticsFailure:true});assert.equal((await send(enqueue.POST)).status,500);assert.equal(enqueue.analytics.length,1);
+ const enqueue=loadRoute(event,{analyticsFailure:true});assert.equal((await send(enqueue.POST)).status,200);assert.equal(enqueue.analytics.length,1);
  const connect=loadRoute({...event,account:'acct_other'});assert.equal((await send(connect.POST)).status,400);assert.equal(connect.analytics.length,0);
 });

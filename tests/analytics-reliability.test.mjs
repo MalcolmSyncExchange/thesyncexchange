@@ -1,3 +1,4 @@
+import {enable as enableSyntheticAnalytics} from './helpers/analytics-system-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -19,7 +20,7 @@ const load = (path, stubs) => {
   const loadedModule={exports:{}};
   const code=ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),
     {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-  runInNewContext(code,{module:loadedModule,exports:loadedModule.exports,Request,Response,URL,AbortSignal,
+  runInNewContext(code,{module:loadedModule,exports:loadedModule.exports,Request,Response,URL,AbortSignal,TextDecoder,
     require:key=>{assert.ok(Object.hasOwn(stubs,key),`unmocked ${key}`);return stubs[key];}}, {filename:path});
   return loadedModule.exports;
 };
@@ -77,7 +78,7 @@ test('follow-on migration retains delivered rows and makes historical pending ro
 });
 
 test('real SQL migration, lease state machine, hold/release, exhaustion and privileges',async t=>{
-  const db=await database();
+  const db=await database();await enableSyntheticAnalytics(db);
   const run=(sql,args=[])=>db.query(sql,args);
   const enqueue=key=>run('select public.enqueue_analytics_event($1,$2,$3,$4,$5,$6,$7,$8) id',
     ['preview','onboarding_started',ids.buyer,'buyer','{}',key,false,true]);
@@ -164,16 +165,16 @@ test('coverage requires independent source verification and an elapsed late allo
 test('worker stops at ten attempts, counts acceptance, and stops on an empty claim',async()=>{
   let attempts=0;
   const worker=load('services/analytics/worker.ts',{
-    'server-only':{},'./server':{attemptDelivery:async()=>{attempts++;return attempts===2?'failed':'accepted';}}
+    'server-only':{},'@/services/supabase/admin':{createAdminSupabaseClient:()=>null},'./server':{analyticsConfig:()=>null,attemptDelivery:async()=>{attempts++;return attempts===2?'failed':'accepted';}}
   });
   assert.deepEqual(JSON.parse(JSON.stringify(await worker.runAnalyticsDeliveryBatch(100))),{attempted:10,accepted:9});
   assert.equal(attempts,10);
   const empty=load('services/analytics/worker.ts',{
-    'server-only':{},'./server':{attemptDelivery:async()=>{attempts++;return 'empty';}}
+    'server-only':{},'@/services/supabase/admin':{createAdminSupabaseClient:()=>null},'./server':{analyticsConfig:()=>null,attemptDelivery:async()=>{attempts++;return 'empty';}}
   });
   assert.deepEqual(JSON.parse(JSON.stringify(await empty.runAnalyticsDeliveryBatch())),{attempted:0,accepted:0});
   const unavailable=load('services/analytics/worker.ts',{
-    'server-only':{},'./server':{attemptDelivery:async()=> 'unavailable'}
+    'server-only':{},'@/services/supabase/admin':{createAdminSupabaseClient:()=>null},'./server':{analyticsConfig:()=>null,attemptDelivery:async()=> 'unavailable'}
   });
   await assert.rejects(()=>unavailable.runAnalyticsDeliveryBatch(),/analytics_delivery_unavailable/);
 });

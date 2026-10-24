@@ -3,6 +3,7 @@ import { getAnalyticsActor } from "./actor";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { readAnalyticsSource } from "@/lib/analytics/intelligence/source-reader";
 import { buildSECReadModels, validateReportRequest, type ReadRequest } from "@/lib/analytics/intelligence/read-models";
+import { FUNNELS } from "@/lib/analytics/intelligence/contracts";
 import type { EventName } from "@/lib/analytics/schema";
 import { previousPeriod } from "@/lib/analytics/intelligence/time";
 
@@ -13,7 +14,7 @@ export async function readSECAnalytics(request: ReadRequest, instrumentedEvents:
   validateReportRequest(request);
   const queryRange = {
     startInclusive: request.comparePrevious ? previousPeriod(request.range).startInclusive : request.range.startInclusive,
-    endExclusive: new Date(Date.parse(request.range.endExclusive) + request.maxStepLagMs * 4).toISOString()
+    endExclusive: new Date(Date.parse(request.range.endExclusive) + request.maxStepLagMs * Math.max(...Object.values(FUNNELS).map(f => f.steps.length - 1))).toISOString()
   };
   const source = await readAnalyticsSource({
     authorizeAdmin: async () => (await getAnalyticsActor())?.role === "admin",

@@ -13,8 +13,8 @@ export async function captureCheckoutStarted(userId: string, orderId: string, tr
     const url = new URL(session.url);
     if (url.protocol !== "https:" || url.hostname !== "checkout.stripe.com" || url.username || url.password || url.port) return;
     const safe = filterProperties("checkout_started", {
-      order_id: orderId, track_id: trackId, license_type: license, checkout_attempt_id: crypto.randomUUID()
+      order_id: orderId, track_id: trackId, license_type: license, checkout_attempt_id: orderId
     });
-    if (safe) await captureForUser(userId, "checkout_started", safe);
+    if (safe) await captureForUser(userId, "checkout_started", safe, `checkout:${orderId}`);
   } catch { /* Analytics cannot interrupt checkout redirects. */ }
 }

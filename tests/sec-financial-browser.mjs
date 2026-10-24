@@ -27,4 +27,4 @@ try {
  const html=await page.content();assert.ok(!html.includes('private-payment'));assert.ok(!html.includes('private-order'));
  for(const width of [390,1280]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));}
  console.log('PASS: financial controls, currency labels, hover/focus values, refund selector, reconciliation, unavailable accounting, privacy, 390/1280px layout');
-} finally {await browser?.close();server?.kill('SIGTERM');await rm(fixture,{recursive:true,force:true});}
+} finally {await browser?.close();if(server&&server.exitCode===null){const stopped=new Promise(resolve=>server.once('exit',resolve));server.kill('SIGTERM');await stopped;}await rm(fixture,{recursive:true,force:true});await rm(new URL("../.next/dev/types/validator.ts",import.meta.url),{force:true});}

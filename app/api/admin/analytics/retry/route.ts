@@ -31,7 +31,12 @@ export async function POST(request: Request) {
   const db = createAdminSupabaseClient();
   if (!config || !db) return new Response(null, { status: 503 });
   let input: unknown;
-  try { input = await request.json(); } catch { return new Response(null, { status: 400 }); }
+  try {
+    const reader=request.body?.getReader();if(!reader)return new Response(null,{status:400});
+    const chunks:Uint8Array[]=[];let n=0;
+    while(true){const part=await reader.read();if(part.done)break;n+=part.value.byteLength;if(n>2048){await reader.cancel();return new Response(null,{status:413});}chunks.push(part.value);}
+    const body=new Uint8Array(n);let at=0;for(const part of chunks){body.set(part,at);at+=part.byteLength;}input=JSON.parse(new TextDecoder().decode(body));
+  } catch { return new Response(null, { status: 400 }); }
   if (!input || typeof input !== "object") return new Response(null, { status: 400 });
   const { action, id } = input as { action?: unknown; id?: unknown };
   if (action === "run_due" && id === undefined) {

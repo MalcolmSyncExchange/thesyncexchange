@@ -12,7 +12,7 @@ export type FunnelReport = { version: typeof ANALYTICS_CONTRACT_VERSION; funnel:
   steps: StepResult[]; transitions: TransitionResult[]; overallConversionPercent: Metric<number>;
   overallAttemptConversionPercent: Metric<number>; completionMedianSeconds: Metric<number> };
 
-type Attempt = { actorId: string; events: FunnelObservation[]; trackId?: string; orderId?: string; submissionAttemptId?: string };
+type Attempt = { actorId: string; events: FunnelObservation[]; trackId?: string; orderId?: string; submissionAttemptId?: string; dealId?: string };
 const unavailable = (state: SourceState) => sourceMetric(state);
 const milliseconds = (value: string) => Date.parse(value);
 const median = (values: number[]): Metric<number> => {
@@ -32,6 +32,7 @@ function validWindow(window: FunnelInput["window"]): boolean {
 }
 
 function canAdvance(attempt: Attempt, event: FunnelObservation, maxStepLagMs: number, timeOf: (event: FunnelObservation) => number): boolean {
+  if (attempt.dealId && event.dealId && attempt.dealId !== event.dealId) return false;
   if (attempt.trackId && event.trackId && attempt.trackId !== event.trackId) return false;
   if (attempt.orderId && event.orderId && attempt.orderId !== event.orderId) return false;
   if (attempt.submissionAttemptId && event.submissionAttemptId && attempt.submissionAttemptId !== event.submissionAttemptId) return false;
@@ -86,7 +87,7 @@ export function calculateFunnel(input: FunnelInput): FunnelReport {
     if (index === 0) {
       const time = timeOf(event);
       if (time >= start && time < end) attempts.push({ actorId: event.actorId, events: [event],
-        trackId: event.trackId, orderId: event.orderId, submissionAttemptId: event.submissionAttemptId });
+        dealId: event.dealId, trackId: event.trackId, orderId: event.orderId, submissionAttemptId: event.submissionAttemptId });
       continue;
     }
     const target = attempts.find((attempt, candidate) => {
@@ -96,6 +97,7 @@ export function calculateFunnel(input: FunnelInput): FunnelReport {
     });
     if (!target) continue;
     target.events.push(event);
+    target.dealId ||= event.dealId;
     target.trackId ||= event.trackId;
     target.orderId ||= event.orderId;
     target.submissionAttemptId ||= event.submissionAttemptId;

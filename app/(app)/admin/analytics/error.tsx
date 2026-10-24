@@ -1,2 +1,2 @@
 "use client";
-export default function ErrorState({ reset }: { reset: () => void }) { return <div role="alert" className="rounded-xl border p-6"><h2 className="text-xl font-semibold">Intelligence unavailable</h2><p className="my-3">The analytics request could not be completed. No missing values have been inferred.</p><button className="rounded border px-4 py-2" onClick={reset}>Retry</button></div>; }
+export default function ErrorState({reset}:{reset:()=>void}){return <section role="alert" className="space-y-4 p-6"><h2>Analytics are temporarily unavailable</h2><p>No results were inferred. Check your access or try again.</p><button onClick={reset} className="rounded border p-2">Try again</button></section>;}

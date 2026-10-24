@@ -2,7 +2,7 @@ import "server-only";
 import { assertStripeRuntimeObject, getPurchaseCompletionAdapterConfiguration } from "@/lib/server-env";
 import type Stripe from "stripe";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
-import { analyticsConfig, enqueueEvent, deliverEvent } from "./server";
+import { analyticsConfig, enqueueEvent } from "./server";
 
 // Only the signature-verified webhook route calls this. Never call from a return page.
 export async function recordVerifiedPurchase(orderId: string, session: Stripe.Checkout.Session, providerEventId: string) {
@@ -27,10 +27,8 @@ export async function recordVerifiedPurchase(orderId: string, session: Stripe.Ch
       proof.payment_mode !== "test" || session.livemode !== false) throw new Error("analytics_purchase_evidence_mismatch");
   const license = proof.license_type;
   if (license !== "digital-campaign" && license !== "broadcast" && license !== "exclusive-buyout") throw new Error("analytics_license_invalid");
-  const id = await enqueueEvent({ id: proof.buyer_user_id, role: "buyer" }, "purchase_verified", {
+  await enqueueEvent({ id: proof.buyer_user_id, role: "buyer" }, "purchase_verified", {
     order_id: proof.order_id, track_id: proof.track_id, license_type: license, payment_mode: proof.payment_mode
   }, `purchase:${orderId}`);
-  if (!id) throw new Error("analytics_purchase_enqueue_failed");
-  // Ingestion outage does not undo payment. The durable row remains retryable.
-  await deliverEvent(id).catch(() => false);
+  // Null means privacy disabled/declined; explicit collector/worker owns recovery and HTTP delivery.
 }

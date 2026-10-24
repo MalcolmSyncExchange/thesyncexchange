@@ -36,6 +36,9 @@ export async function attemptDelivery(id?: string): Promise<DeliveryAttempt> {
   if (error) return "unavailable";
   const row = data?.[0];
   if (!row || !row.lease_id) return "empty";
+  const permission = await db.rpc("analytics_delivery_allowed", { p_id: row.id, p_lease: row.lease_id }).abortSignal(AbortSignal.timeout(3000));
+  if (permission.error) return "unavailable";
+  if (permission.data !== true) return "empty";
   const outcome = await sendEvent(config, row as StoredEvent);
   if (outcome.kind === "accepted") {
     const { data: completed, error: ackError } = await db.rpc("complete_analytics_event", {
@@ -52,5 +55,5 @@ export async function attemptDelivery(id?: string): Promise<DeliveryAttempt> {
 export async function deliverEvent(id?: string): Promise<boolean> { return (await attemptDelivery(id)) === "accepted"; }
 // Ordinary analytics must not affect signup, saving, or checkout outcomes.
 export async function captureEvent<E extends Exclude<EventName, "purchase_verified">>(actor: Actor, event: E, properties: EventProperties<E>, dedupeKey?: string) {
-  try { const id = await enqueueEvent(actor, event, properties, dedupeKey); if (id) await deliverEvent(id); } catch { /* pending rows can be retried; no private logging */ }
+  try { await enqueueEvent(actor, event, properties, dedupeKey); } catch { /* pending rows can be retried; no private logging */ }
 }

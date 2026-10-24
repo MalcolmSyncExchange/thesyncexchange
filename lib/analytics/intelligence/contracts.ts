@@ -4,6 +4,9 @@ import type { EventName } from "../schema.ts";
 export const ANALYTICS_CONTRACT_VERSION = 2 as const;
 
 export const FUNNELS = {
+  system12_artist: { role: "artist", steps: ["signup_completed", "onboarding_completed", "submission_completed", "rights_approved", "catalog_published"] },
+  system12_buyer: { role: "buyer", steps: ["signup_completed", "catalog_searched", "track_preview_started", "license_selected", "checkout_started", "purchase_verified", "asset_delivery_completed"] },
+  marketplace_journey: { role: "buyer", steps: ["catalog_searched", "marketplace_inquiry", "marketplace_quote", "marketplace_checkout", "marketplace_license"] },
   artist_journey: { role: "artist", steps: ["signup_completed", "onboarding_started", "onboarding_completed", "submission_started", "submission_completed"] },
   buyer_journey: { role: "buyer", steps: ["catalog_searched", "track_preview_started", "license_selected", "checkout_started", "purchase_verified"] },
   artist_acquisition: { role: "artist", steps: ["signup_completed"] },
@@ -39,6 +42,8 @@ export type FunnelObservation = {
   environment: "preview" | "production";
   isTest: boolean;
   isInternal: boolean;
+  reviewState?: "approved" | "changes_requested" | "rejected";
+  dealId?: string;
   trackId?: string;
   orderId?: string;
   submissionAttemptId?: string;

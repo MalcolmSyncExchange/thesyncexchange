@@ -22,7 +22,11 @@ export function resolveAnalyticsConfig(vars: Record<string, string | undefined>,
   if (dedicatedStaging && host !== "https://us.i.posthog.com") return null;
   if (vars.POSTHOG_PRODUCTION_TOKEN && vars.POSTHOG_PREVIEW_TOKEN &&
     vars.POSTHOG_PRODUCTION_TOKEN === vars.POSTHOG_PREVIEW_TOKEN) return null;
-  return { token, host, environment, internalIds: (vars.ANALYTICS_INTERNAL_USER_IDS || "").split(",").map(x => x.trim()), testIds: (vars.ANALYTICS_TEST_USER_IDS || "").split(",").map(x => x.trim()) };
+  const internalIds=(vars.ANALYTICS_INTERNAL_USER_IDS || "").split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+  const testIds=(vars.ANALYTICS_TEST_USER_IDS || "").split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if([internalIds,testIds].some(ids=>ids.length>1000 || ids.some(id=>!uuid.test(id))))return null;
+  return { token, host, environment, internalIds, testIds };
 }
 export function commonProperties(config: AnalyticsConfig, actor: Actor) {
   return { app: "the-sync-exchange", event_version: 1, environment: config.environment, role: actor.role,

@@ -1,3 +1,4 @@
+import {enable as enableSyntheticAnalytics} from './helpers/analytics-system-fixture.mjs';
 // Local-only integration: real Stripe HMAC verification, webhook/payment code,
 // immutable evidence and durable outbox SQL. No provider or hosted DB requests.
 import test from 'node:test';
@@ -40,7 +41,7 @@ function clientFor(db,controls) {
    if(name==='enqueue_analytics_event'&&controls.enqueueFails)throw Error('injected enqueue failure');
    const params=Object.entries(args);
    const sql=`public.${identifier(name)}(${params.map(([key],i)=>`${identifier(key)} => $${i+1}`).join(',')})`;
-   const scalar=['record_purchase_completion_event','enqueue_analytics_event','complete_analytics_event','fail_analytics_event'].includes(name);
+   const scalar=['record_purchase_completion_event','enqueue_analytics_event','complete_analytics_event','fail_analytics_event','analytics_delivery_allowed'].includes(name);
    const {rows}=await db.query(scalar?`select ${sql} as value`:`select * from ${sql}`,params.map(([,v])=>v));
    return scalar?rows[0].value:rows;
   }));},
@@ -77,11 +78,12 @@ function clientFor(db,controls) {
  };
 }
 async function harness({buyer=ids.buyer}={}) {
- const db=await database();
+ const db=await database();await enableSyntheticAnalytics(db);
  const controls={calls:[],catalogReads:0,enqueueFails:false,sent:[],gate:'ordinary',gateCalls:[]};
  try {
   if(buyer!==ids.buyer)await db.query("insert into auth.users(id,email) values($1,'qa@fixture.invalid');",[buyer]);
   if(buyer!==ids.buyer)await db.query("insert into user_profiles(id,email,role,full_name) values($1,'qa@fixture.invalid','buyer','Local QA')",[buyer]);
+  await enableSyntheticAnalytics(db,[buyer]);
   await db.exec('update commerce_private.capabilities set foundation_enabled=true,payment_adapter_enabled=true');
   await db.query(`insert into orders(id,buyer_user_id,track_id,license_type_id,amount_cents,currency)
    values($1,$2,$3,$4,5000,'USD')`,[ids.order,buyer,ids.live,ids.license]);
@@ -133,12 +135,12 @@ async function harness({buyer=ids.buyer}={}) {
   const send=async({body,signature})=>{const response=await service(db,()=>route.POST(new Request('https://staging.invalid/api/webhooks/stripe',{method:'POST',headers:{'stripe-signature':signature},body})));controls.lastResponse=await response.clone().json();return response;};
   const rows=async()=> (await db.query('select * from analytics_outbox')).rows;
   const proof=(eventId=event.id,account='acct_fixture')=>service(db,()=>db.query('select * from get_analytics_verified_purchase($1,$2,$3)',[ids.order,account,eventId]));
-  return {db,controls,event,sign,send,rows,proof,purchase};
+  return {db,controls,event,sign,send,rows,proof,purchase,deliver:id=>service(db,()=>analytics.deliverEvent(id))};
  } catch(error){await db.close();throw error;}
 }
 async function withHarness(run,options){const h=await harness(options);try{await run(h);}finally{await h.db.close();}}
 async function assertOnePurchase(h) {
- const rows=await h.rows();assert.equal(rows.length,1);assert.equal(rows[0].event,'purchase_verified');
+ let rows=await h.rows();rows=rows.filter(x=>x.event==='purchase_verified');assert.equal(rows.length,1);await h.deliver(rows[0].id);rows=(await h.rows()).filter(x=>x.event==='purchase_verified');assert.equal(rows[0].event,'purchase_verified');
  assert.equal(rows[0].dedupe_key,`purchase:${ids.order}`);assert.ok(rows[0].delivered_at);
  assert.equal(rows[0].actor_id,ids.buyer);assert.equal(rows[0].environment,'preview');assert.equal(rows[0].is_test,true);
  assert.deepEqual(rows[0].properties,{order_id:ids.order,track_id:ids.live,license_type:'digital-campaign',payment_mode:'test'});
@@ -172,7 +174,7 @@ for(const [label,sql] of [
 
 test('enqueue failure after verified payment recovers after catalog drift without backfill or duplicate',()=>withHarness(async h=>{
  const signed=h.sign(h.event);h.controls.enqueueFails=true;
- assert.equal((await h.send(signed)).status,500);assert.equal((await h.rows()).length,0);assert.equal((await h.proof()).rows.length,1);
+ assert.equal((await h.send(signed)).status,200);assert.equal((await h.rows()).length,0);assert.equal((await h.proof()).rows.length,1);
  const reads=h.controls.catalogReads;
  await h.db.exec(`update track_license_options set price_cents=9500 where track_id='${ids.live}'; update tracks set status='rejected' where id='${ids.live}'`);
  h.controls.enqueueFails=false;assert.equal((await h.send(signed)).status,200);assert.equal((await h.send(signed)).status,200);

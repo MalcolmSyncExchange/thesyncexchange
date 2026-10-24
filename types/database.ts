@@ -715,6 +715,14 @@ export interface Database {
       };
     };
     Functions: {
+      analytics_delivery_allowed: { Args: { p_id: string; p_lease: string }; Returns: boolean };
+      analytics_preferences: { Args: { p_consent?: boolean; p_notice?: string }; Returns: Json };
+      analytics_signup_consent: { Args: { p_user: string; p_notice: string; p_confirmation?: boolean }; Returns: undefined };
+      collect_analytics_events: { Args: { p_environment: string; p_limit?: number; p_internal_ids?: string[]; p_test_ids?: string[] }; Returns: number };
+      analytics_retention: { Args: Record<string, never>; Returns: number };
+      analytics_operations: { Args: { p_environment: string }; Returns: Json };
+      analytics_financial_source: { Args: { p_end: string; p_mode: string }; Returns: Json };
+      analytics_booked_finance: { Args: { p_start: string; p_end: string; p_mode: string }; Returns: Json };
       sec_registration_open: { Args: Record<string, never>; Returns: boolean };
       sec_has_capability: { Args: { p_cap: string }; Returns: boolean };
       auth_session_is_active: { Args: Record<PropertyKey, never>; Returns: boolean };

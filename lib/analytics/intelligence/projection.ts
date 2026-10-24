@@ -18,7 +18,8 @@ export function projectOutboxObservation(input: unknown): FunnelObservation | nu
   const id = (name: string) => typeof properties[name] === "string" ? properties[name] as string : undefined;
   return { eventId: row.id, actorId: row.actor_id, actorRole: row.actor_role, event,
     occurredAt: row.occurred_at, environment: row.environment, isTest: row.is_test, isInternal: row.is_internal,
+    ...(event === "catalog_reviewed" ? { reviewState: properties.state as "approved"|"changes_requested"|"rejected" } : {}),
     ...(event === "submission_completed" ? { isResubmission: properties.is_resubmission as boolean } : {}),
-    trackId: id("track_id"), orderId: id("order_id"),
+    ...(id("deal_id") ? { dealId: id("deal_id") } : {}), trackId: id("track_id"), orderId: id("order_id"),
     submissionAttemptId: id("submission_attempt_id"), checkoutAttemptId: id("checkout_attempt_id") };
 }

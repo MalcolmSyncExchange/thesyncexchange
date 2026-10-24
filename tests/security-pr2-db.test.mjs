@@ -31,9 +31,10 @@ test('profile, finance, buyer and rights boundaries run as real PostgreSQL roles
   assert.deepEqual(await read(db,'select id,artist_name from artist_profiles'),[]);
   await denied(db,'select payout_email from artist_profiles');
   await denied(db,'select * from get_own_artist_finance()');
-  assert.equal((await read(db,'select * from buyer_catalog_public')).length,1);
-  assert.equal((await read(db,'select * from track_license_options')).length,1);
-  assert.equal((await read(db,'select * from track_rights_holders_public')).length,1);
+  // Legacy approved rows are preserved but require explicit System05 catalog publication.
+  assert.equal((await read(db,'select * from buyer_catalog_public')).length,0);
+  assert.equal((await read(db,'select * from track_license_options')).length,0);
+  assert.equal((await read(db,'select * from track_rights_holders_public')).length,0);
   const catalog=JSON.stringify(await read(db,'select * from buyer_catalog_public'));
   const credits=JSON.stringify(await read(db,'select * from track_rights_holders_public'));
   for(const key of ['audio_file_path','artist_user_id','approved_by','approved_at','verification_status','payout_email']) assert.ok(!catalog.includes('"'+key+'"'));

@@ -8,7 +8,8 @@ const worker=(db,name,args=[])=>asActor(db,null,()=>invoke(db,name,args,'submiss
 const revision=async(db,s)=>Number((await db.query(`select revision from submission_media.submissions where id=${quote(s)}`)).rows[0].revision);
 export const sourceBytes=new Uint8Array(100).fill(65),sourceHash=createHash('sha256').update(sourceBytes).digest('hex');
 const ready=new WeakMap();
-export async function createApprovedSource(db,submission=null,{approve=true,mime='audio/wav'}={}) {
+export async function createApprovedSource(db,submission=null,{approve=true,mime='audio/wav',sourceSha256=sourceHash}={}) {
+ const sourceHash=sourceSha256;
  const flags=(await db.query('select * from submission_media.capabilities')).rows[0];
  await db.exec('update submission_media.capabilities set reservations_enabled=true,worker_enabled=true,activation_enabled=true,foundation_reads_enabled=true');
  try {

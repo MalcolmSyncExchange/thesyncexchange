@@ -88,6 +88,7 @@ export interface TrackLicenseOption {
 }
 
 export interface Track {
+  catalog_publication?: { state: string; visible: boolean; blockers: string[]; licenseCount: number };
   id: string;
   artist_user_id: string;
   artist_name: string;

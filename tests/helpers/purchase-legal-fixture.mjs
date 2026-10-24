@@ -1,4 +1,5 @@
 // Synthetic, disposable fixtures only. Never imported by application code.
+import {randomUUID} from 'node:crypto';
 import {approvedSource,ensureSourceReview} from './immutable-source-fixture.mjs';
 import { ids, quote, asActor } from './artist-baseline-db.mjs';
 export const legalIds={object:'10101010-1010-4010-8010-101010101010'};
@@ -26,6 +27,7 @@ export async function seedLegalReview(db) {
 }
 export async function newQuote(db,buyer=ids.buyer,overrides={}) {
  await seedLegalReview(db);const current=(await db.query(`select offer_id from licensing_private.offer_heads where track_id='${ids.live}' and license_type_id='${ids.license}'`)).rows[0];await ensureSourceReview(db,current.offer_id);
+ await ensureFixtureCatalog(db);
  return asActor(db,buyer,()=>call(db,'prepare_purchase_quote',[ids.live,ids.license,overrides.party||buyerParty,overrides.usage||usage]));
 }
 export const acceptQuote=(db,q,buyer=ids.buyer)=>asActor(db,buyer,()=>call(db,'accept_purchase_quote',[q.id,q.hash,q.schedule.terms.requiredConsents,q.schedule.buyer.representative]));
@@ -62,4 +64,29 @@ export async function claimFixtureAgreement(db,orderId,session='cs_test_fixture'
  const token=await call(db,'claim_order_agreement_job',[orderId]);
  const buyer=(await db.query(`select buyer_user_id from orders where id=${quote(orderId)}`)).rows[0].buyer_user_id;
  return `${buyer}/${orderId}/${token}.pdf`;
+}
+
+// Explicit local fixture publication. No application path or migration adopts
+// legacy rows. Uses the same authenticated review RPCs and current PK03/04 checks.
+const catalogSetup=new WeakMap();
+export async function ensureFixtureCatalog(db){
+ if(!(await db.query("select to_regnamespace('catalog_private') n")).rows[0].n)return;
+ if(catalogSetup.has(db))return catalogSetup.get(db);
+ const task=publishFixtureCatalog(db);catalogSetup.set(db,task);
+ try{return await task;}catch(e){catalogSetup.delete(db);throw e;}
+}
+async function publishFixtureCatalog(db){
+ if((await db.query('select 1 from catalog_private.cases where track_id=$1',[ids.live])).rows.length)return;
+ await seedLegalReview(db);const offer=(await db.query('select o.rights from licensing_private.offers o join licensing_private.offer_heads h on h.offer_id=o.id where h.track_id=$1 and h.license_type_id=$2',[ids.live,ids.license])).rows[0];
+ const session=randomUUID();await db.query('insert into auth.sessions(id,user_id) values($1,$2)',[session,ids.a]);
+ const catalogArtist=fn=>asActor(db,ids.a,fn,'authenticated',session);
+ const p=(await catalogArtist(()=>call(db,'catalog_read',[ids.live,false]))).draft;
+ Object.assign(p,{credits:[{name:'Synthetic Fixture Credit',role:'primary_artist'}],language:'zxx',recordingIdentifier:offer.rights.recordingIdentifier,workIdentifier:offer.rights.workIdentifier});
+ await catalogArtist(()=>call(db,'catalog_save',[ids.live,0,randomUUID(),p]));
+ let s=await catalogArtist(()=>call(db,'catalog_read',[ids.live,false]));
+ await catalogArtist(()=>call(db,'catalog_submit',[ids.live,s.revision,randomUUID()]));
+ s=await asActor(db,ids.admin,()=>call(db,'catalog_read',[ids.live,true]));
+ await asActor(db,ids.admin,()=>call(db,'catalog_review',[ids.live,s.revision,randomUUID(),s.submitted_version,'approved',p,'Synthetic fixture metadata reviewed.']));
+ s=await asActor(db,ids.admin,()=>call(db,'catalog_read',[ids.live,true]));
+ await asActor(db,ids.admin,()=>call(db,'catalog_transition',[ids.live,s.revision,randomUUID(),'published','Synthetic fixture publication only.']));
 }

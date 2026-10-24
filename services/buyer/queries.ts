@@ -41,15 +41,23 @@ export async function getBuyerCatalogTracks(buyerUserId?: string): Promise<Buyer
   }
 
   const normalizedTrackRows = (trackResult.data || []) as any[];
+  // The database publication gate has already filtered rows. Each license must
+  // additionally have current reviewed terms, rights, source and deliverables.
+  const availableByTrack: Record<string, string[]> = {};
+  for (let i = 0; i < normalizedTrackRows.length; i += 1000) {
+    const { data, error } = await supabase.rpc("catalog_available_licenses" as never, { p_tracks: normalizedTrackRows.slice(i, i+1000).map(row => row.id) } as never);
+    if (error || !data) throw new Error("Unable to verify current catalog license availability.");
+    Object.assign(availableByTrack, data);
+  }
   const trackIds = normalizedTrackRows.map(row => row.id);
   const rightsHolderResult = trackIds.length
     ? await supabase.from("track_rights_holders_public").select("id,track_id,name,role_type,ownership_percent").in("track_id", trackIds)
     : { data: [], error: null };
   const optionResult = trackIds.length
-    ? await supabase.from("track_license_options").select("id,track_id,price_cents,active,license_types(id,name,slug,description,exclusive,default_price_cents,terms_summary,active)").in("track_id", trackIds).eq("active", true)
+    ? await supabase.from("track_license_options").select("id,track_id,license_type_id,price_cents,active,license_types(id,name,slug,description,exclusive,default_price_cents,terms_summary,active)").in("track_id", trackIds).eq("active", true)
     : { data: [], error: null };
   if (optionResult.error) throw new Error("Unable to load catalog license options.");
-  for (const row of normalizedTrackRows) row.track_license_options = (optionResult.data || []).filter(option => option.track_id === row.id);
+  for (const row of normalizedTrackRows) row.track_license_options = (optionResult.data || []).filter(option => option.track_id === row.id && availableByTrack[row.id]?.includes(option.license_type_id));
 
   if (rightsHolderResult.error) {
     reportOperationalError("buyer_catalog_rights_holders_load_failed", rightsHolderResult.error, {

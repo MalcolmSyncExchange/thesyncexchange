@@ -18,7 +18,7 @@ export function getArtistTrackPresentationStatus(track: StatusTrack): {
     : track.status === "pending_review" || track.status === "approved"
       ? "info"
       : "neutral";
-  const visibility = track.status === "approved"
+  const visibility = track.status === "approved" && track.buyerVisibility.label !== "Not discoverable"
     ? "Buyer visibility: Needs attention"
     : "Buyer visibility: Not discoverable";
   return { label: track.statusLabel, tone, visibility };

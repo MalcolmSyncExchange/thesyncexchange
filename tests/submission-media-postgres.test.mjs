@@ -12,10 +12,10 @@ test('A/B/C full real PostgreSQL replay; B before A fails; duplicate replay is s
  const empty=await fixture({apply:false,seed:false});try{await assert.rejects(empty.install(source('supabase/migrations/'+foundation[1])),/schema .* does not exist/);}finally{await empty.close();}
  const r=await db.query("select c.relname,c.relrowsecurity,c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='submission_media' and c.relkind='r'");assert.equal(r.rows.length,9);assert.ok(r.rows.every(x=>x.relrowsecurity&&x.relforcerowsecurity));
  await denied(db,actorSql(ids.a,call('media_create_submission',[key(),null])),/disabled/);
- // Flags off: legacy writes/reviews/discovery retain original behavior, no worker work.
+ // Media flags off: legacy writes remain available; System05 requires explicit catalog publication.
  await db.exec(`update tracks set title='Legacy still writable',audio_file_path='${ids.a}/uploads/audio/new.wav' where id='${ids.draft}'`);
  assert.equal(await db.scalar(`select count(*) from tracks where status='approved'`),'1');
- assert.equal(await actor(db,ids.buyer,'select count(*) from buyer_catalog_public'),1);
+ assert.equal(await actor(db,ids.buyer,'select count(*) from buyer_catalog_public'),0);
  assert.equal(await db.scalar('select count(*) from submission_media.jobs'),'0');
 }));
 

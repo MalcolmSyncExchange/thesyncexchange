@@ -12,6 +12,6 @@ export default async function ArtistTrackDetailPage({ params }: { params: Promis
   const track = await getArtistTrackDetail(user.id, slug);
   if (!track) notFound();
   const mediaSubmission = await findTrackUpload(track.id);
-  return <><Link className="mr-4 inline-block underline" href={"/artist/rights?track="+track.id}>Review master and publishing rights</Link>
+  return <><Link className="mr-4 inline-block underline" href={"/artist/rights?track="+track.id}>Review master and publishing rights</Link><Link className="mr-4 inline-block underline" href={"/artist/catalog/manage?track="+track.id}>Manage catalog metadata and publication</Link>
             {mediaSubmission ? <Link className="mb-6 inline-block underline" href={"/artist/uploads?draft="+mediaSubmission}>Manage private audio, versions and processing</Link> : null}<ArtistTrackDetail track={track} /></>;
 }

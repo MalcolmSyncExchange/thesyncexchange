@@ -112,12 +112,18 @@ export function normalizeArtistCatalogQuery(value?: string | string[]) {
 }
 
 export function toArtistCatalogTrack(track: Track): ArtistCatalogTrack {
-  const activeLicenseCount = track.license_options.filter(option => option.active !== false).length;
-  const buyerVisibility = getBuyerCatalogEligibility({
+  const activeLicenseCount = track.catalog_publication?.licenseCount ?? track.license_options.filter(option => option.active !== false).length;
+  let buyerVisibility = getBuyerCatalogEligibility({
     status: track.status,
     previewAvailable: Boolean(track.audio_file_url),
     activeLicenseCount
   });
+  if (track.catalog_publication && !track.catalog_publication.visible) buyerVisibility = {
+    eligible: false, label: track.catalog_publication.state === "submitted" ? "In review" : ["draft","archived"].includes(track.catalog_publication.state) ? "Not discoverable" : "Needs attention",
+    tone: track.catalog_publication.state === "submitted" ? "info" : "warning",
+    explanation: "Catalog publication: " + track.catalog_publication.state.replaceAll("_", " ") + ". " + (track.catalog_publication.blockers.length ? "Open metadata and publication management to review current eligibility blockers." : "This listing is not published."),
+    blockers: ["approval"]
+  };
   const assets: ArtistTrackAssetSummary = {
     fullMasterStored: Boolean(track.audio_file_path),
     buyerPreviewReady: Boolean(track.audio_file_url),
@@ -132,7 +138,7 @@ export function toArtistCatalogTrack(track: Track): ArtistCatalogTrack {
     holderCount: track.rights_holders.length,
     recordedPercent,
     pendingCount,
-    explanation: "Current records do not yet separate Recording and Composition rights."
+    explanation: "Legacy credits do not establish separate master or publishing authority. Review the verified rights workspace."
   };
   const preview = track.audio_file_url ? {
     id: track.id,
@@ -155,7 +161,7 @@ export function toArtistCatalogTrack(track: Track): ArtistCatalogTrack {
     durationSeconds: track.duration_seconds,
     coverArtUrl: track.cover_art_url || null,
     status: track.status,
-    statusLabel: getTrackStatusLabel(track.status),
+    statusLabel: track.catalog_publication ? track.catalog_publication.state.replaceAll("_", " ") : getTrackStatusLabel(track.status),
     buyerVisibility,
     assets,
     legacyRights,

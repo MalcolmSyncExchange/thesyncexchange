@@ -715,6 +715,8 @@ export interface Database {
       };
     };
     Functions: {
+      sec_registration_open: { Args: Record<string, never>; Returns: boolean };
+      sec_has_capability: { Args: { p_cap: string }; Returns: boolean };
       auth_session_is_active: { Args: Record<PropertyKey, never>; Returns: boolean };
       license_records: { Args: { p_page?: number; p_size?: number }; Returns: Json };
       license_record: { Args: { p_order: string }; Returns: Json };

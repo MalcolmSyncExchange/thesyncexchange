@@ -94,7 +94,7 @@ function WorkspaceShell({ user, children, kind }: { user: Pick<SessionUser, "ful
               <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/catalog" : "/buyer/orders"}>{kind === "artist" ? "Catalog" : "My Purchases"}</Link></DropdownMenu.Item>
               {kind === "buyer" ? <DropdownMenu.Item asChild><Link href="/buyer/settings#account-notifications">Notification preferences</Link></DropdownMenu.Item> : null}
               <DropdownMenu.Item asChild><Link href="/account/security">Account security</Link></DropdownMenu.Item>
-              <DropdownMenu.Item asChild><Link href="/contact">Help</Link></DropdownMenu.Item>
+              <DropdownMenu.Item asChild><Link href="/account/support">Support and disputes</Link></DropdownMenu.Item>
               <DropdownMenu.Separator className={styles.accountMenuSeparator} />
               <form action={logoutAction}>
                 <DropdownMenu.Item asChild onSelect={event => event.preventDefault()}>

@@ -16,7 +16,7 @@ export const fixtureBootstrapSql = `create role anon; create role authenticated;
    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
    create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;
    create function auth.jwt() returns jsonb language sql stable as $$
-     select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''),'aal',nullif(current_setting('request.jwt.claim.aal',true),''))
+     select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''),'aal',nullif(current_setting('request.jwt.claim.aal',true),''),'amr',coalesce(nullif(current_setting('request.jwt.claim.amr',true),'')::jsonb,'[]'::jsonb))
    $$;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
    create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);

@@ -241,6 +241,9 @@ export async function signupAction(formData: FormData) {
     }
 
     const supabase = await createServerSupabaseClient();
+    let registrationOpen=false;
+    try { const gate=await supabase.rpc("sec_registration_open");registrationOpen=!gate.error&&gate.data===true; }catch{/* Registration fails closed if emergency controls cannot be verified. */}
+    if(!registrationOpen)redirect(buildRelativePath(signupPath,{error:AUTH_UNAVAILABLE_MESSAGE}));
     const { data, error } = await authAttempt(() => supabase.auth.signUp({
       email,
       password,

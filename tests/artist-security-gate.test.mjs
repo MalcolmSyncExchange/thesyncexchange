@@ -20,5 +20,7 @@ test('RELEASE GATE: general profile grant does not include finance contact',()=>
 })));
 test('RELEASE GATE: admin action authorizes before privileged resource access',()=>{
  const s=source('services/admin/actions.ts').split('export async function updateTrackStatusAction')[1].split('export async function')[0];
- assert.ok(s.indexOf('await requireAdminActorId()')<s.indexOf('await createPrivilegedSupabaseClient()'),'Admin authorization still occurs after privileged context read');
+ const authorize=s.indexOf('await requireAdminActorId()'),client=s.indexOf('await createServerSupabaseClient()'),mutation=s.indexOf('.from("tracks")');
+ assert.ok(authorize>=0&&client>authorize&&mutation>client,'Admin authorization must precede the authenticated mutation client and track access');
+ assert.doesNotMatch(s,/createPrivilegedSupabaseClient|createAdminSupabaseClient/,'The legacy action must retain the verified SSR actor and RLS');
 });

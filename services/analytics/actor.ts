@@ -12,7 +12,11 @@ export async function getAnalyticsActor(): Promise<Actor | null> {
     const { data: { user }, error } = await db.auth.getUser();
     if (error || !user) return null;
     const { data, error: profileError } = await db.from("user_profiles").select("role").eq("id", user.id).maybeSingle();
-    if (data?.role === "admin" && !(await hasPrivilegedAssurance(db))) return null;
+    if (data?.role === "admin") {
+      if (!(await hasPrivilegedAssurance(db))) return null;
+      const scope=await db.rpc("sec_has_capability",{p_cap:"full_admin"});
+      if(scope.error||scope.data!==true)return null;
+    }
     const actor = { id: user.id, role: data?.role ?? "unassigned" } as Actor;
     return !profileError && data && validActor(actor) ? actor : null;
   } catch { return null; }

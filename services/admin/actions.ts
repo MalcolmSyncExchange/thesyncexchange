@@ -13,7 +13,6 @@ import { generateAgreementArtifactForOrder } from "@/services/agreements/server"
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { loadGeneratedLicenseByOrderId } from "@/services/generated-licenses/server";
 import { appendOrderActivityLog } from "@/services/orders/activity";
-import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { AppSupabaseClient } from "@/services/supabase/types";
@@ -28,7 +27,7 @@ export async function updateTrackStatusAction(formData: FormData) {
   }
 
   const actorId = await requireAdminActorId();
-  const supabase = await createPrivilegedSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data: trackContext } = await supabase.from("tracks").select("id, slug").eq("id", trackId).maybeSingle();
 
   const updateResult = await supabase
@@ -72,7 +71,7 @@ export async function toggleTrackFeaturedAction(formData: FormData) {
   }
 
   await requireAdminActorId();
-  const supabase = await createPrivilegedSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   await supabase.from("tracks").update({ featured }).eq("id", trackId);
   await appendTrackAuditLog(supabase, trackId, "track_featured_toggled", { featured });
@@ -95,7 +94,7 @@ export async function updateComplianceFlagStatusAction(formData: FormData) {
   }
 
   const actorId = await requireAdminActorId();
-  const supabase = await createPrivilegedSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const updateResult = await supabase
     .from("admin_flags")
@@ -134,7 +133,7 @@ export async function createComplianceFlagAction(formData: FormData) {
     return;
   }
 
-  const supabase = await createPrivilegedSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   await supabase.from("admin_flags").insert({
     track_id: trackId,
@@ -161,7 +160,7 @@ export async function addReviewNoteAction(formData: FormData) {
     return;
   }
 
-  const supabase = await createPrivilegedSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   await supabase.from("review_notes").insert({
     track_id: trackId,
@@ -228,7 +227,9 @@ async function getAdminActorId() {
 
   const profile = await selectUserProfileCompat(supabase, user.id);
   const role = String(profile.data?.role || "");
-  return role === "admin" && !profile.error && await hasPrivilegedAssurance(supabase) ? user.id : null;
+  if(role !== "admin" || profile.error || !await hasPrivilegedAssurance(supabase))return null;
+  const permission=await supabase.rpc("sec_has_capability",{p_cap:"full_admin"});
+  return !permission.error && permission.data===true ? user.id : null;
 }
 
 async function requireAdminActorId() {

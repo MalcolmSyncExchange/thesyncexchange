@@ -51,7 +51,9 @@ export async function startAuthFixture(options={}){
    if(route.endsWith('/challenge'))return json({id:'synthetic-challenge',type:'totp',expires_at:Math.floor(Date.now()/1000)+60});
    if(route.endsWith('/verify')){if(body.code!=='123456')return error('mfa_verification_failed');f.status='verified';return json(session(active.account,'aal2'));}
   }
-  if(route==='/rest/v1/rpc/auth_session_is_active')return json(Boolean(active));
+  if(!options.restHandler&&route==='/rest/v1/rpc/sec_registration_open')return json(true);
+  if(!options.restHandler&&route==='/rest/v1/rpc/auth_session_is_active')return json(Boolean(active));
+  if(!options.restHandler&&route==='/rest/v1/rpc/sec_has_capability')return json(Boolean(active&&active.aal==='aal2'&&profiles.get(active.account.id)?.role==='admin'&&body.p_cap==='full_admin'));
   if(route.startsWith('/rest/v1/') && options.restHandler && await options.restHandler(req,res,{url,body,session:active,service:req.headers.apikey===serviceKey}))return;
   if(route.startsWith('/rest/v1/')){
    const table=route.slice('/rest/v1/'.length);const privileged=req.headers.apikey===serviceKey;

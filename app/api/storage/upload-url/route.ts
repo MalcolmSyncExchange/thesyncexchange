@@ -44,6 +44,10 @@ export async function POST(request: Request) {
   if (role === "admin" && !(await hasPrivilegedAssurance(authSupabase))) {
     return NextResponse.json({ error: "Additional authentication required." }, { status: 403 });
   }
+  if (role === "admin") {
+    const access=await authSupabase.rpc("sec_has_capability",{p_cap:"full_admin"});
+    if(access.error||access.data!==true)return NextResponse.json({error:"Forbidden."},{status:403});
+  }
   if (role !== "artist" && role !== "admin") {
     return NextResponse.json({ error: "Only artist or admin accounts can upload track assets." }, { status: 403 });
   }

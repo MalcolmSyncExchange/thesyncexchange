@@ -50,7 +50,7 @@ export function authHarness(options={}){
    challenge:async args=>{state.calls.push('challenge');return {data:{id:'fixture-challenge'},error:options.challengeFails?{}:null};},
    verify:async args=>{state.calls.push('verify');if(options.verifyFails)return fail();options.aal='aal2';const factor=authUser?.factors.find(f=>f.id===args.factorId);if(factor)factor.status='verified';return {data:{},error:null};}
   }
- },rpc:async name=>{if(name!=='auth_session_is_active')throw Error('Unexpected RPC');return {data:!options.revoked,error:null};},from(table){let mutation=null;const filters=new Map();
+ },rpc:async name=>{if(name==='sec_registration_open')return{data:!options.registrationPaused,error:options.registrationUnavailable?{code:'08006'}:null};if(name!=='auth_session_is_active')throw Error('Unexpected RPC');return {data:!options.revoked,error:null};},from(table){let mutation=null;const filters=new Map();
   const result=async()=>{if(table!=='user_profiles')return {data:options.hasProfile===false?null:{id:'domain-profile'},error:null};if(options.profileReadError)return {data:null,error:{code:'PRIVATE_READ_ERROR'}};
    const id=filters.get('id')||userId,row=state.rows.get(id)||null;
    if(mutation){if(options.profileWriteFails)return {data:null,error:{code:'PRIVATE_WRITE_ERROR'}};if(!row||[...filters].some(([key,value])=>row[key]!==value))return {data:null,error:null};Object.assign(row,mutation);state.writes.push(structuredClone(mutation));}

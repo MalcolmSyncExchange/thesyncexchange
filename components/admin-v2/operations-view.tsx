@@ -1,3 +1,4 @@
+import type {ReactNode} from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Database, ExternalLink, ShieldAlert } from "lucide-react";
 
@@ -16,7 +17,7 @@ const metricSources = [
   { key: "users", label: "Accounts", source: "user_profiles", href: "/admin/users" }
 ] as const;
 
-export function AdminOverview({ snapshot, readiness }: { snapshot: AdminOperationsSnapshot; readiness?: PaymentReadiness }) {
+export function AdminOverview({ snapshot, readiness, operatingEvidence }: { snapshot: AdminOperationsSnapshot; readiness?: PaymentReadiness;operatingEvidence?:ReactNode }) {
   return (
     <div className={styles.page}>
       <header className={styles.pageHeader}>
@@ -26,20 +27,21 @@ export function AdminOverview({ snapshot, readiness }: { snapshot: AdminOperatio
 
       {readiness ? <PaymentReadinessPanel readiness={readiness} /> : null}
 
-      {snapshot.hasAnyUnavailableSource ? <SourceNotice snapshot={snapshot} /> : null}
+      {(operatingEvidence?(snapshot.pendingTracks===null||snapshot.openFlags===null||snapshot.orderExceptions===null):snapshot.hasAnyUnavailableSource) ? <SourceNotice snapshot={snapshot} /> : null}
 
+      {operatingEvidence}
       <section className={styles.attentionPanel} aria-labelledby="attention-heading">
-        <div className={styles.panelHeading}><div><p className={styles.kicker}>Current work</p><h2 id="attention-heading">Needs attention</h2></div><span className={styles.sourceLine}>Checked {formatUtc(snapshot.checkedAt)}</span></div>
-        {snapshot.items.length ? <ActionFeed items={snapshot.items.slice(0, 5)} /> : snapshot.attentionIsClear ? <ClearState /> : <UnavailableState />}
+        <div className={styles.panelHeading}><div><p className={styles.kicker}>Current work</p><h2 id="attention-heading">{operatingEvidence?"Submission, flag and agreement queue":"Needs attention"}</h2></div><span className={styles.sourceLine}>Checked {formatUtc(snapshot.checkedAt)}</span></div>
+        {snapshot.items.length ? <ActionFeed items={snapshot.items.slice(0, 5)} /> : snapshot.attentionIsClear ? <ClearState specific={!!operatingEvidence} /> : <UnavailableState />}
         {snapshot.items.length ? <div className={styles.panelFooter}><Link href="/admin/action-center">See all available signals <ArrowRight size={15} aria-hidden="true" /></Link></div> : null}
       </section>
 
-      <section className={styles.section} aria-labelledby="posture-heading">
+      {!operatingEvidence&&<section className={styles.section} aria-labelledby="posture-heading">
         <div className={styles.sectionHeader}><div><p className={styles.kicker}>Marketplace posture</p><h2 id="posture-heading">What the records show</h2></div><span className={styles.sourceLine}>Counts from current database records</span></div>
         <div className={styles.metricGrid}>
           {metricSources.map(({ key, label, source, href }) => <Metric key={key} label={label} value={snapshot.counts[key]} source={source} checkedAt={snapshot.checkedAt} href={href} />)}
         </div>
-      </section>
+      </section>}
 
       <div className={styles.lowerGrid}>
         <section className={styles.card} aria-labelledby="where-next-heading">
@@ -50,10 +52,10 @@ export function AdminOverview({ snapshot, readiness }: { snapshot: AdminOperatio
             <Link href="/admin/orders">Orders & Licenses <ArrowRight size={16} aria-hidden="true" /></Link>
           </div>
         </section>
-        <section className={styles.card} aria-labelledby="future-heading">
+        {operatingEvidence?<section className={styles.card} aria-labelledby="operations-heading"><div className={styles.cardHead}><h2 id="operations-heading">Operational workspaces</h2><p>Use each authoritative workflow for review and recovery.</p></div><div className={styles.routeGrid}><Link href="/admin/media">Media processing</Link><Link href="/admin/command/deals">Deals and conversations</Link><Link href="/admin/accounting">Ledger and payout obligations</Link></div></section>:        <section className={styles.card} aria-labelledby="future-heading">
           <div className={styles.cardHead}><h2 id="future-heading">Not yet connected</h2><p>These signals need an approved source before they can be shown as counts.</p></div>
           <ul className={styles.unavailableList}><li>Media failures <strong>Unavailable · backend required</strong></li><li>Deals <strong>Unavailable · backend required</strong></li><li>Payout liabilities <strong>Unavailable · ledger required</strong></li></ul>
-        </section>
+        </section>}
       </div>
     </div>
   );
@@ -67,7 +69,7 @@ export function AdminActionCenter({ snapshot }: { snapshot: AdminOperationsSnaps
       <section className={styles.attentionPanel} aria-labelledby="action-list-heading">
         <div className={styles.panelHeading}><div><p className={styles.kicker}>Current source records</p><h2 id="action-list-heading">Items to inspect</h2><p>Priority reflects recorded flag severity or the type of exception; it is not an allegation.</p></div><span className={styles.sourceLine}>Checked {formatUtc(snapshot.checkedAt)}</span></div>
         {snapshot.items.length ? <ActionFeed items={snapshot.items} filterable /> : snapshot.attentionIsClear ? <ClearState /> : <UnavailableState />}
-        {snapshot.items.length ? <p className={styles.footnote}>Showing up to 8 oldest records per source. Open the source route for the complete queue. Assignment, deadlines, and resolution history require a future authorized read model.</p> : null}
+        {snapshot.items.length ? <p className={styles.footnote}>Showing up to 8 oldest records per source. Open the source route for the complete queue. Assignments and resolution history are available in Support and disputes; operational escalation is available in Incidents.</p> : null}
       </section>
       <section className={styles.card} aria-label="Source availability"><div className={styles.cardHead}><h2>Source availability</h2><p>A failed source is unavailable, never counted as zero.</p></div><div className={styles.sourceGrid}>
         <SourceState label="Submitted tracks" ready={snapshot.pendingTracks !== null} href="/admin/review-queue" />
@@ -86,8 +88,8 @@ function SourceState({ label, ready, href }: { label: string; ready: boolean; hr
   return <div className={styles.sourceState}><Database size={17} aria-hidden="true" /><span>{label}</span><strong>{ready ? "Available" : "Unavailable"}</strong><Link href={href}>Open source<span className="sr-only"> for {label}</span></Link></div>;
 }
 
-function ClearState() {
-  return <div className={styles.clearState} role="status"><span className={styles.clearIcon}><Check size={25} aria-hidden="true" /></span><h3>Nothing needs review right now.</h3><p>New submissions, open track flags, and current agreement exceptions will appear here. The marketplace records remain available below.</p><Link href="/admin/review-queue">Open Review Queue <ArrowRight size={16} aria-hidden="true" /></Link></div>;
+function ClearState({specific=false}:{specific?:boolean}) {
+  return <div className={styles.clearState} role="status"><span className={styles.clearIcon}><Check size={25} aria-hidden="true" /></span><h3>{specific?"No submission, flag or agreement exceptions recorded.":"Nothing needs review right now."}</h3><p>New submissions, open track flags, and current agreement exceptions will appear here. The marketplace records remain available below.</p><Link href="/admin/review-queue">Open Review Queue <ArrowRight size={16} aria-hidden="true" /></Link></div>;
 }
 
 function UnavailableState() {

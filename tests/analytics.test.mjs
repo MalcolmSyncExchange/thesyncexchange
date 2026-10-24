@@ -362,7 +362,7 @@ test('purchase hook is absent from return-page services, Gate D and generic chec
 
 function authActionsHarness({role='buyer',profileFailure=false,identities=[{id}],session=true,loggedIn=true}={}) {
  const events=[];let row=null;const user={id,role,email:'private@example.com',fullName:'Private name',identities,onboardingStep:'complete',onboardingUpdatedAt:'2026-01-01T00:00:00Z',onboardingData:{firstTrackChoice:'later'}};
- const db={rpc:async()=>{events.push('persist');return {error:profileFailure?Error('private db failure'):null}},auth:{signUp:async()=>({data:{user,session:session?{user}:null}}),signInWithPassword:async()=>({data:{user:null}})},
+ const db={rpc:async name=>{if(name==='sec_registration_open')return{data:true,error:null};events.push('persist');return {error:profileFailure?Error('private db failure'):null}},auth:{signUp:async()=>({data:{user,session:session?{user}:null}}),signInWithPassword:async()=>({data:{user:null}})},
   from(){return {insert:async value=>{events.push('persist');if(profileFailure)return {error:Error('private db failure')};row=value;return {error:null};}};}};
  const captureForUser=async(...args)=>events.push(['capture',...args]);
  const deps={...authSecurity,reportOperationalEvent:()=>{},unstable_rethrow:()=>{},parseArtistOnboardingVersion:()=> '2026-01-01T00:00:00Z',getArtistOnboardingState:async()=>({values:{}}),validateArtistCompletion:()=>{},getArtistSaveErrorMessage:()=> 'safe error',reconcileAppUserProfile,captureForUser,capturePersistedSignup:async(...args)=>events.push(['signup',...args]),

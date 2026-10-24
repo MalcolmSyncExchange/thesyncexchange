@@ -29,6 +29,8 @@ export async function hasPrivilegedAssurance(client: Pick<SupabaseClient, "auth"
 }
 export async function assertPrivilegedAssurance(client: Pick<SupabaseClient, "auth" | "rpc">) {
   if (!(await hasPrivilegedAssurance(client))) throw new Error(MFA_REQUIRED_MESSAGE);
+  const capability=await client.rpc("sec_has_capability",{p_cap:"full_admin"});
+  if(capability.error||capability.data!==true)throw new Error("Full operational Admin access is required.");
 }
 // Bound auth traffic only. Application DB, payment and Storage fetch behavior is unchanged.
 export const authFetch: typeof fetch = (input, init) => {

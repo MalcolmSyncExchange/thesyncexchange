@@ -51,6 +51,7 @@ export default async function BuyerTrackDetailPage(props: { params: Promise<{ sl
           <p className="mt-2 text-lg text-muted-foreground">{track.artist_id?<Link href={`/buyer/artists/${track.artist_id}`} className="underline underline-offset-4">{track.artist_name}</Link>:track.artist_name}</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link className="text-sm underline" href={`/account/conversations?track=${track.id}`}>Ask about licensing</Link>
           <FavoriteButton trackTitle={track.title} trackId={track.id} initialFavorite={Boolean(track.is_favorite)} revalidatePathname={`/buyer/catalog/${track.slug}`} />
           <Button asChild size="lg" data-testid="license-track-button">
             <Link href={licenseDetailHref(track.slug, selected)}>Select License</Link>

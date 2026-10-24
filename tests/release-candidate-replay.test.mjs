@@ -19,7 +19,8 @@ test('release candidate clean native replay installs every source migration in o
   await sql(fixtureBootstrapSql+'\n'+nativeCryptoBootstrapSql);
   const files=(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')).sort();
   for(const file of files){await sql(source('supabase/migrations/'+file));t.diagnostic('Applied exact source '+file);}
-  assert.equal(files.length,53);
+  assert.equal(files.length,54);
+  assert.equal(files.at(-1),'20261024021823_system01_authentication_guards.sql');
   assert.equal((await sql("select count(*) from pg_extension where extname='pgcrypto'")),'1');
   assert.equal((await sql("select to_regprocedure('public.digest(text,text)') is null")),'t');
   assert.equal((await sql("select current_setting('listen_addresses')=''")),'t');
@@ -34,6 +35,15 @@ test('release candidate clean native replay installs every source migration in o
   assert.equal(await sql("select not (synthetic_posting_enabled or ingestion_enabled or worker_enabled) from finance_private.capabilities"),'t');
   assert.equal(await sql("select not (reservations_enabled or worker_enabled or activation_enabled or foundation_reads_enabled) from submission_media.capabilities"),'t');
   assert.equal(await sql("select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('analytics_outbox','user_profiles','order_asset_entitlements') and c.relrowsecurity"),'3');
+  // Exercise the additive Auth boundary on native PostgreSQL, not only PGlite.
+  await sql("insert into auth.users(id,email) values('11111111-1111-4111-8111-111111111111','native-admin@fixture.invalid'),('22222222-2222-4222-8222-222222222222','native-buyer@fixture.invalid');insert into public.user_profiles(id,email,role,full_name) values('11111111-1111-4111-8111-111111111111','native-admin@fixture.invalid','admin','Synthetic Admin'),('22222222-2222-4222-8222-222222222222','native-buyer@fixture.invalid','buyer','Synthetic Buyer');insert into auth.sessions(id,user_id) values('33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111');");
+  const adminContext = "set role authenticated;set request.jwt.claim.role='authenticated';set request.jwt.claim.sub='11111111-1111-4111-8111-111111111111';set request.jwt.claim.session_id='33333333-3333-4333-8333-333333333333';";
+  assert.equal(await sql(adminContext+"set request.jwt.claim.aal='aal1';select public.is_admin()"),'f');
+  assert.equal(await sql(adminContext+"set request.jwt.claim.aal='aal2';select public.is_admin()"),'t');
+  assert.equal(await sql(adminContext+"set request.jwt.claim.aal='aal2';set request.jwt.claim.sub='22222222-2222-4222-8222-222222222222';select public.is_admin()"),'f');
+  await sql("delete from auth.sessions where id='33333333-3333-4333-8333-333333333333'");
+  assert.equal(await sql(adminContext+"set request.jwt.claim.aal='aal2';select public.is_admin()"),'f');
+  t.diagnostic('Native Auth: AAL1, foreign owner and revoked sessions denied; canonical AAL2 active session allowed.');
   // Replay the successor patches is idempotent only where explicitly designed.
   // Re-running the entire historical chain is not a supported recovery operation.
  }finally{if(running)await command('pg_ctl',['-D',data,'-m','immediate','-w','stop']);await rm(dir,{recursive:true,force:true});}

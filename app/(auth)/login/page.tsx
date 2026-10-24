@@ -47,7 +47,7 @@ export default async function LoginPage(
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" placeholder="name@company.com" required className="h-11" data-testid="login-email" />
+            <Input id="email" name="email" autoComplete="email" type="email" placeholder="name@company.com" required className="h-11" data-testid="login-email" />
           </div>
 
           <div className="space-y-2">
@@ -57,7 +57,7 @@ export default async function LoginPage(
                 Forgot Password?
               </Link>
             </div>
-            <Input id="password" name="password" type="password" placeholder="••••••••" required className="h-11" data-testid="login-password" />
+            <Input id="password" name="password" autoComplete="current-password" type="password" placeholder="••••••••" required className="h-11" data-testid="login-password" />
           </div>
 
           <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">

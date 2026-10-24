@@ -71,3 +71,14 @@ test('PK06 agreement substitution, missing digest and provider failure never rel
   const response=await h.request('POST',origin);assert.ok([409,503].includes(response.status));assert.equal(response.headers.get('location'),null);assert.equal(h.state.signedUrls,0);assert.equal(h.state.licenseWrites,0);
  }
 });
+
+test("Admin agreement access denies AAL1 and revoked sessions before privileged delivery", async () => {
+  for (const overrides of [{ aal: "aal1" }, { revoked: true }]) {
+    const h = agreementHarness({ role: "admin", ...overrides });
+    const response = await h.request("POST", { origin: "https://app.example" });
+    assert.equal(response.status, 403);
+    assert.equal(h.state.privilegedClients, 0);
+    assert.equal(h.state.storageReads, 0);
+    assert.equal(h.state.audits.length, 0);
+  }
+});

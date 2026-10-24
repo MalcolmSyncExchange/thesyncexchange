@@ -2,7 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-import { env } from "@/lib/env";
+import { env, getDeploymentTarget } from "@/lib/env";
+import { authFetch } from "@/services/auth/security";
 import type { Database } from "@/types/database";
 import type { AppSupabaseClient } from "@/services/supabase/types";
 
@@ -16,6 +17,8 @@ export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(env.supabaseUrl || "https://demo.supabase.co", env.supabaseAnonKey || "demo-anon-key", {
+    cookieOptions: { path: "/", sameSite: "lax", secure: getDeploymentTarget() !== "local" },
+    global: { fetch: authFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();

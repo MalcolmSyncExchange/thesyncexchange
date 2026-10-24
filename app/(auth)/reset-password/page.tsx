@@ -4,6 +4,8 @@ import { AuthFooterLink, AuthPageShell, AuthPanel, AuthStatusMessage } from "@/c
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { env, hasSupabaseEnv } from "@/lib/env";
+import { authAttempt } from "@/services/auth/security";
 import { reportOperationalEvent } from "@/lib/monitoring";
 import { updatePasswordAction } from "@/services/auth/actions";
 import { buildRecoveryConfirmPath, getResetPasswordRecoveryRoutingDecision } from "@/services/auth/auth-flow";
@@ -19,12 +21,11 @@ export default async function ResetPasswordPage(
   const tokenHash = searchParams?.token_hash || null;
   const type = searchParams?.type || null;
   const hasAuthParams = Boolean(code || tokenHash);
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { session },
-    error: sessionError
-  } = await supabase.auth.getSession();
-  const hasSession = Boolean(session);
+  const verified = hasSupabaseEnv && !env.demoMode
+    ? await authAttempt(async () => (await createServerSupabaseClient()).auth.getUser())
+    : { data: null, error: null };
+  const hasSession = Boolean(verified.data?.user) && !verified.error;
+  const sessionError = verified.error;
   const routingDecision = getResetPasswordRecoveryRoutingDecision({ hasAuthParams, hasSession });
 
   reportOperationalEvent("reset_password_page_requested", "Reset password page requested.", {
@@ -33,10 +34,11 @@ export default async function ResetPasswordPage(
     type: type || null,
     hasSession,
     sessionErrorCode: sessionError?.code || null,
-    sessionErrorMessage: sessionError?.message || null,
     redirectsToConfirm: routingDecision === "confirm",
     routingDecision
   });
+
+  if (hasAuthParams && hasSession) redirect("/reset-password");
 
   if (routingDecision === "confirm") {
     reportOperationalEvent("reset_password_page_confirm_redirect", "Reset password page routed one-time recovery parameters through confirmation.", {
@@ -79,15 +81,15 @@ export default async function ResetPasswordPage(
         title="Update password"
         description="Choose a secure password you’ll use for future sign-ins."
       >
-        <form action={updatePasswordAction} className="space-y-5">
+        {!hasSession && !(env.demoMode && !hasSupabaseEnv) ? <div className="space-y-4"><AuthStatusMessage error="Your reset session is missing or expired. Request a fresh link to continue." /><a href="/forgot-password" className="underline">Request a new reset link</a></div> : <form action={updatePasswordAction} className="space-y-5">
           <AuthStatusMessage error={searchParams?.error} />
           <div className="space-y-2">
             <Label htmlFor="password">New password</Label>
-            <Input id="password" name="password" type="password" required className="h-11" />
+            <Input id="password" name="password" type="password" minLength={12} maxLength={72} autoComplete="new-password" required className="h-11" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirm password</Label>
-            <Input id="confirmPassword" name="confirmPassword" type="password" required className="h-11" />
+            <Input id="confirmPassword" name="confirmPassword" type="password" minLength={12} maxLength={72} autoComplete="new-password" required className="h-11" />
           </div>
           <FormSubmitButton className="w-full" pendingLabel="Updating Password...">
             Update Password
@@ -95,7 +97,7 @@ export default async function ResetPasswordPage(
           <div className="text-sm text-muted-foreground">
             <AuthFooterLink href="/login" label="Need to return?" actionLabel="Back to Login" />
           </div>
-        </form>
+        </form>}
       </AuthPanel>
     </AuthPageShell>
   );

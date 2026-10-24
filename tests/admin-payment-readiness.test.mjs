@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import vm from "node:vm";
 import ts from "typescript";
 import React from "react";
+import * as authSecurity from "../services/auth/security.ts";
 import { renderToStaticMarkup } from "react-dom/server";
 import * as readiness from "../lib/admin-v2/payment-readiness.ts";
 import * as paymentMode from "../lib/payment-mode.mjs";
@@ -32,7 +33,8 @@ function harness(options = {}) {
   const config = load("lib/server-env.ts", {"@/lib/env":envModule,"@/lib/payment-mode.mjs":paymentMode}, raw);
   const calls = [];
   const authorization = load("services/auth/authorization.ts", {
-    "@/services/supabase/server":{createServerSupabaseClient:async()=>({auth:{getUser:async()=>({data:{user:{id:ids.admin,user_metadata:{role:"admin"}}}})}})},
+    "@/services/auth/security":authSecurity,
+    "@/services/supabase/server":{createServerSupabaseClient:async()=>({auth:{getUser:async()=>({data:{user:{id:ids.admin,user_metadata:{role:"admin"},factors:[{status:"verified"}]}}}),mfa:{getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:"aal2"},error:null})}},rpc:async()=>({data:true,error:null})})},
     "@/services/auth/user-profiles":{selectUserProfileCompat:async()=>({data:{role:options.role || "admin"}})}
   });
   const service = load("services/admin/payment-readiness.ts", {

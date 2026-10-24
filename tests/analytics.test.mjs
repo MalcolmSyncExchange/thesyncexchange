@@ -1,3 +1,4 @@
+import * as authSecurity from "../services/auth/security.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -220,10 +221,10 @@ test('disabled analytics performs no authentication, outbox write, claim or tran
  assert.equal((await POST(new Request('https://app.invalid/api/analytics',{method:'POST'}))).status,204);assert.equal(calls,0);
 });
 
-function actorHarness({user={id,user_metadata:{role:'admin'},app_metadata:{role:'admin'}},role='buyer',profileExists=true,profileError=false,enabled=true}={}) {
+function actorHarness({user={id,user_metadata:{role:'admin'},app_metadata:{role:'admin'},factors:[{status:'verified'}]},role='buyer',profileExists=true,profileError=false,enabled=true}={}) {
  const events=[];const reads=[];
- const db={auth:{getUser:async()=>({data:{user}})},from(table){reads.push(table);return {select(columns){assert.equal(columns,'role');return this;},eq(column,value){reads.push([column,value]);return this;},maybeSingle:async()=>({data:profileExists?{role}:null,error:profileError?{}:null})};}};
- const actor=load('services/analytics/actor.ts',{'server-only':{},'@/services/supabase/server':{createServerSupabaseClient:async()=>db},'@/services/supabase/admin':{createAdminSupabaseClient:()=>db},'@/lib/analytics/schema':schema,'./server':{analyticsConfig:()=>enabled?cfg:null,captureEvent:async(...args)=>events.push(args)}});
+ const db={auth:{getUser:async()=>({data:{user}}),mfa:{getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:'aal2'},error:null})}},rpc:async()=>({data:true,error:null}),from(table){reads.push(table);return {select(columns){assert.equal(columns,'role');return this;},eq(column,value){reads.push([column,value]);return this;},maybeSingle:async()=>({data:profileExists?{role}:null,error:profileError?{}:null})};}};
+ const actor=load('services/analytics/actor.ts',{'@/services/auth/security':authSecurity,'server-only':{},'@/services/supabase/server':{createServerSupabaseClient:async()=>db},'@/services/supabase/admin':{createAdminSupabaseClient:()=>db},'@/lib/analytics/schema':schema,'./server':{analyticsConfig:()=>enabled?cfg:null,captureEvent:async(...args)=>events.push(args)}});
  return {actor,events,reads};
 }
 test('canonical roles override metadata, missing profiles fail closed, and stale server attribution is rejected',async()=>{
@@ -369,7 +370,7 @@ function authActionsHarness({role='buyer',profileFailure=false,identities=[{id}]
  const db={rpc:async()=>{events.push('persist');return {error:profileFailure?Error('private db failure'):null}},auth:{signUp:async()=>({data:{user,session:session?{user}:null}}),signInWithPassword:async()=>({data:{user:null}})},
   from(){return {insert:async value=>{events.push('persist');if(profileFailure)return {error:Error('private db failure')};row=value;return {error:null};}};}};
  const captureForUser=async(...args)=>events.push(['capture',...args]);
- const deps={unstable_rethrow:()=>{},parseArtistOnboardingVersion:()=> '2026-01-01T00:00:00Z',getArtistOnboardingState:async()=>({values:{}}),validateArtistCompletion:()=>{},getArtistSaveErrorMessage:()=> 'safe error',reconcileAppUserProfile,captureForUser,capturePersistedSignup:async(...args)=>events.push(['signup',...args]),
+ const deps={...authSecurity,reportOperationalEvent:()=>{},unstable_rethrow:()=>{},parseArtistOnboardingVersion:()=> '2026-01-01T00:00:00Z',getArtistOnboardingState:async()=>({values:{}}),validateArtistCompletion:()=>{},getArtistSaveErrorMessage:()=> 'safe error',reconcileAppUserProfile,captureForUser,capturePersistedSignup:async(...args)=>events.push(['signup',...args]),
   getMutationClient:async()=>db,getUserProfileMutationClient:async()=>db,
   selectUserProfileCompat:async()=>({data:row}),upsertUserProfileCompat:async(_db,value)=>{events.push('persist');if(profileFailure)return {error:Error('private db failure')};row={...row,...value};return {error:null};},
   normalizeAuthEmail:x=>x,parseSignupRole:x=>x,resolveSignupReturnPath:()=>'/signup',resolveAuthMode:()=> 'supabase',hasSupabaseEnv:true,env:{demoMode:false},createAdminSupabaseClient:()=>db,createServerSupabaseClient:async()=>db,

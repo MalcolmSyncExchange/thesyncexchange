@@ -147,6 +147,7 @@ export function AdminShell({ user, children }: { user: SessionUser; children: Re
           </div>
           <div className={styles.topActions}>
             <span className={styles.identity} title={user.fullName}>{user.fullName}<small>Admin</small></span>
+            <Link href="/account/security" className={styles.logout}>Account security</Link>
             <ThemeToggle className={styles.themeButton} />
             <form action={logoutAction}><button className={styles.logout} type="submit" aria-label="Log out"><LogOut size={16} aria-hidden="true" /><span>Log out</span></button></form>
           </div>

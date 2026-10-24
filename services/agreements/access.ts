@@ -1,3 +1,4 @@
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { NextResponse } from "next/server";
 
 import { demoUsers, licenseTypes, orders, tracks } from "@/lib/demo-data";
@@ -54,6 +55,7 @@ export async function handleAgreementAccess(request: Request, orderId: string, d
   if (!user?.id) return json({ error: "Unauthorized." }, 401);
   const { data: profile, error: roleError } = await selectUserProfileCompat(authSupabase, user.id);
   const role = profile?.role;
+  if (role === "admin" && !(await hasPrivilegedAssurance(authSupabase))) return json({ error: "Additional authentication required." }, 403);
   if (roleError || (role !== "buyer" && role !== "admin")) return json({ error: "Forbidden." }, 403);
   const scope = await authSupabase.from("orders").select("id, buyer_user_id").eq("id", orderId).maybeSingle();
   if (scope.error || !scope.data || (role !== "admin" && scope.data.buyer_user_id !== user.id)) {

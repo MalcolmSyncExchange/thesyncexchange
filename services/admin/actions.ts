@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { cookies } from "next/headers";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
@@ -304,7 +305,7 @@ async function getAdminActorId() {
 
   const profile = await selectUserProfileCompat(supabase, user.id);
   const role = String(profile.data?.role || "");
-  return role === "admin" ? user.id : null;
+  return role === "admin" && !profile.error && await hasPrivilegedAssurance(supabase) ? user.id : null;
 }
 
 async function requireAdminActorId() {

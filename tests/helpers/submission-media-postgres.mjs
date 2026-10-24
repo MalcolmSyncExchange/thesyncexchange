@@ -74,7 +74,7 @@ export async function fixture({apply=true,seed=true,storage=true}={}) {
   return db;
  } catch(e) {await db.close();throw e;}
 }
-export const actorSql=(id,sql,role='authenticated')=>`begin; set local role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},true); select set_config('request.jwt.claim.role',${quote(role)},true); ${sql}; commit;`;
+export const actorSql=(id,sql,role='authenticated')=>`begin; ${id ? `with synthetic_session as (insert into auth.sessions(id,user_id) values(gen_random_uuid(),${quote(id)}) returning id) select set_config('request.jwt.claim.session_id',id::text,true) from synthetic_session;` : `select set_config('request.jwt.claim.session_id','',true);`} set local role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},true); select set_config('request.jwt.claim.role',${quote(role)},true); select set_config('request.jwt.claim.aal','aal2',true); ${sql}; commit;`;
 export async function actor(db,id,sql,role='authenticated') {
  const r=await psql(db.name,actorSql(id,sql,role)); const lines=r.out.split('\n').filter(Boolean);return lines.at(-1)?JSON.parse(lines.at(-1)):null;
 }

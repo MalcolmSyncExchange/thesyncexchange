@@ -1,4 +1,5 @@
 import "server-only";
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { validActor, type Actor, type EventName, type EventProperties } from "@/lib/analytics/schema";
@@ -11,6 +12,7 @@ export async function getAnalyticsActor(): Promise<Actor | null> {
     const { data: { user }, error } = await db.auth.getUser();
     if (error || !user) return null;
     const { data, error: profileError } = await db.from("user_profiles").select("role").eq("id", user.id).maybeSingle();
+    if (data?.role === "admin" && !(await hasPrivilegedAssurance(db))) return null;
     const actor = { id: user.id, role: data?.role ?? "unassigned" } as Actor;
     return !profileError && data && validActor(actor) ? actor : null;
   } catch { return null; }

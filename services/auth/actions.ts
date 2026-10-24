@@ -4,7 +4,10 @@ import { isDedicatedStagingIdentity } from "@/lib/health/payment-readiness";
 
 import { captureForUser, capturePersistedSignup } from "@/services/analytics/actor";
 
+import { authAttempt, hasPrivilegedAssurance, isValidAuthEmail, isValidNewPassword, isDuplicateSignup, safeAuthError, LOGIN_FAILED_MESSAGE, SIGNUP_CHECK_EMAIL_MESSAGE, AUTH_UNAVAILABLE_MESSAGE, PASSWORD_REQUIREMENTS_MESSAGE } from "@/services/auth/security";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { clearAccountCookies } from "@/services/auth/cookies";
 import { headers } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { ZodError } from "zod";
@@ -35,7 +38,6 @@ import {
   parseBuyerProfile
 } from "@/lib/validation/onboarding";
 import {
-  clearDemoSession,
   getDemoArtistProfile,
   getDemoBuyerProfile,
   getDemoDirectoryUserByEmail,
@@ -147,10 +149,6 @@ function buildConfirmationRedirectUrl(nextPath: string) {
   });
 }
 
-function isEmailConfirmationError(message: string) {
-  const normalized = message.toLowerCase();
-  return normalized.includes("email not confirmed") || normalized.includes("email address not authorized");
-}
 
 async function getMutationClient() {
   return (createAdminSupabaseClient() ?? await createServerSupabaseClient()) as SupabaseClient<Database>;
@@ -175,25 +173,15 @@ export async function loginAction(formData: FormData) {
   const redirectTo = String(formData.get("redirectTo") || "").trim();
   const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
 
-  if (!email || !password) {
+  if (!isValidAuthEmail(email) || !password || password.length > 1024) {
     redirect("/login?error=Enter%20your%20email%20and%20password.");
   }
 
   if (authMode === "supabase") {
     const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      if (isEmailConfirmationError(error.message)) {
-        redirect(
-          buildRelativePath("/login", {
-            error: "Confirm your email address before signing in.",
-            email,
-            confirmation: "required"
-          })
-        );
-      }
-
-      redirect(buildRelativePath("/login", { error: error.message }));
+    const { data, error } = await authAttempt(() => supabase.auth.signInWithPassword({ email, password }));
+    if (error || !data?.user) {
+      redirect(buildRelativePath("/login", { error: LOGIN_FAILED_MESSAGE, redirectTo: resolveSafeNextPath(redirectTo, "") }));
     }
 
     const authUser = data.user;
@@ -201,14 +189,17 @@ export async function loginAction(formData: FormData) {
       redirect("/login?error=We%20couldn%E2%80%99t%20finish%20signing%20you%20in.%20Please%20try%20again.");
     }
 
-    const role = await resolvePersistedRole(authUser.id);
-    await ensureAppUser({
+    let role: UserRole | null;
+    try { role = await resolvePersistedRole(authUser.id); }
+    catch { redirect(buildRelativePath("/login", { error: AUTH_UNAVAILABLE_MESSAGE })); }
+    try { await ensureAppUser({
       id: authUser.id,
       email,
       role,
       fullName: String(authUser.user_metadata?.full_name || email.split("@")[0].replace(/[._-]/g, " "))
     });
 
+    } catch { redirect(buildRelativePath("/login", { error: AUTH_UNAVAILABLE_MESSAGE })); }
     const onboardingComplete = await hasCompletedOnboarding(authUser.id, role);
     redirect(resolvePostLoginRedirect({ role, onboardingComplete }, redirectTo));
   }
@@ -236,9 +227,11 @@ export async function signupAction(formData: FormData) {
   const signupPath = resolveSignupReturnPath(formData, role);
   const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
 
-  if (!email || !password || !fullName) {
+  if (!isValidAuthEmail(email) || !password || !fullName || fullName.length > 160 || (formData.get("role") && !role)) {
     redirect(`${signupPath}?error=${encodeURIComponent("Complete all required fields to create your account.")}`);
   }
+
+  if (!isValidNewPassword(password)) redirect(buildRelativePath(signupPath, { error: PASSWORD_REQUIREMENTS_MESSAGE }));
 
   if (authMode === "supabase") {
     if (role && !createAdminSupabaseClient()) {
@@ -246,7 +239,7 @@ export async function signupAction(formData: FormData) {
     }
 
     const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await authAttempt(() => supabase.auth.signUp({
       email,
       password,
       options: {
@@ -255,42 +248,30 @@ export async function signupAction(formData: FormData) {
           full_name: fullName
         }
       }
-    });
-    if (error) {
-      redirect(`${signupPath}?error=${encodeURIComponent(error.message)}`);
+    }));
+    if (error && !isDuplicateSignup(error)) {
+      redirect(buildRelativePath(signupPath, { error: safeAuthError(error) }));
     }
-
-    let sessionUser = data.session?.user || null;
-    if (!data.session) {
-      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-      if (!loginError && loginData.user) {
-        sessionUser = loginData.user;
+    // Supabase may return an obfuscated user for an existing email. Never sign in,
+    // persist a role/profile, or emit signup analytics for that response.
+    const created = !error && data?.user && data.user.identities && data.user.identities.length > 0;
+    const sessionUser = created && data?.session && data.session.user.id === data.user?.id ? data.session.user : null;
+    if (created && data?.user) {
+      try {
+        await ensureAppUser({
+          id: data.user.id, email, role, fullName,
+          onboardingStartedAt: role ? now : null, onboardingCompletedAt: null,
+          onboardingStep: role ? "basics" : null, onboardingData: {}
+        });
+        await capturePersistedSignup(data.user.id, !sessionUser);
+      } catch {
+        // Auth creation may have committed. Do not retry signup or report a false
+        // failure. Confirmation/login reconciles the identity; role selection can resume.
+        reportOperationalEvent("signup_profile_recovery_pending", "Signup can resume after email confirmation.");
       }
     }
-
-    const canPersistWithoutSession = Boolean(createAdminSupabaseClient());
-    if (data.user && (sessionUser || canPersistWithoutSession)) {
-      await ensureAppUser({
-        id: data.user.id,
-        email,
-        role,
-        fullName,
-        onboardingStartedAt: role ? now : null,
-        onboardingCompletedAt: null,
-        onboardingStep: role ? "basics" : null,
-        onboardingData: {}
-      });
-      if (data.user.identities?.length) await capturePersistedSignup(data.user.id, !sessionUser);
-    }
-
     if (!sessionUser) {
-      redirect(
-        buildRelativePath(signupPath, {
-          success: "Account created. Check your email to confirm your address, then continue into onboarding.",
-          email,
-          confirmation: "required"
-        })
-      );
+      redirect(buildRelativePath(signupPath, { success: SIGNUP_CHECK_EMAIL_MESSAGE, email, confirmation: "required" }));
     }
 
     redirect("/onboarding");
@@ -333,7 +314,9 @@ export async function selectOnboardingRoleAction(formData: FormData) {
     redirect("/dashboard/admin");
   }
 
-  const role = parseRole(formData.get("role"));
+  if (user.role) redirect(resolvePostLoginRedirect(user));
+
+  const role = parseSignupRole(formData.get("role"));
   if (role !== "artist" && role !== "buyer") {
     redirect("/onboarding?error=Choose%20whether%20you%E2%80%99re%20joining%20as%20an%20artist%20or%20buyer.");
   }
@@ -341,27 +324,16 @@ export async function selectOnboardingRoleAction(formData: FormData) {
   const now = new Date().toISOString();
 
   if (hasSupabaseEnv && !env.demoMode) {
+    await ensureAppUser({ id: user.id, email: user.email, fullName: user.fullName, role: null });
     const client = getTrustedRoleMutationClient();
-    const { error } = await upsertUserProfileCompat(
-      client,
-      {
-        id: user.id,
-        email: user.email,
-        full_name: user.fullName,
-        ...getStoredAvatarFields({
-          avatarPath: user.avatarPath || null,
-          avatarUrl: user.avatarUrl || null
-        }),
-        role,
-        onboarding_started_at: user.onboardingStartedAt || now,
-        onboarding_completed_at: null,
-        onboarding_step: "basics",
-        onboarding_payload: Object.fromEntries(Object.entries(user.onboardingData || {}).filter(([key]) => key !== "payoutEmail"))
-      } as Database["public"]["Tables"]["user_profiles"]["Insert"],
-    );
-
-    if (error) {
-      redirect(`/onboarding?error=${encodeURIComponent(error.message)}`);
+    const { data, error } = await client.from("user_profiles").update({
+      role, onboarding_started_at: user.onboardingStartedAt || now,
+      onboarding_step: "basics", onboarding_completed_at: null
+    }).eq("id", user.id).is("role", null).select("role").maybeSingle();
+    if (error) redirect("/onboarding?error=Account%20setup%20is%20temporarily%20unavailable.%20Please%20retry.");
+    if (!data) {
+      const roleNow = await resolvePersistedRole(user.id);
+      redirect(resolveRoleRedirect(roleNow));
     }
   } else {
     await upsertDemoDirectoryUser({
@@ -390,14 +362,19 @@ export async function selectOnboardingRoleAction(formData: FormData) {
   redirect(resolveOnboardingPath(role));
 }
 
-export async function logoutAction() {
+async function clearAuthenticationSession() {
+  let providerFailed = false;
   if (hasSupabaseEnv && !env.demoMode) {
-    const supabase = await createServerSupabaseClient();
-    await supabase.auth.signOut();
+    const result = await authAttempt(async () => (await createServerSupabaseClient()).auth.signOut({ scope: "global" }));
+    providerFailed = Boolean(result.error);
   }
+  await clearAccountCookies();
+  return providerFailed;
+}
 
-  await clearDemoSession();
-  redirect("/");
+export async function logoutAction() {
+  const providerFailed = await clearAuthenticationSession();
+  redirect(providerFailed ? "/login?success=Signed%20out%20on%20this%20device.%20Other%20sessions%20could%20not%20be%20confirmed%20signed%20out." : "/");
 }
 
 export async function forgotPasswordAction(
@@ -415,7 +392,7 @@ export async function forgotPasswordAction(
     authMode
   });
 
-  if (!email) {
+  if (!isValidAuthEmail(email)) {
     return {
       status: "error",
       message: "Enter the email address for the account you want to recover."
@@ -451,14 +428,13 @@ export async function forgotPasswordAction(
   } catch (error) {
     unstable_rethrow(error);
 
-    reportOperationalError("forgot_password_request_failed", error, {
+    reportOperationalError("forgot_password_request_failed", new Error("Password recovery request failed."), {
       emailDomain,
       demoMode: env.demoMode,
       hasSupabaseEnv
     });
 
-    const safeMessage =
-      error instanceof Error && !error.message.includes("NEXT_REDIRECT") ? error.message : FORGOT_PASSWORD_UNAVAILABLE_MESSAGE;
+    const safeMessage = FORGOT_PASSWORD_UNAVAILABLE_MESSAGE;
 
     return {
       status: "error",
@@ -474,7 +450,7 @@ export async function resendSignupConfirmationAction(formData: FormData) {
   const safeReturnTo = resolveSafeNextPath(returnTo, "/signup");
   const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
 
-  if (!email) {
+  if (!isValidAuthEmail(email)) {
     redirect(
       buildRelativePath(safeReturnTo, {
         error: "Enter the email address you used for signup so we can resend the confirmation link."
@@ -484,23 +460,15 @@ export async function resendSignupConfirmationAction(formData: FormData) {
 
   if (authMode === "supabase") {
     const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.auth.resend({
+    const { error } = await authAttempt(() => supabase.auth.resend({
       type: "signup",
       email,
       options: {
         emailRedirectTo: buildConfirmationRedirectUrl("/onboarding")
       }
-    });
+    }));
 
-    if (error) {
-      redirect(
-        buildRelativePath(safeReturnTo, {
-          error: error.message,
-          email,
-          confirmation: "required"
-        })
-      );
-    }
+    if (error) reportOperationalEvent("confirmation_request_unconfirmed", "Confirmation delivery could not be confirmed.");
   } else if (authMode === "misconfigured") {
     redirect(
       buildRelativePath(safeReturnTo, {
@@ -513,7 +481,7 @@ export async function resendSignupConfirmationAction(formData: FormData) {
 
   redirect(
     buildRelativePath(safeReturnTo, {
-      success: "We sent a fresh confirmation link. Once you confirm, you’ll continue into onboarding.",
+      success: "If this account needs confirmation, a fresh link will arrive shortly. Use the latest email, or log in if already confirmed.",
       email,
       confirmation: "required"
     })
@@ -529,40 +497,44 @@ export async function updatePasswordAction(formData: FormData) {
     redirect("/reset-password?error=Passwords%20must%20match.");
   }
 
+  if (!isValidNewPassword(password)) redirect(buildRelativePath("/reset-password", { error: PASSWORD_REQUIREMENTS_MESSAGE }));
+
   if (authMode === "supabase") {
     const supabase = await createServerSupabaseClient();
-    const {
-      data: { session },
-      error: sessionError
-    } = await supabase.auth.getSession();
+    const verified = await authAttempt(() => supabase.auth.getUser());
+    if (verified.error || !verified.data?.user) redirect(buildRelativePath("/forgot-password", { error: RESET_PASSWORD_SESSION_MISSING_MESSAGE }));
+    const sessionResult = await authAttempt(() => supabase.auth.getSession());
+    const session = sessionResult.data?.session;
+    const sessionError = sessionResult.error;
 
     reportOperationalEvent("reset_password_session_checked", "Checked Supabase recovery session before password update.", {
       hasSession: Boolean(session),
       hasUser: Boolean(session?.user),
       sessionErrorCode: sessionError?.code || null,
-      sessionErrorMessage: sessionError?.message || null
     });
 
     if (sessionError || !canUpdatePasswordWithSession(Boolean(session))) {
       if (sessionError) {
-        reportOperationalError("reset_password_session_check_failed", sessionError, {
+        reportOperationalError("reset_password_session_check_failed", new Error("Recovery session could not be confirmed."), {
           hasSession: Boolean(session),
           sessionErrorCode: sessionError.code || null,
-          sessionErrorMessage: sessionError.message
         });
       }
 
       redirect(buildRelativePath("/forgot-password", { error: RESET_PASSWORD_SESSION_MISSING_MESSAGE }));
     }
 
-    const { error } = await supabase.auth.updateUser({ password });
+    let currentRole;
+    try { currentRole = await resolvePersistedRole(verified.data.user.id); }
+    catch { redirect(buildRelativePath("/reset-password", { error: AUTH_UNAVAILABLE_MESSAGE })); }
+    if ((currentRole === "admin" || verified.data.user.factors?.some(f => f.status === "verified")) && !(await hasPrivilegedAssurance(supabase))) redirect("/account/security?mfa=required&next=/reset-password");
+    const { error } = await authAttempt(() => supabase.auth.updateUser({ password }));
     if (error) {
-      reportOperationalError("reset_password_update_failed", error, {
+      reportOperationalError("reset_password_update_failed", new Error("Password update failed."), {
         hasSession: Boolean(session),
-        supabaseErrorCode: error.code || null,
-        supabaseErrorMessage: error.message
+        supabaseErrorCode: error.code || null
       });
-      redirect(buildRelativePath("/reset-password", { error: error.message }));
+      redirect(buildRelativePath("/reset-password", { error: safeAuthError(error) }));
     }
 
     reportOperationalEvent("reset_password_update_succeeded", "Supabase password update succeeded.", {
@@ -573,6 +545,10 @@ export async function updatePasswordAction(formData: FormData) {
     redirect(buildRelativePath("/reset-password", { error: SUPABASE_AUTH_NOT_CONFIGURED_MESSAGE }));
   }
 
+  if (authMode === "supabase") {
+    const providerFailed = await clearAuthenticationSession();
+    if (providerFailed) redirect("/login?success=Password%20updated.%20Signed%20out%20on%20this%20device.%20Other%20sessions%20could%20not%20be%20confirmed%20signed%20out.");
+  }
   redirect("/login?success=Password%20updated.%20You%20can%20sign%20in%20now.");
 }
 

@@ -1,3 +1,4 @@
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -20,10 +21,10 @@ const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
     try {
       const supabase = await createServerSupabaseClient();
       const {
-        data: { user }
+        data: { user }, error
       } = await supabase.auth.getUser();
 
-      if (!user?.email) {
+      if (error || !user?.email) {
         return null;
       }
 
@@ -80,6 +81,10 @@ export async function requireSession(role?: UserRole) {
 
   if (role && user.role !== role) {
     redirect(resolveRoleRedirect(user.role));
+  }
+
+  if (user.role === "admin" && hasSupabaseEnv && !env.demoMode && !(await hasPrivilegedAssurance(await createServerSupabaseClient()))) {
+    redirect("/account/security?mfa=required");
   }
 
   if ((user.role === "artist" || user.role === "buyer") && user.onboardingComplete !== true) {
@@ -201,6 +206,7 @@ async function getPersistedUserState(
     { data: { id: string } | null }
   ];
 
+  if (userResult.error) throw new Error("Unable to verify the canonical account profile.");
   const userRow = userResult.data;
   const role = resolveUserRole(userRow?.role);
   const fullName = String(userRow?.full_name || fallbackFullName);
@@ -215,7 +221,7 @@ async function getPersistedUserState(
 
   return {
     id: userId,
-    email: userRow?.email || email,
+    email,
     role,
     fullName,
     avatarPath: userRow?.avatar_path || null,

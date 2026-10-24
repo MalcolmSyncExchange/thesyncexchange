@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { webcrypto } from "node:crypto";
 import ts from "typescript";
+import * as authSecurity from "../services/auth/security.ts";
 import * as selection from "../lib/licenses/selection.ts";
 import { load } from "./helpers/license-selection-harness.mjs";
 
@@ -32,6 +33,7 @@ function loadModule(path, stubs) {
     module: loadedModule, exports: loadedModule.exports, Response, Request, FormData, File,
     AbortSignal, URL, crypto: webcrypto, process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
     require(name) {
+      if (name === "@/services/auth/security") return authSecurity;
       assert.ok(Object.hasOwn(stubs, name), `Unmocked dependency: ${name}`);
       return stubs[name];
     }
@@ -72,7 +74,8 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
   let providerOrderId;
   const { helper, calls } = limiter(limitOptions);
   const db = {
-    auth: { getUser: async () => ({ data: { user: authenticated ? { id: userId, email: "test@example.invalid" } : null } }) },
+    auth: { getUser: async () => ({ data: { user: authenticated ? { id: userId, email: "test@example.invalid", factors:[{status:"verified"}] } : null } }), mfa:{ getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:"aal2"},error:null})} },
+    rpc:async()=>({data:true,error:null}),
     from(table) {
       let mutation = false, selected = "";
       const result = () => ({ data: mutation ? { id: "new-order" } : table === "orders" && selected === "id, buyer_user_id" ? { id: "order", buyer_user_id: owner } : null, error: null });

@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 export const root = new URL('../../', import.meta.url);
 export const source = path => readFileSync(new URL(path, root), 'utf8');
@@ -15,7 +16,7 @@ export const fixtureBootstrapSql = `create role anon; create role authenticated;
    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
    create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;
    create function auth.jwt() returns jsonb language sql stable as $$
-     select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''))
+     select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''),'aal',nullif(current_setting('request.jwt.claim.aal',true),''))
    $$;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
    create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
@@ -81,10 +82,16 @@ export async function applyCapturedAuthorization(db,s) {
  for(const g of s.grants.filter(g=>['anon','authenticated','service_role'].includes(g.grantee)&&(g.schema!=='storage'||['objects','buckets'].includes(g.table))))
   await db.exec(`grant ${g.privilege} on ${ident(g.schema)}.${ident(g.table)} to ${ident(g.grantee)}`);
 }
-export async function asActor(db,id,run,role='authenticated',sessionId='') {
+export async function asActor(db,id,run,role='authenticated',sessionId='',assurance='aal2') {
  if(!['authenticated','anon','service_role','submission_media_broker'].includes(role)) throw Error('Unknown fixture role');
- await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false); select set_config('request.jwt.claim.session_id',${quote(sessionId)},false)`);
- try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false); select set_config('request.jwt.claim.session_id','',false)"); }
+ let generatedSession=null;
+ if(role==='authenticated' && !sessionId && (await db.query('select role from public.user_profiles where id=$1',[id])).rows[0]?.role==='admin') {
+   generatedSession=randomUUID();sessionId=generatedSession;
+   await db.query('insert into auth.sessions(id,user_id) values($1,$2)',[sessionId,id]);
+ }
+
+ await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false); select set_config('request.jwt.claim.session_id',${quote(sessionId)},false); select set_config('request.jwt.claim.aal',${quote(assurance)},false)`);
+ try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false); select set_config('request.jwt.claim.session_id','',false); select set_config('request.jwt.claim.aal','',false)"); if(generatedSession)await db.query('delete from auth.sessions where id=$1',[generatedSession]); }
 }
 export async function seedDatabase(db) {
  for(const [key,role] of [['a','artist'],['b','artist'],['buyer','buyer'],['admin','admin']])

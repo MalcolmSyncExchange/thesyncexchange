@@ -563,7 +563,7 @@ test("forgot password config errors are safe user-facing states", async () => {
 test("auth email-action does not prefetch one-time token hash confirmation links", () => {
   const source = readFileSync(new URL("../app/auth/email-action/page.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /<a href=\{confirmationUrl\}>/);
+  assert.match(source, /<a href=\{confirmationUrl\}[^>]*>/);
   assert.doesNotMatch(source, /next\/link/);
   assert.doesNotMatch(source, /<Link href=\{confirmationUrl\}/);
 });

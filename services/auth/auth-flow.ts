@@ -33,7 +33,7 @@ export const AUTH_CONFIRM_LINK_INVALID_MESSAGE = "The confirmation link is inval
 export const AUTH_CALLBACK_COMPLETION_PARAM = "auth_callback";
 export const AUTH_CALLBACK_COMPLETION_VALUE = "complete";
 
-const authCallbackReservedParams = new Set(["code", "next", "token_hash", "type"]);
+const authCallbackReservedParams = new Set(["code", "next", "token_hash", "type", "token", "access_token", "refresh_token", "id_token", "provider_token", "provider_refresh_token", "expires_in", "expires_at", "error_description", "state"]);
 const productionAppHosts = new Set(["thesyncexchange.com", "www.thesyncexchange.com"]);
 
 export function normalizeAuthEmail(value: unknown) {
@@ -429,18 +429,16 @@ export async function requestPasswordResetEmail({
     hasError: Boolean(error),
     supabaseErrorCode: error?.code || null,
     supabaseErrorStatus: error?.status || null,
-    supabaseErrorMessage: error?.message || null,
     responseKeys: data && typeof data === "object" ? Object.keys(data) : []
   });
 
-  if (error) {
-    logError("forgot_password_failed", error, {
+  if (error && !["user_not_found", "email_not_confirmed"].includes(error.code || "")) {
+    logError("forgot_password_failed", new Error("Password recovery delivery unavailable."), {
       emailDomain,
       redirectTo,
       resetPasswordForEmailCalled: true,
       supabaseErrorCode: error.code || null,
       supabaseErrorStatus: error.status || null,
-      supabaseErrorMessage: error.message
     });
     return {
       status: "error",
@@ -480,4 +478,23 @@ export function resolveSafeNextPath(rawNext: string | null | undefined, fallback
   } catch {
     return fallback;
   }
+}
+
+/** Accept only the configured Auth verification endpoint or our own callback. */
+export function resolveEmailConfirmationUrl(raw: string | undefined, appUrl: string, supabaseUrl?: string) {
+  if (!raw || raw.length > 8192) return null;
+  try {
+    const url = new URL(raw), app = new URL(appUrl);
+    const provider = supabaseUrl ? new URL(supabaseUrl) : null;
+    if (url.username || url.password || url.hash || (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhostHost(url.hostname)))) return null;
+    const own = url.origin === app.origin && url.pathname === "/auth/confirm";
+    const auth = provider && url.origin === provider.origin && url.pathname === "/auth/v1/verify";
+    if (!own && !auth) return null;
+    const rawRedirect = url.searchParams.get("redirect_to");
+    if (rawRedirect) {
+      const destination = new URL(rawRedirect);
+      if (destination.origin !== app.origin || destination.username || destination.password || !["/auth/confirm", "/reset-password", "/onboarding"].includes(destination.pathname)) return null;
+    }
+    return url.toString();
+  } catch { return null; }
 }

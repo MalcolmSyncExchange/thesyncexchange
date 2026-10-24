@@ -1,3 +1,4 @@
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { NextResponse } from "next/server";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
@@ -40,6 +41,9 @@ export async function POST(request: Request) {
 
   const { data: profile } = await selectUserProfileCompat(authSupabase, user.id);
   const role = profile?.role;
+  if (role === "admin" && !(await hasPrivilegedAssurance(authSupabase))) {
+    return NextResponse.json({ error: "Additional authentication required." }, { status: 403 });
+  }
   if (role !== "artist" && role !== "admin") {
     return NextResponse.json({ error: "Only artist or admin accounts can upload track assets." }, { status: 403 });
   }

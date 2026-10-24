@@ -1,3 +1,4 @@
+import { findTrackUpload } from "@/services/media/uploads";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -20,6 +21,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
   if (!data) notFound();
 
   const { track, flags, reviewNotes, auditLog } = data;
+  const mediaSubmission = await findTrackUpload(track.id);
   const totalOwnership = track.rights_holders.reduce((sum, holder) => sum + Number(holder.ownership_percent || 0), 0);
   const hasCompleteOwnership = Math.abs(totalOwnership - 100) < 0.01;
   const activeLicenseOptions = track.license_options.filter((option) => option.active !== false);
@@ -41,6 +43,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
               Back to Track Management
             </Link>
             <h1 className="mt-3 text-3xl font-semibold">{track.title}</h1>
+            {mediaSubmission ? <Link className="mt-3 inline-block underline" href={"/admin/media?draft="+mediaSubmission}>Inspect private assets, processing and integrity</Link> : null}
             <p className="mt-2 text-muted-foreground">
               {track.artist_name} • {track.genre} • {track.subgenre}
             </p>

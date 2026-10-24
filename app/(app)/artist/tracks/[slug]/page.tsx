@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { findTrackUpload } from "@/services/media/uploads";
 import { notFound } from "next/navigation";
 
 import { ArtistTrackDetail } from "@/components/artist/tracks/artist-track-detail";
@@ -9,5 +11,6 @@ export default async function ArtistTrackDetailPage({ params }: { params: Promis
   const user = await requireSession("artist");
   const track = await getArtistTrackDetail(user.id, slug);
   if (!track) notFound();
-  return <ArtistTrackDetail track={track} />;
+  const mediaSubmission = await findTrackUpload(track.id);
+  return <>{mediaSubmission ? <Link className="mb-6 inline-block underline" href={"/artist/uploads?draft="+mediaSubmission}>Manage private audio, versions and processing</Link> : null}<ArtistTrackDetail track={track} /></>;
 }

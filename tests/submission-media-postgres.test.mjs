@@ -10,7 +10,7 @@ test('A/B/C full real PostgreSQL replay; B before A fails; duplicate replay is s
  assert.equal(await db.scalar('select row_to_json(c) from submission_media.capabilities c'),before);
  for(const t of ['submissions','assets','operations','jobs','master_reviews','events']) assert.equal(await db.scalar(`select count(*) from submission_media.${t}`),'0');
  const empty=await fixture({apply:false,seed:false});try{await assert.rejects(empty.install(source('supabase/migrations/'+foundation[1])),/schema .* does not exist/);}finally{await empty.close();}
- const r=await db.query("select c.relname,c.relrowsecurity,c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='submission_media' and c.relkind='r'");assert.equal(r.rows.length,8);assert.ok(r.rows.every(x=>x.relrowsecurity&&x.relforcerowsecurity));
+ const r=await db.query("select c.relname,c.relrowsecurity,c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='submission_media' and c.relkind='r'");assert.equal(r.rows.length,9);assert.ok(r.rows.every(x=>x.relrowsecurity&&x.relforcerowsecurity));
  await denied(db,actorSql(ids.a,call('media_create_submission',[key(),null])),/disabled/);
  // Flags off: legacy writes/reviews/discovery retain original behavior, no worker work.
  await db.exec(`update tracks set title='Legacy still writable',audio_file_path='${ids.a}/uploads/audio/new.wav' where id='${ids.draft}'`);
@@ -31,7 +31,7 @@ test('exact grants, definer owner/search_path, canonical Artist/Admin and cross-
   await denied(db,actorSql(ids.a,`update submission_media.${t} set ${t==='capabilities'?'worker_enabled=true':t==='events'?"details='{}'":'id=id'}`));
  }
  const f=(await db.query("select n.nspname,p.proname,p.prosecdef,p.proconfig,pg_get_userbyid(p.proowner) as owner,p.oid::regprocedure::text as sig from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='submission_media' or (n.nspname='public' and p.proname like 'media\\_%' escape '\\')")).rows;
- assert.equal(f.length,49);for(const x of f){assert.equal(x.prosecdef,true);assert.deepEqual(x.proconfig,['search_path=""']);assert.equal(x.owner,'postgres');for(const role of ['anon','service_role']) assert.equal(await db.scalar(`select has_function_privilege('${role}',${quote(x.sig)},'execute')`),'f');}
+ assert.equal(f.length,64);for(const x of f){assert.equal(x.prosecdef,x.proname!=='guard_upload_file');assert.deepEqual(x.proconfig,['search_path=""']);assert.equal(x.owner,'postgres');for(const role of ['anon','service_role']) assert.equal(await db.scalar(`select has_function_privilege('${role}',${quote(x.sig)},'execute')`),role==='service_role'&&x.proname==='media_upload_playback_authorized'?'t':'f');}
  await denied(db,actorSql(ids.a,'select submission_media.claim_job()'));
  await denied(db,actorSql(ids.a,`select media_read_operation('${key()}')`));
  const dto=await actor(db,ids.a,call('media_read_submission',[s]));assert.equal(dto.submission_id,s);assert.doesNotMatch(JSON.stringify(dto),/bucket|path|lease|token|sha256|storage_object/);
@@ -229,13 +229,14 @@ test('installation rejects wrong installer, digest location/absence and unexpect
  await db.install(source('supabase/migrations/'+foundation[2]));
 },{apply:false,seed:false,storage:false}));
 
-test('Gate 2 real provider: non-owner install/replay preserves six policies and five triggers',()=>run(async db=>{
+test('Gate 2 real provider: non-owner install/replay preserves every existing policy and five unrelated triggers',()=>run(async db=>{
  const legacyCount=Number(await db.scalar("select count(*) from pg_trigger where tgrelid='storage.objects'::regclass and not tgisinternal"));
  await db.exec('create function storage.gate2_fixture_noop() returns trigger language plpgsql as $$begin return new; end$$;'+
   Array.from({length:5-legacyCount},(_,i)=>'create trigger provider_fixture_'+i+' before update on storage.objects for each row execute function storage.gate2_fixture_noop();').join('\n'));
  const baselineSql="select jsonb_build_object('policies',(select jsonb_agg(to_jsonb(p) order by policyname) from pg_policies p where schemaname='storage' and policyname not in ('submission_media_private_reads','submission_media_bound_insert','submission_media_upload_insert','submission_media_no_update','submission_media_no_delete')),'triggers',(select jsonb_agg(pg_get_triggerdef(oid) order by tgname) from pg_trigger where tgrelid='storage.objects'::regclass and not tgisinternal and tgname <> 'guard_submission_media_object'))";
+ const policiesBefore=Number(await db.scalar("select count(*) from pg_policies where schemaname='storage'"));
  const before=await db.scalar(baselineSql);await db.setup();await db.setup();assert.equal(await db.scalar(baselineSql),before);
- assert.equal(await db.scalar("select count(*) from pg_policies where schemaname='storage'"),'11');
+ assert.equal(Number(await db.scalar("select count(*) from pg_policies where schemaname='storage'")),policiesBefore+5);
  assert.equal(await db.scalar("select count(*) from pg_trigger where tgrelid='storage.objects'::regclass and not tgisinternal"),'6');
  assert.equal(await db.scalar("select pg_get_userbyid(relowner) from pg_class where oid='storage.objects'::regclass"),'supabase_storage_admin');
  assert.equal((await db.install("select pg_has_role(current_user,'supabase_storage_admin','SET')")).out,'f');

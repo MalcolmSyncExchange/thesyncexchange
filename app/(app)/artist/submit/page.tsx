@@ -1,22 +1,3 @@
-import { SubmitMusicForm } from "@/components/forms/submit-music-form";
-
-export default async function SubmitMusicPage(
-  props: {
-    searchParams?: Promise<{
-      submitDebug?: string;
-    }>;
-  }
-) {
-  const searchParams = await props.searchParams;
-  const submitDebugEnabled = searchParams?.submitDebug === "1" || searchParams?.submitDebug === "true";
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold">Submit music</h1>
-        <p className="mt-2 text-muted-foreground">Structure each track with buyer-facing metadata, rights clarity, and licensing settings.</p>
-      </div>
-      <SubmitMusicForm submitDebugEnabled={submitDebugEnabled} />
-    </div>
-  );
-}
+import { UploadWorkbench } from "@/components/artist/uploads/upload-workbench";
+import { requireSession } from "@/services/auth/session";
+export default async function SubmitMusicPage(){await requireSession('artist');return <UploadWorkbench/>;}

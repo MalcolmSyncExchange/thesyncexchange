@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { database, asActor } from './artist-baseline-db.mjs';
 import { startAuthFixture, anonKey, serviceKey } from './auth-provider-fixture.mjs';
 export { anonKey, serviceKey };
-export async function startArtistFixture() {
+export async function startArtistFixture(options={}) {
  const db=await database('repository',{seed:false});let auth;let tail=Promise.resolve();const images=new Map();const failures=new Map();
  const serial=fn=>{const next=tail.then(fn);tail=next.catch(()=>{});return next;};
  const tables=['user_profiles','artist_profiles','artist_account_details','artist_account_acceptances','artist_account_events'];
@@ -15,9 +15,10 @@ export async function startArtistFixture() {
    const p=auth.profiles.get(a.id);if(p)await db.query('insert into user_profiles(id,email,role,full_name,onboarding_step,onboarding_started_at,onboarding_completed_at,onboarding_payload) values($1,$2,$3,$4,$5,$6,$7,$8::jsonb) on conflict(id) do nothing',[a.id,a.email,p.role,p.full_name,p.onboarding_step,p.onboarding_started_at,p.onboarding_completed_at,JSON.stringify(p.onboarding_payload||{})]);
   }
  }
- const execute=async(ctx,fn)=>{await mirror();if(ctx.service)return asActor(db,null,fn,'service_role');if(!ctx.session)throw Object.assign(Error('Unauthorized'),{code:'42501'});return asActor(db,ctx.session.account.id,fn,'authenticated',ctx.session.sid,ctx.session.aal);};
+ const execute=async(ctx,fn)=>{await mirror();if(ctx.session)await db.query('insert into auth.sessions(id,user_id) values($1,$2) on conflict(id) do nothing',[ctx.session.sid,ctx.session.account.id]);if(ctx.service)return asActor(db,null,fn,'service_role');if(!ctx.session)throw Object.assign(Error('Unauthorized'),{code:'42501'});return asActor(db,ctx.session.account.id,fn,'authenticated',ctx.session.sid,ctx.session.aal);};
  const rpc=async(ctx,name)=>{
   const p=ctx.body;
+  if(options.rpc){const handled=await options.rpc(name,p,{db,auth,images,ctx});if(handled)return handled.value;}
   if(name==='save_artist_account_step')return (await db.query('select to_jsonb(public.save_artist_account_step($1::uuid,$2::timestamptz,$3::text,$4::jsonb,$5::jsonb,$6::text,$7::boolean,$8::text,$9::boolean)) value',[p.p_actor,p.p_expected,p.p_step,JSON.stringify(p.p_public),JSON.stringify(p.p_private),p.p_avatar||null,Boolean(p.p_remove_avatar),p.p_notice_version||null,Boolean(p.p_accept)])).rows[0].value;
   if(name==='complete_artist_onboarding_atomic')return (await db.query('select to_jsonb(public.complete_artist_onboarding_atomic($1::uuid,$2::timestamptz)) value',[p.p_actor_id,p.p_expected_updated_at])).rows[0].value;
   if(name==='get_own_artist_finance')return (await db.query('select to_jsonb(r) value from public.get_own_artist_finance() r')).rows.map(x=>x.value);
@@ -59,6 +60,7 @@ export async function startArtistFixture() {
   async rawHandler(req,res,ctx){
    if(!ctx.url.pathname.startsWith('/storage/v1/'))return false;
    return serial(async()=>{try{
+    if(options.storage && await options.storage(req,res,ctx,{db,auth,images}))return true;
     const path=decodeURIComponent(ctx.url.pathname.replace(/^\/storage\/v1\/object\/(?:public\/)?avatars\/?/,''));
     if(req.method==='GET'){
      const image=images.get(path);if(!image){res.writeHead(404);res.end();return true;}res.writeHead(200,{'content-type':image.type,'content-length':image.bytes.length});res.end(image.bytes);return true;
@@ -76,5 +78,6 @@ export async function startArtistFixture() {
   }
  });
  await mirror();
- return {...auth,db,images,failNextRpc:(name,when='before')=>failures.set(name,{when}),query:(sql,params)=>serial(()=>db.query(sql,params)),close:async()=>{await auth.close();await tail;await db.close();}};
+ if(options.initialize)await options.initialize({db,auth,images});
+ return {...auth,db,images,withDatabase:fn=>serial(()=>fn(db)),failNextRpc:(name,when='before')=>failures.set(name,{when}),query:(sql,params)=>serial(()=>db.query(sql,params)),close:async()=>{await auth.close();await tail;await db.close();}};
 }

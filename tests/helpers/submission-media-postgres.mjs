@@ -53,6 +53,9 @@ export async function fixture({apply=true,seed=true,storage=true}={}) {
    alter schema auth owner to supabase_auth_admin;
    alter table auth.users owner to supabase_auth_admin;
    alter table auth.sessions owner to supabase_auth_admin;
+   -- Explicit trusted-installer/provider baseline. New Auth MFA and existing
+   -- financial FKs need read/reference access; no API or worker role receives it.
+   grant select,references on auth.users,auth.sessions to postgres;
    alter function auth.uid() owner to supabase_auth_admin;
    alter function auth.role() owner to supabase_auth_admin;
    alter function auth.jwt() owner to supabase_auth_admin;

@@ -18,6 +18,7 @@ const artistNavigation = [
   { href: "/artist/catalog", label: "My catalog", icon: Music2 },
   { href: "/artist/submit", label: "Submit music", icon: Upload },
   { href: "/artist/rights-holders", label: "Rights holders", icon: Users },
+  { href: "/artist/licenses", label: "Licensing activity", icon: ReceiptText },
   { href: "/artist/payout-settings", label: "Payout settings", icon: CreditCard }
 ];
 
@@ -26,6 +27,7 @@ const buyerNavigation = [
   { href: "/buyer/catalog", label: "Discover music", icon: Search },
   { href: "/buyer/favorites", label: "Saved tracks", icon: Heart },
   { href: "/buyer/orders", label: "My Purchases", icon: ReceiptText },
+  { href: "/buyer/licenses", label: "Licenses", icon: Music2 },
   { href: "/buyer/settings", label: "Account settings", icon: Settings }
 ];
 type WorkspaceKind = "artist" | "buyer";

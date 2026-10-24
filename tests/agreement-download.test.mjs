@@ -82,3 +82,15 @@ test("Admin agreement access denies AAL1 and revoked sessions before privileged 
     assert.equal(h.state.audits.length, 0);
   }
 });
+
+test('agreement CSRF binds configured public origin rather than an internal proxy request URL',async()=>{
+ const h=agreementHarness({origin:'http://internal-proxy:3000'});
+ assert.equal((await h.request('POST',{origin:'https://app.example','sec-fetch-site':'same-origin'})).status,303);
+ const denied=agreementHarness({origin:'https://evil.example'});
+ assert.equal((await denied.request('POST',{origin:'https://evil.example','sec-fetch-site':'same-origin'})).status,403);
+ assert.equal(denied.state.privilegedClients,0);
+});
+
+test('Buyer agreement inspection and download reject revoked sessions before privileged reads',async()=>{
+ for(const method of ['GET','POST']){const h=agreementHarness({role:'buyer',revoked:true});assert.equal((await h.request(method,origin)).status,403);assert.equal(h.state.privilegedClients,0);assert.equal(h.state.storageReads,0);}
+});

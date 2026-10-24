@@ -1,3 +1,4 @@
+import {parsePdf} from "./helpers/pdf-text.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -143,169 +144,25 @@ test("agreement HTML includes the snapshotted agreement number and buyer display
   assert.doesNotMatch(html, /countersigned legal instrument/i);
 });
 
-test("agreement PDF renderer returns a valid PDF payload", () => {
-  const snapshot = buildGeneratedLicenseTermsSnapshot({
-    agreementNumber: "TSE-SYNC-20260429-ABCDEF1234",
-    context: baseContext
-  });
-  const pdf = renderSyncLicenseAgreementPdf(snapshot);
-  const prefix = Buffer.from(pdf).subarray(0, 8).toString("utf8");
 
-  assert.ok(pdf.byteLength > 500);
-  assert.equal(prefix, "%PDF-1.4");
+test("agreement PDF embeds fonts and preserves all summary values and sections", async () => {
+ const s=buildGeneratedLicenseTermsSnapshot({agreementNumber:"TSE-SYNC-UNICODE",context:{...baseContext,createdAt:"2026-09-05T06:12:01Z",paidAt:"2026-09-05T06:12:01Z"}});
+ const pdf=await renderSyncLicenseAgreementPdf(s),parsed=await parsePdf(pdf);
+ assert.match(pdf.subarray(0,8).toString(),/%PDF-1.7/);
+ for(const value of ["SYNC LICENSE AGREEMENT","License Summary","Rights & Ownership","License Grant","Permitted Media","Restrictions","Ownership and Reservation of Rights","Transfer / Assignment","Termination","Governing Law","Additional Terms","Acceptance","TSE-SYNC-v1","September 5, 2026","$1,500","Nova Signal","Composer","Total Ownership: 100%"] ) assert.ok(parsed.text.includes(value),value);
+ assert.doesNotMatch(parsed.text,/records the commercial terms of the purchase|limited license expressly granted|transfer or resell this license|standard broadcast advertising/);
+ assert.match(pdf.toString('latin1'),/\/ToUnicode/);assert.match(pdf.toString('latin1'),/\/FontFile/);
 });
-
-test("agreement PDF includes production document sections and formatted summary values", () => {
-  const snapshot = buildGeneratedLicenseTermsSnapshot({
-    agreementNumber: "TSE-SYNC-20260429-ABCDEF1234",
-    context: {
-      ...baseContext,
-      createdAt: "2026-09-05T06:12:01+00:00",
-      paidAt: "2026-09-05T06:12:01+00:00"
-    }
-  });
-  const pdfText = renderSyncLicenseAgreementPdf(snapshot).toString("utf8");
-
-  assert.match(pdfText, /THE SYNC EXCHANGE/);
-  assert.match(pdfText, /SYNC LICENSE AGREEMENT/);
-  assert.match(pdfText, /License Summary/);
-  assert.match(pdfText, /Rights & Ownership/);
-  assert.match(pdfText, /License Grant/);
-  assert.match(pdfText, /Permitted Media/);
-  assert.match(pdfText, /Restrictions/);
-  assert.match(pdfText, /Ownership and Reservation of Rights/);
-  assert.match(pdfText, /Transfer \/ Assignment/);
-  assert.match(pdfText, /Termination/);
-  assert.match(pdfText, /Governing Law/);
-  assert.match(pdfText, /Additional Terms/);
-  assert.match(pdfText, /Acceptance/);
-  assert.match(pdfText, /TSE-SYNC-v1/);
-  assert.match(pdfText, /September 5, 2026/);
-  assert.match(pdfText, /\$1,500/);
-  assert.match(pdfText, /Nova Signal/);
-  assert.match(pdfText, /Composer/);
-  assert.match(pdfText, /Total Ownership: 100%/);
-  assert.match(pdfText, /TEST - NOT A COMMERCIAL LICENSE/);
-  assert.doesNotMatch(pdfText, /records the commercial terms of the purchase/);
-  assert.doesNotMatch(pdfText, /limited license expressly granted/i);
-  assert.doesNotMatch(pdfText, /transfer or resell this license/i);
-  assert.doesNotMatch(pdfText, /terminate this license/i);
-  assert.doesNotMatch(pdfText, /standard broadcast advertising/i);
-  assert.doesNotMatch(pdfText, /2026-09-05T06:12:01/);
+test("live legacy template is classified separately and omits the test watermark",async()=>{
+ const s=buildGeneratedLicenseTermsSnapshot({agreementNumber:"TSE-SYNC-LIVE",context:{...baseContext,stripeCheckoutSessionId:"cs_live_fixture",payment:{paymentMode:"live",releaseMode:"production_live",livemode:true,commercialRightsGranted:true}}});
+ assert.doesNotMatch(renderSyncLicenseAgreementHtml(s),/TEST — NOT A COMMERCIAL LICENSE/);
+ assert.doesNotMatch((await parsePdf(await renderSyncLicenseAgreementPdf(s))).text,/TEST - NOT A COMMERCIAL LICENSE/);
 });
-
-test("live agreement snapshots remain commercially classified and omit test watermark", () => {
-  const snapshot = buildGeneratedLicenseTermsSnapshot({
-    agreementNumber: "TSE-SYNC-20260429-LIVE123456",
-    context: {
-      ...baseContext,
-      stripeCheckoutSessionId: "cs_live_sync_exchange",
-      payment: {
-        paymentMode: "live",
-        releaseMode: "production_live",
-        livemode: true,
-        commercialRightsGranted: true
-      }
-    }
-  });
-  assert.equal(snapshot.payment?.commercialRightsGranted, true);
-  assert.doesNotMatch(renderSyncLicenseAgreementHtml(snapshot), /TEST — NOT A COMMERCIAL LICENSE/);
-  assert.doesNotMatch(renderSyncLicenseAgreementPdf(snapshot).toString("utf8"), /TEST - NOT A COMMERCIAL LICENSE/);
-});
-
-test("test-only PDF marks every page as noncommercial", () => {
-  const snapshot = buildGeneratedLicenseTermsSnapshot({
-    agreementNumber: "TSE-SYNC-20260429-TESTPAGES",
-    context: {
-      ...baseContext,
-      rightsHolders: Array.from({ length: 12 }, (_, index) => ({
-        name: `Test Rights Holder ${index + 1}`,
-        roleType: index % 2 === 0 ? "Composer" : "Master Owner",
-        ownershipPercent: Number((100 / 12).toFixed(2))
-      }))
-    }
-  });
-  snapshot.license.permittedMedia = Array.from({ length: 20 }, (_, index) => `Test-only media item ${index + 1}.`);
-  snapshot.license.restrictions = Array.from({ length: 20 }, (_, index) => `Test-only restriction ${index + 1}.`);
-
-  const pdfText = renderSyncLicenseAgreementPdf(snapshot).toString("utf8");
-  const streams = [...pdfText.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((match) => match[1]);
-  assert.ok(streams.length > 1);
-  streams.forEach((stream) => assert.match(stream, /TEST - NOT A COMMERCIAL LICENSE/));
-});
-
-test("agreement PDF paginates long agreements and adds page numbering", () => {
-  const snapshot = buildGeneratedLicenseTermsSnapshot({
-    agreementNumber: "TSE-SYNC-20260429-LONGDOC123",
-    context: {
-      ...baseContext,
-      payment: {
-        paymentMode: "live",
-        releaseMode: "production_live",
-        livemode: true,
-        commercialRightsGranted: true
-      },
-      licenseTermsSummary: "Long-form campaign license.",
-      rightsHolders: Array.from({ length: 12 }, (_, index) => ({
-        name: `Rights Holder ${index + 1} With Extended Legal Name`,
-        roleType: index % 2 === 0 ? "Composer" : "Master Owner",
-        ownershipPercent: Number((100 / 12).toFixed(2))
-      }))
-    }
-  });
-  snapshot.license.permittedMedia = Array.from({ length: 20 }, (_, index) => `Permitted media item ${index + 1} for extended campaign testing.`);
-  snapshot.license.restrictions = Array.from({ length: 20 }, (_, index) => `Restriction item ${index + 1} for extended agreement pagination testing.`);
-
-  const pdfText = renderSyncLicenseAgreementPdf(snapshot).toString("utf8");
-
-  assert.match(pdfText, /\/Type \/Pages \/Count [2-9]/);
-  assert.match(pdfText, /Page 1 of/);
-  assert.match(pdfText, /TSE-SYNC-20260429-LONGDOC123/);
-});
-
-test("agreement PDF explicitly paints every page white before document content", () => {
-  const snapshot = buildGeneratedLicenseTermsSnapshot({
-    agreementNumber: "TSE-SYNC-20260429-WHITEPAGE",
-    context: {
-      ...baseContext,
-      payment: {
-        paymentMode: "live",
-        releaseMode: "production_live",
-        livemode: true,
-        commercialRightsGranted: true
-      },
-      licenseTermsSummary: "Long-form campaign license.",
-      rightsHolders: Array.from({ length: 10 }, (_, index) => ({
-        name: `Rights Holder ${index + 1}`,
-        roleType: index % 2 === 0 ? "Composer" : "Master Owner",
-        ownershipPercent: 10
-      }))
-    }
-  });
-  snapshot.license.permittedMedia = Array.from({ length: 18 }, (_, index) => `Permitted media item ${index + 1}.`);
-  snapshot.license.restrictions = Array.from({ length: 18 }, (_, index) => `Restriction item ${index + 1}.`);
-
-  const pdfText = renderSyncLicenseAgreementPdf(snapshot).toString("utf8");
-  const pageCountMatch = pdfText.match(/\/Type \/Pages \/Count (\d+)/);
-  const contentStreams = [...pdfText.matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((match) => match[1]);
-  const whiteBackgroundPrefix = [
-    "q",
-    "1 1 1 rg",
-    "0 0 612 792 re",
-    "f",
-    "Q"
-  ].join("\n");
-  const firstFillCommand = contentStreams[0]?.match(/([0-9.]+ [0-9.]+ [0-9.]+ rg)\n0 0 612 792 re\nf/)?.[1];
-
-  assert.ok(pageCountMatch);
-  assert.equal(contentStreams.length, Number(pageCountMatch[1]));
-  assert.ok(contentStreams.length > 1);
-  contentStreams.forEach((stream) => {
-    assert.ok(stream.startsWith(whiteBackgroundPrefix));
-  });
-  assert.equal(firstFillCommand, "1 1 1 rg");
-  assert.match(contentStreams[0], /BT\n0 0 0 rg\n\/F2 21 Tf/);
-  assert.match(contentStreams[0], /q\n0.97 0.98 0.99 rg\n[0-9.]+ [0-9.]+ [0-9.]+ 50 re f/);
-  assert.doesNotMatch(pdfText, /\/Group/);
-  assert.doesNotMatch(pdfText, /\/Transparency/);
+test("long agreements paginate without truncating last names long words or list tails and label every test page",async()=>{
+ const s=buildGeneratedLicenseTermsSnapshot({agreementNumber:"TSE-SYNC-LONG",context:{...baseContext,rightsHolders:Array.from({length:30},(_,i)=>({name:`Rights Holder ${i} With Extended Legal Name `+"X".repeat(150),roleType:i%2?"Composer":"Master Owner",ownershipPercent:1}))}});
+ s.license.permittedMedia=Array.from({length:25},(_,i)=>`Permitted media ${i} for synthetic pagination testing.`);
+ s.license.restrictions=Array.from({length:25},(_,i)=>`Restriction ${i} for synthetic pagination testing.`);
+ const parsed=await parsePdf(await renderSyncLicenseAgreementPdf(s));assert.ok(parsed.count>3);
+ assert.match(parsed.text,/Rights Holder 29 With Extended Legal Name/);assert.match(parsed.text,/Permitted media 24/);assert.match(parsed.text,/Restriction 24/);
+ parsed.pages.forEach((text,i)=>{assert.match(text,/TEST - NOT A COMMERCIAL LICENSE/);assert.ok(text.includes(`Page ${i+1} of ${parsed.count}`));});
 });

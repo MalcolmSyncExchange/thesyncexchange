@@ -19,7 +19,7 @@ export function agreementHarness(options = {}) {
     '@/services/auth/security': authSecurity,
     'next/server': { NextResponse: { json: (body, init) => Response.json(body, init), redirect: url => new Response(null, {status:307,headers:{Location:url}}) } },
     '@/lib/demo-data': { orders: [], tracks: [], demoUsers: [], licenseTypes: [] },
-    '@/lib/env': { env: { demoMode: false, agreementsBucket: 'agreements' }, hasSupabaseEnv: true },
+    '@/lib/env': { env: { demoMode: false, agreementsBucket: 'agreements', appUrl: 'https://app.example' }, hasSupabaseEnv: true },
     '@/services/delivery/transfer.mjs': {verifyArtifact,MAX_INLINE_BYTES},
     '@/services/delivery/server': {readPrivateArtifact: async()=>{state.storageReads++;if(options.storageFails)throw Error('private provider diagnostic');return new TextEncoder().encode(options.artifactBytes || 'fixture agreement');}},
     '@/lib/license': {}, '@/lib/utils': {},

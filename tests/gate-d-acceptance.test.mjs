@@ -89,7 +89,7 @@ async function paidOrder(db,session='cs_test_gatedfixture',intent='pi_gatedfixtu
       terms_snapshot_json,pdf_storage_path,pdf_content_type,pdf_size_bytes
     ) values(
       '${gateOrder}','${qaBuyer}','${ids.live}','${ids.license}','GATE-D-LOCAL-1','generated',
-      '{"payment":{"paymentMode":"test","commercialRightsGranted":"false"},"license":{"pricePaidCents":"5000","currency":"USD"}}'::jsonb||
+      '{"payment":{"paymentMode":"test","commercialRightsGranted":false},"license":{"pricePaidCents":"5000","currency":"USD"}}'::jsonb||
         (select jsonb_build_object('purchase',snapshot,'purchaseHash',snapshot_hash) from licensing_private.acceptances where order_id='${gateOrder}'),
       ${quote(path)},'application/pdf',100
     );

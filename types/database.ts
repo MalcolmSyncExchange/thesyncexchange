@@ -715,6 +715,12 @@ export interface Database {
       };
     };
     Functions: {
+      auth_session_is_active: { Args: Record<PropertyKey, never>; Returns: boolean };
+      license_records: { Args: { p_page?: number; p_size?: number }; Returns: Json };
+      license_record: { Args: { p_order: string }; Returns: Json };
+      license_lifecycle_command: { Args: { p_order: string; p_revision: number; p_request: string; p_action: string; p_reason: string; p_reference: string }; Returns: Json };
+      license_offer_contract: { Args: { p_track: string; p_license: string }; Returns: Json };
+      license_configure_contract: { Args: { p_track: string; p_license: string; p_expected: string; p_contract: Json; p_reference: string }; Returns: Json };
       save_artist_account_step: { Args: { p_actor: string; p_expected: string; p_step: string; p_public: Json; p_private: Json; p_avatar?: string | null; p_remove_avatar?: boolean; p_notice_version?: string | null; p_accept?: boolean }; Returns: string };
       claim_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_event: string; p_operator: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
       arm_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_operator: string; p_event: string }; Returns: { id: string; created_at: string; expires_at: string }[] };

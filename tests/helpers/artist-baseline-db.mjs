@@ -82,10 +82,14 @@ export async function applyCapturedAuthorization(db,s) {
  for(const g of s.grants.filter(g=>['anon','authenticated','service_role'].includes(g.grantee)&&(g.schema!=='storage'||['objects','buckets'].includes(g.table))))
   await db.exec(`grant ${g.privilege} on ${ident(g.schema)}.${ident(g.table)} to ${ident(g.grantee)}`);
 }
-export async function asActor(db,id,run,role='authenticated',sessionId='',assurance='aal2') {
+export async function asActor(db,id,run,role='authenticated',sessionId,assurance='aal2') {
  if(!['authenticated','anon','service_role','submission_media_broker'].includes(role)) throw Error('Unknown fixture role');
+ // An omitted Buyer session is a valid synthetic fixture. An explicitly empty
+ // session remains empty so missing-session security negatives stay meaningful.
+ const explicitSession=sessionId!==undefined;sessionId??='';
  let generatedSession=null;
- if(role==='authenticated' && !sessionId && (await db.query('select role from public.user_profiles where id=$1',[id])).rows[0]?.role==='admin') {
+ const fixtureRole=role==='authenticated'&&!sessionId?(await db.query('select role from public.user_profiles where id=$1',[id])).rows[0]?.role:null;
+ if(role==='authenticated' && !sessionId && (fixtureRole==='admin'||fixtureRole==='buyer'&&!explicitSession)) {
    generatedSession=randomUUID();sessionId=generatedSession;
    await db.query('insert into auth.sessions(id,user_id) values($1,$2)',[sessionId,id]);
  }

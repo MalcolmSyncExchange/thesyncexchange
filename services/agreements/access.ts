@@ -25,7 +25,7 @@ export async function handleAgreementAccess(request: Request, orderId: string, d
     // Cookie authentication alone is insufficient for a mutating download authorization.
     const origin = request.headers.get("origin");
     const site = request.headers.get("sec-fetch-site");
-    if (request.method !== "POST" || origin !== new URL(request.url).origin ||
+    if (request.method !== "POST" || origin !== new URL(env.appUrl).origin ||
         (site && site !== "same-origin" && site !== "none")) {
       return json({ error: "Forbidden." }, 403);
     }
@@ -57,6 +57,8 @@ export async function handleAgreementAccess(request: Request, orderId: string, d
   const role = profile?.role;
   if (role === "admin" && !(await hasPrivilegedAssurance(authSupabase))) return json({ error: "Additional authentication required." }, 403);
   if (roleError || (role !== "buyer" && role !== "admin")) return json({ error: "Forbidden." }, 403);
+  const active = await authSupabase.rpc("auth_session_is_active");
+  if (active.error || active.data !== true) return json({ error: "Forbidden." }, 403);
   const scope = await authSupabase.from("orders").select("id, buyer_user_id").eq("id", orderId).maybeSingle();
   if (scope.error || !scope.data || (role !== "admin" && scope.data.buyer_user_id !== user.id)) {
     return json({ error: "Forbidden." }, 403);

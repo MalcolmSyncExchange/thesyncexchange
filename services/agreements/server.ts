@@ -109,7 +109,7 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
     const snapshot = buildAcceptedPurchaseLicense({ accepted, agreementNumber, payment,
       paidAt: normalizedOrder.paid_at!, sessionId: normalizedOrder.stripe_checkout_session_id!, intentId: normalizedOrder.stripe_payment_intent_id! });
     htmlSnapshot = renderSyncLicenseAgreementHtml(snapshot);
-    const pdf = renderSyncLicenseAgreementPdf(snapshot);
+    const pdf = await renderSyncLicenseAgreementPdf(snapshot);
     snapshot.pdfSha256 = createHash("sha256").update(pdf).digest("hex");
     snapshot.htmlSha256 = createHash("sha256").update(htmlSnapshot).digest("hex");
     const contentType = "application/pdf";

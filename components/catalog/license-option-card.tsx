@@ -9,7 +9,7 @@ export function LicenseOptionCard({ offer, selected, onSelect }: { offer: TrackL
         aria-describedby={`${id}-summary ${id}-status`} className="mt-1 h-5 w-5 shrink-0 accent-primary" />
       <span className="min-w-0 flex-1 break-words">
         <span className="block font-semibold">{offer.name}</span>
-        <span className="mt-1 block text-sm">{formatOfferPrice(offer)} {offer.currency}</span>
+        <span className="mt-1 block text-sm">{offer.reviewedScope?.contract ? "From " : ""}{formatOfferPrice(offer)} {offer.currency}</span>
         {selected ? <span className="mt-1 block text-xs font-medium">Selected</span> : null}
       </span>
     </label>
@@ -17,6 +17,7 @@ export function LicenseOptionCard({ offer, selected, onSelect }: { offer: TrackL
     <p id={`${id}-status`} className="mt-2 text-xs text-muted-foreground">{offer.exclusive ? "Exclusive" : "Non-exclusive"}</p>
     {offer.reviewedScope?<div className="mt-3 space-y-3 border-t border-border pt-3 text-sm">
       {offer.reviewedScope.noncommercialTest?<p role="status" className="font-medium">Noncommercial synthetic test offer. No approved commercial rights.</p>:null}
+      {offer.reviewedScope.contract ? <div className="space-y-2"><p><strong>Category:</strong> {offer.reviewedScope.contract.category}</p><p><strong>Media:</strong> {offer.reviewedScope.contract.media.join(", ")}. <strong>Distribution:</strong> {offer.reviewedScope.contract.distribution.join(", ")}</p><p>Audience: {offer.reviewedScope.contract.audience}. Campaign: {offer.reviewedScope.contract.campaign}. Maximum {offer.reviewedScope.contract.maxDurationDays} days.</p><p>Renewal: {offer.reviewedScope.contract.renewal}</p><p>Termination: {offer.reviewedScope.contract.termination}</p><p>The exact usage and territory determine the reviewed transaction price before acceptance.</p></div> : null}
       <p><strong>Permitted uses:</strong> {offer.reviewedScope.uses.join(", ")}</p>
       <p><strong>Territories:</strong> {offer.reviewedScope.territories.join(", ")}</p>
       <div><strong>Included deliverables</strong><ul className="mt-1 list-inside list-disc"><li>Generated license agreement after verified fulfillment</li>{offer.reviewedScope.deliverables.map((v,i)=><li key={i}>{v.label} ({v.kind})</li>)}</ul>{!offer.reviewedScope.deliverables.length?<p className="mt-1 text-muted-foreground">Agreement-only delivery; no audio files are included in this reviewed offer.</p>:null}</div>

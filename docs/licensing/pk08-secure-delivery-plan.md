@@ -1,5 +1,8 @@
 # PK08 secure delivery — execution plan only
 
+> System 07 update (2026-10-24): the active agreement worker now embeds pinned Unicode fonts, preserves international legal names and exact accepted receipts, and checks active sessions for legal reads/assent/downloads. The prior PDF limitation described below is historical; see `docs/licensing/system07-contract.md` and `docs/licensing/system07-local-acceptance.md`. Commercial legal approval and hosted/formal acceptance remain outstanding.
+
+
 Status 2026-10-22: the subsequent founder implementation directive authorizes
 the local candidate described in [PK08 implementation](pk08-secure-delivery.md).
 This original plan remains the architecture baseline; hosted changes remain unapproved.

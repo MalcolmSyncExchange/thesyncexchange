@@ -1,3 +1,5 @@
+import {renderUnicodeAgreementPdf} from "../lib/licenses/templates/unicode-agreement-pdf.ts";
+import {parsePdf} from "./helpers/pdf-text.mjs";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -203,16 +205,16 @@ test('agreement builder uses only immutable accepted facts and preserves exact t
  const s=buildAcceptedPurchaseLicense({accepted,agreementNumber:'SYNTHETIC',paidAt:new Date().toISOString(),sessionId:'cs_test_legalfixture',intentId:'pi_legalfixture',payment:{paymentMode:'test',releaseMode:'local',livemode:false,commercialRightsGranted:false}});
  assert.deepEqual(s.purchase,accepted.snapshot);assert.equal(s.purchaseHash,accepted.hash);assert.match(s.licensor.entityName,/Synthetic Rights master/);assert.doesNotMatch(s.licensor.entityName,/The Sync Exchange/);
  assert.equal(s.payment.commercialRightsGranted,false);assert.equal(s.purchase.terms.body,terms.body);
- const {renderSyncLicenseAgreementHtml,renderSyncLicenseAgreementPdf}=moduleAt('lib/licenses/templates/sync-license-template.ts',{'../../utils.ts':{formatCurrency:(c)=>String(c)}});
- const html=renderSyncLicenseAgreementHtml(s),pdf=renderSyncLicenseAgreementPdf(s);
- assert.match(html,/Exact accepted legal document/);assert.ok(html.includes(terms.body));assert.ok(Buffer.from(pdf).toString().includes('SYNTHETIC-TERMS-1'));assert.equal(createHash('sha256').update(pdf).digest('hex').length,64);
+ const {renderSyncLicenseAgreementHtml,renderSyncLicenseAgreementPdf}=moduleAt('lib/licenses/templates/sync-license-template.ts',{'./unicode-agreement-pdf.ts':{renderUnicodeAgreementPdf},'../../utils.ts':{formatCurrency:(c)=>String(c)}});
+ const html=renderSyncLicenseAgreementHtml(s),pdf=await renderSyncLicenseAgreementPdf(s);
+ assert.match(html,/Exact accepted legal document/);assert.ok(html.includes(terms.body));assert.ok((await parsePdf(pdf)).text.includes('SYNTHETIC-TERMS-1'));assert.equal(createHash('sha256').update(pdf).digest('hex').length,64);
 }));
 test('Unicode party identity and hostile text remain exact in the receipt and escaped in rendered artifacts',()=>fixture(async db=>{
  const q=await newQuote(db,ids.buyer,{party:{...buyerParty,legalName:'Café <script>alert(1)</script>'}});const o=await acceptQuote(db,q);const accepted=await call(db,'read_accepted_purchase',[o.id]);
  const {buildAcceptedPurchaseLicense}=moduleAt('lib/licenses/accepted-purchase-snapshot.ts');
  const s=buildAcceptedPurchaseLicense({accepted,agreementNumber:'UNICODE',paidAt:new Date().toISOString(),sessionId:'cs_test_fixture',intentId:'pi_fixture',payment:{paymentMode:'test',releaseMode:'local',livemode:false,commercialRightsGranted:false}});
- const {renderSyncLicenseAgreementHtml,renderSyncLicenseAgreementPdf}=moduleAt('lib/licenses/templates/sync-license-template.ts',{'../../utils.ts':{formatCurrency:String}});
- const html=renderSyncLicenseAgreementHtml(s),pdf=Buffer.from(renderSyncLicenseAgreementPdf(s)).toString();
+ const {renderSyncLicenseAgreementHtml,renderSyncLicenseAgreementPdf}=moduleAt('lib/licenses/templates/sync-license-template.ts',{'./unicode-agreement-pdf.ts':{renderUnicodeAgreementPdf},'../../utils.ts':{formatCurrency:String}});
+ const html=renderSyncLicenseAgreementHtml(s),pdf=(await parsePdf(await renderSyncLicenseAgreementPdf(s))).text;
  assert.equal(s.purchase.buyer.legalName,'Café <script>alert(1)</script>');assert.ok(!html.includes('<script>alert(1)</script>'));assert.ok(html.includes('Café &lt;script&gt;'));
- assert.ok(pdf.includes('u00e9'));assert.equal(s.purchase.documentSha256,createHash('sha256').update(terms.body).digest('hex'));
+ assert.ok(pdf.includes('Café'));assert.equal(s.purchase.documentSha256,createHash('sha256').update(terms.body).digest('hex'));
 }));

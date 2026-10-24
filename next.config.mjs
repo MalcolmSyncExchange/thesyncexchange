@@ -35,6 +35,8 @@ export default function nextConfig(phase) {
       TSE_BUILD_PREVIEW_PAYMENT_MODE: resolveDeploymentTarget(process.env) === "preview"
         ? process.env.SYNC_EXCHANGE_PAYMENT_MODE || "" : ""
     },
+    serverExternalPackages: ["pdfkit"],
+    outputFileTracingIncludes: { "/*": ["./assets/license-fonts/**/*", "./public/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png", "./public/brand/the-sync-exchange/watermark/Watermark.png"] },
     images: {
       remotePatterns,
       qualities: [75, 90]

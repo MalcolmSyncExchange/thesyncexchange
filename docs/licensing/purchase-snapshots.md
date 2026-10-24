@@ -1,5 +1,8 @@
 # PK03/PK06 purchase-time rights and legal acceptance
 
+> System 07 update (2026-10-24): the active agreement worker now embeds pinned Unicode fonts, preserves international legal names and exact accepted receipts, and checks active sessions for legal reads/assent/downloads. The prior PDF limitation described below is historical; see `docs/licensing/system07-contract.md` and `docs/licensing/system07-local-acceptance.md`. Commercial legal approval and hosted/formal acceptance remain outstanding.
+
+
 Local candidate based on PK07 commits d1724da, b7f0146 and 0435cff and the accepted
 October 21 blueprint. No hosted change or commercial activation is authorized.
 

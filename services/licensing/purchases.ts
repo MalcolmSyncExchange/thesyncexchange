@@ -1,7 +1,16 @@
 import type { AppSupabaseClient } from "@/services/supabase/types";
 
 export type LegalParty = { legalName: string; entityType: "individual" | "company"; jurisdiction: string; address: string; registrationNumber?: string; userId?: string; id?: string };
+export type LicenseContract = {
+  version: string; category: string; media: string[]; distribution: string[]; audience: string; campaign: string;
+  restrictions: string[]; maxDurationDays: number; exclusive: boolean; renewal: string; termination: string;
+  approval: { mode: "synthetic" | "approved"; reference: string };
+  pricing: { version: string; currency: "USD"; sellerTier: string; basePriceCents: number; commissionBps: number;
+    rules: Array<{ id: string; use: string; territory: string; amountCents: number; discountCents: number; approvalReference: string }> };
+};
 export type PurchaseSchedule = {
+  licenseContract?: LicenseContract;
+  pricingEvidence?: { contractHash: string; policy: LicenseContract["pricing"]; rule: LicenseContract["pricing"]["rules"][number]; inputs: Record<string, unknown>; rounding: string; amountCents: number; currency: string };
   schemaVersion: "TSE-PURCHASE-1";
   buyer: LegalParty & { userId: string; email: string; representative: string; capacity: string };
   seller: LegalParty & { userId: string };
@@ -13,6 +22,7 @@ export type PurchaseSchedule = {
   terms: { version: string; body: string; platformRole: string; approvalReference: string; requiredConsents: string[]; acceptUntil: string; issueUntil: string };
   termsHash: string; documentSha256: string; amountCents: number; currency: string;
   financial: { policyVersion: string; commissionBps: number; platformFeeCents: number; allocations: Array<{ partyId: string; bps: number; amountCents: number }> };
+  catalogEvidence?: { versionId: string; decisionId: string; metadata: { artist: string; title: string; credits: Array<{name: string; role: string}>; [key: string]: unknown }; metadataHash: string; contextHash: string };
   sourceEvidence?: { id: string; hash: string; reviewedAt: string; reviewedBy: string; reviewReference: string; snapshot: { submissionId: string; masterId: string; masterVersion: string; masterSha256: string; masterReviewId: string } };
   deliveryManifest?: Array<{ assetVersionId: string; kind: string; label: string; objectVersion: string; sha256: string; byteSize: number; mimeType: string }>;
   orderId?: string; quoteId?: string; quotedAt?: string;

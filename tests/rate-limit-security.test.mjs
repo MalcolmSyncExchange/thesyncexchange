@@ -1,3 +1,4 @@
+import * as zod from "zod";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -13,7 +14,7 @@ const otherId = "87654321-1234-1234-1234-123456789abc";
 const licenseTypeId = "11111111-1111-4111-8111-111111111111";
 const trustedTrack = { id: "track", title: "Track", slug: "track", status: "approved", preview_file_path: "fixture-preview", license_options: [{ id: licenseTypeId, track_license_option_id: otherId, active: true, offer_active: true, amount_cents: 120000, name: "Digital", slug: "digital-campaign", base_price: 1200, exclusive: false, description: "Approved description", terms_summary: "Approved usage" }] };
 const offers = load("services/orders/license-offers.ts", {
-  "@/lib/env": { env: { demoMode: false } }, "./checkout-pricing": { CHECKOUT_CURRENCY: "USD" },
+  "@/lib/env": { env: { demoMode: false, appUrl: "https://example.invalid" } }, "./checkout-pricing": { CHECKOUT_CURRENCY: "USD" },
   "@/services/auth/session": {}, "@/services/buyer/queries": {}
 });
 const resetAt = "2030-01-01T00:01:00.000Z";
@@ -31,8 +32,10 @@ function loadModule(path, stubs) {
   const loadedModule = { exports: {} };
   runInNewContext(outputText, {
     module: loadedModule, exports: loadedModule.exports, Response, Request, FormData, File,
-    AbortSignal, URL, crypto: webcrypto, process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
+    AbortSignal, URL, Buffer, TextDecoder, setTimeout, clearTimeout, crypto: webcrypto, process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
     require(name) {
+      if (name === "zod") return zod;
+      if (name === "@/services/orders/payment-request") return loadModule("services/orders/payment-request.ts", stubs);
       if (name === "@/services/auth/security") return authSecurity;
       assert.ok(Object.hasOwn(stubs, name), `Unmocked dependency: ${name}`);
       return stubs[name];
@@ -78,7 +81,7 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     rpc:async()=>({data:true,error:null}),
     from(table) {
       let mutation = false, selected = "";
-      const result = () => ({ data: mutation ? { id: "new-order" } : table === "orders" && selected === "id, buyer_user_id" ? { id: "order", buyer_user_id: owner } : null, error: null });
+      const result = () => ({ data: mutation ? { id: "new-order" } : table === "orders" && selected.startsWith("id,buyer_user_id") ? { id: otherId, buyer_user_id: owner, status:"pending" } : null, error: null });
       const query = {
         select(fields) { selected = fields; return query; }, eq() { return query; }, order() { return query; }, limit() { return query; },
         maybeSingle: async () => result(), single: async () => result(),
@@ -110,7 +113,7 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     "next/cache": { revalidatePath() {} },
     "next/headers": { cookies: async () => ({ get: () => undefined }) },
     "next/navigation": { redirect, unstable_rethrow(e) { if (e.digest === "NEXT_REDIRECT") throw e; } },
-    "@/lib/env": { env: { demoMode: false }, hasSupabaseEnv: true },
+    "@/lib/env": { env: { demoMode: false, appUrl: "https://example.invalid" }, hasSupabaseEnv: true },
     "@/lib/maintenance-mode.mjs": { resolveMaintenanceMode: () => ({ blocksApplication: false }) },
     "@/lib/server-env": {
       assertStripeServerConfiguration() {},
@@ -145,7 +148,7 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     "@/services/orders/checkout-recovery": { hasFrozenCheckoutAttempt: async () => false },
     "@/services/licensing/purchases": {
       readPurchaseQuote: async () => ({schedule:{track:{id:"track"},license:{id:licenseTypeId}}}),
-      assertAcceptedPurchase: async () => ({snapshot:{amountCents:120000}}),
+      assertAcceptedPurchase: async () => { if(pricingError) throw Error("Invalid rights"); return {snapshot:{buyer:{userId},track:{id:"track",title:"Track"},license:{id:licenseTypeId,name:"Digital",slug:"digital-campaign"},amountCents:120000,currency:"USD"}}; },
       acceptPurchaseQuote: async () => {
       const id = webcrypto.randomUUID();
       events.push("orders:insert");
@@ -188,9 +191,9 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
 }
 
 const jsonRequest = body => new Request("https://example.invalid/api", {
-  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  method: "POST", headers: { "Content-Type": "application/json", Origin:"https://example.invalid" }, body: JSON.stringify(body)
 });
-const checkoutRequest = () => jsonRequest({ orderId: "order", userId: otherId, amountCents: 1 });
+const checkoutRequest = () => jsonRequest({ orderId: otherId });
 const uploadRequest = () => jsonRequest({ kind: "cover-art", scope: "draft", fileName: "cover.png", fileSize: 10, userId: otherId });
 function orderForm() {
   const form = new FormData();

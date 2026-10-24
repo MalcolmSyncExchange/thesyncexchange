@@ -12,7 +12,7 @@ function request(id){return {mode:'payment',client_reference_id:id,metadata:{ord
 const claim=(db,id,params=request(id))=>call(db,'claim_checkout_attempt',[id,scope,params]);
 const finish=(db,id,token,session,outcome)=>call(db,'finish_checkout_attempt',[id,token,session,outcome]);
 async function fixture(run){const db=await database();try{await seedLegalReview(db);await run(db);}finally{await db.close();}}
-function recovery(){const mod={exports:{}};vm.runInNewContext(ts.transpileModule(source('services/orders/checkout-recovery.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:mod.exports,module:mod,require:n=>{if(n==='@/services/licensing/purchases')return{assertAcceptedPurchase:async(client,id)=>{const r=await client.rpc('assert_accepted_purchase',{p_order:id});if(r.error)throw Error('Checkout recovery is unavailable.');return r.data;}};assert.equal(n,'node:crypto');return{createHash};}});return mod.exports;}
+function recovery(){const mod={exports:{}};vm.runInNewContext(ts.transpileModule(source('services/orders/checkout-recovery.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:mod.exports,module:mod,URL,require:n=>{if(n==='@/services/licensing/purchases')return{assertAcceptedPurchase:async(client,id)=>{const r=await client.rpc('assert_accepted_purchase',{p_order:id});if(r.error)throw Error('Checkout recovery is unavailable.');return r.data;}};assert.equal(n,'node:crypto');return{createHash};}});return mod.exports;}
 function client(db){return {rpc:async(name,args)=>{try{return {data:await call(db,name,Object.values(args)),error:null};}catch(e){return{data:null,error:{message:e.message}};}}};}
 
 test('reservation retries share one pending order and refuse intentional repeats without review',()=>fixture(async db=>{
@@ -136,4 +136,10 @@ test('unmapped refund/dispute inbox is durable and blocks later paid issuance be
  await assert.rejects(call(db,'claim_order_agreement_job',[id]),/Paid unheld/);
  assert.equal((await db.query('select count(*)::int n from generated_licenses')).rows[0].n,0);
  await assert.rejects(db.exec('delete from checkout_recovery.adverse_inbox'),/append only/);
+}));
+
+test('provider checkout URLs cannot redirect the buyer to an untrusted origin',()=>fixture(async db=>{
+ const {id}=await reserve(db),stripe={checkout:{sessions:{create:async(p)=>({id:'cs_test_url',livemode:false,status:'open',payment_status:'unpaid',url:'https://evil.invalid/checkout',client_reference_id:id,metadata:p.metadata,amount_total:5000,currency:'usd',expires_at:p.expires_at})}}};
+ await assert.rejects(recovery().recoverableCheckout({client:client(db),stripe,secretKey:'SYNTHETIC',params:request(id)}),/authorization could not be verified/);
+ assert.equal((await db.query('select status from orders')).rows[0].status,'pending');assert.equal((await db.query('select count(*)::int n from generated_licenses')).rows[0].n,0);
 }));

@@ -149,7 +149,7 @@ async function runWebhookRoute(livemode) {
     module: routeModule,
     exports: routeModule.exports,
     Response,
-    Request,
+    Request,Buffer,TextDecoder,
     console,
     process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
     require(name) {

@@ -20,7 +20,7 @@ const plain=value=>JSON.parse(JSON.stringify(value));
 function load(path,stubs,variables={}) {
  const loadedModule={exports:{}};
  vm.runInNewContext(ts.transpileModule(source(path),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{
-  module:loadedModule,exports:loadedModule.exports,Request,Response,URL,Error,AbortSignal,crypto:webcrypto,
+  module:loadedModule,exports:loadedModule.exports,Request,Response,URL,Error,Buffer,TextDecoder,AbortSignal,crypto:webcrypto,
   process:{env:variables},fetch(){throw Error('Network forbidden');},console:{warn(){},error(){},info(){}},
   require(name){assert.ok(Object.hasOwn(stubs,name),`Unmocked dependency: ${name}`);return stubs[name];}
  },{filename:path});
@@ -154,7 +154,8 @@ test('A: initial signed payment persists verified evidence before one durable pu
  assert.equal((await h.send(h.sign(h.event))).status,200,JSON.stringify(h.controls.lastResponse));
  await assertOnePurchase(h);
  assert.ok(h.controls.calls.indexOf('record_purchase_completion_event')<h.controls.calls.indexOf('get_analytics_verified_purchase'));
- assert.ok(h.controls.catalogReads>0,'first payment still checks catalog');
+ assert.equal(h.controls.catalogReads,0,'signed payment retention uses immutable order facts; licensing independently verifies current rights');
+ assert.ok(h.controls.calls.indexOf('record_verified_checkout_payment')<h.controls.calls.indexOf('agreement'),'signed payment is durable before rights-sensitive issuance');
 }));
 for(const [label,sql] of [
  ['B: price changes',`update track_license_options set price_cents=9500 where track_id='${ids.live}'`],

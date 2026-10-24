@@ -48,10 +48,8 @@ test("compliance flag action keeps authorization database-backed without metadat
   assert.doesNotMatch(complianceActionSource, /app_metadata\?\.role|app_metadata\.role/);
 });
 
-test("admin order controls cannot manufacture paid or fulfilled status without matching Stripe evidence", () => {
-  const evidenceCheck = indexOfOrFail(orderStatusActionSource, /!order\.paid_at \|\| !order\.stripe_payment_intent_id \|\| sessionMode !== runtime\.paymentMode/, "Stripe evidence gate");
-  const mutation = indexOfOrFail(orderStatusActionSource, /if \(status === "fulfilled"\)/, "status mutation");
-  assert.ok(evidenceCheck < mutation);
-  assert.doesNotMatch(orderStatusActionSource, /paid_at:\s*order\.paid_at \|\| now/);
-  assert.match(orderStatusActionSource, /getPaymentActivityMetadata\(\)/);
+test("admin order controls cannot manufacture payment refunds or fulfillment", () => {
+  assert.match(orderStatusActionSource, /requireAdminActorId/);
+  assert.match(orderStatusActionSource, /Payment status cannot be edited/);
+  assert.doesNotMatch(orderStatusActionSource, /updateOrderStatusCompat|generateAgreementArtifactForOrder|\.update\(/);
 });

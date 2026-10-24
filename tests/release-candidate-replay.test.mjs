@@ -20,14 +20,15 @@ test('release candidate clean native replay installs every source migration in o
   await sql(fixtureBootstrapSql+'\n'+nativeCryptoBootstrapSql);
   const files=(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')).sort();
   for(const file of files){await sql(source('supabase/migrations/'+file));t.diagnostic('Applied exact source '+file);}
-  assert.equal(files.length,60);
-  assert.equal(files.at(-7),'20261024021823_system01_authentication_guards.sql');
-  assert.equal(files.at(-6),'20261024032018_system02_artist_account.sql');
-  assert.equal(files.at(-5),'20261024035806_system03_music_uploads.sql');
-  assert.equal(files.at(-4),'20261024044101_system04_rights_verification.sql');
-  assert.equal(files.at(-3),'20261024060044_system05_catalog_management.sql');
-  assert.equal(files.at(-2),'20261024070934_system06_buyer_marketplace.sql');
-  assert.equal(files.at(-1),'20261024080855_system07_licensing.sql');
+  assert.equal(files.length,61);
+  assert.equal(files.at(-8),'20261024021823_system01_authentication_guards.sql');
+  assert.equal(files.at(-7),'20261024032018_system02_artist_account.sql');
+  assert.equal(files.at(-6),'20261024035806_system03_music_uploads.sql');
+  assert.equal(files.at(-5),'20261024044101_system04_rights_verification.sql');
+  assert.equal(files.at(-4),'20261024060044_system05_catalog_management.sql');
+  assert.equal(files.at(-3),'20261024070934_system06_buyer_marketplace.sql');
+  assert.equal(files.at(-2),'20261024080855_system07_licensing.sql');
+  assert.equal(files.at(-1),'20261024094011_system08_checkout_payments.sql');
   assert.equal((await sql("select count(*) from pg_extension where extname='pgcrypto'")),'1');
   assert.equal((await sql("select to_regprocedure('public.digest(text,text)') is null")),'t');
   assert.equal((await sql("select current_setting('listen_addresses')=''")),'t');

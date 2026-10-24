@@ -132,7 +132,7 @@ export async function createStripeCheckoutSession({
       }
     },
     success_url: `${getOrderConfirmationUrl(orderId)}?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${env.appUrl}/buyer/checkout/${trackSlug}?error=${encodeURIComponent("Checkout was canceled before payment was completed.")}`
+    cancel_url: `${env.appUrl}/buyer/orders/${orderId}?checkout=canceled`
   }});
 
   assertStripeRuntimeObject("Stripe Checkout Session creation", {
@@ -178,22 +178,16 @@ export async function syncOrderFromStripeSession({
   try {
     const existingOrder = await loadOrderForStripeSync(supabase, orderId);
     if (!existingOrder) throw new Error("Order not found for Stripe fulfillment.");
+    // Payment authority comes from the signed provider event bound to the
+    // immutable order, never today's catalog price/publication. Retain it even
+    // when current rights subsequently prevent agreement issuance.
+    assertStripeSessionMatchesTrustedCheckout({ order: existingOrder,
+      amountCents: existingOrder.amount_cents, currency: existingOrder.currency as "USD" }, session);
+    await retainVerifiedCheckoutPayment(supabase, orderId, verifiedEvent, serverEnv.stripeSecretKey!);
     let canonicalReplay = false;
     if (foundationRecording && existingOrder.paid_at && ["paid", "fulfilled", "refunded"].includes(existingOrder.status)) {
-      // A durable signed-payment contract remains authoritative after catalog
-      // changes. Activity alone never qualifies a replay or skips artifact recovery.
-      assertStripeSessionMatchesTrustedCheckout({order: existingOrder,
-        amountCents: existingOrder.amount_cents, currency: existingOrder.currency as "USD"}, session);
       const retained = await recordVerifiedPurchaseCompletionEvent(orderId, verifiedEvent);
       canonicalReplay = retained?.enabled === true;
-    }
-    if (!canonicalReplay) {
-      const trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
-      if (!trustedCheckout) throw new Error("Order not found for Stripe fulfillment.");
-      assertStripeSessionMatchesTrustedCheckout({ ...trustedCheckout,
-        amountCents: Number(trustedCheckout.order.amount_cents),
-        order: {...trustedCheckout.order, stripe_checkout_session_id: existingOrder.stripe_checkout_session_id}
-      }, session);
     }
 
     const paymentIntentId =
@@ -211,7 +205,7 @@ export async function syncOrderFromStripeSession({
           ? "paid"
           : existingOrder.status;
 
-    await retainVerifiedCheckoutPayment(supabase, orderId, verifiedEvent, serverEnv.stripeSecretKey!);
+
 
     const data = await persistStripeSyncState(supabase, orderId, {
       stripe_checkout_session_id: existingOrder.stripe_checkout_session_id || session.id,
@@ -635,4 +629,15 @@ export async function expireOrderCheckout(orderId: string, session: Stripe.Check
   const client = createAdminSupabaseClient();
   if (!client) throw new Error("Checkout expiration recovery is unavailable.");
   await expireCheckoutAttempt(client, orderId, session.id);
+}
+
+// Preserve the provider's dispute lifecycle type; a won/closed event alone does
+// not restore access. Financial balances are reconciled by the existing worker.
+export async function retainOrderDisputeLifecycle(verifiedEvent: VerifiedStripePaymentEvidence) {
+  const client = createAdminSupabaseClient(); if (!client || !serverEnv.stripeSecretKey) throw Error("Dispute recovery unavailable.");
+  await retainAdverseCheckoutPayment(client, verifiedEvent, serverEnv.stripeSecretKey);
+  const {data, error} = await client.from("orders").select("id").eq("stripe_payment_intent_id", verifiedEvent.paymentIntentId).maybeSingle();
+  if(error || !data) throw Error("Dispute requires canonical order reconciliation.");
+  await retainVerifiedCheckoutPayment(client, data.id, verifiedEvent, serverEnv.stripeSecretKey);
+  return data.id;
 }

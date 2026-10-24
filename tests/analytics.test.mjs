@@ -1,3 +1,4 @@
+import * as zod from "zod";
 import * as authSecurity from "../services/auth/security.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,7 +25,7 @@ const plain = x => JSON.parse(JSON.stringify(x));
 function load(path, stubs = {}, globals = {}) {
   const loadedModule = { exports: {} };
   const code = ts.transpileModule(source(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  runInNewContext(code, { module: loadedModule, exports: loadedModule.exports, Request, Response, FormData, File, URL, TextDecoder, AbortSignal, crypto: webcrypto, console: { warn() {}, info() {}, error() {} },
+  runInNewContext(code, { module: loadedModule, exports: loadedModule.exports, Request, Response, FormData, File, URL, TextDecoder, Buffer, setTimeout, clearTimeout, AbortSignal, crypto: webcrypto, console: { warn() {}, info() {}, error() {} },
     fetch: async () => { throw Error('Unmocked network forbidden'); }, process: { env: {} }, require: name => Object.hasOwn(stubs, name) ? stubs[name] : require(name), ...globals }, { filename: path });
   return loadedModule.exports;
 }
@@ -216,7 +217,7 @@ test('disabled analytics performs no authentication, outbox write, claim or tran
 
 function actorHarness({user={id,user_metadata:{role:'admin'},app_metadata:{role:'admin'},factors:[{status:'verified'}]},role='buyer',profileExists=true,profileError=false,enabled=true}={}) {
  const events=[];const reads=[];
- const db={auth:{getUser:async()=>({data:{user}}),mfa:{getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:'aal2'},error:null})}},rpc:async()=>({data:true,error:null}),from(table){reads.push(table);return {select(columns){assert.equal(columns,'role');return this;},eq(column,value){reads.push([column,value]);return this;},maybeSingle:async()=>({data:profileExists?{role}:null,error:profileError?{}:null})};}};
+ const db={rpc:async()=>({data:true,error:null}),auth:{getUser:async()=>({data:{user}}),mfa:{getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:'aal2'},error:null})}},rpc:async()=>({data:true,error:null}),from(table){reads.push(table);return {select(columns){assert.equal(columns,'role');return this;},eq(column,value){reads.push([column,value]);return this;},maybeSingle:async()=>({data:profileExists?{role}:null,error:profileError?{}:null})};}};
  const actor=load('services/analytics/actor.ts',{'@/services/auth/security':authSecurity,'server-only':{},'@/services/supabase/server':{createServerSupabaseClient:async()=>db},'@/services/supabase/admin':{createAdminSupabaseClient:()=>db},'@/lib/analytics/schema':schema,'./server':{analyticsConfig:()=>enabled?cfg:null,captureEvent:async(...args)=>events.push(args)}});
  return {actor,events,reads};
 }
@@ -291,10 +292,10 @@ test('onboarding first interaction dedupes within mount; no render-only event',(
 function checkoutHarness({persistFailure=false,prepareFailure=false,sessionFailure=false,sessionChange={},role='buyer',authenticated=true,trackAvailable=true,paymentAvailable=true}={}) {
  const events=[];const captures=[];let boundOrderId=orderId;
  const redirect=url=>{const e=Error('redirect');e.url=url;e.digest='NEXT_REDIRECT';throw e;};
- const db={auth:{getUser:async()=>({data:{user:authenticated?{id,email:'private@example.com'}:null}})},from(table){
+ const db={rpc:async()=>({data:true,error:null}),auth:{getUser:async()=>({data:{user:authenticated?{id,email:'private@example.com'}:null}})},from(table){
   let op='read',selected='';const q={select(v){selected=v;return q;},eq(){return q;},order(){return q;},limit(){return q;},
    insert(v){op='insert';if(table==='orders')boundOrderId=v.id;return q;},update(){op='update';return q;},delete(){op='delete';return q;},
-   maybeSingle:async()=>({data:selected==='id, buyer_user_id'?{id:orderId,buyer_user_id:id}:null}),
+   maybeSingle:async()=>({data:selected.startsWith('id,buyer_user_id')?{id:orderId,buyer_user_id:id,status:'pending'}:null}),
    single:async()=>{events.push(op);return {data:{id:boundOrderId}};},
    then(resolve){events.push(op);return Promise.resolve({error:persistFailure&&op==='update'?{message:'private database error'}:null}).then(resolve);}};return q;}};
  const captureForUser=async(...args)=>{events.push(args[1]);captures.push(args);};
@@ -307,16 +308,16 @@ function checkoutHarness({persistFailure=false,prepareFailure=false,sessionFailu
   '@/services/analytics/checkout':analytics,'@/services/analytics/actor':{captureForUser},
   '@/services/orders/license-offers':offers,'@/lib/licenses/selection':selection,
   'next/cache':{revalidatePath(){}},'next/headers':{cookies:async()=>({})},'next/navigation':{redirect,unstable_rethrow(e){if(e.digest==='NEXT_REDIRECT')throw e;}},'next/server':{NextResponse:{json:Response.json}},
-  '@/lib/env':{env:{demoMode:false},hasSupabaseEnv:true},'@/lib/server-env':serverEnv,
+  '@/lib/env':{env:{demoMode:false,appUrl:'https://app.invalid'},hasSupabaseEnv:true},'@/lib/server-env':serverEnv,
   '@/lib/payment-mode.mjs':{canReusePendingOrderForPaymentMode:()=>false,getStripeCheckoutSessionMode:()=> 'test'},'@/lib/license':{},
   '@/services/orders/checkout-recovery':{hasFrozenCheckoutAttempt:async()=>false},
   '@/services/licensing/purchases':{
     readPurchaseQuote:async(_db,q)=>{if(q!=='quote_fixture')throw Error('missing quote');return {schedule:{track:{id:other},license:{id:orderId}}};},
     acceptPurchaseQuote:async(_db,form)=>{if(form.get('transactionAcceptance')!=='accepted'||form.get('quoteHash')!=='accepted_hash')throw Error('missing exact assent');events.push('insert');return {id:orderId,created_new:true,amount_cents:100,currency:'USD'};},
-    assertAcceptedPurchase:async()=>({snapshot:{amountCents:100}})
+    assertAcceptedPurchase:async()=>({snapshot:{amountCents:100,currency:'USD',buyer:{userId:id},track:{id:other,title:'Frozen'},license:{id:orderId,name:'Broadcast',slug:'broadcast'}}})
   },
   '@/services/orders/activity':{appendOrderActivityLog:async()=>{}},
-  '@/services/stripe/server':{createStripeCheckoutSession:async args=>{events.push('stripe');assert.equal(args.amountCents,100);if(sessionFailure)throw Error('private Stripe response');return {id:'cs_test_fixture',url:'https://checkout.stripe.com/c/pay/test',livemode:false,client_reference_id:args.orderId,...sessionChange};}},
+  '@/services/stripe/server':{createStripeCheckoutSession:async args=>{events.push('stripe');assert.equal(args.amountCents,100);if(sessionFailure)throw Error('private Stripe response');if(persistFailure)throw Error('private frozen session persistence error');events.push('update');return {id:'cs_test_fixture',url:'https://checkout.stripe.com/c/pay/test',livemode:false,client_reference_id:args.orderId,...sessionChange};}},
   '@/services/purchase-completion/server':{preparePurchaseCompletionCheckout:async()=>{events.push('evidence-prepared');if(prepareFailure)throw Error('private preparation error');}},
   '@/services/auth/user-profiles':{selectUserProfileCompat:async()=>({data:{role}})},'@/services/auth/session':{resolveRoleRedirect:()=>'/login'},
   '@/services/supabase/privileged':{createPrivilegedSupabaseClient:async()=>db},'@/services/supabase/server':{createServerSupabaseClient:async()=>db},'@/services/supabase/schema-compat':{isMissingColumnError:()=>false},
@@ -325,8 +326,9 @@ function checkoutHarness({persistFailure=false,prepareFailure=false,sessionFailu
   '@/services/security/rate-limit':{consumeRateLimit:async()=>({status:'allowed'}),rateLimitErrorResponse:()=>null}
  };
  const action=load('services/buyer/actions.ts',stubs).createOrderAction;
+ stubs.zod=zod;stubs['@/lib/maintenance-mode.mjs']={resolveMaintenanceMode:()=>({blocksApplication:false})};stubs['@/services/orders/payment-request']=load('services/orders/payment-request.ts',stubs);
  const POST=load('app/api/checkout/route.ts',stubs).POST;
- return {events,captures,async action(overrides={}){const form=new FormData();for(const [k,v] of Object.entries({quoteId:'quote_fixture',quoteHash:'accepted_hash',transactionAcceptance:'accepted',trackId:other,trackSlug:'synthetic',licenseTypeId:orderId,reviewRevision:revision,reviewConfirmed:'on',price:'0.01',currency:'EVIL',licenseSelection:orderId+'|0.01',...overrides}))form.set(k,v);try{await action(form);}catch(e){assert.equal(e.digest,'NEXT_REDIRECT');}},async api(){try{return await POST(new Request('https://app.invalid/api/checkout',{method:'POST',body:JSON.stringify({orderId})}));}catch(e){if(!sessionFailure)throw e;}}};
+ return {events,captures,async action(overrides={}){const form=new FormData();for(const [k,v] of Object.entries({quoteId:'quote_fixture',quoteHash:'accepted_hash',transactionAcceptance:'accepted',trackId:other,trackSlug:'synthetic',licenseTypeId:orderId,reviewRevision:revision,reviewConfirmed:'on',price:'0.01',currency:'EVIL',licenseSelection:orderId+'|0.01',...overrides}))form.set(k,v);try{await action(form);}catch(e){assert.equal(e.digest,'NEXT_REDIRECT');}},async api(){try{return await POST(new Request('https://app.invalid/api/checkout',{method:'POST',headers:{origin:'https://app.invalid','content-type':'application/json'},body:JSON.stringify({orderId})}));}catch(e){if(!sessionFailure)throw e;}}};
 }
 test('current marketplace action and API capture only after Stripe and successful session persistence',async()=>{
  for(const method of ['action','api']) {

@@ -21,6 +21,7 @@ import {
   runGateDAcceptanceJobs
 } from "@/services/gate-d/server";
 import {
+  retainOrderDisputeLifecycle,
   expireOrderCheckout,
   getStripeServerClient,
   markOrderCheckoutSessionPaymentFailed,
@@ -67,18 +68,17 @@ export async function POST(request: Request) {
 
   let payload: string;
   try {
-    payload = process.env.SYNC_EXCHANGE_FINANCIAL_INGESTION_ENABLED === "true"
-      ? await readBoundedFinancialPayload(request) : await request.text();
+    payload = await readBoundedFinancialPayload(request);
   } catch { return NextResponse.json({ error: "Webhook payload exceeds the supported limit." }, { status: 413 }); }
 
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(payload, signature, serverEnv.stripeWebhookSecret!);
   } catch (error) {
-    console.warn("[stripe webhook] signature verification failed", error instanceof Error ? error.message : error);
+    console.warn("[stripe webhook] signature verification failed");
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unable to verify Stripe webhook signature."
+        error: "Unable to verify Stripe webhook signature."
       },
       { status: 400 }
     );
@@ -111,7 +111,10 @@ export async function POST(request: Request) {
         await captureFinancialWebhook(payload, signature);
       } catch { financialCaptureFailed = true; }
     }
-    switch (event.type) {
+    if (["refund.created", "refund.updated", "refund.failed"].includes(event.type)) {
+      const { retainRefundObservation } = await import("@/services/orders/refund-observations");
+      await retainRefundObservation(event, evidenceSha256, providerCreatedAt);
+    } else switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -304,6 +307,15 @@ export async function POST(request: Request) {
         }
         break;
       }
+      case "charge.dispute.updated":
+      case "charge.dispute.closed":
+      case "charge.dispute.funds_withdrawn":
+      case "charge.dispute.funds_reinstated": {
+        const d = event.data.object as Stripe.Dispute;
+        const id = await retainOrderDisputeLifecycle({providerEventId:event.id,eventType:event.type,paymentState:"DISPUTED",paymentIntentId:stripeIdentity(d.payment_intent),amountMinor:d.amount,refundedMinor:0,currency:d.currency,evidenceSha256,providerCreatedAt,livemode:event.livemode});
+        revalidateBuyerOrderPaths(id);
+        break;
+      }
       case "charge.dispute.created": {
         const dispute = event.data.object as Stripe.Dispute;
         const paymentIntentId = stripeIdentity(dispute.payment_intent);
@@ -348,7 +360,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Stripe webhook fulfillment failed."
+        error: "Stripe webhook processing requires retry."
       },
       { status: 500 }
     );

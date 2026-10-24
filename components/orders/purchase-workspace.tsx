@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PaymentPanel } from "@/components/orders/payment-panel";
 import Image from "next/image";
 import {
   ArrowLeft,
@@ -268,7 +269,7 @@ export function PurchaseEmpty({ filtered = false }: { filtered?: boolean }) {
     />
   );
 }
-export function PurchaseDetail({ purchase: p, assets = [], assetsUnavailable = false }: { purchase: Purchase; assets?: BuyerAsset[]; assetsUnavailable?: boolean }) {
+export function PurchaseDetail({ purchase: p, assets = [], assetsUnavailable = false, canceled = false }: { purchase: Purchase; assets?: BuyerAsset[]; assetsUnavailable?: boolean; canceled?: boolean }) {
   const refunded = p.payment.code === "refunded";
   return (
     <div className={styles.workspace} data-purchase-workspace>
@@ -285,6 +286,7 @@ export function PurchaseDetail({ purchase: p, assets = [], assetsUnavailable = f
         </div>
         <Summary purchase={p} />
       </header>
+      <PaymentPanel order={p.id} canceled={canceled}/>
       {refunded && (
         <div className={styles.banner} role="status">
           <strong>This purchase was refunded.</strong>

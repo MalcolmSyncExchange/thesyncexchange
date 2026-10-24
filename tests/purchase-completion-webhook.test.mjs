@@ -42,7 +42,7 @@ function loadRoute(event,{signatureValid=true,syncFailure=false,analyticsFailure
    recordOrderDisputeByPaymentIntent:async input=>{calls.push(['dispute',input]);return{id:'order'};}
   }
  };
- vm.runInNewContext(compiled,{module:route,exports:route.exports,Response,Request,console,process:{env:{}},require:name=>{
+ vm.runInNewContext(compiled,{module:route,exports:route.exports,Response,Request,Buffer,TextDecoder,console,process:{env:{}},require:name=>{
   assert.ok(Object.hasOwn(stubs,name),`Unmocked dependency: ${name}`);return stubs[name];
  }});
  return {POST:route.exports.POST,calls,gateCalls,analytics};

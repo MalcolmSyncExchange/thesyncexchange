@@ -42,6 +42,8 @@ async function buyerContext() {
   const profile = await selectUserProfileCompat(client, user.id);
   if (profile.error || profile.data?.role !== "buyer")
     throw new Error("Buyer access required.");
+  const active = await client.rpc("auth_session_is_active");
+  if (active.error || active.data !== true) throw new Error("Buyer access required.");
   return { user, client };
 }
 
@@ -111,6 +113,11 @@ async function presentOwned(
         .select("user_id,artist_name")
         .in("user_id", artistIds)
     : { data: [], error: null };
+  const paymentStates = await Promise.all(rows.map(async row => {
+    try { const { data, error } = await (authenticated as unknown as { rpc(name: string, args: object): PromiseLike<{data: unknown; error: unknown}> }).rpc("checkout_order_state", {p_order: row.id});
+      return { id: row.id, state: error ? null : data as { paymentState: string; paymentHold: boolean; verifiedPayment: boolean; recovery: string } };
+    } catch { return { id: row.id, state: null }; }
+  }));
   const availability = await Promise.all(rows.map(async row => {
     try { return { id: row.id, assets: await readBuyerAssets(authenticated, row.id) }; }
     catch { return { id: row.id, assets: null }; }
@@ -147,6 +154,16 @@ async function presentOwned(
               : null,
         },
       );
+    const payment = paymentStates.find(x => x.id === row.id)?.state;
+    if (payment) {
+      const labels: Record<string,string> = {PAID:"Payment verified",PENDING:"Awaiting payment",EXPIRED:"Checkout expired",REFUNDED:"Refunded",PARTIALLY_REFUNDED:"Partially refunded",DISPUTED:"Payment disputed",PAYMENT_FAILED:"Payment failed",SECURITY_HOLD:"Payment review required"};
+      const adverse = !["PAID","PENDING"].includes(payment.paymentState);
+      purchase.payment = {code:payment.paymentState.toLowerCase(),label:labels[payment.paymentState] || "Payment review required",detail:"Authenticated payment evidence is separate from contractual license status. Failed refund attempts do not establish a completed refund.",evidence:"authoritative",tone:adverse?"warning":payment.verifiedPayment?"success":"info"};
+      purchase.hold = {code:payment.paymentHold?"held":"clear",label:payment.paymentHold?"Delivery held for review":"No payment hold recorded",detail:"Rights and license access are checked independently at use.",evidence:"authoritative",tone:payment.paymentHold?"warning":"neutral"};
+      if (adverse || payment.paymentHold) purchase.summary = {...purchase.payment};
+    } else {
+      purchase.payment = {...purchase.payment,code:"unknown",label:"Payment status unavailable",evidence:"unknown",tone:"warning",detail:"Refresh this purchase or contact support. Current provider evidence could not be verified."};
+    }
     const assets = availability.find(item => item.id === row.id)?.assets;
     if (assets?.length) {
       const ready = assets.filter(a => a.available).length;

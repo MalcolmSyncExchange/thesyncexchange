@@ -7,9 +7,10 @@ import { readBuyerAssets, type BuyerAsset } from "@/services/delivery/server";
 import { shouldUseDemoData } from "@/lib/env";
 export const dynamic = "force-dynamic";
 export default async function BuyerPurchasePage({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ orderId: string }>;
+  searchParams?: Promise<{checkout?:string}>;
 }) {
   await requireSession("buyer");
   const purchase = await getBuyerPurchase((await params).orderId);
@@ -20,5 +21,5 @@ export default async function BuyerPurchasePage({
     try { assets = await readBuyerAssets(await createServerSupabaseClient(), purchase.id); }
     catch { assetsUnavailable = true; }
   }
-  return <PurchaseDetail purchase={purchase} assets={assets} assetsUnavailable={assetsUnavailable} />;
+  return <PurchaseDetail canceled={(await searchParams)?.checkout === "canceled"} purchase={purchase} assets={assets} assetsUnavailable={assetsUnavailable} />;
 }

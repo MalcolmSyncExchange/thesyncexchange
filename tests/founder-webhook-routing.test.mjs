@@ -30,7 +30,7 @@ function load(path,dependencies,variables=fixtureEnv) {
     compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
   }).outputText;
   vm.runInNewContext(compiled,{
-    module:loadedModule,exports:loadedModule.exports,Buffer,URL,Response,Request,console:{...console,warn(){}},process:{env:variables},
+    module:loadedModule,exports:loadedModule.exports,Buffer,TextDecoder,URL,Response,Request,console:{...console,warn(){}},process:{env:variables},
     require:name=>{
       assert.ok(Object.hasOwn(dependencies,name),`Unmocked dependency: ${name}`);
       return dependencies[name];

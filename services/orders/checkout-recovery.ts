@@ -57,6 +57,8 @@ export async function recoverableCheckout({ client, stripe, secretKey, params }:
     throw new Error("Checkout expired without completion. Start again from the catalog.");
   }
   if (session.status !== "open" || session.payment_status !== "unpaid" || !session.url) throw new Error("Checkout is awaiting payment reconciliation. Check your purchases.");
+  const url = new URL(session.url);
+  if (url.protocol !== "https:" || url.hostname !== "checkout.stripe.com" || url.username || url.password || url.port) throw new Error("Checkout authorization could not be verified.");
   return session;
 }
 function assertBoundSession(session: Stripe.Checkout.Session, params: Stripe.Checkout.SessionCreateParams) {

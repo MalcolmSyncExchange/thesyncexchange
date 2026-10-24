@@ -6,7 +6,7 @@ import Stripe from 'stripe';
 import {createHash} from 'node:crypto';
 import {source} from './helpers/artist-baseline-db.mjs';
 import {assertStripeSessionMatchesTrustedCheckout} from '../services/orders/checkout-pricing.ts';
-function load(file,modules){const mod={exports:{}};vm.runInNewContext(ts.transpileModule(source(file),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:mod,exports:mod.exports,Response,Request,console:{warn(){}},process:{env:{}},require:n=>{assert.ok(Object.hasOwn(modules,n),n);return modules[n];}});return mod.exports;}
+function load(file,modules){const mod={exports:{}};vm.runInNewContext(ts.transpileModule(source(file),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:mod,exports:mod.exports,Response,Request,Buffer,TextDecoder,console:{warn(){}},process:{env:{}},require:n=>{assert.ok(Object.hasOwn(modules,n),n);return modules[n];}});return mod.exports;}
 const session={id:'cs_test_fixture',client_reference_id:'order',metadata:{orderId:'order'},payment_status:'paid',payment_intent:'pi_fixture',amount_total:5000,currency:'usd',livemode:false,created:1792540800};
 const verified={providerEventId:'evt_fixture',eventType:'checkout.session.completed',paymentState:'PAID',checkoutSessionId:session.id,paymentIntentId:'pi_fixture',amountMinor:5000,refundedMinor:0,currency:'usd',evidenceSha256:'a'.repeat(64),providerCreatedAt:'2026-10-21T00:00:00Z',livemode:false};
 function syncHarness({interrupt=false,missingIntent=false}={}){
@@ -59,4 +59,10 @@ test('canonical paid retry still refuses an agreement after rights revocation du
  h.state.rightsRevoked=true;
  await assert.rejects(h.api.syncOrderFromStripeSession(input),/rights revoked/);
  assert.ok(!h.state.order.agreement_path);assert.equal(h.state.order.status,'paid');
+});
+
+test('first signed payment survives rights revocation while legal issuance remains blocked',async()=>{
+ const h=syncHarness();h.state.rightsRevoked=true;
+ await assert.rejects(h.api.syncOrderFromStripeSession({orderId:'order',session,verifiedEvent:verified,webhookEventId:'evt_fixture',webhookEventType:'checkout.session.completed'}),/rights revoked/);
+ assert.equal(h.state.retained,1);assert.equal(h.state.order.status,'paid');assert.ok(!h.state.order.agreement_path);
 });

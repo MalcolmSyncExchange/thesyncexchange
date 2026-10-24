@@ -1,222 +1,47 @@
-import { captureCheckoutStarted } from "@/services/analytics/checkout";
-import { captureForUser } from "@/services/analytics/actor";
 import { NextResponse } from "next/server";
-
+import { z, ZodError } from "zod";
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { assertStripeServerConfiguration, getPaymentActivityMetadata, getPaymentRuntimeConfiguration } from "@/lib/server-env";
+import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 import { getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
-import { appendOrderActivityLog } from "@/services/orders/activity";
-import { getStoredOrderPricingMismatch, loadTrustedCheckoutDetails } from "@/services/orders/checkout-pricing";
+import { assertStripeServerConfiguration, getPaymentRuntimeConfiguration } from "@/lib/server-env";
+import { captureCheckoutStarted } from "@/services/analytics/checkout";
+import { createServerSupabaseClient } from "@/services/supabase/server";
+import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
+import { selectUserProfileCompat } from "@/services/auth/user-profiles";
+import { assertAcceptedPurchase } from "@/services/licensing/purchases";
 import { preparePurchaseCompletionCheckout } from "@/services/purchase-completion/server";
 import { createStripeCheckoutSession } from "@/services/stripe/server";
-import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
-import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
-import { createServerSupabaseClient } from "@/services/supabase/server";
-import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { consumeRateLimit, rateLimitErrorResponse } from "@/services/security/rate-limit";
-import { hasFrozenCheckoutAttempt } from "@/services/orders/checkout-recovery";
-import { assertAcceptedPurchase } from "@/services/licensing/purchases";
-
+import { readPaymentRequest, PaymentError, paymentHeaders } from "@/services/orders/payment-request";
 export async function POST(request: Request) {
-  const body = await request.json();
-  const orderId = String(body.orderId || "");
-
-  if (!orderId) {
-    return NextResponse.json({ error: "Missing orderId." }, { status: 400 });
-  }
-
-  if (!hasSupabaseEnv || env.demoMode) {
-    return NextResponse.json({ error: "Live checkout requires Supabase and demo mode disabled." }, { status: 400 });
-  }
-
-  const authSupabase = await createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await authSupabase.auth.getUser();
-
-  if (!user?.id) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-
-  const profile = await selectUserProfileCompat(authSupabase, user.id);
-  if (profile.error) {
-    return NextResponse.json({ error: "Unable to verify account access right now." }, { status: 503 });
-  }
-  if (profile.data?.role !== "buyer") {
-    return NextResponse.json({ error: "Buyer access is required." }, { status: 403 });
-  }
-
-  const scope = await authSupabase.from("orders").select("id, buyer_user_id").eq("id", orderId).eq("buyer_user_id", user.id).maybeSingle();
-  if (scope.error || !scope.data || scope.data.buyer_user_id !== user.id) {
-    return NextResponse.json({ error: "Order not found." }, { status: 404 });
-  }
-  const supabase = await createPrivilegedSupabaseClient();
-  let accepted;
   try {
-    accepted = await assertAcceptedPurchase(supabase, orderId);
-  } catch {
-    return NextResponse.json({ error: "Original transaction acceptance and valid rights are required. Resume the original purchase or contact support." }, { status: 409 });
-  }
-
-  let trustedCheckout;
-  try {
-    trustedCheckout = await loadTrustedCheckoutDetails(supabase, orderId);
+    const { orderId } = z.object({ orderId: z.string().uuid() }).strict().parse(await readPaymentRequest(request));
+    if (!hasSupabaseEnv || env.demoMode || resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE).blocksApplication) throw new PaymentError(503, "CHECKOUT_UNAVAILABLE");
+    const client = await createServerSupabaseClient(); const { data: { user }, error } = await client.auth.getUser();
+    if (error || !user) throw new PaymentError(401, "AUTH_REQUIRED");
+    const profile = await selectUserProfileCompat(client, user.id);
+    const active = await client.rpc("auth_session_is_active");
+    if (profile.error || profile.data?.role !== "buyer" || active.error || active.data !== true) throw new PaymentError(403, "BUYER_ACCESS_REQUIRED");
+    const scope = await client.from("orders").select("id,buyer_user_id,status,stripe_checkout_session_id").eq("id", orderId).eq("buyer_user_id", user.id).maybeSingle();
+    if (scope.error || !scope.data || scope.data.buyer_user_id !== user.id) throw new PaymentError(404, "ORDER_UNAVAILABLE");
+    if (scope.data.status !== "pending") throw new PaymentError(409, "CHECK_PURCHASE_STATUS");
+    try { assertStripeServerConfiguration("Stripe checkout API", { requireWebhook: true }); } catch { throw new PaymentError(503,"CHECKOUT_UNAVAILABLE"); }
+    const paymentRuntime = getPaymentRuntimeConfiguration();
+    const stripe_checkout_session_id = scope.data.stripe_checkout_session_id;
+    const storedSessionMode = stripe_checkout_session_id ? getStripeCheckoutSessionMode(stripe_checkout_session_id) : null;
+    if (stripe_checkout_session_id && storedSessionMode !== paymentRuntime.paymentMode) throw new PaymentError(409, "PAYMENT_ENVIRONMENT_MISMATCH");
+    const privileged = await createPrivilegedSupabaseClient(); const accepted = await assertAcceptedPurchase(privileged, orderId); const s = accepted.snapshot;
+    if (s.currency !== "USD" || !Number.isSafeInteger(s.amountCents) || s.amountCents < 1 || s.buyer.userId !== user.id) throw new PaymentError(409, "TRANSACTION_REVIEW_REQUIRED");
+    // Exact accepted evidence is authoritative. Never mutate or substitute a
+    // current catalog price, title or legal scope during recovery.
+    const limited = rateLimitErrorResponse(await consumeRateLimit("checkout", user.id)); if (limited) return limited;
+    try { await preparePurchaseCompletionCheckout(orderId); } catch { throw new PaymentError(503,"CHECKOUT_UNAVAILABLE"); }
+    const session = await createStripeCheckoutSession({ orderId, trackTitle: s.track.title, trackSlug: s.track.id, licenseName: s.license.name,
+      amountCents: s.amountCents, currency: s.currency, buyerEmail: user.email, buyerUserId: user.id, trackId: s.track.id, licenseTypeId: s.license.id });
+    await captureCheckoutStarted(user.id, orderId, s.track.id, s.license.slug, session).catch(() => {});
+    return NextResponse.json({ url: session.url, orderId }, { headers: paymentHeaders });
   } catch (error) {
-    await captureForUser(user.id, "funnel_step_failed", { step: "checkout", error_code: "checkout_failed", retryable: true });
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Unable to validate this checkout."
-      },
-      { status: 409 }
-    );
+    const status = error instanceof PaymentError ? error.status : error instanceof ZodError || error instanceof SyntaxError || error instanceof TypeError ? 400 : 409;
+    return NextResponse.json({ error: error instanceof PaymentError ? error.code : status === 400 ? "CHECK_REQUIRED_FIELDS" : "CHECKOUT_REQUIRES_RECOVERY" }, { status, headers: paymentHeaders });
   }
-
-  if (!trustedCheckout || trustedCheckout.order.buyer_user_id !== user.id) {
-    return NextResponse.json({ error: "Order not found." }, { status: 404 });
-  }
-
-  if (trustedCheckout.order.status !== "pending") {
-    return NextResponse.json({ error: "Only pending orders can create a new checkout session." }, { status: 409 });
-  }
-  trustedCheckout.amountCents = accepted.snapshot.amountCents;
-
-  try {
-    assertStripeServerConfiguration("Stripe checkout API", { requireWebhook: true });
-  } catch (error) {
-    await captureForUser(user.id, "funnel_step_failed", { step: "checkout", error_code: "checkout_failed", retryable: true });
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Stripe is not configured for this environment."
-      },
-      { status: 503 }
-    );
-  }
-
-  const paymentRuntime = getPaymentRuntimeConfiguration();
-  const storedSessionMode = trustedCheckout.order.stripe_checkout_session_id
-    ? getStripeCheckoutSessionMode(trustedCheckout.order.stripe_checkout_session_id)
-    : null;
-  if (trustedCheckout.order.stripe_checkout_session_id && storedSessionMode !== paymentRuntime.paymentMode) {
-    return NextResponse.json({ error: "This pending order belongs to a different payment environment." }, { status: 409 });
-  }
-
-  const admission = await consumeRateLimit("checkout", user.id);
-  const limitedResponse = rateLimitErrorResponse(admission);
-  if (limitedResponse) return limitedResponse;
-
-  try {
-    if (await hasFrozenCheckoutAttempt(supabase, orderId)) {
-      // A retry honors the sealed amount; it never reprices an in-flight charge.
-      trustedCheckout.amountCents = trustedCheckout.order.amount_cents;
-    }
-  } catch {
-    return NextResponse.json({ error: "Checkout recovery is unavailable. Check your purchases before retrying." }, { status: 503 });
-  }
-  const pricingMismatch = getStoredOrderPricingMismatch(trustedCheckout);
-  if (pricingMismatch.amountMismatch || pricingMismatch.currencyMismatch) {
-    const correction = await supabase
-      .from("orders")
-      .update({
-        amount_cents: trustedCheckout.amountCents,
-        currency: trustedCheckout.currency
-      })
-      .eq("id", orderId)
-      .eq("status", "pending");
-
-    if (correction.error) {
-      return NextResponse.json({ error: correction.error.message }, { status: 500 });
-    }
-
-    await appendOrderActivityLog(supabase, {
-      orderId,
-      actorId: user.id,
-      source: "system",
-      eventType: "checkout_price_reconciled",
-      message: "Pending order price was reconciled to the trusted license price before checkout.",
-      metadata: pricingMismatch
-    }).catch(() => undefined);
-  }
-
-  // The immutable delivery contract must be frozen before Stripe creates a
-  // session. Missing/false capability configuration keeps the legacy flow.
-  // An explicitly enabled but invalid adapter fails closed before payment.
-  try {
-    await preparePurchaseCompletionCheckout(orderId);
-  } catch (error) {
-    await captureForUser(user.id, "funnel_step_failed", { step: "checkout", error_code: "checkout_failed", retryable: true });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to prepare this TEST checkout." },
-      { status: 503 }
-    );
-  }
-
-  let session;
-  try {
-    session = await createStripeCheckoutSession({
-    orderId,
-    trackTitle: trustedCheckout.trackTitle,
-    trackSlug: trustedCheckout.trackSlug,
-    licenseName: trustedCheckout.licenseName,
-    amountCents: trustedCheckout.amountCents,
-    currency: trustedCheckout.currency,
-    buyerEmail: user.email || undefined,
-    buyerUserId: user.id,
-    trackId: trustedCheckout.order.track_id,
-    licenseTypeId: trustedCheckout.order.license_type_id
-  });
-
-  } catch {
-    return NextResponse.json({ error: "Checkout is processing or requires reconciliation. Check your purchases before retrying." }, { status: 409 });
-  }
-
-  const checkoutCreatedAt = new Date().toISOString();
-  const primaryUpdate = await supabase
-    .from("orders")
-    .update({
-      stripe_checkout_session_id: session.id,
-      checkout_created_at: checkoutCreatedAt
-    })
-    .eq("id", orderId);
-
-  if (primaryUpdate.error) {
-    if (!isMissingColumnError(primaryUpdate.error, "checkout_created_at")) {
-      return NextResponse.json({ error: primaryUpdate.error.message }, { status: 500 });
-    }
-
-    warnSchemaFallbackOnce(
-      "checkout-created-at-write",
-      "checkout_created_at is not available yet; order checkout timing will be reduced until migration 0009 is applied.",
-      primaryUpdate.error
-    );
-
-    const fallbackUpdate = await supabase
-      .from("orders")
-      .update({
-        stripe_checkout_session_id: session.id
-      })
-      .eq("id", orderId);
-
-    if (fallbackUpdate.error) {
-      return NextResponse.json({ error: fallbackUpdate.error.message }, { status: 500 });
-    }
-  }
-
-  await appendOrderActivityLog(supabase, {
-    orderId,
-    actorId: user.id,
-    source: "buyer",
-    eventType: "checkout_created_via_api",
-    message: "Hosted Stripe Checkout Session created through the checkout API route.",
-    metadata: {
-      sessionId: session.id,
-      ...getPaymentActivityMetadata()
-    }
-  }).catch(() => undefined);
-
-  await captureCheckoutStarted(user.id, orderId, trustedCheckout.order.track_id, trustedCheckout.licenseType.slug, session);
-  return NextResponse.json({
-    url: session.url,
-    orderId,
-    sessionId: session.id
-  });
 }

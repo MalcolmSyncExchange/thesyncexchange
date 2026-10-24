@@ -109,6 +109,8 @@ export async function getOrderById(orderId: string) {
   if (roleError || (viewerRole !== "buyer" && viewerRole !== "admin")) return null;
   const scope = await authSupabase.from("orders").select("id,buyer_user_id").eq("id", orderId).maybeSingle();
   if (scope.error || !scope.data || (viewerRole !== "admin" && scope.data.buyer_user_id !== user.id)) return null;
+  const payment = await (authSupabase as unknown as {rpc(name:string,args:object):PromiseLike<{data:{paymentState:string;paymentHold:boolean;verifiedPayment:boolean}|null;error:unknown}>}).rpc("checkout_order_state",{p_order:orderId});
+  if(payment.error || !payment.data) return null;
   const supabase = await createPrivilegedSupabaseClient();
   const { data, error } = await supabase.from("orders")
     .select("*, tracks(id,title,slug), license_types(id,name,slug,description,exclusive,default_price_cents,terms_summary,active)")
@@ -130,7 +132,7 @@ export async function getOrderById(orderId: string) {
   }
 
   const generatedLicense = await listGeneratedLicensesByOrderIds(supabase, [row.id]).then((map) => map.get(row.id) || null);
-  return enrichLiveOrder(row, generatedLicense);
+  return {...enrichLiveOrder(row, generatedLicense),payment_state:payment.data.paymentState,payment_hold:payment.data.paymentHold,verified_payment:payment.data.verifiedPayment};
 }
 
 function enrichOrder(order: Order, track: Pick<Track, "id" | "title" | "slug"> | null, license: LicenseType | null) {
@@ -168,7 +170,7 @@ function enrichLiveOrder(row: any, generatedLicense: any) {
   const commercialRightsGranted =
     typeof snapshotPayment?.commercialRightsGranted === "boolean"
       ? snapshotPayment.commercialRightsGranted
-      : paymentMode === "live";
+      : false;
 
   return {
     id: row.id,

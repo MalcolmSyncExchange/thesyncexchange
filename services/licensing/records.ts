@@ -12,7 +12,7 @@ const input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("read"), order: z.string().uuid() }).strict(),
   z.object({ action: z.literal("lifecycle"), order: z.string().uuid(), revision: z.number().int().nonnegative(), key: z.string().uuid(), command: z.enum(["annotate","terminate","revoke"]), reason: z.string().trim().min(5).max(2000), reference: z.string().trim().min(5).max(500) }).strict(),
   z.object({ action: z.literal("offer"), track: z.string().uuid(), license: z.string().uuid() }).strict(),
-  z.object({ action: z.literal("configure"), track: z.string().uuid(), license: z.string().uuid(), expected: z.string().uuid(), contract: z.record(z.unknown()), reference: z.string().trim().min(5).max(500) }).strict()
+  z.object({ action: z.literal("configure"), track: z.string().uuid(), license: z.string().uuid(), expected: z.string().uuid(), contract: z.record(z.string(),z.unknown()), reference: z.string().trim().min(5).max(500) }).strict()
 ]);
 export async function performLicensingRequest(value: unknown) {
   const p = input.parse(value);

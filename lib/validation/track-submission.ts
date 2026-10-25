@@ -58,9 +58,9 @@ export const rightsHolderSchema = z.object({
   name: z.string().min(trackSubmissionFieldRules.rightsHolderName.minLength, "Name is required"),
   email: z.string().email("Valid email required"),
   roleType: z.enum(rightsHolderRoleValues, {
-    errorMap: () => ({ message: "Choose a valid rights holder role." })
+    error: "Choose a valid rights holder role."
   }),
-  ownershipPercent: z.coerce.number().min(0).max(100)
+  ownershipPercent: z.coerce.number<number>().min(0).max(100)
 });
 
 const storageAssetSchema = z.object({
@@ -75,22 +75,22 @@ const trackSubmissionObjectSchema = z.object({
   subgenre: z.string().min(trackSubmissionFieldRules.subgenre.minLength, "Subgenre is required"),
   moods: z.string().min(trackSubmissionFieldRules.moods.minLength, "Add at least one mood"),
   bpm: z.coerce
-    .number()
+    .number<number>()
     .min(trackSubmissionFieldRules.bpm.min, "BPM must be at least 40")
     .max(trackSubmissionFieldRules.bpm.max, "BPM must be below 220"),
   key: z.string().min(trackSubmissionFieldRules.key.minLength, "Key is required"),
   duration: z.coerce
-    .number()
+    .number<number>()
     .min(trackSubmissionFieldRules.duration.min, "Duration must be at least 30 seconds")
     .max(trackSubmissionFieldRules.duration.max, "Duration must be under 15 minutes"),
   instrumental: z.boolean(),
   vocals: z.boolean(),
   explicit: z.boolean(),
   lyrics: z.string().optional(),
-  releaseYear: z.coerce.number().min(trackSubmissionFieldRules.releaseYear.min).max(trackSubmissionFieldRules.releaseYear.max),
-  priceDigital: z.coerce.number().min(trackSubmissionFieldRules.priceDigital.min),
-  priceBroadcast: z.coerce.number().min(trackSubmissionFieldRules.priceBroadcast.min),
-  priceExclusive: z.coerce.number().min(trackSubmissionFieldRules.priceExclusive.min),
+  releaseYear: z.coerce.number<number>().min(trackSubmissionFieldRules.releaseYear.min).max(trackSubmissionFieldRules.releaseYear.max),
+  priceDigital: z.coerce.number<number>().min(trackSubmissionFieldRules.priceDigital.min),
+  priceBroadcast: z.coerce.number<number>().min(trackSubmissionFieldRules.priceBroadcast.min),
+  priceExclusive: z.coerce.number<number>().min(trackSubmissionFieldRules.priceExclusive.min),
   saveMode: z.enum(["draft", "publish"]),
   rightsHolders: z.array(rightsHolderSchema).min(trackSubmissionFieldRules.rightsHolders.minCount, "Add at least one rights holder")
 });

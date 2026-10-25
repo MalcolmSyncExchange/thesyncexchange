@@ -15,7 +15,7 @@ const schema=z.discriminatedUnion('action',[
  z.object({action:z.literal('recover'),track:base.track,key:z.string().uuid(),admin:z.boolean().optional()}).strict(),
  z.object({action:z.literal('save'),...base,payload:declarationSchema}).strict(),
  z.object({action:z.literal('submit'),...base}).strict(),
- z.object({action:z.literal('review'),...base,version:z.string().uuid(),state:z.enum(['approved','rejected','clarification','disputed','expired','revoked']),note:z.string().trim().min(5).max(2000),checklist:z.record(z.boolean())}).strict(),
+ z.object({action:z.literal('review'),...base,version:z.string().uuid(),state:z.enum(['approved','rejected','clarification','disputed','expired','revoked']),note:z.string().trim().min(5).max(2000),checklist:z.record(z.string(),z.boolean())}).strict(),
  z.object({action:z.literal('document'),...base,kind:z.enum(documentKinds),filename:z.string().min(1).max(200),bytes:z.number().int().min(1).max(3_000_000),type:z.enum(['application/pdf','image/png','image/jpeg'])}).strict(),
  z.object({action:z.literal('withdraw'),...base,document:z.string().uuid()}).strict(),
  z.object({action:z.literal('restrict'),...base,document:z.string().uuid(),state:z.enum(['revoked','disputed']),note:z.string().trim().min(5).max(2000)}).strict()

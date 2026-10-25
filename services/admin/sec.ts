@@ -9,7 +9,7 @@ const moduleName=z.enum(["users","permissions","support","integrity","deals","su
 export const secSchema=z.discriminatedUnion("operation",[
  z.object({operation:z.literal("context")}).strict(),z.object({operation:z.literal("dashboard")}).strict(),
  z.object({operation:z.literal("read"),module:moduleName,page:z.number().int().min(1).max(10000),search:z.string().max(200),status:z.string().max(80),sort:z.enum(["newest","oldest"])}).strict(),
- z.object({operation:z.enum(["command","customer"]),module:moduleName,id:z.string().uuid(),revision:z.number().int().min(0).max(1000000),key:z.string().uuid(),action:z.string().regex(/^[a-z_]{2,30}$/),data:z.record(z.unknown()),reason:z.string().trim().min(5).max(2000),reference:z.string().trim().min(3).max(500)}).strict()
+ z.object({operation:z.enum(["command","customer"]),module:moduleName,id:z.string().uuid(),revision:z.number().int().min(0).max(1000000),key:z.string().uuid(),action:z.string().regex(/^[a-z_]{2,30}$/),data:z.record(z.string(),z.unknown()),reason:z.string().trim().min(5).max(2000),reference:z.string().trim().min(3).max(500)}).strict()
 ]);
 export async function secRequest(input:unknown):Promise<unknown>{
  const p=secSchema.parse(input);

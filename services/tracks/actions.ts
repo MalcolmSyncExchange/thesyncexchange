@@ -84,7 +84,7 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
         email: holder.email,
         role_type: holder.roleType,
         ownership_percent: holder.ownershipPercent,
-        approval_status: holder.email === user.email ? "approved" : "pending"
+        approval_status: holder.email === user.email ? "approved" as const : "pending" as const
       }))
     );
 
@@ -258,7 +258,7 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       email: holder.email,
       role_type: holder.roleType,
       ownership_percent: holder.ownershipPercent,
-      approval_status: holder.email === user.email ? "approved" : "pending"
+      approval_status: holder.email === user.email ? "approved" as const : "pending" as const
     }));
     const nextLicenseOptions = licenseTypes.map((licenseType: { id: string; slug: string }) => ({
       track_id: trackId,

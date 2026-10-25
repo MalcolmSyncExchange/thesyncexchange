@@ -740,7 +740,7 @@ function buildInitialValues(track: Track): TrackSubmissionValues {
     rightsHolders: track.rights_holders.map((holder) => ({
       name: holder.name,
       email: holder.email,
-      roleType: holder.role_type,
+      roleType: holder.role_type as TrackSubmissionValues["rightsHolders"][number]["roleType"],
       ownershipPercent: holder.ownership_percent
     }))
   };
@@ -786,7 +786,7 @@ function FieldError({ message }: { message?: string }) {
 }
 
 function getErrorMessage(
-  error?: string | FieldError | Merge<FieldError, FieldErrorsImpl<Record<string, never>>>
+  error?: unknown
 ): string | undefined {
   if (!error) {
     return undefined;
@@ -796,7 +796,7 @@ function getErrorMessage(
     return error;
   }
 
-  if ("message" in error && typeof error.message === "string") {
+  if (typeof error === "object" && "message" in error && typeof error.message === "string") {
     return error.message;
   }
 

@@ -7,7 +7,7 @@ export const artistIdentitySchema = z.object({
   legalName: z.string().trim().min(2, "Enter the legal name of the account representative.").max(120),
   entityType: z.enum(["individual", "company"]),
   businessName: z.string().trim().max(160).default(""),
-  country: z.enum(countryCodes, { errorMap: () => ({ message: "Choose your country." }) }),
+  country: z.enum(countryCodes, { error: "Choose your country." }),
   contactEmail: z.string().trim().toLowerCase().email("Enter a valid private contact email.").max(254)
 }).superRefine((v,ctx) => { if (v.entityType === "company" && v.businessName.length < 2) ctx.addIssue({ code: "custom", path: ["businessName"], message: "Enter the company's legal name." }); });
 export const artistDeclarationsSchema = z.object({

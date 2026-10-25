@@ -22,7 +22,7 @@ export const trackAssetFields = [
   { field: "waveformPath", column: "waveform_path", kind: "waveform" }
 ] as const;
 
-type AssetValues = Record<(typeof trackAssetFields)[number]["field"], string | undefined>;
+type AssetValues = Partial<Record<(typeof trackAssetFields)[number]["field"], string | undefined>>;
 type AssetSnapshot = Record<(typeof trackAssetFields)[number]["column"], string | null>;
 
 export function validateTrackAssetPath(ownerId: string, kind: TrackAssetKind, asset: StorageAssetRef) {

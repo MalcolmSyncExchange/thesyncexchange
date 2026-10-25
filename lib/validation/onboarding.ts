@@ -20,7 +20,7 @@ const optionalTextField = z.string().trim().optional().transform((value) => valu
 const optionalArtistText = z.string().trim().max(3000, "Keep preferences under 3000 characters.").optional();
 
 export const artistSaveStepSchema = z.enum(["basics", "profile", "licensing", "first-track"], {
-  errorMap: () => ({ message: "Choose a supported onboarding step and reload before saving." })
+  error: "Choose a supported onboarding step and reload before saving."
 });
 
 export function assertArtistStepTransition(step: string, currentStep?: string | null, completed = false) {
@@ -74,7 +74,7 @@ export const artistLicensingSchema = z.object({
 
 export const artistFirstTrackSchema = z.object({
   firstTrackChoice: z.enum(["upload", "later"], {
-    required_error: "Choose whether you want to upload your first track now or later."
+    error: "Choose whether you want to upload your first track now or later."
   })
 });
 

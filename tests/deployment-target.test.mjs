@@ -285,6 +285,33 @@ test("Phase 2B payment adapter is TEST-only, server-account bound and defaults O
   assert.ok(productionBeta.getServerEnvironmentDiagnostics().errors.some(issue => issue.code === "purchase_completion_adapter_production_prohibited"));
 });
 
+test("production test opt-in permits synthetic adapters and rejects live, missing and malformed configuration", () => {
+  const base = { SUPABASE_SERVICE_ROLE_KEY: "sb_secret_fixture", STRIPE_SECRET_KEY: "rk_test_fixture",
+    STRIPE_WEBHOOK_SECRET: "whsec_fixture", NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_fixture",
+    SYNC_EXCHANGE_PAYMENT_MODE: "test", STRIPE_ACCOUNT_ID: "acct_SyntheticFixture",
+    SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED: "true", SYNC_EXCHANGE_PRODUCTION_TEST_ENABLED: "true" };
+  const allowed = loadServerEnv(base, "production");
+  assert.equal(allowed.isProductionTestExecutionAllowed(), true);
+  assert.equal(allowed.getPurchaseCompletionAdapterConfiguration().enabled, true);
+  assert.equal(allowed.getServerEnvironmentDiagnostics().errors.length, 0);
+  assert.doesNotThrow(() => allowed.assertStripeServerConfiguration("synthetic", {requireWebhook:true}));
+  for (const patch of [
+    {SYNC_EXCHANGE_PRODUCTION_TEST_ENABLED:undefined}, {SYNC_EXCHANGE_PRODUCTION_TEST_ENABLED:"false"},
+    {SYNC_EXCHANGE_PRODUCTION_TEST_ENABLED:"yes"}, {SYNC_EXCHANGE_PAYMENT_MODE:undefined},
+    {SYNC_EXCHANGE_PAYMENT_MODE:"live",STRIPE_SECRET_KEY:"rk_live_fixture",NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:"pk_live_fixture"},
+    {STRIPE_SECRET_KEY:undefined}, {NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:undefined},
+    {STRIPE_SECRET_KEY:"sk_live_fixture"}, {NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:"pk_live_fixture"}
+  ]) {
+    const denied=loadServerEnv({...base,...patch},"production");
+    assert.equal(denied.isProductionTestExecutionAllowed(),false,JSON.stringify(patch));
+    assert.equal(denied.getPurchaseCompletionAdapterConfiguration().enabled,false);
+    assert.throws(()=>denied.assertStripeServerConfiguration("synthetic",{requireWebhook:true}));
+  }
+  const dormant=loadServerEnv({...base,SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED:"false"},"production");
+  assert.equal(dormant.getPurchaseCompletionAdapterConfiguration().enabled,false);
+  assert.equal(loadServerEnv(base,"preview").isProductionTestExecutionAllowed(),false);
+});
+
 test("environment CLI rejects restricted test keys in production and accepts matching modes", () => {
   const mismatch = validateStripeEnvironment({
     context: "production",

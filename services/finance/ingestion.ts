@@ -2,7 +2,7 @@ import "server-only";
 import Stripe from "stripe";
 import {digest, verifyFinancialWebhook} from "@/lib/finance/provider-events.mjs";
 import {getDeploymentTarget} from "@/lib/env";
-import {assertStripeServerConfiguration,serverEnv} from "@/lib/server-env";
+import {assertStripeServerConfiguration,isProductionTestExecutionAllowed,serverEnv} from "@/lib/server-env";
 import {createAdminSupabaseClient} from "@/services/supabase/admin";
 import {runFinancialWorker} from "@/services/finance/worker.mjs";
 
@@ -12,7 +12,7 @@ export async function financeRpc<T>(client:RpcClient,name:string,args:Record<str
 }
 function configuration(worker=false){
   if(process.env.SYNC_EXCHANGE_FINANCIAL_INGESTION_ENABLED!=="true" || (worker&&process.env.SYNC_EXCHANGE_FINANCIAL_WORKER_ENABLED!=="true"))throw Error("financial_processing_disabled");
-  if(getDeploymentTarget()==="production")throw Error("financial_processing_requires_isolated_environment");
+  if(getDeploymentTarget()==="production"&&!isProductionTestExecutionAllowed())throw Error("financial_processing_requires_authorized_test_environment");
   assertStripeServerConfiguration("Financial provider evidence",{requireWebhook:true});
   if(!/^(sk|rk)_test_/.test(serverEnv.stripeSecretKey||"")||!/^acct_[A-Za-z0-9]+$/.test(serverEnv.stripeAccountId||""))throw Error("financial_account_configuration_invalid");
   const endpoint=process.env.TSE_FINANCE_ENDPOINT_ID||"";

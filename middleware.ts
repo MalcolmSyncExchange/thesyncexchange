@@ -10,6 +10,14 @@ const matches = (path: string, prefix: string) => path === prefix || path.starts
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Do not overwrite route-owned sandbox/CSP policies on private documents.
+  const pagePolicy = (result:NextResponse) => {
+    if (!matches(pathname,"/api") && !matches(pathname,"/.netlify/functions")) {
+      result.headers.set("Content-Security-Policy", "base-uri 'self'; object-src 'none'; frame-ancestors 'none'");
+      result.headers.set("Referrer-Policy", "no-referrer");
+    }
+    return result;
+  };
   const maintenance = resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE);
   if (maintenance.blocksApplication) {
     if (isMaintenanceHealthRequest(pathname, request.method)) {
@@ -34,14 +42,14 @@ export async function middleware(request: NextRequest) {
   }
   const needsSession = protectedPrefixes.some(prefix => matches(pathname, prefix));
   const refreshAuth = needsSession || ["/login", "/signup", "/forgot-password", "/reset-password", "/auth"].some(prefix => matches(pathname, prefix));
-  if (!refreshAuth) return NextResponse.next();
+  if (!refreshAuth) return pagePolicy(NextResponse.next());
   let response = NextResponse.next({ request });
   const pendingCookies = new Map<string, { name: string; value: string; options: CookieOptions }>();
   const privateResponse = (result: NextResponse) => {
     result.headers.set("Cache-Control", "private, no-store, max-age=0");
     result.headers.set("Netlify-CDN-Cache-Control", "no-store");
     result.headers.set("Referrer-Policy", "no-referrer");
-    return result;
+    return pagePolicy(result);
   };
   const login = () => {
     const url = new URL("/login", request.url);

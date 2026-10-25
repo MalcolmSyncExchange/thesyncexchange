@@ -35,6 +35,13 @@ export default function nextConfig(phase) {
       TSE_BUILD_PREVIEW_PAYMENT_MODE: resolveDeploymentTarget(process.env) === "preview"
         ? process.env.SYNC_EXCHANGE_PAYMENT_MODE || "" : ""
     },
+    async headers() {
+      return [{ source: "/:path*", headers: [
+        { key: "X-Content-Type-Options", value: "nosniff" },
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" }
+      ] }, { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }] }];
+    },
     serverExternalPackages: ["pdfkit", "stripe"],
     outputFileTracingIncludes: { "/*": ["./assets/license-fonts/**/*", "./public/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png", "./public/brand/the-sync-exchange/watermark/Watermark.png"] },
     images: {

@@ -7,5 +7,6 @@ export async function clearAccountCookies() {
   for (const cookie of store.getAll()) {
     if (prefix && (cookie.name === prefix || cookie.name.startsWith(prefix + ".") || cookie.name === prefix + "-code-verifier" || cookie.name.startsWith(prefix + "-code-verifier."))) store.delete(cookie.name);
   }
+  if (env.supabaseUrl) store.delete(`tse-recovery-${new URL(env.supabaseUrl).hostname.split(".")[0]}`);
   store.delete("sync-exchange-session");
 }

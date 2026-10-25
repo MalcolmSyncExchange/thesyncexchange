@@ -1,16 +1,16 @@
 // Local synthetic GoTrue/PostgREST contract fixture. Never accepts a hosted target.
 import http from 'node:http';
-import {randomUUID,randomBytes,createHmac} from 'node:crypto';
+import {randomUUID,randomBytes,createHmac,createHash} from 'node:crypto';
 export const anonKey='SYNTHETIC_LOCAL_ANON_KEY',serviceKey='SYNTHETIC_LOCAL_SERVICE_KEY';
 export async function startAuthFixture(options={}){
- const accounts=new Map(),profiles=new Map(),sessions=new Map(),refresh=new Map(),tokens=new Map(),calls=[];const signing=randomBytes(32);
+ const recoveryGrants=new Map(),accounts=new Map(),profiles=new Map(),sessions=new Map(),refresh=new Map(),tokens=new Map(),calls=[];const signing=randomBytes(32);
  const seed=(email,role,{confirmed=true,complete=false,factors=[]}={})=>{
   const id=randomUUID();const record={id,email,password:'SyntheticPassword!123',confirmed,factors,fullName:'Synthetic '+role};accounts.set(email,record);profiles.set(id,{id,email,role,full_name:record.fullName,onboarding_step:complete?'complete':'basics',onboarding_started_at:new Date().toISOString(),onboarding_completed_at:complete?new Date().toISOString():null,onboarding_payload:{}});return record;
  };
  const buyer=seed('buyer@fixture.invalid','buyer'),artist=seed('artist@fixture.invalid','artist');const admin=seed('admin@fixture.invalid','admin',{factors:[{id:randomUUID(),factor_type:'totp',status:'verified',friendly_name:'Synthetic authenticator'}]});
  const user=a=>({id:a.id,aud:'authenticated',role:'authenticated',email:a.email,email_confirmed_at:a.confirmed?'2026-01-01T00:00:00Z':null,confirmed_at:a.confirmed?'2026-01-01T00:00:00Z':null,created_at:'2026-01-01T00:00:00Z',updated_at:new Date().toISOString(),app_metadata:{provider:'email',providers:['email']},user_metadata:{full_name:a.fullName,role:'admin'},factors:a.factors,identities:[{id:a.id,user_id:a.id,provider:'email',identity_data:{email:a.email}}]});
- function session(a,aal='aal1'){
-  const sid=randomUUID(),now=Math.floor(Date.now()/1000);const encoded=x=>Buffer.from(JSON.stringify(x)).toString('base64url');const body=encoded({alg:'HS256',typ:'JWT'})+'.'+encoded({sub:a.id,role:'authenticated',aud:'authenticated',iss:'SYNTHETIC_LOOPBACK',exp:now+3600,iat:now,session_id:sid,aal,amr:[{method:aal==='aal2'?'totp':'password',timestamp:now}]});const access=body+'.'+createHmac('sha256',signing).update(body).digest('base64url'),refreshToken=randomBytes(24).toString('hex');const s={account:a,aal,sid,access,refreshToken,active:true};sessions.set(access,s);refresh.set(refreshToken,s);return {access_token:access,refresh_token:refreshToken,expires_in:3600,expires_at:now+3600,token_type:'bearer',user:user(a)};
+ function session(a,aal='aal1',sid=randomUUID()){
+  const now=Math.floor(Date.now()/1000);const encoded=x=>Buffer.from(JSON.stringify(x)).toString('base64url');const body=encoded({alg:'HS256',typ:'JWT'})+'.'+encoded({sub:a.id,role:'authenticated',aud:'authenticated',iss:'SYNTHETIC_LOOPBACK',exp:now+3600,iat:now,session_id:sid,aal,amr:[{method:aal==='aal2'?'totp':'password',timestamp:now}]});const access=body+'.'+createHmac('sha256',signing).update(body).digest('base64url'),refreshToken=randomBytes(24).toString('hex');const s={account:a,aal,sid,access,refreshToken,active:true};sessions.set(access,s);refresh.set(refreshToken,s);return {access_token:access,refresh_token:refreshToken,expires_in:3600,expires_at:now+3600,token_type:'bearer',user:user(a)};
  }
  const getSession=req=>sessions.get((req.headers.authorization||'').replace(/^Bearer /,''));
  const issue=(a,type)=>{const token=randomBytes(32).toString('hex');tokens.set(token,{account:a,type,used:false});return token;};
@@ -29,7 +29,7 @@ export async function startAuthFixture(options={}){
    const account=seed(email,null,{confirmed:false});account.password=body.password;account.fullName=body.data?.full_name||'Synthetic account';profiles.delete(account.id);issue(account,'signup');return json(user(account));
   }
   if(route==='/auth/v1/token'){
-   if(url.searchParams.get('grant_type')==='refresh_token'){const old=refresh.get(body.refresh_token);if(!old?.active)return error('refresh_token_not_found');old.active=false;return json(session(old.account,old.aal));}
+   if(url.searchParams.get('grant_type')==='refresh_token'){const old=refresh.get(body.refresh_token);if(!old?.active)return error('refresh_token_not_found');old.active=false;return json(session(old.account,old.aal,old.sid));}
    const account=accounts.get(String(body.email||'').toLowerCase());if(!account||account.password!==body.password)return error('invalid_credentials');if(!account.confirmed)return error('email_not_confirmed');return json(session(account));
   }
   if(route==='/auth/v1/user'){
@@ -49,7 +49,22 @@ export async function startAuthFixture(options={}){
    const id=route.split('/')[4],f=active.account.factors.find(f=>f.id===id);if(!f)return error('mfa_factor_not_found');
    if(req.method==='DELETE'){active.account.factors=active.account.factors.filter(f=>f.id!==id);return json({id});}
    if(route.endsWith('/challenge'))return json({id:'synthetic-challenge',type:'totp',expires_at:Math.floor(Date.now()/1000)+60});
-   if(route.endsWith('/verify')){if(body.code!=='123456')return error('mfa_verification_failed');f.status='verified';return json(session(active.account,'aal2'));}
+   if(route.endsWith('/verify')){if(body.code!=='123456')return error('mfa_verification_failed');f.status='verified';return json(session(active.account,'aal2',active.sid));}
+  }
+  // Auth-only fixture models the narrow recovery RPC contract; real SQL is
+  // exercised separately by System14 PGlite and native PostgreSQL regressions.
+  if(!options.restHandler&&route==='/rest/v1/rpc/auth_issue_recovery_grant'){
+   if(req.headers.apikey!==serviceKey)return error('42501',403);
+   const bound=[...sessions.values()].find(s=>s.active&&s.sid===body.p_session&&s.account.id===body.p_user);
+   if(!bound)return error('42501',403);
+   for(const g of recoveryGrants.values())if(g.sid===bound.sid)g.used=true;
+   recoveryGrants.set(body.p_hash,{sid:bound.sid,user:bound.account.id,until:Date.now()+900000,used:false});return json(true);
+  }
+  if(!options.restHandler&&['/rest/v1/rpc/auth_recovery_ready','/rest/v1/rpc/auth_consume_recovery_grant'].includes(route)){
+   const g=recoveryGrants.get(createHash('sha256').update(String(body.p_proof||'')).digest('hex'));
+   const allowed=Boolean(active&&g&&!g.used&&g.until>Date.now()&&g.user===active.account.id&&g.sid===active.sid);
+   if(allowed&&route.endsWith('auth_consume_recovery_grant'))g.used=true;
+   return json(allowed);
   }
   if(!options.restHandler&&route==='/rest/v1/rpc/sec_registration_open')return json(true);
   if(!options.restHandler&&route==='/rest/v1/rpc/auth_session_is_active')return json(Boolean(active));

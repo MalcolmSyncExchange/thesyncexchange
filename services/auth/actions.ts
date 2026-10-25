@@ -1,5 +1,7 @@
 "use server";
 
+import { consumeRecoveryGrant } from "@/services/auth/recovery";
+
 import { parseArtistIdentity, parseArtistDeclarations } from "@/lib/artist/account-contract";
 
 import { isDedicatedStagingIdentity } from "@/lib/health/payment-readiness";
@@ -497,6 +499,7 @@ export async function resendSignupConfirmationAction(formData: FormData) {
 }
 
 export async function updatePasswordAction(formData: FormData) {
+  if ((await headers()).get("origin") !== new URL(env.appUrl).origin) redirect("/forgot-password");
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
   const authMode = resolveAuthMode({ hasSupabaseEnv, demoMode: env.demoMode });
@@ -536,6 +539,7 @@ export async function updatePasswordAction(formData: FormData) {
     try { currentRole = await resolvePersistedRole(verified.data.user.id); }
     catch { redirect(buildRelativePath("/reset-password", { error: AUTH_UNAVAILABLE_MESSAGE })); }
     if ((currentRole === "admin" || verified.data.user.factors?.some(f => f.status === "verified")) && !(await hasPrivilegedAssurance(supabase))) redirect("/account/security?mfa=required&next=/reset-password");
+    if (!(await consumeRecoveryGrant(supabase))) redirect(buildRelativePath("/forgot-password", { error: RESET_PASSWORD_SESSION_MISSING_MESSAGE }));
     const { error } = await authAttempt(() => supabase.auth.updateUser({ password }));
     if (error) {
       reportOperationalError("reset_password_update_failed", new Error("Password update failed."), {

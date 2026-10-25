@@ -51,7 +51,7 @@ test('expired password recovery cannot update a password',async()=>{
  const h=authHarness({expired:true});const url=await locationOf(()=>h.actions.updatePasswordAction(form({password:'SyntheticPassword!123',confirmPassword:'SyntheticPassword!123'})));assert.equal(url.pathname,'/forgot-password');assert.equal(h.state.calls.includes('updateUser'),false);
 });
 test('verified recovery updates password and signs out all sessions before returning to login',async()=>{
- const h=authHarness();const url=await locationOf(()=>h.actions.updatePasswordAction(form({password:'SyntheticPassword!123',confirmPassword:'SyntheticPassword!123'})));assert.equal(url.pathname,'/login');assert.match(url.searchParams.get('success'),/Password updated/);assert.ok(h.state.calls.indexOf('updateUser')<h.state.calls.indexOf('signOut:global'));
+ const h=authHarness({recovery:true});const url=await locationOf(()=>h.actions.updatePasswordAction(form({password:'SyntheticPassword!123',confirmPassword:'SyntheticPassword!123'})));assert.equal(url.pathname,'/login');assert.match(url.searchParams.get('success'),/Password updated/);assert.ok(h.state.calls.indexOf('updateUser')<h.state.calls.indexOf('signOut:global'));
 });
 test('canonical admin requires a fresh verified factor and AAL2, ignoring metadata',async()=>{
  for(const opts of [{role:'admin'},{role:'admin',aal:'aal2'},{role:'admin',aal:'aal1',factors:[{id:factorId,status:'verified'}]}]){

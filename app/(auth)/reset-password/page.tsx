@@ -1,3 +1,4 @@
+import { recoveryReady } from "@/services/auth/recovery";
 import { redirect } from "next/navigation";
 
 import { AuthFooterLink, AuthPageShell, AuthPanel, AuthStatusMessage } from "@/components/forms/auth-form";
@@ -38,7 +39,7 @@ export default async function ResetPasswordPage(
     routingDecision
   });
 
-  if (hasAuthParams && hasSession) redirect("/reset-password");
+  const hasRecovery = hasSession && await recoveryReady(await createServerSupabaseClient());
 
   if (routingDecision === "confirm") {
     reportOperationalEvent("reset_password_page_confirm_redirect", "Reset password page routed one-time recovery parameters through confirmation.", {
@@ -81,7 +82,7 @@ export default async function ResetPasswordPage(
         title="Update password"
         description="Choose a secure password you’ll use for future sign-ins."
       >
-        {!hasSession && !(env.demoMode && !hasSupabaseEnv) ? <div className="space-y-4"><AuthStatusMessage error="Your reset session is missing or expired. Request a fresh link to continue." /><a href="/forgot-password" className="underline">Request a new reset link</a></div> : <form action={updatePasswordAction} className="space-y-5">
+        {!hasRecovery && !(env.demoMode && !hasSupabaseEnv) ? <div className="space-y-4"><AuthStatusMessage error="Your reset session is missing or expired. Request a fresh link to continue." /><a href="/forgot-password" className="underline">Request a new reset link</a></div> : <form action={updatePasswordAction} className="space-y-5">
           <AuthStatusMessage error={searchParams?.error} />
           <div className="space-y-2">
             <Label htmlFor="password">New password</Label>

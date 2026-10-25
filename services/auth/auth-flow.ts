@@ -129,14 +129,15 @@ export function isRecoveryAuthFlow({
 export function shouldExchangeAuthCode({
   hasCode,
   hasTokenHash,
-  hasPkceVerifier
+  hasPkceVerifier,
+  isRecoveryFlow
 }: {
   hasCode: boolean;
   hasTokenHash: boolean;
   isRecoveryFlow: boolean;
   hasPkceVerifier: boolean;
 }) {
-  if (!hasCode || hasTokenHash) {
+  if (!hasCode || hasTokenHash || isRecoveryFlow) {
     return false;
   }
 
@@ -285,12 +286,12 @@ export function buildAuthConfirmErrorUrl({
 
 export function getResetPasswordRecoveryRoutingDecision({
   hasAuthParams,
-  hasSession
+  hasSession: _hasSession
 }: {
   hasAuthParams: boolean;
   hasSession: boolean;
 }): "render" | "confirm" {
-  if (!hasAuthParams || hasSession) {
+  if (!hasAuthParams) {
     return "render";
   }
 

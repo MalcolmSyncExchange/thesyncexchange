@@ -40,7 +40,7 @@ export function authHarness(options={}){
   updateUser:async (args,updateOptions)=>{state.updateOptions=updateOptions;state.calls.push('updateUser');state.updateArgs=args;return options.updateFails?fail():{data:{user:authUser},error:null};},
   resend:async args=>{state.calls.push('resend');state.resendArgs=args;return options.resendFails?fail():{error:null};},
   resetPasswordForEmail:async()=>options.resetFails?fail():{data:{},error:null},
-  verifyOtp:async args=>{state.calls.push('verifyOtp');state.otpArgs=args;options.cookieOptions?.setAll?.([{name:'sb-fixture-auth-token',value:options.otpError?'': 'ROTATED_SYNTHETIC',options:{httpOnly:false,maxAge:options.otpError?0:3600,sameSite:'lax'}}]);return options.otpError?fail():{data:{user:authUser,session:{user:authUser}},error:null};},
+  verifyOtp:async args=>{state.calls.push('verifyOtp');state.otpArgs=args;options.cookieOptions?.setAll?.([{name:'sb-fixture-auth-token',value:options.otpError?'': 'ROTATED_SYNTHETIC',options:{httpOnly:false,maxAge:options.otpError?0:3600,sameSite:'lax'}}]);return options.otpError?fail():{data:options.otpMissingData?null:{user:authUser,session:{user:authUser,access_token:'SYNTHETIC'}},error:null};},
   exchangeCodeForSession:async()=>{state.calls.push('exchangeCode');return options.exchangeFails?fail():{data:{user:authUser},error:null};},
   mfa:{
    getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:options.aal||'aal1',nextLevel:'aal2'},error:options.aalError?{}:null}),
@@ -65,7 +65,7 @@ export function authHarness(options={}){
   '@/lib/env':{env,hasSupabaseEnv:true,getDeploymentTarget:()=> 'local'},'@/lib/health/payment-readiness':{isDedicatedStagingIdentity:()=>false},
   '@/lib/monitoring':{reportOperationalError:(...v)=>state.events.push(v),reportOperationalEvent:(...v)=>state.events.push(v)},
   '@/lib/storage':{resolvePublicStorageAssetUrl:()=>null,storageBuckets:{avatars:'avatars'}},'@/lib/demo-data':{demoSessionUsers:{}},
-  '@/lib/artist/account-contract':artistAccountContract,'@/services/auth/security':security,'@/services/auth/auth-flow':flow,
+  '@/lib/artist/account-contract':artistAccountContract,'@/services/auth/security':security,'@/services/auth/recovery':{recoveryCookieName:()=> 'tse-recovery-127',recoveryCookieOptions:()=>({httpOnly:true,secure:false,sameSite:'lax',path:'/',maxAge:900}),issueRecoveryGrant:async()=>options.mintFails?null:'a'.repeat(64),consumeRecoveryGrant:async()=>{state.calls.push('consumeRecovery');const allowed=options.recovery===true;options.recovery=false;return allowed;},recoveryReady:async()=>options.recovery===true},'@/services/auth/auth-flow':flow,
   '@/services/auth/onboarding-completion':{inferOnboardingCompletionState},'@/services/auth/reconcile-app-user.mjs':{reconcileAppUserProfile},
   '@/services/auth/user-profiles':{selectUserProfileCompat:async(db,id)=>db.from('user_profiles').select('*').eq('id',id).maybeSingle(),upsertUserProfileCompat:()=>{throw Error('Unexpected overwriting profile upsert');}},
   '@/services/supabase/server':{createServerSupabaseClient:async()=>client},'@/services/supabase/admin':{createAdminSupabaseClient:()=>options.noAdmin?null:client},

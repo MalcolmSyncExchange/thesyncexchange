@@ -3,7 +3,7 @@ import { renderNotice } from "./templates.ts";
 export type EmailClaim={id:string;lease:string;kind:string;category:string;to:string;role:string;templateVersion:string;orderId?:string|null};
 export type EmailRpc=(name:string,args?:Record<string,unknown>)=>Promise<unknown>;
 export type EmailSend=(id:string,to:string,content:ReturnType<typeof renderNotice>)=>Promise<{outcome:string;provider?:string}>;
-/** Bounded, explicit server worker. No startup hook, public endpoint or scheduler. */
+/** Bounded, explicit server worker. Protected adapter only; no startup hook or scheduler. */
 export async function processNotifications(rpc:EmailRpc,send:EmailSend,origin:string,limit=10,senderScope="") {
  let collectionFailed=false;try{await rpc("collect_notification_events",{p_limit:200});}catch{collectionFailed=true;}
  let attempted=0,accepted=0;

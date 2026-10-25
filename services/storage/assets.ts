@@ -50,7 +50,7 @@ export function assertStorageUploadMetadata({
   const rule = storageUploadRules[kind];
   const lowerName = fileName.toLowerCase();
 
-  if (!lowerName) {
+  if (!lowerName || fileName.length > 255 || /[\\/\u0000-\u001f\u007f]/.test(fileName)) {
     throw new Error(`${rule.label} file name is required.`);
   }
 
@@ -58,7 +58,7 @@ export function assertStorageUploadMetadata({
     throw new Error(`${rule.label} must use one of: ${rule.allowedExtensions.join(", ")}.`);
   }
 
-  if (fileSize > rule.maxSizeBytes) {
+  if (!Number.isSafeInteger(fileSize) || fileSize <= 0 || fileSize > rule.maxSizeBytes) {
     throw new Error(`${rule.label} must be under ${Math.round(rule.maxSizeBytes / (1024 * 1024))}MB.`);
   }
 }

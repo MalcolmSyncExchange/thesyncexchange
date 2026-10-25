@@ -9,8 +9,8 @@ import * as authSecurity from "../services/auth/security.ts";
 import * as selection from "../lib/licenses/selection.ts";
 import { load } from "./helpers/license-selection-harness.mjs";
 
-const userId = "12345678-1234-1234-1234-123456789abc";
-const otherId = "87654321-1234-1234-1234-123456789abc";
+const userId = "12345678-1234-4234-8234-123456789abc";
+const otherId = "87654321-1234-4234-8234-123456789abc";
 const licenseTypeId = "11111111-1111-4111-8111-111111111111";
 const trustedTrack = { id: "track", title: "Track", slug: "track", status: "approved", preview_file_path: "fixture-preview", license_options: [{ id: licenseTypeId, track_license_option_id: otherId, active: true, offer_active: true, amount_cents: 120000, name: "Digital", slug: "digital-campaign", base_price: 1200, exclusive: false, description: "Approved description", terms_summary: "Approved usage" }] };
 const offers = load("services/orders/license-offers.ts", {
@@ -31,10 +31,11 @@ function loadModule(path, stubs) {
   });
   const loadedModule = { exports: {} };
   runInNewContext(outputText, {
-    module: loadedModule, exports: loadedModule.exports, Response, Request, FormData, File,
+    module: loadedModule, exports: loadedModule.exports, Response, Request, FormData, File, Headers,
     AbortSignal, URL, Buffer, TextDecoder, setTimeout, clearTimeout, crypto: webcrypto, process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
     require(name) {
       if (name === "zod") return zod;
+      if (name === "@/services/storage/upload-request") return loadModule("services/storage/upload-request.ts", stubs);
       if (name === "@/services/orders/payment-request") return loadModule("services/orders/payment-request.ts", stubs);
       if (name === "@/services/auth/security") return authSecurity;
       assert.ok(Object.hasOwn(stubs, name), `Unmocked dependency: ${name}`);
@@ -311,7 +312,7 @@ test("upload denial prevents signed tokens and prevents even multipart parsing",
     const h = harness({ role: "artist", limitOptions });
     const expected = limitOptions.rows ? 429 : 503;
     assert.equal((await h.uploadUrl(uploadRequest())).status, expected);
-    const response = await h.upload({ formData() { throw new Error("Must not parse multipart"); } });
+    const response = await h.upload({ headers:new Headers({origin:"https://example.invalid"}),formData() { throw new Error("Must not parse multipart"); } });
     assert.equal(response.status, expected);
     assert.equal(response.headers.get("Retry-After"), expected === 429 ? "42" : "15");
     assert.deepEqual(h.calls.map(c => c.p_operation), ["upload", "server-upload"]);
@@ -324,7 +325,7 @@ test("upload authentication and canonical role checks happen before multipart pa
   for (const options of [{ authenticated: false }, { role: "buyer" }, { role: null }]) {
     const h = harness(options);
     assert.ok([401, 403].includes((await h.uploadUrl(uploadRequest())).status));
-    assert.ok([401, 403].includes((await h.upload({ formData() { throw new Error("Must not parse"); } })).status));
+    assert.ok([401, 403].includes((await h.upload({ headers:new Headers({origin:"https://example.invalid"}),formData() { throw new Error("Must not parse"); } })).status));
     assert.deepEqual(h.calls, []);
     assert.deepEqual(h.events, []);
   }
@@ -337,7 +338,7 @@ test("Artist and Admin upload behavior continues after admission", async () => {
     const form = new FormData();
     form.set("kind", "cover-art"); form.set("scope", "draft");
     form.set("file", new File(["dummy"], "cover.png", { type: "image/png" }));
-    assert.equal((await h.upload({ formData: async () => form })).status, 200);
+    assert.equal((await h.upload(new Request("https://example.invalid/api/storage/upload",{method:"POST",headers:{origin:"https://example.invalid"},body:form}))).status, 200);
     assert.deepEqual(h.events, ["signed-upload", "storage-upload"]);
   }
 });
@@ -453,7 +454,7 @@ test("malformed numeric admission cannot reach checkout writes, Stripe, upload t
     assert.deepEqual(buyer.events, []);
     const artist = harness({ role: "artist", limitOptions });
     assert.equal((await artist.uploadUrl(uploadRequest())).status, 503);
-    assert.equal((await artist.upload({ formData() { throw new Error("Must not parse"); } })).status, 503);
+    assert.equal((await artist.upload({ headers:new Headers({origin:"https://example.invalid"}),formData() { throw new Error("Must not parse"); } })).status, 503);
     assert.deepEqual(artist.events, []);
   }
 });
@@ -522,7 +523,7 @@ for (const [operation, policy, maximum, role] of [
       const form = new FormData();
       form.set("kind", "cover-art"); form.set("scope", "draft");
       form.set("file", new File(["dummy"], "cover.png", { type: "image/png" }));
-      return h.upload({ formData: async () => form });
+      return h.upload(new Request("https://example.invalid/api/storage/upload",{method:"POST",headers:{origin:"https://example.invalid"},body:form}));
     };
     for (let i = 0; i < maximum; i++) assert.equal((await request()).status, 200);
     assert.equal(fixture.counts.get(policy), maximum);
@@ -546,7 +547,7 @@ test("exhausted hour/day and later direct-upload budgets leave earlier budgets u
     const before = [...fixture.counts];
     const response = operation === "checkout" ? await h.checkout(checkoutRequest())
       : operation === "upload" ? await h.uploadUrl(uploadRequest())
-      : await h.upload({ formData() { throw new Error("Denied before parsing"); } });
+      : await h.upload({ headers:new Headers({origin:"https://example.invalid"}),formData() { throw new Error("Denied before parsing"); } });
     assert.equal(response.status, 429);
     assert.equal(response.headers.get("Retry-After"), String(retry));
     if (operation === "checkout") {

@@ -52,7 +52,9 @@ export function buildTrackAssetPath({
   kind: TrackAssetKind;
   fileName: string;
 }) {
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(scope)) throw new Error("Invalid asset scope.");
   const extension = fileName.includes(".") ? fileName.split(".").pop()?.toLowerCase() || "bin" : "bin";
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(userId) || !/^[a-z0-9]+$/.test(extension)) throw new Error("Invalid asset path.");
   const uniqueId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`;
   const objectName = `${Date.now()}-${uniqueId}.${extension}`;
 
@@ -70,6 +72,7 @@ export function buildAvatarAssetPath({
   fileName: string;
 }) {
   const extension = fileName.includes(".") ? fileName.split(".").pop()?.toLowerCase() || "bin" : "bin";
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(userId) || !/^[a-z0-9]+$/.test(extension)) throw new Error("Invalid asset path.");
   const uniqueId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}`;
   const objectName = `${Date.now()}-${uniqueId}.${extension}`;
   return `${userId}/profile/${objectName}`;

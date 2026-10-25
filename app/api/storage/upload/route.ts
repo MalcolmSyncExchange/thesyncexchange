@@ -1,3 +1,4 @@
+import { readStorageMultipart, StorageRequestError } from "@/services/storage/upload-request";
 import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { NextResponse } from "next/server";
 import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
@@ -19,6 +20,8 @@ export async function POST(request: Request) {
   if (!hasSupabaseEnv || env.demoMode) {
     return NextResponse.json({ error: "Storage uploads require live Supabase mode." }, { status: 503 });
   }
+
+  if (request.headers.get("origin") !== new URL(env.appUrl).origin) return NextResponse.json({error:"Same-origin upload required."},{status:403});
 
   const authSupabase = await createServerSupabaseClient();
   const {
@@ -46,7 +49,8 @@ export async function POST(request: Request) {
   const limitedResponse = rateLimitErrorResponse(admission);
   if (limitedResponse) return limitedResponse;
 
-  const formData = await request.formData();
+  let formData:FormData;
+  try { formData=await readStorageMultipart(request); } catch(error) { return NextResponse.json({error:"Invalid or oversized upload request."},{status:error instanceof StorageRequestError?error.status:400}); }
   const kind = String(formData.get("kind") || "") as StorageAssetKind;
   const scope = String(formData.get("scope") || "").trim();
   const file = formData.get("file");
@@ -55,8 +59,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsupported storage asset kind." }, { status: 400 });
   }
 
-  if (!scope) {
-    return NextResponse.json({ error: "Asset scope is required for track uploads." }, { status: 400 });
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(scope)) {
+    return NextResponse.json({ error: "A valid asset scope is required for track uploads." }, { status: 400 });
   }
 
   if (!(file instanceof File) || file.size === 0) {

@@ -1,3 +1,4 @@
+import { selectBuyerCustomer } from "@/lib/billing-customer";
 import { NextResponse } from "next/server";
 
 import { reportOperationalError } from "@/lib/monitoring";
@@ -31,9 +32,9 @@ export async function GET() {
   try {
     const customers = await stripe.customers.list({
       email: auth.user.email,
-      limit: 1
+      limit: 100
     });
-    const customer = customers.data[0];
+    const customer = selectBuyerCustomer(customers, auth.user.id);
 
     if (!customer) {
       return NextResponse.json({ invoices: [] });

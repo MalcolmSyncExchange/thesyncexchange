@@ -1,3 +1,4 @@
+import { selectBuyerCustomer } from "../lib/billing-customer.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -22,13 +23,13 @@ function harness(options = {}) {
     } }) })
   };
   const stripe = {
-    customers: { create: mutation, update: mutation, del: mutation, list: async input => { calls.push(input); if (options.customerError) throw Error('private Stripe details'); return { data: options.noCustomer ? [] : [{ id: 'cus_verified' }] }; } },
+    customers: { create: mutation, update: mutation, del: mutation, list: async input => { calls.push(input); if (options.customerError) throw Error('private Stripe details'); return { data: options.noCustomer ? [] : [{ id: 'cus_verified', metadata: {supabaseUserId: options.foreignCustomer ? 'different-buyer' : 'verified-buyer'} }] }; } },
     invoices: { create: mutation, update: mutation, del: mutation, pay: mutation, list: async input => { calls.push(input); if (options.invoiceError) throw Error('private Stripe details'); return { data: [{ id: 'in_verified', created: options.malformedInvoice ? NaN : 1770000000, amount_paid: 2500, currency: 'usd' }] }; } },
     subscriptions: { create: mutation, update: mutation, cancel: mutation },
     paymentIntents: { create: mutation, update: mutation, confirm: mutation }
   };
   const mocks = {
-    'server-only': {},
+    'server-only': {}, '@/lib/billing-customer': {selectBuyerCustomer},
     'next/navigation': { unstable_rethrow: error => { if (error?.framework) throw error; } },
     '@/lib/env': { hasSupabaseEnv: !options.noConfig, env: { demoMode: !!options.demo } },
     '@/services/supabase/server': { createServerSupabaseClient: async () => { calls.push('session'); if (options.clientThrow) throw Error('private client details'); return client; } },
@@ -56,11 +57,11 @@ test('verified buyer keeps invoice mapping and uses only the verified email', as
   assert.equal(h.calls[2].email, 'verified@example.invalid'); assert.equal(h.calls[3].customer, 'cus_verified');
   assert.equal(result[0].id, 'in_verified'); assert.equal(result[0].amountCents, 2500);
   assert.equal(h.mutations.length, 0);
-  assert.deepEqual(JSON.parse(JSON.stringify(h.calls)), ['session', 'stripe', { email: 'verified@example.invalid', limit: 1 }, { customer: 'cus_verified', limit: 5 }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls)), ['session', 'stripe', { email: 'verified@example.invalid', limit: 100 }, { customer: 'cus_verified', limit: 5 }]);
   assert.equal(JSON.stringify(result).includes('cus_verified'), false);
 });
 test('missing Stripe configuration or customer and Stripe failures preserve empty results', async () => {
-  for (const options of [{ noStripe: true }, { stripeThrow: true }, { noCustomer: true }, { customerError: true }, { invoiceError: true }, { malformedInvoice: true }]) {
+  for (const options of [{ foreignCustomer:true }, { noStripe: true }, { stripeThrow: true }, { noCustomer: true }, { customerError: true }, { invoiceError: true }, { malformedInvoice: true }]) {
     const h = harness(options);
     assert.equal((await h.run()).length, 0);
     assert.equal(h.mutations.length, 0);

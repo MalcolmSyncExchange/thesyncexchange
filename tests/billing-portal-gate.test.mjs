@@ -1,3 +1,5 @@
+import * as nodeCrypto from "node:crypto";
+import { selectBuyerCustomer } from "../lib/billing-customer.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -27,17 +29,17 @@ function compileModule(path, mocks) {
   return loadedModule.exports;
 }
 
-function routeHarness({ portalEnabled = false, user = { id: "buyer-a", email: "buyer-a@example.invalid" }, role = "buyer" } = {}) {
+function routeHarness({ portalEnabled = false, user = { id: "buyer-a", email: "buyer-a@example.invalid" }, role = "buyer", unbound = false } = {}) {
   const stripeCalls = [];
   const operationalEvents = [];
   const stripe = {
     customers: {
       async list(input) {
         stripeCalls.push(["customers.list", input]);
-        return { data: [{ id: "cus_test_buyer_a" }] };
+        return { data: [{ id: "cus_test_buyer_a", metadata:{supabaseUserId:unbound?"different-buyer":user?.id} }] };
       },
-      async create(input) {
-        stripeCalls.push(["customers.create", input]);
+      async create(input,options) {
+        stripeCalls.push(["customers.create", input,options]);
         return { id: "cus_test_created" };
       }
     },
@@ -69,6 +71,8 @@ function routeHarness({ portalEnabled = false, user = { id: "buyer-a", email: "b
     }
   };
   const mocks = {
+    "node:crypto":nodeCrypto,
+    "@/lib/billing-customer": {selectBuyerCustomer},
     "next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
     "@/lib/env": { env: { appUrl: "https://security-staging.example.test" } },
     "@/lib/monitoring": {
@@ -159,4 +163,10 @@ test("one-time Checkout requires neither Customer Write nor Billing Portal Sessi
   assert.match(readFileSync(new URL("../services/orders/checkout-recovery.ts", import.meta.url), "utf8"), /stripe\.checkout\.sessions\.create/);
   assert.doesNotMatch(checkout, /stripe\.customers/);
   assert.doesNotMatch(checkout, /stripe\.billingPortal/);
+});
+
+
+test("concurrent unbound portal requests use the same account-and-email idempotency key",async()=>{
+ const h=routeHarness({portalEnabled:true,unbound:true});const responses=await Promise.all([h.route.POST(),h.route.POST()]);assert.ok(responses.every(r=>r.status===200));const creates=h.stripeCalls.filter(([op])=>op==='customers.create');assert.equal(creates.length,2);assert.equal(creates[0][2].idempotencyKey,creates[1][2].idempotencyKey);assert.doesNotMatch(creates[0][2].idempotencyKey,/@|example/);
+ const changed=routeHarness({portalEnabled:true,unbound:true,user:{id:'buyer-a',email:'new@fixture.invalid'}});await changed.route.POST();assert.notEqual(changed.stripeCalls.find(([op])=>op==='customers.create')[2].idempotencyKey,creates[0][2].idempotencyKey);
 });

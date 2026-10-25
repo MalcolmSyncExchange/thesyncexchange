@@ -1,4 +1,5 @@
 import "server-only";
+import { selectBuyerCustomer } from "@/lib/billing-customer";
 import { unstable_rethrow } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
@@ -20,8 +21,8 @@ export async function loadBuyerInvoices() {
 
     const stripe = getStripeServerClient();
     if (!stripe) return [];
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    const customer = customers.data[0];
+    const customers = await stripe.customers.list({ email: user.email, limit: 100 });
+    const customer = selectBuyerCustomer(customers, user.id);
     if (!customer) return [];
     const invoices = await stripe.invoices.list({ customer: customer.id, limit: 5 });
     return invoices.data.map(mapStripeInvoice);

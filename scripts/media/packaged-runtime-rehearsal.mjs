@@ -1,5 +1,6 @@
 // Standalone protected rehearsal only. Outside netlify/functions: never activated
-// by an application build. No credentials, Storage, jobs or environment reads.
+// by an application build. No credentials, Storage, jobs or environment values.
+import {inspectRuntimeNames} from './isolation-runtime-guard.mjs';
 import {readFile,mkdtemp,realpath,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -19,9 +20,11 @@ async function kernel(tools,root){
 }
 export default async function rehearsal(request,context){
  const headers={'cache-control':'private, no-store','x-content-type-options':'nosniff'};
- if(context?.site?.id!=='e5bcc3bc-fb1d-4e46-b302-a95cc3ed70a5'||context?.deploy?.published!==false||!['dev','deploy-preview'].includes(context?.deploy?.context))return new Response(null,{status:404,headers});
+ if(context?.site?.id!=='c91c881b-15ec-4342-82c1-381bc3cec86a'||context?.deploy?.published!==false||context?.deploy?.context!=='deploy-preview')return new Response(null,{status:404,headers});
  if(request.method!=='POST')return new Response(null,{status:405,headers});
  if(attempted)return new Response(null,{status:409,headers});attempted=true;
+ const isolation=inspectRuntimeNames(Object.keys(process.env));
+ if(!isolation.pass)return Response.json({state:'STOP_ENVIRONMENT_ISOLATION',qualified:false,isolation},{status:409,headers});
  let directory;
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),40000),start=performance.now();
  try{

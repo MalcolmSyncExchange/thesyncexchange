@@ -15,14 +15,18 @@ export async function mediaActor(admin=false){
  const client=await createServerSupabaseClient();const {data:{user},error}=await client.auth.getUser();if(error||!user)throw new UploadError(401,"AUTH_REQUIRED");const profile=await selectUserProfileCompat(client,user.id);
  if(profile.error||!profile.data||(!admin&&profile.data.role!=="artist")||(admin&&profile.data.role!=="admin")||(admin&&!(await hasPrivilegedAssurance(client))))throw new UploadError(403,"ACCESS_DENIED");return {client:client as unknown as MediaClient,user};
 }
-export async function mediaRpc<T>(client:MediaClient,name:string,args:Record<string,unknown>={}){const {data,error}=await client.rpc(name,args);if(error||data===null){const code=error?.code;throw new UploadError(code==="42501"?403:code==="40001"?409:code==="22023"?400:code==="54000"?429:503,code==="40001"?"STALE_REVISION":code==="22023"?"CHECK_REQUIRED_FIELDS":code==="54000"?"UPLOAD_LIMIT":code==="42501"?"ACCESS_DENIED":"MEDIA_UNAVAILABLE");}return data as T;}
+export async function mediaRpc<T>(client:MediaClient,name:string,args:Record<string,unknown>={}){const {data,error}=await client.rpc(name,args);if(error||data===null){const code=error?.code;if(code==="55000")throw new UploadError(503,"MEDIA_DISABLED");if(code==="PGRST202"||code==="42883")throw new UploadError(503,"WORKSPACE_UPDATE_REQUIRED");throw new UploadError(code==="42501"?403:code==="40001"?409:code==="22023"?400:code==="54000"?429:503,code==="40001"?"STALE_REVISION":code==="22023"?"CHECK_REQUIRED_FIELDS":code==="54000"?"UPLOAD_LIMIT":code==="42501"?"ACCESS_DENIED":"MEDIA_UNAVAILABLE");}return data as T;}
 export async function readUploads(id:string,admin=false){z.string().uuid().parse(id);const {client}=await mediaActor(admin);return mediaRpc<UploadState>(client,admin?"media_upload_admin_read":"media_upload_read",{p_submission:id});}
 const base={submission:z.string().uuid(),revision:z.number().int().nonnegative(),key:z.string().uuid()};
 const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("create"),key:z.string().uuid(),track:z.string().uuid().nullable().optional()}).strict(),
  z.object({action:z.literal("read"),submission:base.submission,admin:z.boolean().optional()}).strict(),
  z.object({action:z.literal("list")}).strict(),
- z.object({action:z.literal("reserve"),...base,role:z.enum(uploadRoles),label:z.string().trim().min(1).max(80),filename:z.string().min(1).max(255),bytes:z.number().int().positive().max(250_000_000),replaces:z.string().uuid().nullable().optional()}).strict(),
+ z.object({action:z.literal("workspace_status")}).strict(),
+ z.object({action:z.literal("recover_draft"),submission:base.submission,key:base.key}).strict(),
+ z.object({action:z.literal("prepare_workspace"),...base}).strict(),
+ z.object({action:z.literal("save_draft"),...base,data:z.unknown()}).strict(),
+ z.object({action:z.literal("reserve"),...base,role:z.enum(uploadRoles),label:z.string().trim().min(1).max(80),filename:z.string().min(1).max(255),bytes:z.number().int().positive().max(50_000_000),replaces:z.string().uuid().nullable().optional()}).strict(),
  z.object({action:z.literal("destination"),submission:base.submission,asset:z.string().uuid()}).strict(),
  z.object({action:z.literal("confirm"),submission:base.submission,asset:z.string().uuid()}).strict(),
  z.object({action:z.literal("remove"),...base,asset:z.string().uuid()}).strict(),
@@ -34,6 +38,10 @@ const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("submit"),...base}).strict()
 ]);
 export async function performMediaRequest(input:unknown){const p=schema.parse(input);const {client,user}=await mediaActor(p.action==="read"&&p.admin===true);if(p.action==="reserve"){const admission=await consumeRateLimit("upload",user.id);if(admission.status!=="allowed")throw new UploadError(429,"UPLOAD_LIMIT");}
+ if(p.action==="recover_draft")return mediaRpc(client,"media_submission_recover",{p_submission:p.submission,p_key:p.key});
+ if(p.action==="workspace_status")return mediaRpc(client,"media_submission_status");
+ if(p.action==="prepare_workspace")return mediaRpc(client,"media_submission_prepare",{p_submission:p.submission,p_revision:p.revision,p_key:p.key});
+ if(p.action==="save_draft"){const {submissionDraftSchema}=await import("@/lib/media/submission-draft");return mediaRpc(client,"media_submission_save_draft",{p_submission:p.submission,p_data:submissionDraftSchema.parse(p.data),p_revision:p.revision,p_key:p.key});}
  if(p.action==="create"){const result=await mediaRpc<{submission_id:string}>(client,"media_create_submission",{p_key:p.key,p_track:p.track||null});await captureForUser(user.id,"submission_started",{submission_attempt_id:result.submission_id,surface:p.track?"submission_edit":"submission_create"},"submission-start:"+result.submission_id).catch(()=>{});return result;}if(p.action==="list")return mediaRpc(client,"media_upload_list");if(p.action==="read")return mediaRpc(client,p.admin?"media_upload_admin_read":"media_upload_read",{p_submission:p.submission});
  const common={p_submission:p.submission};if(p.action==="destination"||p.action==="confirm")return mediaRpc(client,p.action==="confirm"?"media_upload_confirm":"media_upload_destination",{...common,p_asset:p.asset});
  const mutation={...common,p_revision:p.revision,p_key:p.key};

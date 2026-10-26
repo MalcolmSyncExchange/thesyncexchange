@@ -1,5 +1,6 @@
 "use client";
 
+import { SubmissionDraftList } from "@/components/artist/uploads/submission-draft-list";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
@@ -30,6 +31,7 @@ export function ArtistDashboard({ tracks, summary }: { tracks: ArtistDashboardTr
         <h1 className={styles.title}>{firstUse ? "Your music has a place here." : "Your next release starts here."}</h1>
         <p className={styles.subtitle}>{firstUse ? "Start with a track. Build your catalog as your music moves through review." : "Continue a draft or check where your music stands."}</p>
       </header>
+      <SubmissionDraftList />
 
       {!firstUse ? <section aria-label="Account catalog overview" className="space-y-3">
         <dl className={styles.summary}>

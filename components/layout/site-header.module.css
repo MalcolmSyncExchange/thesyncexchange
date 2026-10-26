@@ -35,3 +35,12 @@
 @media(max-width:1150px) { .desktopNav { gap: 18px; font-size: 15px; } .inner { gap: 16px; padding-inline: 24px; } .logo img { width: 180px; } .actions { gap: 10px; } .signup { padding-inline: 18px; } }
 @media(max-width:1000px) { .desktopNav, .actions { display: none; } .inner { justify-content: space-between; min-height: 76px; padding-inline: 18px; } .logo img { width: 176px; } .menuButton { display: grid; } .mobileActions .themeToggle { width: 44px; height: 44px; } }
 @media(prefers-reduced-motion:reduce) { .navLink, .navLink::after, .themeToggle, .themeToggle svg, .login, .signup, .signupArrow, .menu nav a, .mobileLogin { transition: none; } }
+
+/* Homepage-only entrance; focus always makes navigation immediately visible. */
+@media(prefers-reduced-motion:no-preference) {
+  :global(body:has([data-homepage-motion])) .inner { animation: homepage-nav-enter .9s cubic-bezier(.22, 1, .36, 1) .1s both; }
+  :global(body:has([data-homepage-motion])) .inner:focus-within { animation: none; }
+  :global(body:has([data-homepage-motion][data-motion-paused="true"])) .inner { animation-play-state: paused; }
+  :global(body:has([data-homepage-motion][data-motion-settled="true"])) .inner { animation: none; }
+}
+@keyframes homepage-nav-enter { from { opacity: .35; transform: translateY(-5px); } to { opacity: 1; transform: none; } }

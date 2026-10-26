@@ -24,7 +24,8 @@ test("homepage uses the latest approved messaging overlay", () => {
   assert.doesNotMatch(source, /Music to start with|Independent artists\. Distinctive tracks\./);
   assert.doesNotMatch(styles, /\.feature|\.photo/);
   assert.match(styles, /min-height: clamp\(680px, 76vh, 780px\)/);
-  assert.match(styles, /animation-timeline: scroll\(root block\)/);
+  assert.match(styles, /--hero-scroll-y/);
+  assert.match(source, /HomepageMotion/);
   assert.match(styles, /@media\(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /scale\(1\.008\)/);
   assert.match(styles, /scale\(1\.018\)/);

@@ -49,7 +49,9 @@ if sys.platform == 'linux':
         sys.exit(64)
     read = (1 << 0) | (1 << 2) | (1 << 3)
     work = os.environ['MEDIA_WORK_DIR']
-    for path, access in [(os.environ['MEDIA_TOOL_DIR'],read),('/lib',read),('/usr/lib',read),('/etc/ld.so.cache',1 << 2),(work,read if os.environ.get('MEDIA_READ_ONLY') == '1' else handled & ~((1 << 12) | (1 << 13)))]:
+    runtime = os.environ.get('MEDIA_RUNTIME_ROOT')
+    libraries = [(runtime,read)] if runtime else [('/lib',read),('/usr/lib',read),('/etc/ld.so.cache',1 << 2)]
+    for path, access in [(os.environ['MEDIA_TOOL_DIR'],read)] + libraries + [(work,read if os.environ.get('MEDIA_READ_ONLY') == '1' else handled & ~((1 << 12) | (1 << 13)))]:
         if not os.path.exists(path):
             continue
         parent = os.open(path,os.O_PATH | os.O_CLOEXEC)
@@ -66,7 +68,14 @@ if not os.path.isabs(base):
     sys.exit(64)
 pid = os.fork()
 if pid == 0:
-    os.execve(base + '/' + tool, [tool] + sys.argv[3:], {'PATH':'/usr/bin:/bin', 'LC_ALL':'C', 'HOME':'/nonexistent'})
+    runtime = os.environ.get('MEDIA_RUNTIME_ROOT')
+    env = {'LC_ALL':'C', 'HOME':'/nonexistent'}
+    if runtime:
+        triplet = 'x86_64-linux-gnu' if platform.machine() == 'x86_64' else 'aarch64-linux-gnu'
+        loader = runtime + '/usr/lib/' + triplet + ('/ld-linux-x86-64.so.2' if platform.machine() == 'x86_64' else '/ld-linux-aarch64.so.1')
+        os.execve(loader, [loader,'--library-path',runtime + '/usr/lib/' + triplet + ':' + runtime + '/usr/local/lib',base + '/' + tool] + sys.argv[3:], env)
+    else:
+        os.execve(base + '/' + tool, [tool] + sys.argv[3:], env)
 _, status, usage = os.wait4(pid, 0)
 os.write(3, json.dumps({'peak_rss_bytes':int(usage.ru_maxrss * (1024 if sys.platform == 'linux' else 1)), 'cpu_user_us':int(usage.ru_utime*1000000), 'cpu_system_us':int(usage.ru_stime*1000000)}).encode())
 sys.exit(os.waitstatus_to_exitcode(status) if sys.version_info >= (3,9) else (status >> 8))

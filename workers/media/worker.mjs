@@ -7,7 +7,7 @@ import { safeError, MediaError } from './errors.mjs';
 const profiles={source_validation:'source-validator-v1',legacy_source_verification:'source-validator-v1',artwork_validation:'artwork-validator-v1',waveform_generation:'waveform-minmax-v1',preview_generation:'preview-aac-lc-v1'};
 export async function runOne(broker,tools,buildDigest,log=()=>{},signal) {
   if(!/^sha256:[a-f0-9]{64}$/.test(buildDigest))throw new MediaError('temporary_system_error');
-  signal?.throwIfAborted();await tools.verify();signal?.throwIfAborted();const claimed=await broker.claim();if(!claimed)return {state:'idle'};
+  signal?.throwIfAborted();await tools.verify(signal);signal?.throwIfAborted();const claimed=await broker.claim();if(!claimed)return {state:'idle'};
   const l=leaseOf(claimed),controller=new AbortController();let leaseLost=false, heartbeatRunning=false;
   const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
   const heartbeat=setInterval(async()=>{if(heartbeatRunning)return;heartbeatRunning=true;try{await broker.heartbeat(l);}catch{leaseLost=true;controller.abort();}finally{heartbeatRunning=false;}},30000);

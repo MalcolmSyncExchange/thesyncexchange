@@ -8,11 +8,12 @@ import { verifyOutput } from '../../workers/media/files.mjs';
 import { PermitAuthority,rpc } from './database.mjs';
 import { StagingStorage } from './storage.mjs';
 import { BrokerError,requireValue,uuid,exactKeys,leaseBody,jsonBody,BoundedStream,publicJob,logEvent } from './common.mjs';
+import { InputGrants } from './input-grants.mjs';
 const lease=x=>({job_id:x.job_id,lease_epoch:x.lease_epoch,lease_token:x.lease_token});
 const json=(res,value)=>{res.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});res.end(JSON.stringify(value));};
 const evidenceKeys=new Set(['sha256','actual_bytes','container','codec','frames','duration_us','sample_rate','channels','bit_depth','width','height','animated','waveform_points','build_digest','source_sha256']);
 export function evidence(v){requireValue(v&&typeof v==='object'&&!Array.isArray(v)&&Buffer.byteLength(JSON.stringify(v))<=4096&&Object.keys(v).every(k=>evidenceKeys.has(k)),'OUTPUT_PROVENANCE_MISMATCH');return v;}
-export function brokerServer({config,identity,pool,credential,fetcher=fetch,dispatcher,storageFactory,log=()=>{}}){
+export function brokerServer({config,identity,pool,credential,fetcher=fetch,dispatcher,storageFactory,inputGrantSigner,log=()=>{}}){
  let active=0;
  const server=createServer(async(req,res)=>{
  let directory;const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),120000);req.on('aborted',()=>controller.abort());res.on('close',()=>{if(!res.writableFinished)controller.abort();});
@@ -36,6 +37,7 @@ export function brokerServer({config,identity,pool,credential,fetcher=fetch,disp
  const media=new MediaBroker(authority,storage);
  if(req.url==='/heartbeat'){await authority.heartbeat(l);json(res,{ok:true});}
  else if(req.url==='/resolve'){json(res,publicJob(await authority.withLease(l,async j=>j)));}
+ else if(req.url==='/input-grant'){requireValue(inputGrantSigner,'AUTH_DENIED');json(res,await new InputGrants(authority,inputGrantSigner).issue(l));}
  else if(req.url==='/input'){
   const job=await authority.withLease(l,async j=>j),input=job.source||job;
   requireValue(input.object_id&&input.version&&Number(input.bytes)>0&&Number(input.bytes)<=250000000,'INPUT_MISMATCH');

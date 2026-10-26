@@ -5,14 +5,14 @@ import { MediaError, limits } from './errors.mjs';
 const launcher = fileURLToPath(new URL('sandbox.py', import.meta.url));
 export const FFMPEG_VERSION = '9.0.2';
 export class MediaTools {
-  constructor(toolDir, python = '/usr/bin/python3') { this.toolDir = toolDir; this.python = python; this.peakParserRss=0; this.parserCpuMicros=0; }
+  constructor(toolDir, python = '/usr/bin/python3', runtime = null) { this.toolDir = toolDir; this.python = python; this.runtime=runtime; this.peakParserRss=0; this.parserCpuMicros=0; }
   async run(tool, args, { signal, onData, maxBytes = limits.probeBytes, fileLimit = 4_000_000, timeout = limits.processMs, readOnly = false } = {}) {
     if(signal?.aborted)throw new MediaError('worker_lease_expired');
     return new Promise((resolve, reject) => {
       const roots=[...new Set(args.filter(isAbsolute).map(dirname))];
       if(roots.length>1){reject(new MediaError('validation_failed'));return;}
-      const child = spawn(this.python, [launcher, tool, String(fileLimit), ...args], {
-        env: { MEDIA_TOOL_DIR: this.toolDir, MEDIA_WORK_DIR:roots[0]||'/work', MEDIA_READ_ONLY:readOnly?'1':'0' }, stdio: ['ignore', 'pipe', 'pipe','pipe'], detached:true
+      const child = spawn(this.python, [...(this.runtime?.prefix||[]), this.runtime?.launcher||launcher, tool, String(fileLimit), ...args], {
+        env: { ...(this.runtime?.env||{}), MEDIA_TOOL_DIR: this.toolDir, MEDIA_WORK_DIR:roots[0]||'/work', MEDIA_READ_ONLY:readOnly?'1':'0' }, stdio: ['ignore', 'pipe', 'pipe','pipe'], detached:true
       });
       let failure, bytes = 0, errBytes = 0; const chunks = [];
       const kill=()=>{try{process.kill(-child.pid,'SIGKILL');}catch{/* already exited */}};
@@ -34,9 +34,9 @@ export class MediaTools {
       child.on('close', code => { kill();clearTimeout(timer);signal?.removeEventListener('abort',abort);try{const measured=JSON.parse(stats),rss=measured.peak_rss_bytes;for(const key of ['cpu_user_us','cpu_system_us'])if(Number.isSafeInteger(measured[key])&&measured[key]>=0)this.parserCpuMicros+=measured[key];if(Number.isSafeInteger(rss)&&rss>0)this.peakParserRss=Math.max(this.peakParserRss,rss);}catch{/* unavailable on killed process */}if (failure || code !== 0) reject(failure || new MediaError('audio_unreadable')); else resolve(Buffer.concat(chunks)); });
     });
   }
-  async verify() {
+  async verify(signal) {
     for (const tool of ['ffmpeg', 'ffprobe']) {
-      const output = await this.run(tool, ['-version']);
+      const output = await this.run(tool, ['-version'], {signal,timeout:10000});
       if (!output.toString().startsWith(`${tool} version ${FFMPEG_VERSION} `)) throw new MediaError('temporary_system_error');
     }
   }

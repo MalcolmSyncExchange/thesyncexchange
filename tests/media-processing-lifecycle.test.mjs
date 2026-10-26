@@ -13,8 +13,14 @@ import { MediaTools } from '../workers/media/process.mjs';
 import { runOne } from '../workers/media/worker.mjs';
 import { tone } from './media-worker/fixtures.mjs';
 import { MediaError } from '../workers/media/errors.mjs';
+import { packagedRuntime } from '../workers/media/packaged-runtime.mjs';
+import { InputGrants } from '../services/media-broker/input-grants.mjs';
+import { downloadInput } from '../workers/media/direct-input.mjs';
+import { STAGING } from '../services/media-broker/common.mjs';
+import { createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
 
-const tools = new MediaTools(process.env.MEDIA_TOOL_DIR || '/opt/media/bin');
+const tools = process.env.TSE_PORTABLE_RUNTIME ? await packagedRuntime(process.env.TSE_PORTABLE_RUNTIME,process.env.TSE_PORTABLE_MANIFEST_SHA256) : new MediaTools(process.env.MEDIA_TOOL_DIR || '/opt/media/bin');
 // Synthetic receipt only; never a claim that a production image has been built.
 const digest = 'sha256:' + '0'.repeat(64);
 async function fixture(body) {
@@ -38,6 +44,20 @@ async function fixture(body) {
     'insert into storage.objects(id,bucket_id,name,version,metadata) values($1,$2,$3,$4,jsonb_build_object(\'size\',$5::bigint,\'mimetype\',$6::text))',
     [o.object_id,j.bucket,j.path,o.version,o.bytes,j.job_type==='preview_generation'?'audio/mp4':'application/octet-stream']));
   const broker = new MediaBroker(authority, objects);
+  if(process.env.TSE_PORTABLE_RUNTIME){
+    // Emulated private Storage capability: bytes never traverse broker responses.
+    // The real SQL lease resolver supplies canonical owner/path/version evidence.
+    const read=broker.read.bind(broker);
+    broker.read=async(l,target,signal)=>{
+      const grants=new InputGrants(authority,{sign:async(i,_ttl,id)=>`https://${STAGING}.supabase.co/storage/v1/object/sign/${i.bucket}/${i.path}?token=synthetic&cacheNonce=${id}`});
+      const {job,grant}=await grants.issue(l);
+      await downloadInput(grant,job,target,{signal,fetcher:async()=>{const i=job.source||job,o=objects.objects.get(i.object_id);assert.equal(o.version,i.version);return new Response(Readable.toWeb(createReadStream(o.path)));}});
+      // Existing adapter rechecks ownership/version without granting authority to
+      // the downloaded path; a separate temporary copy retains existing fencing.
+      const check=target+'-recheck';await read(l,check,signal);assert.equal(createHash('sha256').update(await readFile(check)).digest('hex'),createHash('sha256').update(await readFile(target)).digest('hex'));await rm(check);
+      return job;
+    };
+  }
   const upload = async (s, path) => {
     const bytes = (await stat(path)).size;
     const r = await reserve(db,s,'master',{bytes,filename:'Synthetic processing.wav'});

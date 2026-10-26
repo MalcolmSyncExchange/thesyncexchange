@@ -60,12 +60,13 @@ test("homepage hero uses a separate native mobile crop", () => {
   assert.ok(compact.byteLength < hero.byteLength);
 });
 
-test("homepage hero can request the high-quality optimized image tier", () => {
+test("homepage retains the quality tier and serves approved artwork without query-cache aliasing", () => {
   const config = read("next.config.mjs");
   const source = read("components/marketing/homepage.tsx");
 
   assert.match(config, /qualities: \[75, 90\]/);
   assert.match(source, /quality=\{90\}/);
+  assert.match(source, /<Image unoptimized src="\/images\/sync-sound-sculpture-hero\.webp"/);
   assert.match(source, /fetchPriority="high"/);
   assert.doesNotMatch(source, /\bpriority\b/);
 });

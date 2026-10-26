@@ -21,7 +21,7 @@ export function Homepage() {
             srcSet="/images/sync-sound-sculpture-hero-mobile-400.webp 400w, /images/sync-sound-sculpture-hero-mobile.webp 800w"
             sizes="100vw"
           />
-          <Image src="/images/sync-sound-sculpture-hero.webp" alt="" fill fetchPriority="high" sizes="100vw" quality={90} className={styles.heroArtwork} />
+          <Image unoptimized src="/images/sync-sound-sculpture-hero.webp" alt="" fill fetchPriority="high" sizes="100vw" quality={90} className={styles.heroArtwork} />
         </picture>
       </div>
       <div className={styles.heroAtmosphere} aria-hidden="true" />

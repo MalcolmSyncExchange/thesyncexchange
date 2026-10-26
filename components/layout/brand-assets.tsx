@@ -2,6 +2,8 @@ import Image from "next/image";
 
 import { cn } from "@/lib/utils";
 
+// Approved logo PNGs use path-based delivery. Query-keyed optimization previously
+// returned one cached light logo for distinct dark/logo/hero requests on Netlify.
 type BrandAssetProps = {
   className?: string;
   priority?: boolean;
@@ -12,6 +14,7 @@ export function BrandLogo({ className, priority = false, alt = "The Sync Exchang
   return (
     <>
       <Image
+        unoptimized
         src="/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png"
         alt={alt}
         width={1200}
@@ -20,6 +23,7 @@ export function BrandLogo({ className, priority = false, alt = "The Sync Exchang
         className={cn("block h-auto w-[176px] dark:hidden sm:w-[192px] lg:w-[208px]", className)}
       />
       <Image
+        unoptimized
         src="/brand/the-sync-exchange/logos/website-header-horizontal-dark-transparent.png"
         alt={alt}
         width={1200}
@@ -40,6 +44,7 @@ export function BrandHeaderLogo({ className, priority = false, alt = "The Sync E
           srcSet="/brand/the-sync-exchange/logos/website-mobile-header-horizontal-light-transparent.png"
         />
         <Image
+          unoptimized
           src="/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png"
           alt={alt}
           width={1200}
@@ -54,6 +59,7 @@ export function BrandHeaderLogo({ className, priority = false, alt = "The Sync E
           srcSet="/brand/the-sync-exchange/logos/website-mobile-header-horizontal-dark-transparent.png"
         />
         <Image
+          unoptimized
           src="/brand/the-sync-exchange/logos/website-header-horizontal-dark-transparent.png"
           alt={alt}
           width={1200}
@@ -70,6 +76,7 @@ export function BrandFooterLogo({ className, priority = false, alt = "The Sync E
   return (
     <>
       <Image
+        unoptimized
         src="/brand/the-sync-exchange/logos/website-header-horizontal-light-transparent.png"
         alt={alt}
         width={1200}
@@ -78,6 +85,7 @@ export function BrandFooterLogo({ className, priority = false, alt = "The Sync E
         className={cn("block h-auto w-[216px] dark:hidden", className)}
       />
       <Image
+        unoptimized
         src="/brand/the-sync-exchange/logos/website-header-horizontal-dark-transparent.png"
         alt={alt}
         width={1200}

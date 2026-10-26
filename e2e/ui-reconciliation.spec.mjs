@@ -78,8 +78,8 @@ test("homepage hero matches the approved cinematic responsive treatment", async 
     renderedWidth: image.getBoundingClientRect().width,
     renderedHeight: image.getBoundingClientRect().height
   }));
-  expect(wideMetrics.naturalWidth).toBe(1920);
-  expect(wideMetrics.naturalHeight).toBe(800);
+  expect(wideMetrics.naturalWidth).toBe(1942);
+  expect(wideMetrics.naturalHeight).toBe(809);
   expect(wideMetrics.renderedWidth).toBeGreaterThan(1920);
   expect(wideMetrics.renderedWidth).toBeLessThan(1960);
   expect(wideMetrics.renderedHeight).toBeGreaterThanOrEqual(680);

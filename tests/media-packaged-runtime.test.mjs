@@ -28,13 +28,13 @@ test('packaged launcher denies network, parent memory, other files, descendants 
   }
  }finally{await rm(d,{recursive:true,force:true});}
 });
-test('self-contained Python/FFmpeg: WAV AIFF FLAC, exact 50 MB, waveform, preview, scratch and resource evidence',async()=>{
+test('self-contained Python/FFmpeg: WAV AIFF AIFC FLAC, exact 50 MB, waveform, preview, scratch and resource evidence',async()=>{
  const start=performance.now(),tools=await packagedRuntime(root,expected),loaded=performance.now();await tools.verify();const ready=performance.now();
  const d=await mkdtemp(join(tmpdir(),'portable-codec-'));const measurements=[];
  try{
   const p=join(d,'source');await tone(p,{seconds:35,rate:96000});
-  for(const [format,codec] of [['wav','pcm_s16le'],['aiff','pcm_s16be'],['flac','flac']]){
-   const path=join(d,format);if(format==='wav')await writeFile(path,await readFile(p));else await tools.run('ffmpeg',['-v','error','-i',p,'-c:a',codec,'-f',format,path],{maxBytes:0,fileLimit:50e6});
+  for(const [format,codec] of [['wav','pcm_s16le'],['aiff','pcm_s16be'],['aifc','pcm_s16le'],['flac','flac']]){
+   const path=join(d,format);if(format==='wav')await writeFile(path,await readFile(p));else await tools.run('ffmpeg',['-v','error','-i',p,'-c:a',codec,'-f',format==='aifc'?'aiff':format,path],{maxBytes:0,fileLimit:50e6});
    const at=performance.now(),s=await validateSource(tools,path);assert.equal(s.duration_us,35000000);measurements.push({format,bytes:s.actual_bytes,processingMs:performance.now()-at});
   }
   const s=await validateSource(tools,p),identity={asset_id:'11111111-1111-4111-8111-111111111111',object_id:'22222222-2222-4222-8222-222222222222',version:'synthetic-v1',sha256:s.sha256};

@@ -4,6 +4,9 @@ import {prepareParser} from './parser-boundary.mjs';
 import { MediaError, limits } from './errors.mjs';
 const launcher = fileURLToPath(new URL('sandbox.py', import.meta.url));
 export const FFMPEG_VERSION = '9.0.2';
+// Classification affects bounded retry only, never access or job authority.
+// Keep raw native stderr private and retain existing byte/retry ceilings.
+export const transientParserFailure = text => /(?:^|\n| )pthread_create\(\) failed: Resource temporarily unavailable(?:\r?\n|$)/.test(text);
 export class MediaTools {
   constructor(toolDir, python = '/usr/bin/python3', runtime = null) { this.toolDir = toolDir; this.python = python; this.runtime=runtime; this.peakParserRss=0; this.parserCpuMicros=0; }
   async run(tool, args, { signal, onData, maxBytes = limits.probeBytes, fileLimit = 4_000_000, timeout = limits.processMs, readOnly = false } = {}) {
@@ -15,7 +18,7 @@ export class MediaTools {
       const child = spawn(this.python, [...(this.runtime?.prefix||['-I','-S']), this.runtime?.launcher||launcher, tool, String(fileLimit), ...prepared.args], {
         env:prepared.env,cwd:prepared.cwd, stdio: ['ignore', 'pipe', 'pipe','pipe'], detached:true
       });
-      let failure, bytes = 0, errBytes = 0; const chunks = [];
+      let failure, bytes = 0, errBytes = 0, errTail = '', resourceUnavailable = false; const chunks = [];
       const kill=()=>{try{process.kill(-child.pid,'SIGKILL');}catch{/* already exited */}};
       const abort=()=>{failure=new MediaError('worker_lease_expired');kill();};
       signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
@@ -26,13 +29,13 @@ export class MediaTools {
         try { if (onData) onData(chunk); else chunks.push(chunk); }
         catch (error) { failure = error; kill(); }
       });
-      child.stderr.on('data', chunk => { errBytes += chunk.length; if (errBytes > limits.stderrBytes) { failure = new MediaError('audio_unreadable'); kill(); } });
+      child.stderr.on('data', chunk => { errBytes += chunk.length; if(errBytes<=limits.stderrBytes){const text=errTail+chunk.toString();resourceUnavailable ||= transientParserFailure(text);errTail=text.slice(-256);} if (errBytes > limits.stderrBytes) { failure = new MediaError('audio_unreadable'); kill(); } });
       let stats='';child.stdio[3].on('data',chunk=>{stats+=chunk.toString();if(stats.length>256){failure=new MediaError('validation_failed');kill();}});
       child.on('error', () => { failure = new MediaError('temporary_system_error'); kill(); });
       // Exit occurs even if descendants keep pipes open. End all mutation
       // capability before close resolves and output validation starts.
       child.on('exit',kill);
-      child.on('close', code => { kill();clearTimeout(timer);signal?.removeEventListener('abort',abort);try{const measured=JSON.parse(stats),rss=measured.peak_rss_bytes;for(const key of ['cpu_user_us','cpu_system_us'])if(Number.isSafeInteger(measured[key])&&measured[key]>=0)this.parserCpuMicros+=measured[key];if(Number.isSafeInteger(rss)&&rss>0)this.peakParserRss=Math.max(this.peakParserRss,rss);}catch{/* unavailable on killed process */}if (failure || code !== 0) reject(failure || new MediaError('audio_unreadable')); else resolve(Buffer.concat(chunks)); });
+      child.on('close', code => { kill();clearTimeout(timer);signal?.removeEventListener('abort',abort);try{const measured=JSON.parse(stats),rss=measured.peak_rss_bytes;for(const key of ['cpu_user_us','cpu_system_us'])if(Number.isSafeInteger(measured[key])&&measured[key]>=0)this.parserCpuMicros+=measured[key];if(Number.isSafeInteger(rss)&&rss>0)this.peakParserRss=Math.max(this.peakParserRss,rss);}catch{/* unavailable on killed process */}if (failure || code !== 0) reject(failure || new MediaError(resourceUnavailable?'temporary_system_error':'audio_unreadable')); else resolve(Buffer.concat(chunks)); });
     });}catch(error){await prepared.cleanup();throw error;}
   }
   async verify(signal) {

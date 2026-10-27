@@ -9,10 +9,10 @@ import { tone,png } from './media-worker/fixtures.mjs';
 const tools=new MediaTools(process.env.MEDIA_TOOL_DIR||'/private/tmp/slice3-media-tools/bin');
 async function run(body){const dir=await realpath(await mkdtemp(join(tmpdir(),'media-test-')));try{await tools.verify();await body(dir);}finally{await rm(dir,{recursive:true,force:true});}}
 const identity=s=>({asset_id:'11111111-1111-4111-8111-111111111111',object_id:'22222222-2222-4222-8222-222222222222',version:'version-1',sha256:s.sha256});
-test('source: WAV AIFF FLAC complete decoding, hashes, mono/stereo, rate/duration bounds and corrupt inputs',()=>run(async d=>{
+test('source: WAV AIFF AIFC FLAC complete decoding, hashes, mono/stereo, rate/duration bounds and corrupt inputs',()=>run(async d=>{
  const wav=join(d,'source.wav');await tone(wav);const original=await validateSource(tools,wav);assert.equal(original.frames,30*44100);assert.equal(original.bit_depth,16);assert.equal(original.sha256,(await hashFile(wav,250e6)).sha256);
- for(const [format,codec] of [['aiff','pcm_s16be'],['flac','flac']]){const path=join(d,format);await tools.run('ffmpeg',['-v','error','-i',wav,'-c:a',codec,'-f',format,path],{maxBytes:0,fileLimit:250e6});const s=await validateSource(tools,path);assert.equal(s.container,format);assert.equal(s.frames,original.frames);}
- for(const [rate,seconds,ok] of [[8000,1,true],[192000,1,true],[44100,0.9,false],[44100,900.1,false]]){const p=join(d,`${rate}-${seconds}`);await tone(p,{seconds,rate,channels:2});if(ok)assert.equal((await validateSource(tools,p)).sample_rate,rate);else await assert.rejects(validateSource(tools,p));}
+ for(const [format,codec] of [['aiff','pcm_s16be'],['aifc','pcm_s16le'],['flac','flac']]){const path=join(d,format);await tools.run('ffmpeg',['-v','error','-i',wav,'-c:a',codec,'-f',format==='aifc'?'aiff':format,path],{maxBytes:0,fileLimit:50e6});const s=await validateSource(tools,path);assert.equal(s.container,format);assert.equal(s.frames,original.frames);}
+ for(const [rate,seconds,ok] of [[8000,1,true],[192000,1,true],[44100,0.9,false],[8000,900.1,false]]){const p=join(d,`${rate}-${seconds}`);await tone(p,{seconds,rate,channels:2});if(ok)assert.equal((await validateSource(tools,p)).sample_rate,rate);else await assert.rejects(validateSource(tools,p));}
  const b=await readFile(wav);for(const [name,data] of [['mp3',Buffer.from('ID3'+ 'x'.repeat(100))],['truncated',b.subarray(0,-100)],['polyglot',Buffer.concat([b,Buffer.from('extra')])],['corrupt',Buffer.from('RIFF'+ 'x'.repeat(60))]]){const p=join(d,name);await writeFile(p,data);await assert.rejects(validateSource(tools,p));}
  const z=join(d,'zero');await tone(z,{seconds:0});await assert.rejects(validateSource(tools,z),/no_audio_frames|audio_unreadable/);
  const mp3=JSON.parse(await readFile(new URL('media-worker/mp3-fixture.json',import.meta.url)));const compressed=join(d,'real-mp3');await writeFile(compressed,Buffer.from(mp3.base64,'base64'));await assert.rejects(validateSource(tools,compressed),/unsupported_format/);
@@ -24,7 +24,7 @@ test('waveform: deterministic versioned envelope, anti-cancellation, source bind
  const a=await readFile(join(d,'one'));assert.deepEqual(a,await readFile(join(d,'two')));assert.equal(a.length,512+200*4);assert.ok(a.readInt16LE(512)<-10000);assert.ok(a.readInt16LE(514)>10000);
  assert.equal(JSON.parse(a.subarray(4,4+a.readUInt32LE()).toString()).source_sha256,source.sha256);
  await assert.rejects(waveform(tools,path,source,{...identity(source),sha256:'0'.repeat(64)},join(d,'wrong')),/checksum_mismatch/);
- const large=join(d,'900.wav');await tone(large,{seconds:900,rate:48000,channels:2});const s=await validateSource(tools,large);const r=await waveform(tools,large,s,identity(s),join(d,'long'));assert.equal(r.waveform_points,90000);assert.ok(r.actual_bytes<2e6);
+ const large=join(d,'900.wav');await tone(large,{seconds:900,rate:8000,channels:1});const s=await validateSource(tools,large);const r=await waveform(tools,large,s,identity(s),join(d,'long'));assert.equal(r.waveform_points,90000);assert.ok(r.actual_bytes<2e6);
  console.log(JSON.stringify({fixture_bytes:s.actual_bytes,parser_peak_rss_bytes:tools.peakParserRss,node_peak_rss_bytes:process.resourceUsage().maxRSS*1024,waveform_bytes:r.actual_bytes}));
 }));
 test('preview: 15/30/60 seconds, short whole cue, sample boundaries, decode, source unchanged',()=>run(async d=>{

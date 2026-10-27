@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {execFileSync,spawnSync} from 'node:child_process';
 import {prepareParser} from '../workers/media/parser-boundary.mjs';
-import {MediaTools} from '../workers/media/process.mjs';
+import {MediaTools,transientParserFailure} from '../workers/media/process.mjs';
 const fixture=async fn=>{const d=await realpath(await mkdtemp(join(tmpdir(),'parser-boundary-')));try{await fn(d);}finally{await rm(d,{recursive:true,force:true});}};
 
 test('controller passes exact environment and file leaves; inherited canary never enters launch configuration',()=>fixture(async d=>{
@@ -70,3 +70,25 @@ test('concurrent output reservations have one winner; existing output cannot be 
  await assert.rejects(prepareParser('ffmpeg',['-y','-i',input,output],d,null,false),/validation_failed/);
  assert.equal((await readFile(output)).length,0);await both.find(x=>x.status==='fulfilled').value.cleanup();assert.deepEqual(await readdir(d),['input']);
 }));
+
+test('trusted system libraries canonicalize merged-/usr symlinks and allow a missing optional cache only',()=>{
+ const script=`import importlib.util,json
+from unittest.mock import patch
+s=importlib.util.spec_from_file_location('policy','workers/media/sandbox.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+with patch.object(m.os.path,'realpath',return_value='/usr/lib'),patch.object(m.os.path,'lexists',return_value=False):
+ assert m.library_rules(None)==[('/usr/lib',13)]
+with patch.object(m.os.path,'realpath',return_value='/usr/lib'),patch.object(m.os.path,'lexists',return_value=True):
+ assert m.library_rules(None)==[('/usr/lib',13),('/etc/ld.so.cache',4)]
+with patch.object(m.os.path,'realpath',return_value='/unrelated'):
+ try:m.library_rules(None)
+ except RuntimeError:pass
+ else:raise AssertionError('unreviewed library target allowed')
+assert m.library_rules('/pinned/runtime')==[('/pinned/runtime',13)]
+print(json.dumps({'pass':True}))`;
+ const r=JSON.parse(execFileSync('/usr/bin/python3',['-B','-c',script],{cwd:new URL('../',import.meta.url),encoding:'utf8',env:{PATH:'/usr/bin:/bin'}}));assert.equal(r.pass,true);
+});
+
+test('verified native thread exhaustion is retryable without exposing stderr or reclassifying corrupt media',()=>{
+ assert.equal(transientParserFailure('[dec:pcm_s16le] pthread_create() failed: Resource temporarily unavailable\n'),true);
+ for(const text of ['Invalid data found when processing input','Resource temporarily unavailable','pthread_create() failed: Operation not permitted','untrustedpthread_create() failed: Resource temporarily unavailable'])assert.equal(transientParserFailure(text),false);
+});

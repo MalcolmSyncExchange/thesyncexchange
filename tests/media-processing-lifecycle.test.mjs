@@ -120,3 +120,16 @@ test('transient interruption recovers one source job without a duplicate asset; 
   await assert.rejects(artist(c.db,'media_upload_submit',[bad,await revision(c.db,bad),randomUUID()]));
   assert.equal((await c.db.query('select count(*)::int n from submission_media.master_reviews')).rows[0].n,0);
 }));
+
+test('native thread exhaustion retains a retryable job and recovers once without duplicate source evidence',()=>fixture(async c=>{
+ const s=await create(c.db),input=join(c.dir,'retry.wav');await tone(input,{seconds:2});await c.upload(s,input);
+ const nativeFailure=new MediaTools('/opt/media-test/bin',tools.python,tools.runtime);
+ const exhausted={verify:signal=>tools.verify(signal),probe:(_path,_format,signal)=>nativeFailure.run('ffmpeg',['exhausted',join(c.dir,'failed-output')],{signal,maxBytes:0})};
+ await assert.rejects(runOne(c.broker,exhausted,digest),e=>e.code==='temporary_system_error'&&e.retryable===true&&e.message==='temporary_system_error'&&e.cause===undefined);
+ assert.equal((await c.db.query('select state from submission_media.jobs')).rows[0].state,'retry_wait');
+ await assert.rejects(stat(join(c.dir,'failed-output')),{code:'ENOENT'});
+ await c.db.exec("update submission_media.jobs set available_at=clock_timestamp()-interval '1 second'");
+ await runOne(c.broker,tools,digest);await runOne(c.broker,tools,digest);
+ assert.equal((await c.db.query("select count(*)::int n from submission_media.assets where kind='source_master'")).rows[0].n,1);
+ assert.equal((await c.db.query('select count(*)::int n from submission_media.master_reviews')).rows[0].n,0);
+}));

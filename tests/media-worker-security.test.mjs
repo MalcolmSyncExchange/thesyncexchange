@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { MediaBroker } from '../workers/media/broker.mjs';
 import { safeError,MediaError } from '../workers/media/errors.mjs';
@@ -20,7 +22,7 @@ test('output capability binds tuple/profile/destination, expires, is one-use and
  let live=true,writes=0,rechecks=0;
  const authority={async withLease(lease,fn){if(!live||lease.lease_epoch!==l.lease_epoch)throw new MediaError('worker_lease_expired');return fn({...job},async()=>{rechecks++;if(!live)throw new MediaError('worker_lease_expired');},async()=>{});}};
  const storage={async createExact(_job,_path,facts){writes++;return {bytes:facts.actual_bytes,sha256:facts.sha256};}};
- const b=new MediaBroker(authority,storage),d=await mkdtemp('/private/tmp/cap-test-'),p=d+'/output';await writeFile(p,'x');const proof=await verifyOutput(p,4e6,undefined,async()=>({}));
+ const b=new MediaBroker(authority,storage),d=await mkdtemp(join(tmpdir(),'cap-test-')),p=d+'/output';await writeFile(p,'x');const proof=await verifyOutput(p,4e6,undefined,async()=>({}));
  try {
   const c=await b.authorizeOutput(l);live=false;await assert.rejects(b.writeOutput(l,c,proof));assert.equal(writes,0);live=true;
   const wrong=await b.authorizeOutput(l);job.path='substituted';await assert.rejects(b.writeOutput(l,wrong,proof));assert.equal(writes,0);job.path='trusted-only';

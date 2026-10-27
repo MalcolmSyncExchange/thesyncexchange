@@ -66,6 +66,25 @@ def install_seccomp(libc, machine):
         raise RuntimeError()
 
 
+def library_rules(runtime):
+    read_file = 1 << 2
+    read_tree = (1 << 0) | read_file | (1 << 3)
+    if runtime:
+        return [(runtime,read_tree)]
+    # Debian's merged /usr exposes /lib as a symlink. Landlock path-beneath
+    # needs a directory FD, while O_NOFOLLOW intentionally stays on below.
+    # Resolve only these trusted immutable library roots, never input/output.
+    roots = list(dict.fromkeys(os.path.realpath(p) for p in ('/lib','/usr/lib')))
+    if any(p not in ('/lib','/usr/lib','/lib64','/usr/lib64') for p in roots):
+        raise RuntimeError()
+    rules = [(p,read_tree) for p in roots]
+    # Scratch images can legitimately omit ld.so.cache. Missing required
+    # runtime/tool/input/output files still fail; no fallback broadens access.
+    if os.path.lexists('/etc/ld.so.cache'):
+        rules.append(('/etc/ld.so.cache',read_file))
+    return rules
+
+
 def install_filesystem(libc, inputs, outputs, tool, runtime):
     class Ruleset(ctypes.Structure):
         _fields_ = [('handled_access_fs',ctypes.c_uint64)]
@@ -80,7 +99,7 @@ def install_filesystem(libc, inputs, outputs, tool, runtime):
         raise RuntimeError()
     read_file = 1 << 2
     read_tree = (1 << 0) | read_file | (1 << 3)
-    libraries = [(runtime,read_tree)] if runtime else [('/lib',read_tree),('/usr/lib',read_tree),('/etc/ld.so.cache',read_file)]
+    libraries = library_rules(runtime)
     # No directory write/create/remove/rename/symlink/device/execute access to
     # scratch. Even compromised native code can only write pre-created leaves.
     rules = libraries + [(tool,(1 << 0) | read_file)]

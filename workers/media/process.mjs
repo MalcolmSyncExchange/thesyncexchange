@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { dirname, isAbsolute } from 'node:path';
+import {prepareParser} from './parser-boundary.mjs';
 import { MediaError, limits } from './errors.mjs';
 const launcher = fileURLToPath(new URL('sandbox.py', import.meta.url));
 export const FFMPEG_VERSION = '9.0.2';
@@ -8,11 +8,12 @@ export class MediaTools {
   constructor(toolDir, python = '/usr/bin/python3', runtime = null) { this.toolDir = toolDir; this.python = python; this.runtime=runtime; this.peakParserRss=0; this.parserCpuMicros=0; }
   async run(tool, args, { signal, onData, maxBytes = limits.probeBytes, fileLimit = 4_000_000, timeout = limits.processMs, readOnly = false } = {}) {
     if(signal?.aborted)throw new MediaError('worker_lease_expired');
-    return new Promise((resolve, reject) => {
-      const roots=[...new Set(args.filter(isAbsolute).map(dirname))];
-      if(roots.length>1){reject(new MediaError('validation_failed'));return;}
-      const child = spawn(this.python, [...(this.runtime?.prefix||[]), this.runtime?.launcher||launcher, tool, String(fileLimit), ...args], {
-        env: { ...(this.runtime?.env||{}), MEDIA_TOOL_DIR: this.toolDir, MEDIA_WORK_DIR:roots[0]||'/work', MEDIA_READ_ONLY:readOnly?'1':'0' }, stdio: ['ignore', 'pipe', 'pipe','pipe'], detached:true
+    if(!Number.isSafeInteger(timeout)||timeout<1||timeout>limits.processMs||!Number.isSafeInteger(maxBytes)||maxBytes<0||maxBytes>1_382_400_000||!Number.isSafeInteger(fileLimit)||fileLimit<1||fileLimit>50_000_000)throw new MediaError('validation_failed');
+    const prepared=await prepareParser(tool,args,this.toolDir,this.runtime,readOnly);
+    if(signal?.aborted){await prepared.cleanup();throw new MediaError('worker_lease_expired');}
+    try{return await new Promise((resolve, reject) => {
+      const child = spawn(this.python, [...(this.runtime?.prefix||['-I','-S']), this.runtime?.launcher||launcher, tool, String(fileLimit), ...prepared.args], {
+        env:prepared.env,cwd:prepared.cwd, stdio: ['ignore', 'pipe', 'pipe','pipe'], detached:true
       });
       let failure, bytes = 0, errBytes = 0; const chunks = [];
       const kill=()=>{try{process.kill(-child.pid,'SIGKILL');}catch{/* already exited */}};
@@ -26,13 +27,13 @@ export class MediaTools {
         catch (error) { failure = error; kill(); }
       });
       child.stderr.on('data', chunk => { errBytes += chunk.length; if (errBytes > limits.stderrBytes) { failure = new MediaError('audio_unreadable'); kill(); } });
-      let stats='';child.stdio[3].on('data',chunk=>{stats+=chunk.toString();if(stats.length>256)kill();});
+      let stats='';child.stdio[3].on('data',chunk=>{stats+=chunk.toString();if(stats.length>256){failure=new MediaError('validation_failed');kill();}});
       child.on('error', () => { failure = new MediaError('temporary_system_error'); kill(); });
       // Exit occurs even if descendants keep pipes open. End all mutation
       // capability before close resolves and output validation starts.
       child.on('exit',kill);
       child.on('close', code => { kill();clearTimeout(timer);signal?.removeEventListener('abort',abort);try{const measured=JSON.parse(stats),rss=measured.peak_rss_bytes;for(const key of ['cpu_user_us','cpu_system_us'])if(Number.isSafeInteger(measured[key])&&measured[key]>=0)this.parserCpuMicros+=measured[key];if(Number.isSafeInteger(rss)&&rss>0)this.peakParserRss=Math.max(this.peakParserRss,rss);}catch{/* unavailable on killed process */}if (failure || code !== 0) reject(failure || new MediaError('audio_unreadable')); else resolve(Buffer.concat(chunks)); });
-    });
+    });}catch(error){await prepared.cleanup();throw error;}
   }
   async verify(signal) {
     for (const tool of ['ffmpeg', 'ffprobe']) {

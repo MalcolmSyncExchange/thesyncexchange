@@ -80,5 +80,6 @@ test('media guard blocks before dependency, filesystem and interpreter execution
 test('media subprocesses retain explicit environment instead of inheriting the host',async()=>{
  const source=await readFile(new URL('../workers/media/process.mjs',import.meta.url),'utf8');
  assert.doesNotMatch(source,/\.\.\.process\.env|env:\s*process\.env/);
- assert.match(source,/env:\s*\{\s*\.\.\.\(this\.runtime\?\.env\|\|\{\}\)/);
+ assert.match(source,/env:prepared.env/);
+ const boundary=await readFile(new URL('../workers/media/parser-boundary.mjs',import.meta.url),'utf8');assert.doesNotMatch(boundary,/process\.env/);assert.match(boundary,/Object.keys\(runtime.env\).length!==4/);
 });

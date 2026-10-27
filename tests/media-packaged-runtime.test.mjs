@@ -13,15 +13,18 @@ const root=process.env.TSE_PORTABLE_RUNTIME,expected=process.env.TSE_PORTABLE_MA
 test('pinned portable runtime rejects altered manifest before any execution',async()=>{
  await assert.rejects(packagedRuntime(root,'0'.repeat(64)));assert.equal(process.platform,'linux');assert.ok(['x64','arm64'].includes(process.arch));
 });
-test('packaged launcher denies network, other files and group escape; kills late writers after success/failure/timeout',async()=>{
+test('packaged launcher denies network, parent memory, other files, descendants and group escape; cleans interrupted output',async()=>{
  const packaged=await packagedRuntime(root,expected),tools=new MediaTools('/opt/media-test/bin',packaged.python,packaged.runtime),d=await mkdtemp(join(tmpdir(),'portable-security-'));
  try{
-  await tools.run('ffmpeg',['isolation',join(d,'unused1'),join(d,'unused2')],{readOnly:true,maxBytes:0});
-  const readonly=join(d,'readonly');await writeFile(readonly,'unchanged');await tools.run('ffmpeg',['readonly',readonly,join(d,'unused')],{readOnly:true,maxBytes:0});assert.equal(await readFile(readonly,'utf8'),'unchanged');
-  for(const mode of ['success','closed','failure','timeout']){
-   const output=join(d,mode),pid=join(d,mode+'-pid');const p=tools.run('ffmpeg',[mode,output,pid],{maxBytes:0,timeout:mode==='timeout'?300:5000});
+  const canary=join(d,'controller-canary');await writeFile(canary,'synthetic controller-only file');
+    await tools.run('ffmpeg',['isolation','DENIED='+canary],{readOnly:true,maxBytes:0});
+    assert.equal(await readFile(canary,'utf8'),'synthetic controller-only file');
+  const readonly=join(d,'readonly');await writeFile(readonly,'unchanged');await tools.run('ffmpeg',['readonly',readonly],{readOnly:true,maxBytes:0});assert.equal(await readFile(readonly,'utf8'),'unchanged');
+    await tools.run('ffmpeg',['memory',join(d,'memory')],{maxBytes:0});
+  for(const mode of ['success','closed','failure','timeout','filelimit']){
+   const output=join(d,mode);const p=tools.run('ffmpeg',[mode,output],{maxBytes:0,fileLimit:mode==='filelimit'?4096:4000000,timeout:mode==='timeout'?300:5000});
    if(mode==='success'||mode==='closed')await p;else await assert.rejects(p);
-   const size=(await stat(output)).size;await new Promise(r=>setTimeout(r,250));assert.equal((await stat(output)).size,size);assert.doesNotMatch(await readFile(output,'utf8'),/ESCAPED/);
+   if(!['success','closed'].includes(mode)){await assert.rejects(stat(output),{code:'ENOENT'});continue;}const size=(await stat(output)).size;await new Promise(r=>setTimeout(r,250));assert.equal((await stat(output)).size,size);assert.doesNotMatch(await readFile(output,'utf8'),/ESCAPED/);
   }
  }finally{await rm(d,{recursive:true,force:true});}
 });

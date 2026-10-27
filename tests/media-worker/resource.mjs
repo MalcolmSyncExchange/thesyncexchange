@@ -1,4 +1,4 @@
-// Synthetic near-250MB source. Offline/local only; no broker or hosted jobs.
+// Synthetic exact-50MB source. Offline/local only; no broker or hosted jobs.
 import assert from 'node:assert/strict';
 import {mkdtemp,realpath,rm,stat,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
@@ -9,9 +9,9 @@ import {validateSource,waveform,preview} from '../../workers/media/media.mjs';
 const start=performance.now(),dir=await realpath(await mkdtemp('/work/resource-'));
 try {
  const tools=new MediaTools('/opt/media/bin');await tools.verify();
- const sourcePath=join(dir,'tone.wav');await tone(sourcePath,{seconds:325.5,rate:192000,channels:2});
+ const sourcePath=join(dir,'tone.wav');await tone(sourcePath,{seconds:(50_000_000-44)/4/48000,rate:48000,channels:2});
  const source=await validateSource(tools,sourcePath);
- assert.ok(source.actual_bytes>249000000&&source.actual_bytes<=250000000);
+ assert.ok(source.actual_bytes===50_000_000);
  const identity={asset_id:'11111111-1111-4111-8111-111111111111',object_id:'22222222-2222-4222-8222-222222222222',version:'synthetic-resource-v1',sha256:source.sha256};
  const peaks=await waveform(tools,sourcePath,source,identity,join(dir,'peaks'));
  const excerpt=await preview(tools,sourcePath,source,0,60000,join(dir,'preview'));

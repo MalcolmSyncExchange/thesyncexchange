@@ -77,21 +77,24 @@ test('output identity: bounded FD hash/copy, no raw path accepted, identity swap
   const large=join(d,'large'),f=await open(large,'w');await f.truncate(4000001);await f.close();
   await assert.rejects(verifyOutput(large,4e6,undefined,async()=>assert.fail()),/file_too_large/);
 }));
-test('parser process groups: descendants cannot keep writing after success, failure, timeout or cancellation',async t=>{
+test('parser boundary: descendants denied; failure, timeout and cancellation remove authorized output',async t=>{
   const toolDir=process.env.MEDIA_DESCENDANT_TOOL_DIR;
   if(!toolDir){t.skip('native descendant fixture is exercised in the Linux container');return;}
   await fixture(async d=>{
     const tools=new MediaTools(toolDir);
-    await tools.run('ffmpeg',['isolation',join(d,'unused1'),join(d,'unused2')],{readOnly:true,maxBytes:0});
+    const canary=join(d,'controller-canary');await writeFile(canary,'synthetic controller-only file');
+    await tools.run('ffmpeg',['isolation','DENIED='+canary],{readOnly:true,maxBytes:0});
+    assert.equal(await readFile(canary,'utf8'),'synthetic controller-only file');
     const readonly=join(d,'readonly');await writeFile(readonly,'unchanged');
-    await tools.run('ffmpeg',['readonly',readonly,join(d,'unused')],{readOnly:true,maxBytes:0});
+    await tools.run('ffmpeg',['readonly',readonly],{readOnly:true,maxBytes:0});
     assert.equal(await readFile(readonly,'utf8'),'unchanged');
-    for(const mode of ['success','closed','failure','timeout','cancel']) {
-      const output=join(d,mode),pid=join(d,mode+'-pid'),c=new AbortController();
-      const p=tools.run('ffmpeg',[mode,output,pid],{signal:c.signal,maxBytes:0,timeout:mode==='timeout'?500:5000});
-      if(mode==='cancel'){for(let i=0;i<100;i++){try{await stat(pid);break;}catch{await new Promise(r=>setTimeout(r,10));}}c.abort();}
+    await tools.run('ffmpeg',['memory',join(d,'memory')],{maxBytes:0});
+    for(const mode of ['success','closed','failure','timeout','cancel','filelimit']) {
+      const output=join(d,mode),c=new AbortController();
+      const p=tools.run('ffmpeg',[mode,output],{signal:c.signal,maxBytes:0,fileLimit:mode==='filelimit'?4096:4000000,timeout:mode==='timeout'?500:5000});
+      if(mode==='cancel'){for(let i=0;i<100;i++){try{if((await stat(output)).size>0)break;}catch{await new Promise(r=>setTimeout(r,10));}}c.abort();}
       if(mode==='success'||mode==='closed')await p;else await assert.rejects(p);
-      const first=(await stat(output)).size;await new Promise(r=>setTimeout(r,250));assert.equal((await stat(output)).size,first);
+      if(!['success','closed'].includes(mode)){await assert.rejects(stat(output),{code:'ENOENT'});continue;}const first=(await stat(output)).size;await new Promise(r=>setTimeout(r,250));assert.equal((await stat(output)).size,first);
       const marker=await readFile(output,'utf8');assert.doesNotMatch(marker,/ESCAPED/);
     }
   });

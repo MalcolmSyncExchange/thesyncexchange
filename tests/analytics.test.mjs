@@ -1,3 +1,4 @@
+import * as waveform from '../lib/media/waveform.mjs';
 import * as zod from "zod";
 import * as authSecurity from "../services/auth/security.ts";
 import test from 'node:test';
@@ -250,7 +251,7 @@ function playbackHarness(withObserver=true) {
  const runner=hookRunner();const events=[];const observer=triggers.previewTracker((...args)=>events.push(args));
  const Provider=load('components/audio/preview-audio-provider.tsx',{
   react:runner.hooks,'next/image':{default:'image'},'next/link':{default:'link'},'lucide-react':{},
-  '@/components/ui/button':{Button:'button'},'@/lib/utils':{formatDuration:()=>''},'./preview-audio-provider.module.css':{default:{}}
+  '@/components/ui/button':{Button:'button'},'@/lib/utils':{formatDuration:()=>''},'./preview-audio-provider.module.css':{default:{}},'./validated-waveform':{ValidatedWaveform:'waveform'},'@/lib/media/waveform.mjs':waveform
  }).PreviewAudioProvider;
  const tree=runner.render(Provider,{children:null,...(withObserver?{playbackObserver:observer}:{})});
  const node=findElement(tree,e=>e.type==='audio');let rejection=false;let deferred=null;

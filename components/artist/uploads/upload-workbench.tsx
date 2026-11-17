@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import { createBrowserSupabaseClient } from "@/services/supabase/client";
 import { resumableUpload } from "@/lib/media/resumable-upload.mjs";
 import { mediaMessage,uploadRoles,uploadLabels,validateUploadFile,uploadReadiness,type UploadState,type UploadFile } from "@/lib/media/upload-contract";
+import { ValidatedWaveform } from '@/components/audio/validated-waveform';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,4 +79,4 @@ export function UploadWorkbench({draft,track,admin=false,embedded=false,initialF
   </>:null}
  </div>;
 }
-function Waveform({url}:{url:string}){const [points,setPoints]=useState(''),[error,setError]=useState(false);useEffect(()=>{const c=new AbortController();fetch(url,{signal:c.signal,cache:'no-store'}).then(async r=>{if(!r.ok)throw Error();const b=await r.arrayBuffer();if(b.byteLength<512||b.byteLength>2_000_000)throw Error();const d=new DataView(b),headerLength=d.getUint32(0,true);if(headerLength>508)throw Error();const header=JSON.parse(new TextDecoder().decode(new Uint8Array(b,4,headerLength)));const count=header.points;if(!Number.isSafeInteger(count)||count<1||count>90000||b.byteLength!==512+count*4)throw Error();const lines=[];for(let i=0;i<count;i+=Math.max(1,Math.ceil(count/600))){const low=d.getInt16(512+i*4,true),high=d.getInt16(514+i*4,true),x=i/count*600;lines.push(`${x},${40-low/32768*38} ${x},${40-high/32768*38}`);}setPoints(lines.join(' '));}).catch(()=>{if(!c.signal.aborted)setError(true);});return()=>c.abort();},[url]);return error?<p>Waveform could not load. Refresh to retry.</p>:<svg role="img" aria-label="Validated master waveform" viewBox="0 0 600 80" className="h-24 w-full text-accent"><polyline fill="none" stroke="currentColor" strokeWidth="1" points={points}/></svg>;}
+function Waveform({url}:{url:string}){return <div className="h-24"><ValidatedWaveform url={url} format="master" label="Validated master waveform" /></div>;}

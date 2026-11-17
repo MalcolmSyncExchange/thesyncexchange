@@ -28,6 +28,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { formatDuration } from "@/lib/utils";
+import { ValidatedWaveform } from './validated-waveform';
+import { readWaveformResponse } from '@/lib/media/waveform.mjs';
 import styles from "./preview-audio-provider.module.css";
 
 export interface PreviewAudioTrack {
@@ -110,11 +112,27 @@ export function PreviewAudioProvider({ children, playbackObserver }: {
     playbackObserver?.requested();
     if (activeIdRef.current !== track.id) {
       audio.pause();
+      let playable = track;
+      if (/^\/api\/buyer\/preview\/[a-f0-9-]+(?:\?|$)/.test(track.previewUrl)) {
+        setLoading(true);
+        try {
+          const base = track.previewUrl.split('?')[0];
+          const response = await fetch(base + '?kind=descriptor', {signal:AbortSignal.timeout(15000),cache:'no-store',credentials:'same-origin',redirect:'error'});
+          const descriptor = JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(await readWaveformResponse(response,4096)));
+          const match = new RegExp('^' + base + '\\?asset=([a-f0-9-]{36})$').exec(descriptor.previewUrl);
+          if (!match || descriptor.waveformUrl !== base + '?kind=waveform&asset=' + match[1]) throw Error();
+          playable = {...track,previewUrl:descriptor.previewUrl,waveformUrl:descriptor.waveformUrl};
+        } catch {
+          if (requestToken === requestRef.current) { activeIdRef.current = null; setError(previewFailureMessage); setLoading(false); playbackObserver?.failed(); }
+          return;
+        }
+        if (requestToken !== requestRef.current) return;
+      }
       activeIdRef.current = track.id;
       surfaceRef.current = track.discoverySurface;
-      audio.src = track.previewUrl;
+      audio.src = playable.previewUrl!;
       audio.load();
-      setActive(track);
+      setActive(playable);
       setTime(0);
       setDuration(0);
     } else if (retryingFailedPreview) {
@@ -278,7 +296,7 @@ function PersistentPreviewPlayer() {
         </Button>
         <Button type="button" variant="ghost" className="h-11 w-11 p-0" aria-label="Next preview" disabled={!next?.previewUrl} onClick={()=>next&&void toggle(next)}><SkipForward aria-hidden="true"/></Button></div>
         <div className={styles.timeline}>
-          {active.waveformUrl ? <Image src={active.waveformUrl} alt="" fill sizes="(max-width: 850px) 50vw, 600px" unoptimized className={styles.waveformImage} /> : null}
+          {active.waveformUrl?.startsWith("/api/buyer/preview/") ? <div className={styles.waveformData}><ValidatedWaveform key={active.waveformUrl} url={active.waveformUrl} /></div> : active.waveformUrl ? <Image src={active.waveformUrl} alt="" fill sizes="(max-width: 850px) 50vw, 600px" unoptimized className={styles.waveformImage} /> : null}
           <input
             type="range"
             min={0}

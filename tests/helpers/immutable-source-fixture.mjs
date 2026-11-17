@@ -28,7 +28,7 @@ export async function createApprovedSource(db,submission=null,{approve=true,mime
    await worker(db,'record_worker_output',[job.job_id,job.lease_epoch,job.lease_token,obj.id,obj.version,result.sha256,result.actual_bytes]);
    await worker(db,'complete_job',[job.job_id,job.lease_epoch,job.lease_token,result]);
   }
-  await derivative(j,'application/octet-stream',{sha256:'c'.repeat(64),source_sha256:sourceHash,actual_bytes:100,container:'waveform_minmax_i16_v1',waveform_points:12000,build_digest:'sha256:'+'b'.repeat(64)});
+  await derivative(j,'application/octet-stream',{sha256:'c'.repeat(64),source_sha256:sourceHash,actual_bytes:previewEvidence.get(db)?.waveformBytes||100,container:'waveform_minmax_i16_v1',waveform_points:12000,build_digest:'sha256:'+'b'.repeat(64)});
   await artist(db,'media_select_preview_region',[s,r.asset_id,0,30000,await revision(db,s),randomUUID()]);
   const p=await artist(db,'media_request_preview',[s,await revision(db,s),randomUUID()]);j=await worker(db,'claim_job');
   await derivative(j,'audio/mp4',{sha256:previewEvidence.get(db)?.sha256||'d'.repeat(64),source_sha256:sourceHash,actual_bytes:previewEvidence.get(db)?.bytes||100,container:'m4a',codec:'aac_lc',frames:1323000,duration_us:30000000,sample_rate:44100,channels:2,build_digest:'sha256:'+'b'.repeat(64)});

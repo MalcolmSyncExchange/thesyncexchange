@@ -1,5 +1,9 @@
 -- Preserve immutable history, roles, fencing and all existing resource ceilings.
 begin;
+-- Exact verified images only; retain the previous identity for rollback.
+alter table submission_media.do_control drop constraint do_control_worker_digest_check;
+alter table submission_media.do_control add constraint do_control_worker_digest_check check(worker_digest in ('sha256:c678ad81c316b0e8f56dd9a822e7da80ed7dbee09f8d667e2f5a64e6e64239b0','sha256:d9b0e5d8cc4cebef685cef3cc8d235ebdd2d9c313169addcc33794b23f1d62e1'));
+alter table submission_media.do_control alter column worker_digest set default 'sha256:d9b0e5d8cc4cebef685cef3cc8d235ebdd2d9c313169addcc33794b23f1d62e1';
 CREATE OR REPLACE FUNCTION public.media_upload_reserve(p_submission uuid, p_role text, p_label text, p_filename text, p_bytes bigint, p_revision bigint, p_key uuid, p_replaces uuid DEFAULT NULL::uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -42,6 +46,7 @@ AS $function$declare c submission_media.do_control;r submission_media.do_runs;j 
  select x.* into j from submission_media.jobs x join submission_media.submissions s on s.id=x.submission_id
  where s.owner_id=c.allowed_owner and x.created_at>=c.jobs_after and x.state in ('queued','retry_wait') and x.available_at<=clock_timestamp() and x.attempt<least(x.max_attempts,3)
  and x.job_type in ('source_validation','waveform_generation','preview_generation','artwork_validation')
+ and exists(select 1 from submission_media.assets a join submission_media.upload_files f on f.asset_id=coalesce(a.source_asset_id,a.id) where a.id=x.asset_id and f.submission_id=s.id and f.retired_at is null)
  order by x.available_at,x.id for update of x skip locked limit 1;
  if not found then return jsonb_build_object('state','idle');end if;
  select * into input from submission_media.assets where id=coalesce((select source_asset_id from submission_media.assets where id=j.asset_id),j.asset_id);

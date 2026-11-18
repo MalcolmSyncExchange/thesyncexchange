@@ -1,0 +1,112 @@
+{
+  "worker": {
+    "archive": {
+      "sha256": "f131ae3e357ee335f91038aa87f2b0696e09bcd6da7b29daafa41e0201b67582",
+      "bytes": 63452160
+    },
+    "image": {
+      "digest": "sha256:d9b0e5d8cc4cebef685cef3cc8d235ebdd2d9c313169addcc33794b23f1d62e1",
+      "config_digest": "sha256:a47f74658a2c5c6d657602441c0d73e1c2a250c9ccccc5e7dc3e21d35d6bdc10",
+      "rootfs_diff_ids": [
+        "sha256:701295b0ae1c91d8be11822ecfacfd2a82b30fba91ebef65d8e79aeca0a4a31d",
+        "sha256:eaaf1aa451d981121558dba034aa64482ea383caa79311c2fb3d2204472872fd",
+        "sha256:ab8499731788c162628e3abb83b525165dbd098ba477d517cc3c2200a05da440",
+        "sha256:0ecef824163db0664708458cda806f62727e94bda032af46d49dede94d6b597c",
+        "sha256:9d738dea1bb752d77d531aa03cb6101f3ce6e18099d97c57dbc154f10134c9fa",
+        "sha256:672d4b9a34cb06da9e7c7c4382a0cc4140348775beb96ece58af6a2a65fdcc9c",
+        "sha256:df093f3ac8f3ed3d695913cfe957ae5602a2f903f672225bd997ed0605fb46ff",
+        "sha256:fc663fbc405d7dff8109feb42025f7356e92fc4cf27e209ade76e07ef7e59762",
+        "sha256:549c1db65fc63e66ab20f9022cf96a71518d3faff80e1039fe26d47e096f3806",
+        "sha256:dde219848840b44bce1d7810c8975dcf08e5eee9fec4e48a20c6bf18f82d0751"
+      ]
+    },
+    "verification": {
+      "format": "OCI layout",
+      "archive_sha256": "f131ae3e357ee335f91038aa87f2b0696e09bcd6da7b29daafa41e0201b67582",
+      "manifest_digest": "sha256:d9b0e5d8cc4cebef685cef3cc8d235ebdd2d9c313169addcc33794b23f1d62e1",
+      "config_digest": "sha256:a47f74658a2c5c6d657602441c0d73e1c2a250c9ccccc5e7dc3e21d35d6bdc10",
+      "platform": "linux/amd64",
+      "verified_blobs": 12,
+      "verified_layers": 10
+    },
+    "source_revision": "a035800d",
+    "status": "LOCAL_CANDIDATE_NOT_INSTALLED"
+  },
+  "broker": {
+    "archive": {
+      "sha256": "141a2b17b661237c19f6b728b221ffc819b4be4f1d8833db4a62813ea3566391",
+      "bytes": 53721600
+    },
+    "image": {
+      "digest": "sha256:6ccd3b0f5df4d424e59e4fdd9ebefe7f84b769f92ff2e61048ae037880d9e0d3",
+      "config_digest": "sha256:80a85e3e816aa31ed7df00f17be5e087e61ecda37aaa7feaa75625faebd70ee0",
+      "rootfs_diff_ids": [
+        "sha256:30d42639883b0c8fd21d05fde24d7c7e12f17a6b2b23a263ee06bb518f6ecaf8",
+        "sha256:285b96c96993f0d9de847afaf143e9eafcf46c1905ece04b4249e954ea1f23fa",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+        "sha256:c49b5661fd11f778a5c5be11055134f1c46a3f546c97654115cf7a860a13fd09",
+        "sha256:3f449a952dfe0859e0997ffac0ebf7ecaa90f796dc305f19c9022b680324b075",
+        "sha256:18fb154e2204dfea643d16b3551d41550509d6ec8faa5f4031eb2ae856b1e0d5",
+        "sha256:6809c5bf801677c9d0ddcbeb76d43aad1037a9a74b39fb0b1d9cf9c8f4be76b9",
+        "sha256:09d1dd661a263d6c04f02a417878a27981b8f6ef347031580cec8b5d4ffb706a",
+        "sha256:f3455a0bcc1401ccab351d39ce765625fbddc1af373ddd6042259ebb5193c9a3",
+        "sha256:211f6040d18fbb38bf89157a574c5692f668206c1b9063f44896cdbb83578a3e"
+      ]
+    },
+    "verification": {
+      "format": "OCI layout",
+      "archive_sha256": "141a2b17b661237c19f6b728b221ffc819b4be4f1d8833db4a62813ea3566391",
+      "manifest_digest": "sha256:6ccd3b0f5df4d424e59e4fdd9ebefe7f84b769f92ff2e61048ae037880d9e0d3",
+      "config_digest": "sha256:80a85e3e816aa31ed7df00f17be5e087e61ecda37aaa7feaa75625faebd70ee0",
+      "platform": "linux/amd64",
+      "verified_blobs": 12,
+      "verified_layers": 10
+    },
+    "source_revision": "6a6abb04",
+    "status": "VERIFIED_NOT_YET_INSTALLED",
+    "context_sha256": "ed6aba781ef8a327dd7792699935eae7ed83b1ab36ffe25a21b02f657a904764",
+    "files": {
+      "Dockerfile": "9ac9d7afe5f1cdf210e6cb2d4fefaa39826baa9d832e350d7f38a815a1c6cc79",
+      "services/media-broker/do-database.mjs": "ab9d0866462bea6015ad37a0c7c87b721177f98f42a6f188d75b19ebdf61d89a",
+      "services/media-broker/do-dispatcher.mjs": "3a3fad28ceae83bd15d28aca4e2f0ca9d51a8935de3f7402cf38f4a6ab81d13a",
+      "services/media-broker/do-entrypoint.mjs": "9661659bedc5860d78359bb32b755b6708e506603b9380635ac8e705eb63cb03",
+      "services/media-broker/do-server.mjs": "c93e8ff16113f23cc51bee4265a31dfe9b2fd707c2808a25826854a8141fd8e0",
+      "services/media-broker/do-storage.mjs": "98e051d9ead53b76a30c216876f2adaefb69fcf74ed258fdf9ceae97fcb72b79",
+      "services/media-broker/do-transfer-proof.mjs": "51495370ee2351b7bad4fc70f783276e0b34b71dbca297483dda6f7b7a009b14",
+      "services/media-broker/linux-host-binding.mjs": "d6f3b7bacd88dd612bc060ff781480598c3520714b142a3b82ef91082ae1e18d"
+    }
+  },
+  "superseded_broker_candidate": {
+    "archive": {
+      "sha256": "0ff0c9990c795cbe9b881e9165c507d3a6b41cd5ef8c0bab8a30550eefeb17df",
+      "bytes": 53721600
+    },
+    "image": {
+      "digest": "sha256:2c09383c193824f8c87b0b1aeb8dcb338c943edcb9f7811963221166545dcbbb",
+      "config_digest": "sha256:c0931c40734a8e7205dd80964c31165d47d748aed3a52927b6852535415a4832",
+      "rootfs_diff_ids": [
+        "sha256:30d42639883b0c8fd21d05fde24d7c7e12f17a6b2b23a263ee06bb518f6ecaf8",
+        "sha256:285b96c96993f0d9de847afaf143e9eafcf46c1905ece04b4249e954ea1f23fa",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+        "sha256:c49b5661fd11f778a5c5be11055134f1c46a3f546c97654115cf7a860a13fd09",
+        "sha256:3f449a952dfe0859e0997ffac0ebf7ecaa90f796dc305f19c9022b680324b075",
+        "sha256:18fb154e2204dfea643d16b3551d41550509d6ec8faa5f4031eb2ae856b1e0d5",
+        "sha256:6809c5bf801677c9d0ddcbeb76d43aad1037a9a74b39fb0b1d9cf9c8f4be76b9",
+        "sha256:09d1dd661a263d6c04f02a417878a27981b8f6ef347031580cec8b5d4ffb706a",
+        "sha256:f3455a0bcc1401ccab351d39ce765625fbddc1af373ddd6042259ebb5193c9a3",
+        "sha256:0d07b4b96e0764979c5b9705c826d7bc5c341ec21ca14fb563fe03eec421fe95"
+      ]
+    },
+    "verification": {
+      "format": "OCI layout",
+      "archive_sha256": "0ff0c9990c795cbe9b881e9165c507d3a6b41cd5ef8c0bab8a30550eefeb17df",
+      "manifest_digest": "sha256:2c09383c193824f8c87b0b1aeb8dcb338c943edcb9f7811963221166545dcbbb",
+      "config_digest": "sha256:c0931c40734a8e7205dd80964c31165d47d748aed3a52927b6852535415a4832",
+      "platform": "linux/amd64",
+      "verified_blobs": 12,
+      "verified_layers": 10
+    },
+    "source_revision": "a035800d",
+    "status": "LOCAL_CANDIDATE_NOT_INSTALLED"
+  }
+}

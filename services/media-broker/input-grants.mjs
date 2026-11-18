@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {requireValue,uuid,publicJob,boundedJson,STAGING} from './common.mjs';
-export const INPUT_GRANT_SECONDS=30, INPUT_MAX_BYTES=50_000_000;
+export const INPUT_GRANT_SECONDS=30, INPUT_MAX_BYTES=150_000_000;
 const same=(a,b)=>['object_id','version','bucket','path','bytes','sha256'].every(k=>String(a[k]??'')===String(b[k]??''));
 function canonicalInput(job){
  const i=job.source||job,asset=job.source?.asset_id||job.asset_id;

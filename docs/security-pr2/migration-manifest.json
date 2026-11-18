@@ -301,6 +301,10 @@
     {
       "file": "20261118024724_digitalocean_conservative_transfer_reservation.sql",
       "sha256": "6280c0e63c6cea16cbfe24092d2cd14d0ed5995858923e5a08a132582677bbdc"
+    },
+    {
+      "file": "20261118055611_music_upload_reliability_150mb.sql",
+      "sha256": "9727d4f453164f92c9243ce4bc049fc555cb6114627901abe87e1eebc788ea95"
     }
   ],
   "storageBuckets": {

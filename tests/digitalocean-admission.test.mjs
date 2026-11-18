@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {uploadsFixture,create,reserve,observed,ids,artist} from './helpers/music-uploads-fixture.mjs';
-const boot='c6204700-2001-4000-8000-000000000001',digest='sha256:c678ad81c316b0e8f56dd9a822e7da80ed7dbee09f8d667e2f5a64e6e64239b0';
+const boot='c6204700-2001-4000-8000-000000000001',digest='sha256:d9b0e5d8cc4cebef685cef3cc8d235ebdd2d9c313169addcc33794b23f1d62e1';
 const fresh=async fn=>{const db=await uploadsFixture();try{await fn(db);}finally{await db.close();}};
 const rpc=async(db,name,args=[])=>(await db.query(`select submission_media.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) v`,args)).rows[0].v;
-async function enabled(db){await db.query("update submission_media.do_control set enabled=true,boot_id=$1,broker_digest=$2,allowed_owner=$3,jobs_after=clock_timestamp(),expires_at=clock_timestamp()+interval '1 hour',carry_forward_usd=.10,accounting_reconciled=true",[boot,'sha256:'+'d'.repeat(64),ids.a]);await rpc(db,'do_observe',[boot,0,0]);}
+async function enabled(db){await db.query("update submission_media.do_control set enabled=true,boot_id=$1,worker_digest=$4,broker_digest=$2,allowed_owner=$3,jobs_after=clock_timestamp(),expires_at=clock_timestamp()+interval '1 hour',carry_forward_usd=.10,accounting_reconciled=true",[boot,'sha256:'+'d'.repeat(64),ids.a,digest]);await rpc(db,'do_observe',[boot,0,0]);}
 async function job(db){const s=await create(db),r=await reserve(db,s);await observed(db,s,r.asset_id);return {s,asset:r.asset_id};}
 async function admitted(db){const value=await rpc(db,'do_admit',[randomUUID(),boot,digest]);assert.equal(value.state,'issued');return value;}
 test('DO migration is dormant and restricted role has wrappers only, no generic claim, IAM-like roles or private tables',()=>fresh(async db=>{
@@ -73,3 +73,5 @@ test('revoked live permit closes dispatcher authority immediately without droppi
  await enabled(db);await job(db);const run=await admitted(db);assert.equal((await rpc(db,'do_scope_status',[run.run_id,boot])).authorized,true);
  await db.query("update submission_media.execution_permits set state='expired' where correlation_id=$1",[run.run_id]);const closed=await rpc(db,'do_scope_status',[run.run_id,boot]);assert.equal(closed.authorized,false);assert.equal(closed.state,'issued');
 }));
+
+test('retired master validation cannot block or consume admission for its replacement',()=>fresh(async db=>{await enabled(db);const old=await job(db);const replacement=await reserve(db,old.s,'master',{bytes:100000000,replaces:old.asset});await observed(db,old.s,replacement.asset_id,{bytes:100000000});const run=await admitted(db);assert.equal((await db.query('select asset_id from submission_media.jobs where id=$1',[run.job_id])).rows[0].asset_id,replacement.asset_id);const stale=(await db.query('select state,attempt from submission_media.jobs where asset_id=$1',[old.asset])).rows[0];assert.deepEqual(stale,{state:'queued',attempt:0});}));

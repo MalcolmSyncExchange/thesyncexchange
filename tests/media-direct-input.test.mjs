@@ -22,8 +22,8 @@ test('direct private transfer at exactly 50 MB; broker returns only a small gran
  const facts=await downloadInput(grant,job,join(d,'input'),{now:c.clock,fetcher:async(url,options)=>{fetches++;assert.equal(options.redirect,'error');assert.equal(options.cache,'no-store');assert.equal(options.headers.Authorization,undefined);assert.match(url,/object\/sign\/submission-source/);return new Response(c.data,{headers:{'content-length':String(c.data.length)}});}});
  assert.equal(facts.actual_bytes,50_000_000);assert.equal(facts.sha256,c.job.sha256);assert.equal(fetches,1);assert.equal((await stat(join(d,'input'))).mode&0o777,0o600);
 }));
-test('grants bind canonical owner/submission/object/version, reject legacy paths and enforce 50 MB admission',async()=>{
- for(const mutate of [j=>j.path='../foreign',j=>j.path=j.path.replace(j.submission_id,randomUUID()),j=>j.path=j.path.replace(j.asset_id,randomUUID()),j=>j.bucket='track-audio',j=>j.bytes=50_000_001]){const c=fixture();mutate(c.job);await assert.rejects(c.issue());assert.equal(c.signs(),0);}
+test('grants bind canonical owner/submission/object/version, reject legacy paths and enforce 150 MB admission',async()=>{
+ for(const mutate of [j=>j.path='../foreign',j=>j.path=j.path.replace(j.submission_id,randomUUID()),j=>j.path=j.path.replace(j.asset_id,randomUUID()),j=>j.bucket='track-audio',j=>j.bytes=150_000_001]){const c=fixture();mutate(c.job);await assert.rejects(c.issue());assert.equal(c.signs(),0);}
  const c=fixture();c.signer.sign=async()=>{c.revoke();return 'unused';};await assert.rejects(c.issue(),/LEASE_STALE/);
 });
 test('expired, foreign account/path/origin, public URLs and redirects are denied before transfer',()=>directory(async d=>{

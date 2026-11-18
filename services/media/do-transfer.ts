@@ -6,7 +6,7 @@ import { readPrivateArtifact } from '@/services/delivery/server';
 import { UploadError,mediaRpc,type MediaClient } from './uploads';
 type Proof={run_id:string;boot_id:string;job_id:string;lease_epoch:number;lease_token:string;nonce:string;operation:'input'|'output'|'verify';bytes:number|null;sha256:string|null};
 type Locator={bucket:string;path:string;bytes:number;sha256:string|null;version?:string;object_id?:string;job_type?:string;output?:{object_id:string;version:string;bytes:number}|null};
-function locator(d:Locator,p:Proof){if(!Number.isSafeInteger(Number(d.bytes))||Number(d.bytes)<1||Number(d.bytes)>(p.operation==='input'?50000000:4000000)||!(p.operation==='input'?['submission-source','submission-artwork']:['submission-derived']).includes(d.bucket)||typeof d.path!=='string'||d.path.length>512||/(^\/|(^|\/)\.\.(\/|$)|[?%#\\]|:\/\/)/.test(d.path))throw new UploadError(403,'DO_TRANSFER_DENIED');return d;}
+function locator(d:Locator,p:Proof){if(!Number.isSafeInteger(Number(d.bytes))||Number(d.bytes)<1||Number(d.bytes)>(p.operation==='input'?150000000:4000000)||!(p.operation==='input'?['submission-source','submission-artwork']:['submission-derived']).includes(d.bucket)||typeof d.path!=='string'||d.path.length>512||/(^\/|(^|\/)\.\.(\/|$)|[?%#\\]|:\/\/)/.test(d.path))throw new UploadError(403,'DO_TRANSFER_DENIED');return d;}
 export async function doTransfer(request:Request){
  const header=request.headers.get('x-tse-proof'),signature=request.headers.get('x-tse-signature'),key=process.env.MEDIA_DO_HOST_PUBLIC_KEY;
  if(!key||!header||header.length>4096||!signature)throw new UploadError(403,'DO_TRANSFER_DENIED');

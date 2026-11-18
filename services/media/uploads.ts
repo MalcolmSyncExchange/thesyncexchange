@@ -8,14 +8,14 @@ import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 import { hasSupabaseEnv, env } from "@/lib/env";
 import { consumeRateLimit } from "@/services/security/rate-limit";
 import { uploadMetadataSchema, uploadRoles, type UploadState } from "@/lib/media/upload-contract";
-export type MediaClient = {rpc:(name:string,args:Record<string,unknown>)=>PromiseLike<{data:unknown;error:{code?:string}|null}>};
+export type MediaClient = {rpc:(name:string,args:Record<string,unknown>)=>PromiseLike<{data:unknown;error:{code?:string;message?:string}|null}>};
 export class UploadError extends Error{constructor(public status:number,public code:string){super(code);}}
 export async function mediaActor(admin=false){
  if(resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE).blocksApplication||!hasSupabaseEnv||env.demoMode)throw new UploadError(503,"MEDIA_UNAVAILABLE");
  const client=await createServerSupabaseClient();const {data:{user},error}=await client.auth.getUser();if(error||!user)throw new UploadError(401,"AUTH_REQUIRED");const profile=await selectUserProfileCompat(client,user.id);
  if(profile.error||!profile.data||(!admin&&profile.data.role!=="artist")||(admin&&profile.data.role!=="admin")||(admin&&!(await hasPrivilegedAssurance(client))))throw new UploadError(403,"ACCESS_DENIED");return {client:client as unknown as MediaClient,user};
 }
-export async function mediaRpc<T>(client:MediaClient,name:string,args:Record<string,unknown>={}){const {data,error}=await client.rpc(name,args);if(error||data===null){const code=error?.code;if(code==="55000")throw new UploadError(503,"MEDIA_DISABLED");if(code==="PGRST202"||code==="42883")throw new UploadError(503,"WORKSPACE_UPDATE_REQUIRED");throw new UploadError(code==="42501"?403:code==="40001"?409:code==="22023"?400:code==="54000"?429:503,code==="40001"?"STALE_REVISION":code==="22023"?"CHECK_REQUIRED_FIELDS":code==="54000"?"UPLOAD_LIMIT":code==="42501"?"ACCESS_DENIED":"MEDIA_UNAVAILABLE");}return data as T;}
+export async function mediaRpc<T>(client:MediaClient,name:string,args:Record<string,unknown>={}){const {data,error}=await client.rpc(name,args);if(error||data===null){const code=error?.code;if(code==="54000"&&["UPLOAD_TRANSFERS_FULL","UPLOAD_DAILY_QUOTA"].includes(error?.message||""))throw new UploadError(429,error!.message!);if(code==="55000")throw new UploadError(503,"MEDIA_DISABLED");if(code==="PGRST202"||code==="42883")throw new UploadError(503,"WORKSPACE_UPDATE_REQUIRED");throw new UploadError(code==="42501"?403:code==="40001"?409:code==="22023"?400:code==="54000"?429:503,code==="40001"?"STALE_REVISION":code==="22023"?"CHECK_REQUIRED_FIELDS":code==="54000"?"UPLOAD_LIMIT":code==="42501"?"ACCESS_DENIED":"MEDIA_UNAVAILABLE");}return data as T;}
 export async function readUploads(id:string,admin=false){z.string().uuid().parse(id);const {client}=await mediaActor(admin);return mediaRpc<UploadState>(client,admin?"media_upload_admin_read":"media_upload_read",{p_submission:id});}
 const base={submission:z.string().uuid(),revision:z.number().int().nonnegative(),key:z.string().uuid()};
 const schema=z.discriminatedUnion("action",[
@@ -39,7 +39,7 @@ const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("metadata"),...base,data:uploadMetadataSchema}).strict(),
  z.object({action:z.literal("submit"),...base}).strict()
 ]);
-export async function performMediaRequest(input:unknown){const p=schema.parse(input);const {client,user}=await mediaActor((p.action==="read"||p.action==="documents")&&p.admin===true);if(p.action==="reserve"){const admission=await consumeRateLimit("upload",user.id);if(admission.status!=="allowed")throw new UploadError(429,"UPLOAD_LIMIT");}
+export async function performMediaRequest(input:unknown){const p=schema.parse(input);const {client,user}=await mediaActor((p.action==="read"||p.action==="documents")&&p.admin===true);if(p.action==="reserve"){const admission=await consumeRateLimit("upload",user.id);if(admission.status!=="allowed")throw new UploadError(429,"UPLOAD_RATE_LIMIT");}
  if(p.action==='documents')return mediaRpc(client,'media_workspace_documents',{p_submission:p.submission,p_admin:p.admin===true});
  if(p.action==='reserve_document'){if((await consumeRateLimit('upload',user.id)).status!=='allowed')throw new UploadError(429,'UPLOAD_LIMIT');return mediaRpc(client,'media_workspace_document_reserve',{p_submission:p.submission,p_kind:p.kind,p_filename:p.filename,p_bytes:p.bytes,p_key:p.key});}
  if(p.action==="recover_draft")return mediaRpc(client,"media_submission_recover",{p_submission:p.submission,p_key:p.key});

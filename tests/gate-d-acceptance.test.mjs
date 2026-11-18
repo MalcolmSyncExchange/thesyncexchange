@@ -478,8 +478,9 @@ test('audit actor classes reflect the verified initiator and remain closed',asyn
   });
 });
 
-test('final consume independently rejects every reviewed major invariant break', {timeout:60000},async()=>{
-  const cases=[
+// Each independent database fixture keeps its 60-second bound. A single
+// aggregate deadline incorrectly cancelled the unchanged 23-case batch on CI.
+const finalConsumeInvariantCases=[
     ['wrong environment',async db=>db.exec(`update order_delivery_contracts set deployment_environment='local'`)],
     ['wrong provider account',async db=>db.exec(`update commerce_private.contract_context set provider_account='acct_otherfixture'`)],
     ['Buyer mismatch',async db=>db.exec(`update orders set buyer_user_id='${ids.b}' where id='${gateOrder}'`)],
@@ -517,7 +518,8 @@ test('final consume independently rejects every reviewed major invariant break',
         refunded_minor,currency,payment_mode,commercial_rights_granted,payment_state,payment_date,state
       from order_receipts`)]
   ];
-  for(const [label,mutate] of cases) {
+for(const [label,mutate] of finalConsumeInvariantCases) {
+  test(`final consume independently rejects: ${label}`, {timeout:60000},async()=>{
     await withDb(async db=>{
       const prepared=await readyForConsume(db);
       await disableInvariantMutationGuards(db);
@@ -528,8 +530,8 @@ test('final consume independently rejects every reviewed major invariant break',
       assert.notEqual(result,'consumed',label);
       assert.equal((await one(db,`select state from commerce_private.acceptance_grants where id='${prepared.grant_id}'`)).state,'paid_verified',label);
     });
-  }
-});
+  });
+}
 
 test('audit is append-only, typed, sequenced, and contains no unrestricted JSON column',()=>withDb(async db=>{
   await reserve(db);

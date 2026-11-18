@@ -15,5 +15,14 @@ export class DOAuthority {
  heartbeat(l){return this.db.rpc('do_heartbeat',[this.run,l.job_id,l.lease_epoch,l.lease_token]);}
  complete(l,result,error=null){return this.db.rpc('do_finish',[this.run,l.job_id,l.lease_epoch,l.lease_token,result,error]);}
  inspect(l){return this.db.rpc('do_inspect',[this.run,l.job_id,l.lease_epoch,l.lease_token]);}
- async withLease(l,body){return this.db.transaction(async()=>{const resolve=()=>this.resolve(l),record=i=>this.db.rpc('do_record',[this.run,l.job_id,l.lease_epoch,l.lease_token,i.object_id,i.version,i.sha256,i.bytes]);const result=await body(await resolve(),resolve,record);await resolve();return result;});}
+ async withLease(l,body){
+  // Each RPC owns its atomic live-fence check. Never hold its row locks while
+  // awaiting the application transfer: that independent authority must lock
+  // the same run before consuming a signed nonce or accessing private Storage.
+  // A revoked transfer may leave only an unreferenced immutable private object;
+  // post-I/O resolve, do_record and do_finish all reject its stale fence.
+  const resolve=()=>this.resolve(l),record=i=>this.db.rpc('do_record',[this.run,l.job_id,l.lease_epoch,l.lease_token,i.object_id,i.version,i.sha256,i.bytes]);
+  const result=await body(await resolve(),resolve,record);await resolve();return result;
+ }
+
 }

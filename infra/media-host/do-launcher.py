@@ -75,12 +75,12 @@ class Engine:
         if str(uuid.UUID(run)) != run: raise ValueError('RUN_ID_INVALID')
         return self.root / (run + '.json'), 'tse-media-run-' + run
 
-    def inspect(self, name):
+    def inspect(self, name, expected_image=None):
         # A successful list distinguishes a missing container from daemon failure.
         ids = self.execute(['ps','-a','--filter','name=^/' + name + '$','--format','{{.ID}}']).strip()
         if not ids: return None
         value = json.loads(self.execute(['inspect',name]))[0]
-        if value['Config']['Image'] != self.config['image'] or value['Config']['Labels'].get('io.thesyncexchange.vm-run') != name[14:]:
+        if value['Config']['Image'] != (expected_image or self.config['image']) or value['Config']['Labels'].get('io.thesyncexchange.vm-run') != name[14:]:
             raise ValueError('CONTAINER_IDENTITY_CONFLICT')
         return value
 
@@ -89,7 +89,12 @@ class Engine:
         if not path.exists():
             if self.inspect(name): raise ValueError('ORPHAN_REQUIRES_REVIEW')
             return {'state':'NONE'}
-        record=json.loads(path.read_text()); value=self.inspect(name)
+        record=json.loads(path.read_text())
+        # Historical one-shot records keep their own immutable image identity.
+        # They cannot be restarted; new starts still require the current pin.
+        if record.get('run_id')!=run or type(record.get('image')) is not str or not re.fullmatch(r'sha256:[a-f0-9]{64}',record.get('image','')):
+            raise ValueError('RECORDED_IDENTITY_CONFLICT')
+        value=self.inspect(name,record['image'])
         if not value:
             if record['state'] != 'intent': raise ValueError('CONTAINER_DISAPPEARED')
             return {'state':'NONE'}

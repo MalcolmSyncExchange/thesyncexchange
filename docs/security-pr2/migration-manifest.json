@@ -313,6 +313,10 @@
     {
       "file": "20261118203109_unified_master_playback.sql",
       "sha256": "fb9a3c411139dea4072775d86db1595a364dd890820d145cdb3f0354e3751d23"
+    },
+    {
+      "file": "20261118220915_upload_transfer_quota.sql",
+      "sha256": "71b8d6183a6ca4fefa768630f034e54f9e058b8cb822b7b243851f0f8fbef9e2"
     }
   ],
   "storageBuckets": {

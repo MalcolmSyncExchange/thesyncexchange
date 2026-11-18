@@ -17,3 +17,30 @@ test('transient processing failure is visible and retryable without duplicate so
 test('ordinary roles cannot access upload history tables or rewrite retired identities',()=>fresh(async db=>{const s=await create(db),a=await reserve(db,s);await asActor(db,ids.a,()=>assert.rejects(db.exec('select * from submission_media.upload_files'),e=>e.code==='42501'));await artist(db,'media_upload_remove',[s,a.asset_id,await revision(db,s),randomUUID()]);await assert.rejects(db.query('update submission_media.upload_files set retired_at=null,retired_reason=null where asset_id=$1',[a.asset_id]),e=>e.code==='42501');}));
 
 test('submitting a replacement cannot change approved catalog metadata or the active original before Admin review',()=>fresh(async db=>{const before=(await db.query('select to_jsonb(t) value from tracks t where id=$1',[ids.live])).rows[0].value;const s=await create(db,ids.live);await readyPackage(db,s);await assert.rejects(artist(db,'media_upload_save_metadata',[s,metadata,await revision(db,s),randomUUID()]),e=>e.code==='42501');await artist(db,'media_upload_submit',[s,await revision(db,s),randomUUID()]);assert.deepEqual((await db.query('select to_jsonb(t) value from tracks t where id=$1',[ids.live])).rows[0].value,before);assert.equal((await state(db,s)).review.state,'pending');}));
+
+test('completed 45.5 MB transfers awaiting processing never consume the four transfer slots',()=>fresh(async db=>{
+ for(let i=0;i<5;i++){const s=await create(db),m=await reserve(db,s,'master',{bytes:45_547_778});await observed(db,s,m.asset_id,{bytes:45_547_778});}
+ const s=await create(db);await reserve(db,s,'master',{bytes:150_000_000});
+ assert.equal(Number((await db.query("select count(*) n from submission_media.assets where storage_object_id is not null and technical_state in ('uploaded','verifying')")).rows[0].n),5);
+ await assert.rejects(reserve(db,s,'alternate',{bytes:150_000_001}),e=>e.code==='22023');
+}));
+test('four live transfers block a fifth; expiry and explicit cancellation free slots without deleting records',()=>fresh(async db=>{
+ const active=[];for(let i=0;i<4;i++){const s=await create(db);active.push({s,...await reserve(db,s)});}
+ const extra=await create(db);await assert.rejects(reserve(db,extra),e=>e.code==='54000'&&e.message==='UPLOAD_TRANSFERS_FULL');
+ await db.query("update submission_media.assets set reservation_expires_at=clock_timestamp()-interval '1 second' where id=$1",[active[0].asset_id]);
+ await reserve(db,extra);
+ await artist(db,'media_upload_remove',[active[1].s,active[1].asset_id,await revision(db,active[1].s),randomUUID()]);
+ await reserve(db,await create(db));
+ assert.equal(Number((await db.query('select count(*) n from submission_media.assets where origin=\'upload\'')).rows[0].n),6);
+}));
+test('rolling daily reservation quota remains enforced separately from per-file and concurrent limits',()=>fresh(async db=>{
+ for(let i=0;i<20;i++){const s=await create(db),m=await reserve(db,s);await observed(db,s,m.asset_id);}
+ await assert.rejects(reserve(db,await create(db)),e=>e.code==='54000'&&e.message==='UPLOAD_DAILY_QUOTA');
+}));
+test('transfer quota rollback preserves every asset, job, revision and processing hold',()=>fresh(async db=>{
+ const {readFile}=await import('node:fs/promises');
+ const snap=async()=>({assets:(await db.query('select * from submission_media.assets order by id')).rows,jobs:(await db.query('select * from submission_media.jobs order by id')).rows,flags:(await db.query('select * from submission_media.capabilities')).rows});
+ const s=await create(db),m=await reserve(db,s);await observed(db,s,m.asset_id);const before=await snap();
+ await db.exec(await readFile(new URL('../docs/audio-reconstruction/upload-transfer-quota-rollback.sql',import.meta.url),'utf8'));assert.deepEqual(await snap(),before);
+ await db.exec(await readFile(new URL('../supabase/migrations/20261118220915_upload_transfer_quota.sql',import.meta.url),'utf8'));assert.deepEqual(await snap(),before);
+}));

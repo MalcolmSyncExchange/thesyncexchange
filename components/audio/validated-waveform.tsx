@@ -5,8 +5,8 @@ import { masterEnvelope, parseWaveform, readWaveformResponse, waveformBars, type
 import styles from './waveform-player.module.css';
 
 type Region = {startSample:number;endSample:number;sampleRate:number;durationUs:number};
-export function ValidatedWaveform({ url, format = 'preview', label = 'Preview waveform', progress = 0, region }: {
-  url:string;format?:'preview'|'master';label?:string;progress?:number;region?:Region;
+export function ValidatedWaveform({ url, format = 'preview', label = 'Preview waveform', progress = 0, region, showPlayhead = true }: {
+  url:string;format?:'preview'|'master';label?:string;progress?:number;region?:Region;showPlayhead?:boolean;
 }) {
   const [envelope,setEnvelope] = useState<Envelope|null>(null);
   const [failed,setFailed] = useState(false);
@@ -40,7 +40,7 @@ export function ValidatedWaveform({ url, format = 'preview', label = 'Preview wa
       <defs><clipPath id={clip}><rect width={fraction*1000} height="160"/></clipPath></defs>
       <g className={styles.unplayed}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={80-height*70} width={.64*1000/bars.heights.length} height={height*140} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
       <g className={styles.played} clipPath={`url(#${clip})`}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={80-height*70} width={.64*1000/bars.heights.length} height={height*140} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
-      <line x1={fraction*1000} x2={fraction*1000} y1="6" y2="154" className={styles.playhead}/>
+      {showPlayhead?<line x1={fraction*1000} x2={fraction*1000} y1="6" y2="154" className={styles.playhead}/>:null}
     </svg>}
   </div>;
 }

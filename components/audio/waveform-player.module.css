@@ -46,3 +46,12 @@
 .precise input {width:115px;padding:9px;border:1px solid hsl(var(--border));border-radius:8px;background:hsl(var(--background));}
 .actions,.generated {display:flex;flex-wrap:wrap;align-items:center;gap:12px;}
 .generated p {flex-basis:100%;}
+
+.recordingTimeline:focus-visible,.selectionOverlay:focus-visible {outline:2px solid hsl(var(--ring));outline-offset:4px;border-radius:8px;}
+.recordingTimeline {margin-top:36px;}
+.recordingPlayhead {position:absolute;inset-block:0;width:2px;transform:translateX(-1px);background:hsl(var(--foreground));box-shadow:0 0 3px hsl(var(--background));pointer-events:none;z-index:3;}
+.selectionTimes {position:absolute;top:-24px;left:0;white-space:nowrap;font-size:10px;line-height:18px;font-variant-numeric:tabular-nums;color:hsl(var(--accent));background:hsl(var(--card));padding:0 3px;border-radius:3px;pointer-events:none;}
+.selectionOverlay {z-index:2;}
+
+.waveformSeek {position:absolute;inset:0;pointer-events:none;z-index:1;border-radius:8px;}
+.waveformSeek:focus-visible {outline:2px solid hsl(var(--ring));outline-offset:4px;}

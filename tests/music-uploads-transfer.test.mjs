@@ -20,3 +20,7 @@ test('100 MB interrupted upload resumes verified chunks without recreating or re
  const run=extra=>resumableUpload({file,destination:dest,projectUrl:'http://127.0.0.1:8888',credential:async()=>'SYNTHETIC',storage:store,fetcher,...extra});
  await assert.rejects(run({signal:abort.signal,onProgress:(n,total,stage)=>{if(stage==='uploading'&&n>=CHUNK_BYTES*2)abort.abort();}}));assert.equal(offset,CHUNK_BYTES*2);await run();assert.equal(offset,bytes);assert.equal(created,1);assert.equal(writes,Math.ceil(bytes/CHUNK_BYTES));assert.equal(store.m.size,0);
 });
+
+test('Storage size, rate and capacity failures remain distinct without exposing provider response bodies',async()=>{
+ for(const [status,expected] of [[413,/rejected the file size/],[429,/rate limiting/],[507,/capacity is unavailable/]]){const f=fixture();await assert.rejects(f.run({fetcher:async()=>new Response('PRIVATE PROVIDER DETAILS',{status})}),expected);assert.equal(f.counts().writes,0);}
+});

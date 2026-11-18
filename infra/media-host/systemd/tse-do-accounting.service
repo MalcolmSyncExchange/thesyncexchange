@@ -1,0 +1,9 @@
+[Unit]
+Description=TSE DigitalOcean bounded accounting observation
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/tse-audio/release/do-accounting.py
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/run/tse-audio /var/lib/tse-audio
+TimeoutStartSec=10

@@ -1,0 +1,15 @@
+[Unit]
+Description=TSE DigitalOcean one-shot confined parser launcher
+Requires=docker.service
+After=docker.service
+[Service]
+ExecStart=/usr/bin/python3 /opt/tse-audio/release/do-launcher.py
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/run/tse-audio /var/lib/tse-audio
+PrivateTmp=yes
+TasksMax=64
+MemoryMax=128M
+CPUQuota=20%
+Restart=no
+TimeoutStopSec=20

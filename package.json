@@ -136,7 +136,8 @@
     "test:media-portable": "node --test --test-concurrency=1 tests/media-packaged-runtime.test.mjs tests/media-processing-lifecycle.test.mjs",
     "test:media-direct-input": "node --test tests/media-direct-input.test.mjs tests/media-packaging-boundaries.test.mjs",
     "test:media-environment": "node --test tests/media-environment-guard.test.mjs tests/media-packaging-boundaries.test.mjs tests/media-direct-input.test.mjs",
-    "test:audio-reconstruction": "node --test --experimental-strip-types tests/audio-waveform.test.mjs tests/automatic-audio-db.test.mjs tests/buyer-waveform-access.test.mjs tests/buyer-marketplace-api.test.mjs"
+    "test:audio-reconstruction": "node --test --experimental-strip-types tests/audio-waveform.test.mjs tests/automatic-audio-db.test.mjs tests/buyer-waveform-access.test.mjs tests/buyer-marketplace-api.test.mjs",
+    "test:audio-production-integration": "node --test --experimental-strip-types tests/structured-submission-rights.test.mjs tests/workspace-documents-api.test.mjs tests/audio-production-compatibility-blocker.test.mjs tests/audio-production-target.test.mjs tests/digitalocean-admission.test.mjs tests/digitalocean-bridge.test.mjs tests/digitalocean-transfer-api.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",

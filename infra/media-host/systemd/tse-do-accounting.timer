@@ -1,0 +1,8 @@
+[Unit]
+Description=TSE DigitalOcean accounting freshness
+[Timer]
+OnBootSec=5
+OnUnitActiveSec=20
+AccuracySec=1
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,34 @@
+// Disposable native PostgreSQL SQL/RPC validation only. No hosted DSN, inherited
+// credentials or TCP listener. This does not claim Supautils/provider-owner replay.
+import {spawn} from 'node:child_process';
+import {mkdtemp,mkdir,readFile,readdir,rm} from 'node:fs/promises';
+import {join} from 'node:path';
+import {createRequire} from 'node:module';
+import assert from 'node:assert/strict';
+import {fixtureBootstrapSql,seedDatabase,ids} from '../tests/helpers/artist-baseline-db.mjs';
+const require=createRequire(import.meta.url),{Client}=require('pg');
+const bins='/opt/homebrew/opt/postgresql@17/bin/';
+const dir=await mkdtemp('/private/tmp/tse-do-pg-'),data=join(dir,'data'),socket=join(dir,'socket');await mkdir(socket,{mode:0o700});
+const clean={PATH:'/usr/bin:/bin',LC_ALL:'C'};
+const run=(name,args)=>new Promise((resolve,reject)=>{const p=spawn(bins+name,args,{env:clean,stdio:['ignore','pipe','pipe']});let text='';p.stdout.on('data',b=>text+=b);p.stderr.on('data',b=>text+=b);p.on('error',reject);p.on('close',code=>code?reject(Error(text)):resolve(text));});
+let started=false,client;
+try{await run('initdb',['-D',data,'-U','postgres','--auth=trust','--encoding=UTF8','--no-locale']);await run('pg_ctl',['-D',data,'-l',join(dir,'server.log'),'-o',`-c listen_addresses= -c unix_socket_directories=${socket} -c shared_buffers=16MB`,'-w','start']);started=true;
+ client=new Client({host:socket,port:5432,user:'postgres',database:'postgres',password:undefined});await client.connect();
+ const db={exec:sql=>client.query(sql),query:(sql,args)=>client.query(sql,args)};
+ await db.exec(fixtureBootstrapSql+'create schema extensions;create extension pgcrypto with schema extensions;');
+ for(const name of (await readdir(new URL('../supabase/migrations/',import.meta.url))).filter(n=>n.endsWith('.sql')).sort())await db.exec(await readFile(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
+ const target=JSON.parse(await readFile(new URL('../docs/audio-reconstruction/production-schema-evidence.json',import.meta.url),'utf8'));
+ await db.exec('create role media_broker_production_login nologin');await db.exec(target.functions.find(f=>f.name==='vm_audit_immutable').definition);
+ for(const name of ['20261029023407_artist_master_ownership_rows.sql','20261029032813_artist_structured_rights_and_agreements.sql'])await db.exec(await readFile(new URL('../tests/fixtures/production-rights/'+name,import.meta.url),'utf8'));
+ await seedDatabase(db);
+ await db.exec("update submission_media.capabilities set reservations_enabled=true,worker_enabled=true,foundation_reads_enabled=true;insert into storage.buckets(id,name,public) values('submission-source','submission-source',false),('submission-derived','submission-derived',false),('submission-artwork','submission-artwork',false)");
+ const boot='c6204700-2001-4000-8000-000000000001',digest='sha256:c678ad81c316b0e8f56dd9a822e7da80ed7dbee09f8d667e2f5a64e6e64239b0';
+ await client.query("update submission_media.do_control set enabled=true,boot_id=$1,broker_digest=$2,allowed_owner=$3,jobs_after=clock_timestamp(),expires_at=clock_timestamp()+interval '1 hour',carry_forward_usd=1,accounting_reconciled=true",[boot,'sha256:'+'d'.repeat(64),ids.a]);
+ await db.exec('set role media_broker_do_login');
+ assert.equal((await client.query('select submission_media.do_observe($1,0,0) v',[boot])).rows[0].v.projected_usd,13);
+ await assert.rejects(client.query('select * from submission_media.jobs'),e=>e.code==='42501');await assert.rejects(client.query('select submission_media.claim_job()'),e=>e.code==='42501');
+ const idle=(await client.query('select submission_media.do_admit(gen_random_uuid(),$1,$2) v',[boot,digest])).rows[0].v;assert.equal(idle.state,'idle');
+ await assert.rejects(client.query('select submission_media.do_admit(gen_random_uuid(),gen_random_uuid(),$1)',[digest]),e=>e.code==='42501');
+ await db.exec('reset role');
+ console.log(JSON.stringify({result:'PASS',platform:process.platform,architecture:process.arch,postgres:(await run('postgres',['--version'])).trim(),tcpListener:false,productionConnections:false,scope:'new admission SQL + actual restricted PostgreSQL role denial; provider ownership and hosted processing not claimed'}));
+}finally{await client?.end();if(started)await run('pg_ctl',['-D',data,'-m','immediate','-w','stop']);await rm(dir,{recursive:true,force:true});}

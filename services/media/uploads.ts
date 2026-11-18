@@ -21,6 +21,8 @@ const base={submission:z.string().uuid(),revision:z.number().int().nonnegative()
 const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("create"),key:z.string().uuid(),track:z.string().uuid().nullable().optional()}).strict(),
  z.object({action:z.literal("read"),submission:base.submission,admin:z.boolean().optional()}).strict(),
+ z.object({action:z.literal("documents"),submission:base.submission,admin:z.boolean().optional()}).strict(),
+ z.object({action:z.literal("reserve_document"),submission:base.submission,kind:z.enum(['authority','sample','agreement']),filename:z.string().min(5).max(255).regex(/^[^/\\\x00-\x1f\x7f]+[.]pdf$/i),bytes:z.number().int().min(16).max(3_000_000),key:base.key}).strict(),
  z.object({action:z.literal("list")}).strict(),
  z.object({action:z.literal("workspace_status")}).strict(),
  z.object({action:z.literal("recover_draft"),submission:base.submission,key:base.key}).strict(),
@@ -37,7 +39,9 @@ const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("metadata"),...base,data:uploadMetadataSchema}).strict(),
  z.object({action:z.literal("submit"),...base}).strict()
 ]);
-export async function performMediaRequest(input:unknown){const p=schema.parse(input);const {client,user}=await mediaActor(p.action==="read"&&p.admin===true);if(p.action==="reserve"){const admission=await consumeRateLimit("upload",user.id);if(admission.status!=="allowed")throw new UploadError(429,"UPLOAD_LIMIT");}
+export async function performMediaRequest(input:unknown){const p=schema.parse(input);const {client,user}=await mediaActor((p.action==="read"||p.action==="documents")&&p.admin===true);if(p.action==="reserve"){const admission=await consumeRateLimit("upload",user.id);if(admission.status!=="allowed")throw new UploadError(429,"UPLOAD_LIMIT");}
+ if(p.action==='documents')return mediaRpc(client,'media_workspace_documents',{p_submission:p.submission,p_admin:p.admin===true});
+ if(p.action==='reserve_document'){if((await consumeRateLimit('upload',user.id)).status!=='allowed')throw new UploadError(429,'UPLOAD_LIMIT');return mediaRpc(client,'media_workspace_document_reserve',{p_submission:p.submission,p_kind:p.kind,p_filename:p.filename,p_bytes:p.bytes,p_key:p.key});}
  if(p.action==="recover_draft")return mediaRpc(client,"media_submission_recover",{p_submission:p.submission,p_key:p.key});
  if(p.action==="workspace_status")return mediaRpc(client,"media_submission_status");
  if(p.action==="prepare_workspace")return mediaRpc(client,"media_submission_prepare",{p_submission:p.submission,p_revision:p.revision,p_key:p.key});

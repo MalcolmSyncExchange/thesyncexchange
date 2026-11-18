@@ -59,6 +59,14 @@ export async function database(target='repository', {seed=true}={}) {
    const sql=adaptMigrationForPGlite(source(`supabase/migrations/${file}`));
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }
   }
+  if(target==='repository') {
+   // Restore the already-installed production rights contract only in the local
+   // database fixture. These historical DDL files are not pending migrations.
+   const targetSchema=JSON.parse(source('docs/audio-reconstruction/production-schema-evidence.json'));
+   await db.exec('create role media_broker_production_login nologin');
+   await db.exec(targetSchema.functions.find(f=>f.schema==='submission_media'&&f.name==='vm_audit_immutable').definition);
+   for(const name of ['20261029023407_artist_master_ownership_rows.sql','20261029032813_artist_structured_rights_and_agreements.sql'])await db.exec(source('tests/fixtures/production-rights/'+name));
+  }
   if(['production','staging'].includes(target)) await applyCapturedAuthorization(db,snapshot(target));
   if(seed) await seedDatabase(db);
   return db;

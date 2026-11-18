@@ -56,4 +56,36 @@ class Launcher(unittest.TestCase):
  def test_image_change_is_not_adopted(self):
   self.launch();self.container['Config']['Image']='other'
   with self.assertRaises(ValueError):self.engine.status(self.context['run_id'])
+ def test_historical_exit_uses_recorded_image_without_restarting_old_execution(self):
+  self.launch();self.container['State'].update(Running=False,ExitCode=0)
+  self.assertEqual(self.engine.status(self.context['run_id'])['state'],'EXITED')
+  old_image=self.config['image'];new_image='sha256:'+'c'*64
+  self.config.update(image=new_image,build_digest=new_image)
+  self.assertEqual(self.engine.status(self.context['run_id'])['state'],'EXITED')
+  context=dict(self.context,build_digest=new_image)
+  self.assertEqual(self.engine.start(context)['state'],'EXITED')
+  self.assertEqual(sum(c[0]=='start' for c in self.calls),1)
+  self.assertEqual(json.loads((self.root/'launcher'/(self.context['run_id']+'.json')).read_text())['image'],old_image)
+ def test_historical_image_or_record_identity_tampering_still_fails_closed(self):
+  self.launch();self.container['State'].update(Running=False,ExitCode=0)
+  self.engine.status(self.context['run_id'])
+  self.config.update(image='sha256:'+'c'*64,build_digest='sha256:'+'c'*64)
+  original=self.container['Config']['Image'];self.container['Config']['Image']='sha256:'+'d'*64
+  with self.assertRaisesRegex(ValueError,'CONTAINER_IDENTITY_CONFLICT'):self.engine.status(self.context['run_id'])
+  self.container['Config']['Image']=original
+  path=self.root/'launcher'/(self.context['run_id']+'.json');record=json.loads(path.read_text());record['run_id']=str(uuid.uuid4());path.write_text(json.dumps(record))
+  with self.assertRaisesRegex(ValueError,'RECORDED_IDENTITY_CONFLICT'):self.engine.status(self.context['run_id'])
+ def test_running_historical_image_still_blocks_a_new_execution(self):
+  self.launch();old_name='tse-media-run-'+self.context['run_id'];old_container=self.container
+  self.config.update(image='sha256:'+'c'*64,build_digest='sha256:'+'c'*64)
+  def exact_docker(args):
+   if args[0]=='ps':return 'id' if ('name=^/'+old_name+'$') in args else ''
+   if args[0]=='inspect':return json.dumps([old_container])
+   return self.docker(args)
+  self.engine.execute=exact_docker
+  next_context=dict(self.context,run_id=str(uuid.uuid4()),build_digest=self.config['image'])
+  with patch.object(l.shutil,'disk_usage',return_value=type('Disk',(),{'free':3*1024**3})()):
+   with self.assertRaisesRegex(ValueError,'ONE_JOB_ONLY'):self.engine.start(next_context)
+  self.assertEqual(sum(c[0]=='start' for c in self.calls),1)
+  self.assertTrue(old_container['State']['Running'])
 if __name__=='__main__':unittest.main()

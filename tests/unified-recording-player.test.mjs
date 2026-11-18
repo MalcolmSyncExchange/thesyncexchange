@@ -44,6 +44,10 @@ test('one full waveform and native audio engine preserve security, cancellation 
  const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
  assert.equal((ui.match(/<ValidatedWaveform /g)||[]).length,1);assert.equal((ui.match(/<audio /g)||[]).length,1);
  for(const text of ['Play Full Track','Play Preview','Play Generated AAC','Accept Generated Preview','Preview region start','Preview start seconds','Recording playback position','onPointerCancel','onLostPointerCapture','setPointerCapture','AbortSignal.timeout(15000)','credentials:\'same-origin\'','redirect:\'error\'','cache:\'no-store\'','clearTimeout(endTimer.current)','prefers-reduced-motion','heard!==currentPreview.id','!dirty','onSelectionDirty','Reset selection'])assert.ok(ui.includes(text),text);
+ // Signed Storage ranges may use application/octet-stream; CORS media loading
+ // avoids opaque-response blocking without sending cross-origin cookies.
+ assert.match(ui,/<audio[^>]*crossOrigin="anonymous"/);
+ assert.doesNotMatch(ui,/crossOrigin="use-credentials"/);
  assert.doesNotMatch(ui,/decodeAudioData|createObjectURL|Math.random|service_role/);
  const bars=readFileSync(new URL('../components/audio/validated-waveform.tsx',import.meta.url),'utf8');assert.doesNotMatch(bars,/styles.peakCaps|styles.centerline/);assert.match(bars,/useMemo/);
 });

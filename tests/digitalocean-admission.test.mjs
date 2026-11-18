@@ -45,7 +45,7 @@ test('consumed transfer claims reject replay, wrong tuple and arbitrary transfer
 }));
 test('budget reserves full liabilities after settlement; rollback keeps history and disables future admission',()=>fresh(async db=>{
  await enabled(db);await job(db);const run=await admitted(db);await rpc(db,'do_claim',[run.run_id,boot]);await rpc(db,'do_settle',[run.run_id,boot]);
- const first=(await db.query('select state,reserved_usd from submission_media.do_runs')).rows[0];assert.equal(first.state,'failed');assert.equal(Number(first.reserved_usd),.03);
+ const first=(await db.query('select state,reserved_usd from submission_media.do_runs')).rows[0];assert.equal(first.state,'failed');assert.equal(Number(first.reserved_usd),.10);
  await db.exec('update submission_media.do_control set carry_forward_usd=2.99');assert.equal((await rpc(db,'do_admit',[randomUUID(),boot,digest])).state,'budget_limit');
  await db.exec('update submission_media.do_control set enabled=false');await assert.rejects(rpc(db,'do_admit',[randomUUID(),boot,digest]));
  assert.equal((await db.query('select count(*)::int n from submission_media.do_runs')).rows[0].n,1);

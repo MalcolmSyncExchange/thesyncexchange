@@ -1,3 +1,6 @@
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {realpath} from 'node:fs/promises';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createBoundedExecutionCoordinator,createBoundedExecutionDriver} from '../scripts/diagnostics/bounded-execution-coordinator.mjs';
 import {executionFixture,admin,eventId} from './helpers/bounded-execution-fixture.mjs';
@@ -8,7 +11,7 @@ async function run(o={}){
  const f=executionFixture(),calls=[],artifacts=[];let closed=false;
  const body={status:'ready',ready:true,...Object.fromEntries(['validationEnabled','authorizationMatches','artistMatches','operatorMatches','grantUsable','stagingIdentityValid','globalAnalyticsDisabled','boundedConfigurationRecognized','paymentCapabilitiesOff'].map(k=>[k,true])),...o.flags};
  const driver={submitLogin:async()=>({submitted:true}),observeLoginOutcome:async()=>({httpStatus:200,completed:true,authenticatedRoute:true}),inspectSession:async()=>({established:true}),getUser:async()=>({httpStatus:200,verified:true,userId:o.wrongAdmin?'wrong':admin}),getCanonicalRole:async()=>({httpStatus:200,role:'admin'}),readinessGet:async()=>{calls.push('GET');return new Response(JSON.stringify(body),{status:o.readinessStatus||200});},preservationAuthorization:()=>f.auth,eventPost:async()=>{assert.equal(closed,false);calls.push('POST');if(o.timeout)return new Promise(()=>{});if(o.ambiguous)throw Error('SECRET ambiguous');return new Response(JSON.stringify({status:'accepted',category:'delivery_accepted',claimOutcome:'claimed',eventId,ingestionAcknowledged:true,password:'SECRET'}));},cleanup:async()=>{calls.push('CLEANUP');closed=true;if(o.cleanupFailure)throw Error('SECRET');}};
- const dir=await mkdtemp('/private/tmp/tse-coordinator-evidence-');
+ const dir=await realpath(await mkdtemp(join(tmpdir(),'tse-coordinator-evidence-')));
  const durableEvidence=o.noEvidence?undefined:createDurableExecutionEvidence({directory:dir+'/run',keyProvider:async()=>Buffer.alloc(32,7),keyRef:'synthetic-test-key',fingerprintKey:Buffer.alloc(32,1),scope:{sourceCommit:'a'.repeat(40),environmentId:f.before.environmentId,operatorId:admin,authorizationId:authorization,runId:'synthetic-run',executionStartedAt:f.executionStartedAt}});
  const coordinator=createBoundedExecutionCoordinator({driver,durableEvidence,beforeSnapshot:o.partialBefore?{}:f.before,executionStartedAt:f.executionStartedAt,collectAfter:()=>collectPostflightWithDiagnostics({collectSnapshot:async()=>{calls.push('SNAPSHOT');return o.partial?{diagnostic:{status:'failed'}}:{diagnostic:{status:'passed'},snapshot:f.makeAfter(o.mutate,o.timeout||o.ambiguous)};},readHealth:o.healthFailure?async()=>{throw Error('SECRET');}:undefined}),timeoutMs:500,cleanupTimeoutMs:100,writeArtifact:async s=>{if(o.artifactFailure||o.artifactStage===s.step)throw Error('SECRET');artifacts.push(s);}});
  const result=await coordinator.run();await rm(dir,{recursive:true,force:true});return {result,calls,artifacts,coordinator};

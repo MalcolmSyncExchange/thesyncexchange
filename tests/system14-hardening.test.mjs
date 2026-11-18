@@ -70,7 +70,7 @@ test('System14 build guard ignores unrelated checkout listeners and catches this
  try{
   for(const [cwd,title] of [[elsewhere,"next-server"],[process.cwd(),"next-server"],[process.cwd(),"next-build"]]){const child=spawn(process.execPath,['-e',`process.title='${title} (synthetic)';process.send('ready');setInterval(()=>{},1000)`],{cwd,stdio:['ignore','ignore','ignore','ipc']});children.push(child);await new Promise((resolve,reject)=>{child.once('message',resolve);child.once('error',reject);});}
   const found=checkoutNextProcesses(process.cwd());assert.equal(found.includes(children[0].pid),false);assert.equal(found.includes(children[1].pid),true);assert.equal(found.includes(children[2].pid),true);
-  assert.throws(()=>checkoutNextProcesses(process.cwd(),(bin)=>{if(bin==='ps')return `${children[0].pid} next-build (synthetic)`;throw Error('Synthetic inspection failure');}));
+  assert.throws(()=>checkoutNextProcesses(process.cwd(),(bin)=>{if(bin==='ps')return `${children[0].pid} next-build (synthetic)`;throw Error('Synthetic inspection failure');},()=>{throw Error('Synthetic inspection failure');}));
  }finally{await Promise.all(children.map(child=>new Promise(resolve=>{child.once('exit',resolve);child.kill();})));rmSync(elsewhere,{recursive:true,force:true});}
  assert.throws(()=>checkoutNextProcesses(process.cwd(),()=>{throw Object.assign(Error('missing'),{code:'ENOENT'});}));
  assert.equal(spawnSync(process.execPath,['scripts/build-guard.mjs'],{encoding:'utf8'}).status,0);

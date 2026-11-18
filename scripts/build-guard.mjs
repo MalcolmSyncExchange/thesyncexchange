@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
+import { readlinkSync, readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 function isNextProcess(command) {
@@ -11,7 +11,7 @@ function isNextProcess(command) {
 
 // A port belongs to a process, not a checkout. Inspect every Next server/dev
 // process so unrelated projects and non-default ports are handled correctly.
-export function checkoutNextProcesses(checkout, run = execFileSync) {
+export function checkoutNextProcesses(checkout, run = execFileSync, inspect = process.platform === 'linux' ? pid => readlinkSync(`/proc/${pid}/cwd`) : null) {
   const root = realpathSync(checkout);
   const rows = run('ps', ['-axo', 'pid=,command='], { encoding: 'utf8', timeout: 5000 });
   const matches = [];
@@ -22,14 +22,23 @@ export function checkoutNextProcesses(checkout, run = execFileSync) {
     if (pid === process.pid) continue;
     let cwd;
     try {
-      const details = run('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { encoding: 'utf8', timeout: 5000 });
-      cwd = details.split('\n').find(value => value.startsWith('n'))?.slice(1);
+      if (inspect) cwd = inspect(pid);
+      else {
+        const details = run('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { encoding: 'utf8', timeout: 5000 });
+        cwd = details.split('\n').find(value => value.startsWith('n'))?.slice(1);
+      }
       if (!cwd) throw Error('Next process cwd unavailable.');
       if (realpathSync(cwd) === root) matches.push(pid);
     } catch (error) {
       // Processes may exit between ps and lsof. Tool absence is not evidence
       // that the checkout is idle; refuse rather than run an unsafe build.
-      if (error.code === 'ENOENT') throw error;
+      if (error.code === 'ENOENT' && !inspect) throw error;
+      if (inspect && error.code === 'ENOENT' && process.platform === 'linux') {
+        try {
+          const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+          if (/^[ZX] /.test(stat.slice(stat.lastIndexOf(')') + 2))) continue;
+        } catch { /* A vanished process is confirmed below; ambiguous state fails. */ }
+      }
       try { process.kill(pid, 0); } catch (probe) { if (probe.code === 'ESRCH') continue; throw error; }
       throw error;
     }

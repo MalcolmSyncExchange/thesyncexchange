@@ -1,3 +1,6 @@
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {realpath} from 'node:fs/promises';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm,readdir,stat,chmod,symlink,link} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
@@ -7,7 +10,7 @@ import {databaseSources,project} from '../scripts/diagnostics/staging-preservati
 import {comparePreservationSnapshots} from '../scripts/diagnostics/postflight-preservation.mjs';
 import {admin,authorization} from './helpers/bounded-execution-fixture.mjs';
 const scope={sourceCommit:'a'.repeat(40),environmentId:project,operatorId:admin,authorizationId:authorization,runId:'synthetic-run',executionStartedAt:'2026-10-22T01:00:00Z'};
-async function fixture(fn){const root=await mkdtemp('/private/tmp/tse-durable-evidence-');try{const options={directory:root+'/run',keyRef:'synthetic-custody-key',keyProvider:async()=>Buffer.alloc(32,7),scope,fingerprintKey:Buffer.alloc(32,9)};await fn(options,root);}finally{await rm(root,{recursive:true,force:true});}}
+async function fixture(fn){const root=await realpath(await mkdtemp(join(tmpdir(),'tse-durable-evidence-')));try{const options={directory:root+'/run',keyRef:'synthetic-custody-key',keyProvider:async()=>Buffer.alloc(32,7),scope,fingerprintKey:Buffer.alloc(32,9)};await fn(options,root);}finally{await rm(root,{recursive:true,force:true});}}
 test('encrypted baseline, original HMAC key, intent and terminal survive verified readback without plaintext',()=>fixture(async o=>{
  const w=createDurableExecutionEvidence(o);await w.baseline({privateMarker:'SYNTHETIC_PRIVATE_BASELINE'});await w.authorization({});await w.intent();await w.terminal({status:'failed'});
  const r=await readDurableExecutionEvidence(o);assert.deepEqual(r.records.map(x=>x.kind),['baseline','authorization','single_post_intent','terminal']);assert.equal(r.records[0].data.fingerprintKey,o.fingerprintKey.toString('base64'));

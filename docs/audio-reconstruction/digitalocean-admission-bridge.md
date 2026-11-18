@@ -47,10 +47,15 @@ only coordinator socket access, not parser access to UID20000 mode0400 secrets.
 - Dedicated DO monthly ceiling15USD before tax; full12USD base reserve.
 - Explicit carry-forward reservation required; never defaults to zero. Reserve
   the approved1USD setup allowance conservatively until reconciled.
-- Reserve0.03USD per admitted job and retain full reservations after settlement.
-  A source→waveform→preview chain reserves0.09USD. At50MB, conservatively priced
-  repeated egress, derived writes/readback, endpoint requests and logs fit inside
-  each reservation; root network observations additionally overcount exposure.
+- Reserve0.10USD per newly admitted job and retain full reservations after settlement.
+  A source→waveform→preview chain reserves0.30USD. Earlier0.03USD ledger entries
+  remain valid historical evidence. The larger reservation also covers bounded
+  transfer-function compute:13 calls ×60s ×4GiB is0.867GB-hours, approximately
+ 0.058USD at the published Pro credit rate, plus repeated50MB source transfer,
+  derived verification, requests and logging. Root observations additionally
+  overcount traffic. The15USD ceiling is unchanged; fewer jobs can be admitted.
+  Pricing: https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/
+  and https://docs.netlify.com/build/functions/usage-and-billing/.
 - Fresh root observations required within90s; boot/counter regression, month
   rollover, absent reconciliation or expired authorization fail closed.
 - Historical Google liabilities remain explicitly UNKNOWN_PRESERVED_NOT_OFFSET;

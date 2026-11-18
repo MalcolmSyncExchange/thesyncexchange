@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {uploadsFixture,create,reserve,observed,ids,artist} from './helpers/music-uploads-fixture.mjs';
-const boot='c6204700-2001-4000-8000-000000000001',digest='sha256:d9b0e5d8cc4cebef685cef3cc8d235ebdd2d9c313169addcc33794b23f1d62e1';
+const boot='c6204700-2001-4000-8000-000000000001',digest='sha256:37eaf7342bfbcb1917862d0003be87ef96cc22e935765bd2abb11d6fa44f3876';
 const fresh=async fn=>{const db=await uploadsFixture();try{await fn(db);}finally{await db.close();}};
 const rpc=async(db,name,args=[])=>(await db.query(`select submission_media.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) v`,args)).rows[0].v;
 async function enabled(db){await db.query("update submission_media.do_control set enabled=true,boot_id=$1,worker_digest=$4,broker_digest=$2,allowed_owner=$3,jobs_after=clock_timestamp(),expires_at=clock_timestamp()+interval '1 hour',carry_forward_usd=.10,accounting_reconciled=true",[boot,'sha256:'+'d'.repeat(64),ids.a,digest]);await rpc(db,'do_observe',[boot,0,0]);}

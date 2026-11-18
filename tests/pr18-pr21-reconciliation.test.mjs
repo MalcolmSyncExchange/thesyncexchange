@@ -64,7 +64,8 @@ test('PR21 reconciliation remains intact with the additive purchase foundation a
     '20261118022213_digitalocean_live_permit_status.sql',
     '20261118022453_automatic_audio_preview_and_waveform.sql',
     '20261118024724_digitalocean_conservative_transfer_reservation.sql',
-    '20261118055611_music_upload_reliability_150mb.sql'
+    '20261118055611_music_upload_reliability_150mb.sql',
+    '20261118183023_unix_transport_150mb_worker_identity.sql'
   ]);
 });
 

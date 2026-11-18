@@ -44,7 +44,7 @@ test('root accounting evidence rejects stale samples, guest mismatches and count
 });
 test('independent root launch evidence rejects another host, boot, run, image, missing key and stale evidence',async()=>{
  const {launchBytes,verifyLaunch}=await import('../services/media-broker/do-transfer-proof.mjs');
- const p={version:1,host_id:'620470021',run_id:run,boot_id:boot,worker_digest:'sha256:d9b0e5d8cc4cebef685cef3cc8d235ebdd2d9c313169addcc33794b23f1d62e1',nonce:randomUUID(),issued_at:100000,expires_at:110000};const signature=sign(null,launchBytes(p),privateKey).toString('base64');assert.equal(verifyLaunch(p,signature,pem,100001).run_id,run);
+ const p={version:1,host_id:'620470021',run_id:run,boot_id:boot,worker_digest:'sha256:37eaf7342bfbcb1917862d0003be87ef96cc22e935765bd2abb11d6fa44f3876',nonce:randomUUID(),issued_at:100000,expires_at:110000};const signature=sign(null,launchBytes(p),privateKey).toString('base64');assert.equal(verifyLaunch(p,signature,pem,100001).run_id,run);
  for(const patch of [{host_id:'8797328859122759463'},{boot_id:randomUUID()},{run_id:randomUUID()},{worker_digest:'sha256:'+'a'.repeat(64)},{expires_at:99999},{expires_at:200000}])assert.throws(()=>verifyLaunch({...p,...patch},signature,pem,100001));assert.throws(()=>verifyLaunch(p,signature,undefined,100001));assert.throws(()=>verifyLaunch(p,signature,pem,110000));
 });
 

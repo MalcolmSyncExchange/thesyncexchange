@@ -180,7 +180,7 @@ class Server(socketserver.UnixStreamServer):
 if __name__=='__main__':
     if os.geteuid()!=0 or platform.machine()!='x86_64':raise SystemExit('NATIVE_ROOT_REQUIRED')
     config=json.loads(CONFIG.read_text())
-    if config.get('provider')!='digitalocean' or config.get('host_id')!='620470021' or config.get('root_uuid')!='59134bd0-a76f-4ea0-8e4a-770b2e1eafc2' or config.get('enabled') is not True or config.get('image')!='sha256:d9b0e5d8cc4cebef685cef3cc8d235ebdd2d9c313169addcc33794b23f1d62e1' or config.get('build_digest')!=config.get('image'):raise SystemExit('APPROVED_DO_CONFIG_REQUIRED')
+    if config.get('provider')!='digitalocean' or config.get('host_id')!='620470021' or config.get('root_uuid')!='59134bd0-a76f-4ea0-8e4a-770b2e1eafc2' or config.get('enabled') is not True or config.get('image')!='sha256:37eaf7342bfbcb1917862d0003be87ef96cc22e935765bd2abb11d6fa44f3876' or config.get('build_digest')!=config.get('image'):raise SystemExit('APPROVED_DO_CONFIG_REQUIRED')
     actual_root=subprocess.run(['/usr/bin/findmnt','-n','-o','UUID','/'],check=True,capture_output=True,text=True,timeout=5).stdout.strip()
     actual_boot=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     if actual_root!=config['root_uuid'] or actual_boot!=config.get('boot_id'):raise SystemExit('LIVE_DO_IDENTITY_MISMATCH')

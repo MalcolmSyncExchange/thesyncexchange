@@ -305,6 +305,10 @@
     {
       "file": "20261118055611_music_upload_reliability_150mb.sql",
       "sha256": "9727d4f453164f92c9243ce4bc049fc555cb6114627901abe87e1eebc788ea95"
+    },
+    {
+      "file": "20261118183023_unix_transport_150mb_worker_identity.sql",
+      "sha256": "de7d872e9dc9a753d3c9cae60663dec8e566013eaf69708e1bdb85f9c59f29df"
     }
   ],
   "storageBuckets": {

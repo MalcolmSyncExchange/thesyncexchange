@@ -34,6 +34,50 @@
   },
   "broker": {
     "archive": {
+      "sha256": "141a2b17b661237c19f6b728b221ffc819b4be4f1d8833db4a62813ea3566391",
+      "bytes": 53721600
+    },
+    "image": {
+      "digest": "sha256:6ccd3b0f5df4d424e59e4fdd9ebefe7f84b769f92ff2e61048ae037880d9e0d3",
+      "config_digest": "sha256:80a85e3e816aa31ed7df00f17be5e087e61ecda37aaa7feaa75625faebd70ee0",
+      "rootfs_diff_ids": [
+        "sha256:30d42639883b0c8fd21d05fde24d7c7e12f17a6b2b23a263ee06bb518f6ecaf8",
+        "sha256:285b96c96993f0d9de847afaf143e9eafcf46c1905ece04b4249e954ea1f23fa",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+        "sha256:c49b5661fd11f778a5c5be11055134f1c46a3f546c97654115cf7a860a13fd09",
+        "sha256:3f449a952dfe0859e0997ffac0ebf7ecaa90f796dc305f19c9022b680324b075",
+        "sha256:18fb154e2204dfea643d16b3551d41550509d6ec8faa5f4031eb2ae856b1e0d5",
+        "sha256:6809c5bf801677c9d0ddcbeb76d43aad1037a9a74b39fb0b1d9cf9c8f4be76b9",
+        "sha256:09d1dd661a263d6c04f02a417878a27981b8f6ef347031580cec8b5d4ffb706a",
+        "sha256:f3455a0bcc1401ccab351d39ce765625fbddc1af373ddd6042259ebb5193c9a3",
+        "sha256:211f6040d18fbb38bf89157a574c5692f668206c1b9063f44896cdbb83578a3e"
+      ]
+    },
+    "verification": {
+      "format": "OCI layout",
+      "archive_sha256": "141a2b17b661237c19f6b728b221ffc819b4be4f1d8833db4a62813ea3566391",
+      "manifest_digest": "sha256:6ccd3b0f5df4d424e59e4fdd9ebefe7f84b769f92ff2e61048ae037880d9e0d3",
+      "config_digest": "sha256:80a85e3e816aa31ed7df00f17be5e087e61ecda37aaa7feaa75625faebd70ee0",
+      "platform": "linux/amd64",
+      "verified_blobs": 12,
+      "verified_layers": 10
+    },
+    "source_revision": "6a6abb04",
+    "status": "VERIFIED_NOT_YET_INSTALLED",
+    "context_sha256": "ed6aba781ef8a327dd7792699935eae7ed83b1ab36ffe25a21b02f657a904764",
+    "files": {
+      "Dockerfile": "9ac9d7afe5f1cdf210e6cb2d4fefaa39826baa9d832e350d7f38a815a1c6cc79",
+      "services/media-broker/do-database.mjs": "ab9d0866462bea6015ad37a0c7c87b721177f98f42a6f188d75b19ebdf61d89a",
+      "services/media-broker/do-dispatcher.mjs": "3a3fad28ceae83bd15d28aca4e2f0ca9d51a8935de3f7402cf38f4a6ab81d13a",
+      "services/media-broker/do-entrypoint.mjs": "9661659bedc5860d78359bb32b755b6708e506603b9380635ac8e705eb63cb03",
+      "services/media-broker/do-server.mjs": "c93e8ff16113f23cc51bee4265a31dfe9b2fd707c2808a25826854a8141fd8e0",
+      "services/media-broker/do-storage.mjs": "98e051d9ead53b76a30c216876f2adaefb69fcf74ed258fdf9ceae97fcb72b79",
+      "services/media-broker/do-transfer-proof.mjs": "51495370ee2351b7bad4fc70f783276e0b34b71dbca297483dda6f7b7a009b14",
+      "services/media-broker/linux-host-binding.mjs": "d6f3b7bacd88dd612bc060ff781480598c3520714b142a3b82ef91082ae1e18d"
+    }
+  },
+  "superseded_broker_candidate": {
+    "archive": {
       "sha256": "0ff0c9990c795cbe9b881e9165c507d3a6b41cd5ef8c0bab8a30550eefeb17df",
       "bytes": 53721600
     },

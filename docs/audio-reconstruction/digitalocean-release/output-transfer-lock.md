@@ -28,3 +28,12 @@ correction. Additional tests reject recording/completion after revocation and
 reject a transfer revoked after the private immutable upload. Focused integration:
 39 passed. Typecheck, focused ESLint and diff checks pass. Required hosted CI,
 merged-source image provenance and live output acceptance remain release gates.
+
+The new runtime manifest and imported Docker identity are
+sha256:8409aee2dca3884bcd993738e300280a9af1ea85fcc38c2a3f84421703717b54.
+All11 OCI blobs and9 layer diff IDs verified; exact prior rootfs prefix preserved.
+The adjacent identity record includes the archive SHA, config, source hashes and
+original BuildKit attestation archive SHA. The image scan found no private keys
+or credential files. All8 focused tests passed inside this exact AMD64 image
+under local macOS ARM64 emulation with no network or credentials. This does not
+claim native hosted output acceptance. The approved parser image is unchanged.

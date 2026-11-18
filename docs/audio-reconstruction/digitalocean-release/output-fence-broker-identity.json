@@ -1,0 +1,53 @@
+{
+  "archive": {
+    "sha256": "9186784a6ae33a627a562160cb8f4eccbdbb2aa15316f2f47edf23ad520b4121",
+    "bytes": 53711872
+  },
+  "record": {
+    "digest": "sha256:8409aee2dca3884bcd993738e300280a9af1ea85fcc38c2a3f84421703717b54",
+    "config_digest": "sha256:a47f0bb47a20e786858f66608b39e78cc1424e63b1631e743cb341d99675640c",
+    "rootfs_diff_ids": [
+      "sha256:30d42639883b0c8fd21d05fde24d7c7e12f17a6b2b23a263ee06bb518f6ecaf8",
+      "sha256:285b96c96993f0d9de847afaf143e9eafcf46c1905ece04b4249e954ea1f23fa",
+      "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+      "sha256:c49b5661fd11f778a5c5be11055134f1c46a3f546c97654115cf7a860a13fd09",
+      "sha256:3f449a952dfe0859e0997ffac0ebf7ecaa90f796dc305f19c9022b680324b075",
+      "sha256:18fb154e2204dfea643d16b3551d41550509d6ec8faa5f4031eb2ae856b1e0d5",
+      "sha256:6809c5bf801677c9d0ddcbeb76d43aad1037a9a74b39fb0b1d9cf9c8f4be76b9",
+      "sha256:09d1dd661a263d6c04f02a417878a27981b8f6ef347031580cec8b5d4ffb706a",
+      "sha256:f3455a0bcc1401ccab351d39ce765625fbddc1af373ddd6042259ebb5193c9a3"
+    ]
+  },
+  "verification": {
+    "format": "OCI layout with Docker compatibility manifest",
+    "archive_sha256": "9186784a6ae33a627a562160cb8f4eccbdbb2aa15316f2f47edf23ad520b4121",
+    "manifest_digest": "sha256:8409aee2dca3884bcd993738e300280a9af1ea85fcc38c2a3f84421703717b54",
+    "config_digest": "sha256:a47f0bb47a20e786858f66608b39e78cc1424e63b1631e743cb341d99675640c",
+    "platform": "linux/amd64",
+    "verified_blobs": 11,
+    "verified_layers": 9
+  },
+  "expected_imported_docker_id": "sha256:8409aee2dca3884bcd993738e300280a9af1ea85fcc38c2a3f84421703717b54",
+  "build_index_id": "sha256:0a623117fd2e764561fa91955337917f6f8eec18fd89263a94a297c20369d712",
+  "attestation_archive_sha256": "2e4ca5d73c6b398c38f742b9c755f3b79414dcd881dea75ea043262f48d0fd51",
+  "base_manifest": "sha256:e2ab69c59872b5eb1ae1b3d96ba643f54cd9dd517a8139c9316f8dd6e9a94c58",
+  "source": {
+    "commit": "759ef94658fb3c03311787fa16d95816e4137904",
+    "context_sha256": "98ac70ea7f5ba995c91908a7e67331a6568df6feb927d9bf41461bc84090aa35",
+    "files": {
+      "infra/media-host/do-broker.Dockerfile": "9ac9d7afe5f1cdf210e6cb2d4fefaa39826baa9d832e350d7f38a815a1c6cc79",
+      "services/media-broker/do-database.mjs": "ab9d0866462bea6015ad37a0c7c87b721177f98f42a6f188d75b19ebdf61d89a",
+      "services/media-broker/do-dispatcher.mjs": "3a3fad28ceae83bd15d28aca4e2f0ca9d51a8935de3f7402cf38f4a6ab81d13a",
+      "services/media-broker/do-entrypoint.mjs": "eb975958e8d009bed63e7658e6fefeb255eef27621b56dd348af49c7bc00843b",
+      "services/media-broker/do-server.mjs": "c197672a7e1175f0311965cac78616b99eebb902e917519876402fa6de872c6f",
+      "services/media-broker/do-storage.mjs": "98e051d9ead53b76a30c216876f2adaefb69fcf74ed258fdf9ceae97fcb72b79",
+      "services/media-broker/do-transfer-proof.mjs": "a57abb194ae55cb1d7c9a3ed1325c0ea4b8fdd0d011091889ed227dfc3074c2b",
+      "services/media-broker/linux-host-binding.mjs": "d6f3b7bacd88dd612bc060ff781480598c3520714b142a3b82ef91082ae1e18d"
+    }
+  },
+  "credential_scan": {
+    "private_key_or_credential_files": []
+  },
+  "local_build": "COPY-only Linux AMD64 build on macOS ARM64; not native runtime acceptance",
+  "note": "Bare-ID base lookup rejected before building; verified local build-only alias used, final rootfs prefix verified. Original BuildKit attestation archive retained; runtime archive selects only linux/amd64."
+}

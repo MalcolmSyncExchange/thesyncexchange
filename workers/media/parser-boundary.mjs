@@ -27,7 +27,7 @@ async function prepare(tool,args,toolDir,runtime,readOnly){
    try{facts=await lstat(path);}catch(e){if(e.code!=='ENOENT'||path!==output)throw e;}
    if(facts){
     if(path===output)fail();
-    if(!facts.isFile()||facts.nlink!==1||facts.size>50_000_000||await realpath(path)!==path)fail();
+    if(!facts.isFile()||facts.nlink!==1||facts.size>150_000_000||await realpath(path)!==path)fail();
     inputs.push(path);
    }else{
     // Pre-create only explicitly nominated output leaves; parser gets no create,

@@ -35,7 +35,7 @@ test('read-only calls never create output; canonical ownership, private director
  await assert.rejects(prepareParser('ffprobe',[input],d,null,true));
  const publicDir=join(d,'public');await mkdir(publicDir,{mode:0o755});await writeFile(join(publicDir,'input'),'x');
  await assert.rejects(prepareParser('ffprobe',[join(publicDir,'input')],d,null,true));
- const large=join(d,'large');const {open}=await import('node:fs/promises');const fd=await open(large,'w');await fd.truncate(50_000_001);await fd.close();
+ const large=join(d,'large');const {open}=await import('node:fs/promises');const fd=await open(large,'w');await fd.truncate(150_000_001);await fd.close();
  await assert.rejects(prepareParser('ffprobe',[large],d,null,true));
 }));
 test('malformed invocation, mixed directories and partial preparation roll back without touching input',()=>fixture(async d=>{

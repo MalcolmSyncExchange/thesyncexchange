@@ -79,3 +79,9 @@
 :where(a[href], button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary, select:not(:disabled)) {
   cursor: pointer;
 }
+
+.tse-upload-progress { appearance: none; background: hsl(var(--muted)); }
+.tse-upload-progress::-webkit-progress-bar { background: hsl(var(--muted)); border-radius: 999px; }
+.tse-upload-progress::-webkit-progress-value { background: hsl(var(--accent)); border-radius: 999px; transition: width .25s ease-out; }
+.tse-upload-progress::-moz-progress-bar { background: hsl(var(--accent)); border-radius: 999px; }
+@media (prefers-reduced-motion: reduce) { .tse-upload-progress::-webkit-progress-value { transition: none; } }

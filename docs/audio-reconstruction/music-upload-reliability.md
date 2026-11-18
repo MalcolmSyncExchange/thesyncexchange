@@ -1,0 +1,37 @@
+# Music upload reliability and 150 MB candidate
+
+Production acceptance remains pending. No Supabase spending protection has been disabled.
+
+## Confirmed founder-upload cause
+
+Read-only production inspection on 2026-11-18 UTC found two complete private 45,547,778-byte WAV assets on draft `47958cbe-30eb-463e-aa2d-33298ffe6933`. They are `0eeaee45-b608-48c0-acf8-0fec65d79a77` and `7e7b1b7c-e1be-4ffe-a343-e4a5bde533b4`. Their validation jobs are queued at attempt zero. The three successful jobs belong to the earlier two-second synthetic master, not these files. Neither founder upload was overwritten, removed or downloaded during this investigation.
+
+The DigitalOcean admission window expired at `2026-11-18T05:27:38.980Z`, before either upload. Read-only strict SSH confirmed the broker inactive/failed and launcher active. Thus transfer succeeded but validation did not begin. Source validation is not evidence of a codec failure. The application previously listed unrelated historical job outcomes together.
+
+## Candidate behavior
+
+150,000,000 decimal bytes is the new source ceiling in browser validation, reserve API, authenticated TUS, database reservation, DigitalOcean admission and transfers, and parser input preparation. Artwork remains 10 MB; waveform 2 MB and preview 4 MB remain unchanged. Parser output-file ceiling remains 50 MB. The 15-minute duration ceiling, 480-second tool timeout, 768 MiB parser address-space ceiling, 1 GiB container ceiling, 32 PIDs, network denial, Landlock, seccomp, non-root UID and credential separation remain unchanged. Source hashing and decoding stream; no full source Buffer is introduced. 150 MB source plus at most 4 MB output leaves over 100 MB within the existing 256 MB temporary-file budget and fits the 512 MiB scratch mount. Root launcher still rejects hosts with less than 2 GiB free disk and starts only one parser.
+
+The current-master progress projection excludes retired master jobs and previews for other sources/regions. Transfer progress separates local identity hashing from acknowledged uploaded chunks, uses decimal MB, measured-only ETA and bounded TUS chunks. Pause preserves the server-verified offset and exact full-file fingerprint; same-tab Resume retains the File handle. Cancellation retires only the unsubmitted reservation, never deletes private Storage. Historical versions stay in a collapsible section. Preview acceptance remains revision-bound and separate from SEC review.
+
+## Material deployment gate: Supabase spend cap
+
+Authenticated Supabase Storage Settings explicitly shows Global file size limit 50 MB and “Reduced max upload file size limit due to spend cap. Disable your spend cap to allow file uploads of up to 500 GB.” The organization is already Pro. Bucket `submission-source` is private with a 50,000,000-byte limit. Increasing application or bucket limits alone cannot satisfy a 100 MB upload.
+
+Founder approval is required before disabling the organization's spending protection. Do not silently bypass this gate by chunk-object storage, another service or weakening the cap. After that decision, set the project global maximum to exactly 150 MB, apply the reviewed private-bucket migration and verify readback. Other buckets remain unchanged. Do not publish a 150 MB UI before these gates pass.
+
+## Worker availability gate
+
+Keep the existing signed one-hour host binding, independent hard shutdown and accounting/fencing gates. A bounded renewed founder-testing window can verify this release. It does not establish unattended availability outside that window. Do not silently remove expiration or install an automatic signing-key renewal bypass. Continuous operation needs a separately reviewed renewal/scheduling design retaining independent root authority and the $15 monthly ceiling. Historical Google holds and liabilities remain untouched; Clean Media Recovery remains HOLD.
+
+## Release and rollback order
+
+1. Finish local/native runtime validation and seal both changed image identities.
+2. Obtain explicit PR merge approval under AGENTS.md and a specific spend-cap decision.
+3. Verify global 150 MB Storage configuration, then apply the reviewed non-destructive migration. Preserve all records, grants, history, policies and old job attempts.
+4. Install only verified immutable images in a fresh bounded DigitalOcean founder window. Update the signed exact-host/image binding and public admission digests together; retain previous images/configuration.
+5. Publish the approved-main Linux Netlify build only after CI, permission and rollback checks.
+6. Verify the existing full-length founder master and one private synthetic 100 MB master through validation, waveform and AAC preview; test interruption, resume and replacement without deleting originals. Check unauthorized originals remain inaccessible. Do not submit false rights attestations or approve SEC review.
+7. On mandatory failure, stop the worker first and keep durable job/permit/accounting records. Restore prior image/configuration and deploy a reviewed source revert as needed. Do not reset attempts or expose/erase 100+ MB originals. Keep processing disabled until a forward-compatible runtime can process retained large assets. Re-enabling the spend cap is a founder billing decision, not an automatic cleanup action.
+
+100 MB production end-to-end acceptance is NOT passed until observed and recorded. Local size validation or simulated transfer is insufficient.

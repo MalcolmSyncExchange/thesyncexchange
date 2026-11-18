@@ -30,7 +30,7 @@ export function doServer({db,signer,scratch,fetcher=fetch,now=Date.now,log=()=>{
    if(req.url==='/input'){
     const input=job.source||job;
     // Charge commits before external I/O, including interrupted transfers.
-    const stream=await storage.stream(input,abort.signal),bound=new BoundedStream(50000000,Number(input.bytes),input.sha256);
+    const stream=await storage.stream(input,abort.signal),bound=new BoundedStream(150000000,Number(input.bytes),input.sha256);
     res.writeHead(200,{'content-type':'application/octet-stream','cache-control':'no-store'});await pipeline(stream,bound,res,{end:false,signal:abort.signal});await authority.resolve(l);res.end();
    }else{
     requireValue(job.source&&b.result.source_sha256===job.source.sha256&&Number.isSafeInteger(b.result.actual_bytes)&&b.result.actual_bytes>0&&b.result.actual_bytes<=job.max_bytes&&/^[a-f0-9]{64}$/.test(b.result.sha256),'OUTPUT_PROVENANCE_MISMATCH');

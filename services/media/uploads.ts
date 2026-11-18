@@ -28,7 +28,7 @@ const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("recover_draft"),submission:base.submission,key:base.key}).strict(),
  z.object({action:z.literal("prepare_workspace"),...base}).strict(),
  z.object({action:z.literal("save_draft"),...base,data:z.unknown()}).strict(),
- z.object({action:z.literal("reserve"),...base,role:z.enum(uploadRoles),label:z.string().trim().min(1).max(80),filename:z.string().min(1).max(255),bytes:z.number().int().positive().max(50_000_000),replaces:z.string().uuid().nullable().optional()}).strict(),
+ z.object({action:z.literal("reserve"),...base,role:z.enum(uploadRoles),label:z.string().trim().min(1).max(80),filename:z.string().min(1).max(255),bytes:z.number().int().positive().max(150_000_000),replaces:z.string().uuid().nullable().optional()}).strict(),
  z.object({action:z.literal("destination"),submission:base.submission,asset:z.string().uuid()}).strict(),
  z.object({action:z.literal("confirm"),submission:base.submission,asset:z.string().uuid()}).strict(),
  z.object({action:z.literal("remove"),...base,asset:z.string().uuid()}).strict(),

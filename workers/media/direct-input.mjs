@@ -8,7 +8,7 @@ import {RemoteBroker} from './remote-broker.mjs';
 const fail=(code='worker_lease_expired')=>{throw new MediaError(code);};
 export function validateGrant(grant,job,now=Date.now()){
  const i=job.source||job,g=grant?.identity;
- if(grant?.version!==1||!uuid(grant.id)||!Number.isSafeInteger(grant.expires_at)||grant.expires_at<=now||grant.expires_at>now+30000||!g||!uuid(g.owner_id)||g.submission_id!==job.submission_id||g.asset_id!==(job.source?.asset_id||job.asset_id)||g.object_id!==i.object_id||g.version!==i.version||g.bytes!==Number(i.bytes)||g.bytes<1||g.bytes>50_000_000||(g.sha256||null)!==(i.sha256||null))fail();
+ if(grant?.version!==1||!uuid(grant.id)||!Number.isSafeInteger(grant.expires_at)||grant.expires_at<=now||grant.expires_at>now+30000||!g||!uuid(g.owner_id)||g.submission_id!==job.submission_id||g.asset_id!==(job.source?.asset_id||job.asset_id)||g.object_id!==i.object_id||g.version!==i.version||g.bytes!==Number(i.bytes)||g.bytes<1||g.bytes>150_000_000||(g.sha256||null)!==(i.sha256||null))fail();
  let u;try{u=new URL(grant.url);}catch{fail();}
  const bucket=job.job_type==='artwork_validation'?'submission-artwork':'submission-source';
  if(u.origin!==`https://${STAGING}.supabase.co`||u.username||u.password||u.hash||u.pathname!==`/storage/v1/object/sign/${bucket}/${g.owner_id}/${g.submission_id}/${g.asset_id}/original`||!u.searchParams.get('token')||u.searchParams.get('cacheNonce')!==grant.id||[...u.searchParams.keys()].some(k=>!['token','cacheNonce'].includes(k)))fail();
@@ -25,10 +25,10 @@ export async function downloadInput(grant,job,target,{fetcher=fetch,signal,now=D
   const size=r.headers.get('content-length'),encoding=r.headers.get('content-encoding');
   if((size!==null&&Number(size)!==grant.identity.bytes)||r.headers.has('content-range')||(encoding&&encoding!=='identity')){await r.body.cancel();fail('checksum_mismatch');}
   file=await open(target,'wx',0o600);created=true;
-  const check=new BoundedStream(50_000_000,grant.identity.bytes,grant.identity.sha256);
+  const check=new BoundedStream(150_000_000,grant.identity.bytes,grant.identity.sha256);
   await pipeline(Readable.fromWeb(r.body),check,file.createWriteStream(),{signal:combined});
   await file.close();file=null;
-  const facts=await hashFile(target,50_000_000,combined);
+  const facts=await hashFile(target,150_000_000,combined);
   if(facts.actual_bytes!==grant.identity.bytes||(grant.identity.sha256&&facts.sha256!==grant.identity.sha256)||now()>=grant.expires_at)fail('checksum_mismatch');
   return facts;
  }catch(e){await file?.close();if(created)await rm(target,{force:true});throw e instanceof MediaError?e:new MediaError(e?.name==='AbortError'?'worker_lease_expired':e?.code==='INPUT_MISMATCH'?'checksum_mismatch':'temporary_system_error');}

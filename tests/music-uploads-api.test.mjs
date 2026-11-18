@@ -23,7 +23,7 @@ test('workspace status and partial saves recheck Artist identity and validate bo
  for(const options of [{role:'buyer'},{user:null},{role:'admin',aal:'aal2'}]){const denied=fixture(options);assert.ok([401,403].includes((await denied.route.POST(request({action:'save_draft',submission,key:crypto.randomUUID(),revision:0,data}))).status));assert.equal(denied.calls.length,0);}
 });
 test('disabled capabilities return a distinct safe availability response',async()=>{const f=fixture({error:'55000'});const r=await f.route.POST(request({action:'list'}));assert.equal(r.status,503);assert.equal((await r.json()).error,'MEDIA_DISABLED');});
-test('initial 50 MB ceiling rejects an oversized audio claim before rate admission or provider reservation',async()=>{const f=fixture();const r=await f.route.POST(request({action:'reserve',submission,revision:0,key:crypto.randomUUID(),role:'master',label:'Master',filename:'Synthetic.wav',bytes:50_000_001}));assert.equal(r.status,400);assert.equal(f.calls.length,0);});
+test('150 MB ceiling rejects an oversized audio claim before rate admission or provider reservation',async()=>{const f=fixture();const r=await f.route.POST(request({action:'reserve',submission,revision:0,key:crypto.randomUUID(),role:'master',label:'Master',filename:'Synthetic.wav',bytes:150_000_001}));assert.equal(r.status,400);assert.equal(f.calls.length,0);});
 
 test('authorized artist preview advertises and serves verified byte ranges for native seeking',async()=>{
  const whole=await playback().run();assert.equal(whole.headers.get('accept-ranges'),'bytes');assert.equal(whole.status,200);
@@ -38,3 +38,5 @@ test('invalid artist ranges fail boundedly only after authorization and integrit
  for(const options of [{deny:true},{revoke:true},{corrupt:true},{change:true}])await assert.rejects(playback(options).run('bytes=0-1'));
  const denied=playback({deny:true});await assert.rejects(denied.run('bytes=4-'));assert.deepEqual(denied.counts(),{guards:1,privileges:0,reads:0});
 });
+
+test('50, 75, 100 and 150 MB source claims pass the authenticated reservation gate',async()=>{for(const bytes of [50000000,75000000,100000000,150000000]){const f=fixture();const r=await f.route.POST(request({action:'reserve',submission,revision:0,key:crypto.randomUUID(),role:'master',label:'Master',filename:'Synthetic.wav',bytes}));assert.equal(r.status,200);assert.equal(f.calls[1][1].p_bytes,bytes);}});

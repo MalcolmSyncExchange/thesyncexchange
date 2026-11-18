@@ -1,0 +1,54 @@
+{
+  "worker": {
+    "archive_sha256": "39b68258b4154a2fe01b189bd5f1ebee76cf4ec920e44e5e12487714f4187f3f",
+    "archive_bytes": 63457792,
+    "manifest_digest": "sha256:37eaf7342bfbcb1917862d0003be87ef96cc22e935765bd2abb11d6fa44f3876",
+    "config_digest": "sha256:434b26eabb8ec696c30524342bf83fc67b14c28981db5f4764ecdaed4d70d85c",
+    "platform": "linux/amd64",
+    "layers": 11,
+    "labels": {
+      "io.thesyncexchange.context-sha256": "ae9b7b2ee5224d5ae2479b1e27b118b8b0c4ddb7094534531594f99dddeb489a",
+      "io.thesyncexchange.source-tree": "8264051e0e6445a6a23a876420167173fef152c0",
+      "io.thesyncexchange.vm-integration-revision": "ba7b961",
+      "org.opencontainers.image.revision": "2d940e937632b36cf776a56f41385e8c7733b965"
+    }
+  },
+  "broker": {
+    "archive_sha256": "b938cef6988b2d7d74ebd54d9b4dce5df64c611fa123a9e715a2b037db44ce37",
+    "archive_bytes": 53732864,
+    "manifest_digest": "sha256:f654923c3b73d6e9d506be36e868a9c33b116872212070a8a98db56d9dc35b15",
+    "config_digest": "sha256:1e9f7b35d1fb25cf3d5edf28f599e70be36d7b1568f6ad1fdc5a323879453806",
+    "platform": "linux/amd64",
+    "layers": 11,
+    "labels": {
+      "io.thesyncexchange.context-sha256": "22e0fa83ec5841cac435d1cc4c4f8054d986d15d560479b94d0940a1ecf46a2d",
+      "io.thesyncexchange.source-tree": "ee49d8a97d9d2beb77f2626e99a90254b31a818f",
+      "org.opencontainers.image.revision": "bed61df8f3a98f6d59a48d56a4a8cf4eb2880e55"
+    }
+  },
+  "worker_source": {
+    "commit": "2d940e937632b36cf776a56f41385e8c7733b965",
+    "files": {
+      "workers/media/vm-broker.mjs": "8784109e3422c212c5f6861609342c601f786b41912dc33e18d5dad80d4965d7",
+      "workers/media/parser-boundary.mjs": "795d1e1edf19b28695b27aaf2dece1d77bce24d7c0de64e8fbcc9dee3436c1ef",
+      "workers/media/direct-input.mjs": "3118b372992b58b04c8802dfdd0217503c5ba9fd6c55fc047a680a5b9f2cb9a9",
+      "Dockerfile": "53fed61ef0edc8330bb8192367858134da94be5883f155dcfa25d8032dc3758f"
+    }
+  },
+  "broker_source": {
+    "commit": "bed61df8f3a98f6d59a48d56a4a8cf4eb2880e55",
+    "files": {
+      "services/media-broker/do-transfer-proof.mjs": "7389bbb274a74b3026b59674a1f56b7a3f4189fdb923594a7e4f4db8ec639f4b",
+      "services/media-broker/do-server.mjs": "c93e8ff16113f23cc51bee4265a31dfe9b2fd707c2808a25826854a8141fd8e0",
+      "services/media-broker/do-entrypoint.mjs": "95a4fd7fdeece6c9db794dbdabc38410bf0ab97364435834d6e96f536136279e",
+      "services/media-broker/do-storage.mjs": "98e051d9ead53b76a30c216876f2adaefb69fcf74ed258fdf9ceae97fcb72b79",
+      "services/media-broker/do-database.mjs": "ab9d0866462bea6015ad37a0c7c87b721177f98f42a6f188d75b19ebdf61d89a",
+      "services/media-broker/do-dispatcher.mjs": "3a3fad28ceae83bd15d28aca4e2f0ca9d51a8935de3f7402cf38f4a6ab81d13a",
+      "services/media-broker/linux-host-binding.mjs": "d6f3b7bacd88dd612bc060ff781480598c3520714b142a3b82ef91082ae1e18d",
+      "Dockerfile": "9ac9d7afe5f1cdf210e6cb2d4fefaa39826baa9d832e350d7f38a815a1c6cc79"
+    },
+    "context_sha256": "22e0fa83ec5841cac435d1cc4c4f8054d986d15d560479b94d0940a1ecf46a2d"
+  },
+  "status": "VERIFIED_CANDIDATE_NOT_ACTIVATED",
+  "supersedes": "large-upload-image-identities.json; preserved as historical evidence"
+}

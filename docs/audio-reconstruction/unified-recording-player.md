@@ -103,3 +103,29 @@ rollback in `unified-player-rollback.sql`. It drops the three new functions and
 preserves all assets, files, jobs, attempts, selection/acceptance/review records,
 historical holds and accounting. Never undo artist work or restore a database
 snapshot to roll back this UI.
+
+## Production media-range follow-up
+
+PR49 passed required CI44400740264, merged as
+`ea852fabdc78e0f2ee751639def19931d9623e3b`, and its exact approved
+three-function migration was applied. Installed function source hashes and role
+grants matched the reviewed migration. Netlify production build
+`6afe19b664207becc0e20a79` was published and locked.
+
+Live owner authorization and initial172.137937-second WAV playback succeeded.
+Subsequent range loading exposed Chrome `ERR_BLOCKED_BY_ORB`: the private signed
+Storage response was206 with `application/octet-stream` and
+`Access-Control-Allow-Origin: *`. A temporary browser-only diagnostic set the
+audio element's `crossOrigin` to `anonymous`. With that one attribute, refreshed
+authorization, end-of-track seeking and complete15–45-second original audition
+passed; the latter stopped at45.000 with no media error. The diagnostic did not
+change any database rows or Storage objects and is removed by page reload.
+
+The follow-up makes that attribute reproducible in source. It requests CORS
+media without cross-origin cookies; same-origin derived AAC remains authorized
+through its existing endpoint. It does not change signed-URL scope/TTL, server
+authorization, Storage policies, processing admission or credentials. Anonymous
+original requests returned401; foreign-Origin requests returned403. The current
+15–45-second persisted selection awaits AAC generation while the worker is
+paused, so that live draft cannot verify newly generated AAC or acceptance.
+Local generated-AAC behavior remains covered by the earlier simulation.

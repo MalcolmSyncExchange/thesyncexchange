@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {uploadsFixture} from './helpers/music-uploads-fixture.mjs';
 
 const target=JSON.parse(await readFile(new URL('../docs/audio-reconstruction/production-schema-evidence.json',import.meta.url),'utf8'));
-const migration=await readFile(new URL('../supabase/migrations/20261117213220_automatic_audio_preview_and_waveform.sql',import.meta.url),'utf8');
+const migration=await readFile(new URL('../supabase/migrations/20261118022453_automatic_audio_preview_and_waveform.sql',import.meta.url),'utf8');
 const rollback=await readFile(new URL('../docs/audio-reconstruction/production-rollback.sql',import.meta.url),'utf8');
 const original=target.functions.find(f=>f.schema==='public'&&f.name==='media_request_preview');
 

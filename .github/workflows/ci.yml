@@ -43,6 +43,12 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      - name: Structured rights and DO admission regression
+        run: npm run test:audio-production-integration
+
+      - name: Root launcher shutdown and confinement
+        run: python3 tests/digitalocean-launcher.test.py
+
       - name: Artist authorization baseline (offline)
         run: npm run test:artist-baseline
 

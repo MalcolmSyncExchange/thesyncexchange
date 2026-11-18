@@ -30,5 +30,11 @@ try{await run('initdb',['-D',data,'-U','postgres','--auth=trust','--encoding=UTF
  const idle=(await client.query('select submission_media.do_admit(gen_random_uuid(),$1,$2) v',[boot,digest])).rows[0].v;assert.equal(idle.state,'idle');
  await assert.rejects(client.query('select submission_media.do_admit(gen_random_uuid(),gen_random_uuid(),$1)',[digest]),e=>e.code==='42501');
  await db.exec('reset role');
+ const recipient=await readFile(new URL('../tests/fixtures/do-credential-envelope-public.asc',import.meta.url),'utf8');
+ await assert.rejects(client.query('select submission_media.do_bootstrap_credentials($1)',['wrong public recipient']),e=>e.code==='42501');
+ await client.query('update submission_media.do_control set enabled=false');
+ const encrypted=(await client.query('select submission_media.do_bootstrap_credentials($1) value',[recipient])).rows[0].value;
+ assert.ok(encrypted.length>300);assert.equal((await client.query("select rolcanlogin from pg_roles where rolname='media_broker_do_login'")).rows[0].rolcanlogin,true);
+ await assert.rejects(client.query('select submission_media.do_bootstrap_credentials($1)',[recipient]),e=>e.code==='42501');
  console.log(JSON.stringify({result:'PASS',platform:process.platform,architecture:process.arch,postgres:(await run('postgres',['--version'])).trim(),tcpListener:false,productionConnections:false,scope:'new admission SQL + actual restricted PostgreSQL role denial; provider ownership and hosted processing not claimed'}));
 }finally{await client?.end();if(started)await run('pg_ctl',['-D',data,'-m','immediate','-w','stop']);await rm(dir,{recursive:true,force:true});}

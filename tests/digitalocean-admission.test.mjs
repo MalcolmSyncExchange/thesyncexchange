@@ -69,3 +69,7 @@ test('root launcher authorization is a live exact-run view and closes after clai
  const ok=await status();assert.equal(ok.authorized,true);assert.equal(ok.worker_digest,digest);await assert.rejects(status(randomUUID()));await assert.rejects(status(run.run_id,randomUUID()));
  await rpc(db,'do_claim',[run.run_id,boot]);await assert.rejects(status());await db.exec('update submission_media.do_control set enabled=false');await assert.rejects(status());
 }));
+test('revoked live permit closes dispatcher authority immediately without dropping the recovery record',()=>fresh(async db=>{
+ await enabled(db);await job(db);const run=await admitted(db);assert.equal((await rpc(db,'do_scope_status',[run.run_id,boot])).authorized,true);
+ await db.query("update submission_media.execution_permits set state='expired' where correlation_id=$1",[run.run_id]);const closed=await rpc(db,'do_scope_status',[run.run_id,boot]);assert.equal(closed.authorized,false);assert.equal(closed.state,'issued');
+}));

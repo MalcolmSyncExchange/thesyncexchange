@@ -1,0 +1,30 @@
+{
+  "archive": {
+    "sha256": "84d69994f0fa8c0df13eb999703f5246d007740f9190760d75a41a6c9f81b1d4",
+    "bytes": 53700608
+  },
+  "record": {
+    "digest": "sha256:e2ab69c59872b5eb1ae1b3d96ba643f54cd9dd517a8139c9316f8dd6e9a94c58",
+    "config_digest": "sha256:fb684d1704a79a0b2746f5bbc82fcd996e383517752eca5ac5482817abead22a",
+    "rootfs_diff_ids": [
+      "sha256:30d42639883b0c8fd21d05fde24d7c7e12f17a6b2b23a263ee06bb518f6ecaf8",
+      "sha256:285b96c96993f0d9de847afaf143e9eafcf46c1905ece04b4249e954ea1f23fa",
+      "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+      "sha256:c49b5661fd11f778a5c5be11055134f1c46a3f546c97654115cf7a860a13fd09",
+      "sha256:3f449a952dfe0859e0997ffac0ebf7ecaa90f796dc305f19c9022b680324b075",
+      "sha256:18fb154e2204dfea643d16b3551d41550509d6ec8faa5f4031eb2ae856b1e0d5",
+      "sha256:6809c5bf801677c9d0ddcbeb76d43aad1037a9a74b39fb0b1d9cf9c8f4be76b9",
+      "sha256:09d1dd661a263d6c04f02a417878a27981b8f6ef347031580cec8b5d4ffb706a"
+    ]
+  },
+  "verification": {
+    "format": "OCI layout with Docker compatibility manifest",
+    "archive_sha256": "84d69994f0fa8c0df13eb999703f5246d007740f9190760d75a41a6c9f81b1d4",
+    "manifest_digest": "sha256:e2ab69c59872b5eb1ae1b3d96ba643f54cd9dd517a8139c9316f8dd6e9a94c58",
+    "config_digest": "sha256:fb684d1704a79a0b2746f5bbc82fcd996e383517752eca5ac5482817abead22a",
+    "platform": "linux/amd64",
+    "verified_blobs": 10,
+    "verified_layers": 8
+  },
+  "credential_file_scan": "PASS"
+}

@@ -6,6 +6,9 @@ import math
 import base64
 import urllib.request
 import ssl
+import tempfile
+import signal
+import threading
 import os
 import pathlib
 import platform
@@ -42,7 +45,11 @@ def require_live_permit(config, run, now=time.time):
     milliseconds=int(now()*1000)
     proof=dict(version=1,host_id='620470021',run_id=run,boot_id=config['boot_id'],worker_digest=config['build_digest'],nonce=str(uuid.uuid4()),issued_at=milliseconds,expires_at=milliseconds+10000)
     payload=json.dumps(proof,separators=(',',':')).encode()
-    signature=subprocess.run(['/usr/bin/openssl','pkeyutl','-sign','-rawin','-inkey','/run/tse-audio/root-signer'],input=payload,capture_output=True,timeout=3,check=True).stdout
+    # Ed25519 oneshot requires a seekable input with known size on Ubuntu's
+    # OpenSSL. The root-only RAM file contains public authorization metadata.
+    with tempfile.NamedTemporaryFile(dir='/run/tse-audio/signing',prefix='permit-') as evidence:
+        evidence.write(payload);evidence.flush()
+        signature=subprocess.run(['/usr/bin/openssl','pkeyutl','-sign','-rawin','-inkey','/run/tse-audio/root-signer','-in',evidence.name],capture_output=True,timeout=3,check=True).stdout
     if len(signature)!=64:raise ValueError('SIGNER_UNAVAILABLE')
     request=urllib.request.Request('https://thesyncexchange.com/api/media/worker-launch',data=b'',method='POST',headers={'x-tse-proof':payload.decode(),'x-tse-signature':base64.b64encode(signature).decode()})
     # No redirects; strict system CA and hostname verification are mandatory.
@@ -158,6 +165,9 @@ class Server(socketserver.UnixStreamServer):
                 fcntl.flock(lock,fcntl.LOCK_EX)
                 for p in ROOT.glob('*.json'): engine.status(p.stem)
         except BaseException:
+            # The cgroup kill is independent of Docker API availability.
+            try:subprocess.run(['/usr/bin/systemctl','kill','--kill-whom=all','--signal=KILL','tse-media-worker.slice'],capture_output=True,timeout=5)
+            except BaseException:pass
             marker=ROOT.parent/'SUSPENDED'
             if not marker.exists():marker.write_text('LAUNCHER_RECONCILIATION_REQUIRED\n')
 
@@ -172,4 +182,12 @@ if __name__=='__main__':
     engine=Engine(config)
     if pathlib.Path(SOCKET).exists():raise SystemExit('EXISTING_CONTROL_SOCKET')
     with Server(SOCKET,Handler) as server:
-        os.chown(SOCKET,0,20000);os.chmod(SOCKET,0o660);server.serve_forever(poll_interval=.5)
+        os.chown(SOCKET,0,20000);os.chmod(SOCKET,0o660)
+        def shutdown(*_):
+            threading.Thread(target=server.shutdown,daemon=True).start()
+        signal.signal(signal.SIGTERM,shutdown);signal.signal(signal.SIGINT,shutdown)
+        try:server.serve_forever(poll_interval=.5)
+        finally:
+            try:
+                for path in ROOT.glob('*.json'):engine.stop(path.stem)
+            finally:pathlib.Path(SOCKET).unlink(missing_ok=True)

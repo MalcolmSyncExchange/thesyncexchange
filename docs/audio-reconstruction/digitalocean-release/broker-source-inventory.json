@@ -1,0 +1,15 @@
+{
+  "commit": "fcc6effbc0da24b6e801f2d0ec8d7eba4d04f229",
+  "context_sha256": "e3ba81cfe3cbeb5c9e91b6c1993fadbaef1af2f5d0ed09b6dded969dfc823267",
+  "files": {
+    "infra/media-host/do-broker.Dockerfile": "9ac9d7afe5f1cdf210e6cb2d4fefaa39826baa9d832e350d7f38a815a1c6cc79",
+    "services/media-broker/do-database.mjs": "30372ca2a6ad6a43e7ef7f4bb04541d7e68e7a6330fc5b63958e60627cd2cd44",
+    "services/media-broker/do-dispatcher.mjs": "3a3fad28ceae83bd15d28aca4e2f0ca9d51a8935de3f7402cf38f4a6ab81d13a",
+    "services/media-broker/do-entrypoint.mjs": "eb975958e8d009bed63e7658e6fefeb255eef27621b56dd348af49c7bc00843b",
+    "services/media-broker/do-server.mjs": "c197672a7e1175f0311965cac78616b99eebb902e917519876402fa6de872c6f",
+    "services/media-broker/do-storage.mjs": "98e051d9ead53b76a30c216876f2adaefb69fcf74ed258fdf9ceae97fcb72b79",
+    "services/media-broker/do-transfer-proof.mjs": "a57abb194ae55cb1d7c9a3ed1325c0ea4b8fdd0d011091889ed227dfc3074c2b",
+    "services/media-broker/linux-host-binding.mjs": "d6f3b7bacd88dd612bc060ff781480598c3520714b142a3b82ef91082ae1e18d",
+    "tests/digitalocean-bridge.test.mjs": "decfd553aed221a6cce0ae5a8061c2df9d7722e99b1b704b076e16e326675494"
+  }
+}

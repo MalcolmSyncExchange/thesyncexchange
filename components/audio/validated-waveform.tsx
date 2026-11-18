@@ -1,38 +1,48 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { envelopePath, parseWaveform, previewEnvelope, readWaveformResponse } from '@/lib/media/waveform.mjs';
+import { useEffect, useId, useRef, useState } from 'react';
+import { masterEnvelope, parseWaveform, readWaveformResponse, waveformBars, type Envelope } from '@/lib/media/waveform.mjs';
+import styles from './waveform-player.module.css';
 
-export function ValidatedWaveform({ url, format = 'preview', label = 'Preview waveform' }: {url:string;format?:'preview'|'master';label?:string}) {
-  const [path, setPath] = useState('');
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    const controller = new AbortController();
-    setPath(''); setFailed(false);
-    const deadline = setTimeout(() => { setFailed(true); controller.abort(); }, 15000);
-    (async () => {
-      // Only same-origin, authorized delivery routes; never arbitrary Storage URLs.
-      const endpoint = new URL(url, window.location.origin);
-      if (endpoint.origin !== window.location.origin || endpoint.username || endpoint.password || endpoint.hash ||
-          !(format === 'master' ? /^\/api\/media\/[a-f0-9-]+\/[a-f0-9-]+$/.test(endpoint.pathname) : /^\/api\/buyer\/preview\/[a-f0-9-]+$/.test(endpoint.pathname))) throw Error();
-      const response = await fetch(endpoint, { signal:controller.signal, cache:'no-store', credentials:'same-origin', redirect:'error' });
-      const bytes = await readWaveformResponse(response, format === 'master' ? 360512 : 40000);
-      let nextPath;
-      if (format === 'master') {
-        const wave = parseWaveform(bytes);
-        // Master display is not subject to the preview's 60-second bound.
-        const bins = Math.min(600, wave.minima.length);
-        const points = Array.from({length:bins}, (_, i) => {
-          const from = Math.floor(i * wave.minima.length / bins), to = Math.floor((i + 1) * wave.minima.length / bins);
-          let low = 32767, high = -32768;
-          for (let j = from; j < to; j++) { low = Math.min(low, wave.minima[j]); high = Math.max(high, wave.maxima[j]); }
-          return [low, high];
-        });
-        nextPath = envelopePath({encoding:'tse-preview-envelope-v1', duration_us:wave.durationUs, points});
-      } else nextPath = envelopePath(JSON.parse(new TextDecoder('utf-8', {fatal:true}).decode(bytes)));
-      if (!controller.signal.aborted) setPath(nextPath);
-    })().catch(() => { if (!controller.signal.aborted) setFailed(true); }).finally(() => clearTimeout(deadline));
-    return () => { controller.abort(); clearTimeout(deadline); };
-  }, [url, format]);
-  return failed ? <span role="status">Waveform unavailable.</span> : <svg role="img" aria-label={label} viewBox="0 0 600 80" className="h-full w-full text-accent" preserveAspectRatio="none"><path d={path} fill="none" stroke="currentColor" strokeWidth="1" /></svg>;
+type Region = {startSample:number;endSample:number;sampleRate:number;durationUs:number};
+export function ValidatedWaveform({ url, format = 'preview', label = 'Preview waveform', progress = 0, region }: {
+  url:string;format?:'preview'|'master';label?:string;progress?:number;region?:Region;
+}) {
+  const [envelope,setEnvelope] = useState<Envelope|null>(null);
+  const [failed,setFailed] = useState(false);
+  const [columns,setColumns] = useState(100);
+  const holder = useRef<HTMLDivElement>(null);
+  const clip = useId().replace(/:/g,'');
+  const start=region?.startSample,end=region?.endSample,rate=region?.sampleRate,us=region?.durationUs;
+  useEffect(()=>{
+    const element=holder.current;if(!element)return;
+    const resize=new ResizeObserver(entries=>setColumns(Math.max(12,Math.min(240,Math.floor(entries[0].contentRect.width/6)))));
+    resize.observe(element);return()=>resize.disconnect();
+  },[]);
+  useEffect(()=>{
+    const controller=new AbortController();setEnvelope(null);setFailed(false);
+    const deadline=setTimeout(()=>{setFailed(true);controller.abort();},15000);
+    (async()=>{
+      const endpoint=new URL(url,window.location.origin);
+      if(endpoint.origin!==window.location.origin||endpoint.username||endpoint.password||endpoint.hash||
+        !(format==='master'?/^\/api\/media\/[a-f0-9-]+\/[a-f0-9-]+$/.test(endpoint.pathname):/^\/api\/buyer\/preview\/[a-f0-9-]+$/.test(endpoint.pathname)))throw Error();
+      const response=await fetch(endpoint,{signal:controller.signal,cache:'no-store',credentials:'same-origin',redirect:'error'});
+      const bytes=await readWaveformResponse(response,format==='master'?360512:40000);
+      const value:Envelope=format==='master'?masterEnvelope(parseWaveform(bytes),start!==undefined&&end!==undefined&&rate!==undefined&&us!==undefined?{startSample:start,endSample:end,sampleRate:rate,durationUs:us}:undefined):JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+      waveformBars(value);if(!controller.signal.aborted)setEnvelope(value);
+    })().catch(()=>{if(!controller.signal.aborted)setFailed(true);}).finally(()=>clearTimeout(deadline));
+    return()=>{controller.abort();clearTimeout(deadline);};
+  },[url,format,start,end,rate,us]);
+  const bars=envelope?waveformBars(envelope,columns):null;
+  const fraction=Number.isFinite(progress)?Math.max(0,Math.min(1,progress)):0;
+  return <div ref={holder} className={styles.wave}>
+    {failed?<span role="status">Waveform unavailable. Audio controls remain available.</span>:!bars?<span role="status" className={styles.waveStatus}>Loading waveform…</span>:<svg role="img" aria-label={label} viewBox="0 0 1000 160" preserveAspectRatio="none" data-visual-gain={bars.gain.toFixed(3)}>
+      <defs><clipPath id={clip}><rect width={fraction*1000} height="160"/></clipPath></defs>
+      <line x1="0" x2="1000" y1="80" y2="80" className={styles.centerline}/>
+      <g className={styles.unplayed}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={80-height*70} width={.64*1000/bars.heights.length} height={height*140} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
+      <g className={styles.peakCaps}>{bars.peakHeights.map((height,i)=><path key={i} d={`M${(i+.18)*1000/bars.heights.length},${80-height*70}h${.64*1000/bars.heights.length}M${(i+.18)*1000/bars.heights.length},${80+height*70}h${.64*1000/bars.heights.length}`}/>)}</g>
+      <g className={styles.played} clipPath={`url(#${clip})`}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={80-height*70} width={.64*1000/bars.heights.length} height={height*140} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
+      <line x1={fraction*1000} x2={fraction*1000} y1="6" y2="154" className={styles.playhead}/>
+    </svg>}
+  </div>;
 }

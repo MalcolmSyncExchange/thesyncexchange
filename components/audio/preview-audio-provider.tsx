@@ -97,6 +97,14 @@ export function PreviewAudioProvider({ children, playbackObserver }: {
     audio.muted = muted;
   }, [muted, volume]);
 
+  useEffect(() => {
+    if (!playing || typeof requestAnimationFrame !== 'function' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    let frame = 0;
+    const update = () => { setTime(audioRef.current?.currentTime || 0); frame = requestAnimationFrame(update); };
+    frame = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(frame);
+  }, [playing]);
+
   const toggle = useCallback(async (track: PreviewAudioTrack) => {
     const audio = audioRef.current;
     if (!audio || !track.previewUrl) return;
@@ -295,8 +303,8 @@ function PersistentPreviewPlayer() {
           {loading ? <LoaderCircle aria-hidden="true" className={styles.spinner} /> : playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
         </Button>
         <Button type="button" variant="ghost" className="h-11 w-11 p-0" aria-label="Next preview" disabled={!next?.previewUrl} onClick={()=>next&&void toggle(next)}><SkipForward aria-hidden="true"/></Button></div>
-        <div className={styles.timeline}>
-          {active.waveformUrl?.startsWith("/api/buyer/preview/") ? <div className={styles.waveformData}><ValidatedWaveform key={active.waveformUrl} url={active.waveformUrl} /></div> : active.waveformUrl ? <Image src={active.waveformUrl} alt="" fill sizes="(max-width: 850px) 50vw, 600px" unoptimized className={styles.waveformImage} /> : null}
+        <div className={styles.timeline} data-waveform={Boolean(active.waveformUrl?.startsWith("/api/buyer/preview/"))}>
+          {active.waveformUrl?.startsWith("/api/buyer/preview/") ? <div className={styles.waveformData}><ValidatedWaveform key={active.waveformUrl} url={active.waveformUrl} progress={total ? time / total : 0} /></div> : active.waveformUrl ? <Image src={active.waveformUrl} alt="" fill sizes="(max-width: 850px) 50vw, 600px" unoptimized className={styles.waveformImage} /> : null}
           <input
             type="range"
             min={0}

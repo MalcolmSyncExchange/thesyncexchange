@@ -70,3 +70,16 @@
  .timeline {grid-column:1 / 4;grid-row:3;}
  .errorNotice {grid-row:4;}
 }
+
+/* The waveform itself is the seek target; native range semantics retain touch,
+   pointer capture and keyboard support without a second competing timeline. */
+.timeline[data-waveform="true"] {height:104px;overflow:visible;}
+.timeline[data-waveform="true"]::before {display:none;}
+.timeline[data-waveform="true"] .waveformData {opacity:1;}
+.timeline[data-waveform="true"] .waveformData > div {height:100%;}
+.timeline[data-waveform="true"] input {position:absolute;inset:0;height:100%;opacity:0;}
+.timeline[data-waveform="true"]:focus-within {outline:2px solid hsl(var(--ring));outline-offset:4px;border-radius:8px;}
+.player {background:radial-gradient(ellipse at 70% 0,hsl(var(--accent) / .08),transparent 65%),hsl(var(--background) / .98);}
+.contentWithPlayer {padding-bottom:160px;}
+@media(max-width:850px){.timeline[data-waveform="true"] {height:82px;}.contentWithPlayer {padding-bottom:240px;}.time{display:block;}.inner{min-width:0;}}
+@media(prefers-reduced-motion:reduce){.timeline * {transition:none!important;}}

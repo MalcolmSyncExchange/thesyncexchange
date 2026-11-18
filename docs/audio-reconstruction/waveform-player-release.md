@@ -30,3 +30,9 @@ Artist crops use the immutable generated asset's source and region, not the edit
 Ship through feature PR, required CI, approved production main branch and Netlify production context. Preserve current deploy 6afd15a9e57d6b9c6f6b5932 and its source 3e26a2f8 as the current live reference before publication; reconcile latest host-only merges as ancestors. The application change has no migration or runtime installation requirement. If a published UI regression occurs, revert this focused application commit through the reviewed production branch and deploy the known source; do not alter worker admission or data to repair a visual issue.
 
 Do not claim production visual acceptance until the new deployment is live and desktop/mobile screenshots plus authorized preview playback have been verified. Local fixture screenshots are explicitly local evidence.
+
+## Production seeking postflight correction
+
+The first live custom-player check played the entire AAC successfully but reported `audio.seekable=[[0,0]]`. The artist delivery route ignored the Range request and did not advertise byte ranges; the buyer route already supported them. The local fixture server's range support had hidden this existing delivery limitation.
+
+The focused follow-up passes the Range header into artist playback and advertises/serves bounded single byte ranges. Complete immutable bytes are still size-bounded and SHA-256 verified, then role/ownership/session and exact locator are rechecked before selecting any response bytes. Malformed, multiple, zero-suffix, unsafe-integer and unsatisfiable ranges return416 only after authorization. No credential, Storage policy, database or worker change. Retain no-store and same-origin protection. Live acceptance must establish a nonzero seekable range and verify actual `currentTime` after a midpoint seek; a rendered slider alone is not sufficient evidence.

@@ -1,8 +1,11 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useAnalytics } from "@/components/analytics/provider";
+import { previewTracker, type PreviewSurface } from "@/lib/analytics/triggers";
 
-import { PreviewAudioButton, PreviewAudioProvider, type PreviewAudioTrack } from "@/components/audio/preview-audio-provider";
+import { createContext, useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+
+import { PreviewAudioButton, PreviewAudioProvider, usePreviewAudio, type PreviewAudioTrack } from "@/components/audio/preview-audio-provider";
 import { defaultCatalogFilters, type CatalogFilters } from "@/lib/catalog-discovery";
 import type { BuyerTrack } from "@/types/models";
 
@@ -20,14 +23,22 @@ export function useBuyerDiscovery() {
 }
 
 export function BuyerDiscoveryProvider({ children }: { children: ReactNode }) {
+  const capture = useAnalytics();
+  const playbackObserver = useMemo(() => previewTracker(capture), [capture]);
   const [filters, setFilters] = useState(defaultCatalogFilters);
   const context = useMemo(() => ({ filters, setFilters }), [filters]);
-  return <Context.Provider value={context}><PreviewAudioProvider>{children}</PreviewAudioProvider></Context.Provider>;
+  return <Context.Provider value={context}><PreviewAudioProvider playbackObserver={playbackObserver}>{children}</PreviewAudioProvider></Context.Provider>;
 }
 
-export function PreviewButton({ track }: { track: BuyerTrack }) {
-  const previewTrack: PreviewAudioTrack = {
+export function PreviewButton({ track, surface = "buyer_workspace" }: { track: BuyerTrack; surface?: PreviewSurface }) {
+  const previewTrack=buyerPreviewTrack(track,surface);
+  return <PreviewAudioButton track={previewTrack} />;
+}
+
+function buyerPreviewTrack(track:BuyerTrack,surface:PreviewSurface="catalog"):PreviewAudioTrack {
+  return {
     id: track.id,
+    discoverySurface: surface,
     slug: track.slug,
     title: track.title,
     artistName: track.artist_name,
@@ -37,5 +48,5 @@ export function PreviewButton({ track }: { track: BuyerTrack }) {
     durationSeconds: track.duration_seconds,
     href: `/buyer/catalog/${track.slug}`
   };
-  return <PreviewAudioButton track={previewTrack} />;
-}
+ }
+export function BuyerPreviewQueue({tracks}:{tracks:BuyerTrack[]}){const {setQueue}=usePreviewAudio();useEffect(()=>{setQueue(tracks.map(t=>buyerPreviewTrack(t)));return()=>setQueue([]);},[tracks,setQueue]);return null;}

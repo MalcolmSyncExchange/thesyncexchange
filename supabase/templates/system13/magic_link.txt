@@ -1,0 +1,7 @@
+Continue secure sign-in
+
+Continue only if you requested a sign-in link.
+
+{{ .SiteURL }}/auth/email-action?flow=magiclink&type=magiclink&token_hash={{ .TokenHash }}&next=/login
+
+Request a new link if it has expired.

@@ -1,3 +1,4 @@
+import { isValidNewPassword, PASSWORD_REQUIREMENTS_MESSAGE } from "../auth/security.ts";
 export type BuyerProfileSettingsInput = {
   companyName: string;
   billingEmail: string;
@@ -32,11 +33,11 @@ export type BuyerSettingsAuthUser = {
   user_metadata?: Record<string, unknown> | null;
 };
 
-export const MIN_ACCOUNT_PASSWORD_LENGTH = 8;
+export const MIN_ACCOUNT_PASSWORD_LENGTH = 12;
 export const defaultBuyerNotificationPreferences: BuyerNotificationPreferences = {
   purchaseReceipts: true,
   licenseAgreementReady: true,
-  platformUpdates: true,
+  platformUpdates: false,
   securityAlerts: true
 };
 
@@ -91,10 +92,10 @@ export function validatePasswordChange(input: PasswordChangeInput) {
     };
   }
 
-  if (newPassword.length < MIN_ACCOUNT_PASSWORD_LENGTH) {
+  if (!isValidNewPassword(newPassword)) {
     return {
       ok: false as const,
-      error: `New password must be at least ${MIN_ACCOUNT_PASSWORD_LENGTH} characters.`
+      error: PASSWORD_REQUIREMENTS_MESSAGE
     };
   }
 
@@ -194,8 +195,8 @@ export function assertAuthenticatedBuyerSettingsUser(
 
 export function normalizeNotificationPreferences(input: Partial<BuyerNotificationPreferences> | null | undefined): BuyerNotificationPreferences {
   return {
-    purchaseReceipts: input?.purchaseReceipts ?? defaultBuyerNotificationPreferences.purchaseReceipts,
-    licenseAgreementReady: input?.licenseAgreementReady ?? defaultBuyerNotificationPreferences.licenseAgreementReady,
+    purchaseReceipts: true,
+    licenseAgreementReady: true,
     platformUpdates: input?.platformUpdates ?? defaultBuyerNotificationPreferences.platformUpdates,
     securityAlerts: true
   };

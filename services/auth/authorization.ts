@@ -1,3 +1,4 @@
+import { assertPrivilegedAssurance } from "@/services/auth/security";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import type { UserRole } from "@/types/models";
@@ -8,5 +9,6 @@ export async function requireAccountScope(role: UserRole, expectedUserId?: strin
   if (error || !user || (expectedUserId && expectedUserId !== user.id)) throw new Error("Unauthorized account scope.");
   const profile = await selectUserProfileCompat(supabase, user.id);
   if (profile.error || profile.data?.role !== role) throw new Error(`${role} access is required.`);
+  if (role === "admin") await assertPrivilegedAssurance(supabase);
   return { supabase, user };
 }

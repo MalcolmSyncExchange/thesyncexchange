@@ -1,3 +1,5 @@
+import { readStorageMultipart, StorageRequestError } from "@/services/storage/upload-request";
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { NextResponse } from "next/server";
 import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 
@@ -19,6 +21,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Storage uploads require live Supabase mode." }, { status: 503 });
   }
 
+  if (request.headers.get("origin") !== new URL(env.appUrl).origin) return NextResponse.json({error:"Same-origin upload required."},{status:403});
+
   const authSupabase = await createServerSupabaseClient();
   const {
     data: { user }
@@ -30,6 +34,13 @@ export async function POST(request: Request) {
 
   const { data: profile } = await selectUserProfileCompat(authSupabase, user.id);
   const role = profile?.role;
+  if (role === "admin" && !(await hasPrivilegedAssurance(authSupabase))) {
+    return NextResponse.json({ error: "Additional authentication required." }, { status: 403 });
+  }
+  if (role === "admin") {
+    const access=await authSupabase.rpc("sec_has_capability",{p_cap:"full_admin"});
+    if(access.error||access.data!==true)return NextResponse.json({error:"Forbidden."},{status:403});
+  }
   if (role !== "artist" && role !== "admin") {
     return NextResponse.json({ error: "Only artist or admin accounts can upload track assets." }, { status: 403 });
   }
@@ -38,7 +49,8 @@ export async function POST(request: Request) {
   const limitedResponse = rateLimitErrorResponse(admission);
   if (limitedResponse) return limitedResponse;
 
-  const formData = await request.formData();
+  let formData:FormData;
+  try { formData=await readStorageMultipart(request); } catch(error) { return NextResponse.json({error:"Invalid or oversized upload request."},{status:error instanceof StorageRequestError?error.status:400}); }
   const kind = String(formData.get("kind") || "") as StorageAssetKind;
   const scope = String(formData.get("scope") || "").trim();
   const file = formData.get("file");
@@ -47,8 +59,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsupported storage asset kind." }, { status: 400 });
   }
 
-  if (!scope) {
-    return NextResponse.json({ error: "Asset scope is required for track uploads." }, { status: 400 });
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(scope)) {
+    return NextResponse.json({ error: "A valid asset scope is required for track uploads." }, { status: 400 });
   }
 
   if (!(file instanceof File) || file.size === 0) {

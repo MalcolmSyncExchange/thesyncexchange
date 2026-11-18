@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {asActor,database,ids,quote} from './helpers/artist-baseline-db.mjs';
+import {claimFixtureAgreement} from './helpers/purchase-legal-fixture.mjs';
 
 const qaBuyer='8ffc95e8-0e8f-428e-ac26-925d6bc98fcd';
 const qaSession='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -54,6 +55,15 @@ async function reserve(db,session=qaSession,user=qaBuyer,role='authenticated') {
   return asActor(db,user,()=>one(db,`select * from public.gate_d_reserve_acceptance('${gateOrder}')`),role,session);
 }
 
+test('ordinary checkout reservation and attempts cannot adopt a Gate D order',async()=>{
+ const db=await setup();try{
+  await assert.rejects(service(db,()=>value(db,`public.reserve_recoverable_checkout('${qaBuyer}','${ids.live}','${ids.license}')`)),/Dedicated acceptance/);
+  await assert.rejects(service(db,()=>value(db,`public.checkout_has_frozen_attempt('${gateOrder}')`)),/Dedicated acceptance/);
+  await assert.rejects(service(db,()=>value(db,`public.claim_checkout_attempt('${gateOrder}','${'a'.repeat(64)}:test','{}')`)),/Dedicated acceptance/);
+  assert.equal((await one(db,'select count(*)::int n from checkout_recovery.attempts')).n,0);
+ }finally{await db.close();}
+});
+
 async function prepare(db,reservation) {
   return service(db,()=>one(db,`select * from public.gate_d_prepare_checkout(
     '${reservation.grant_id}','${reservation.attempt_id}',${reservation.lease_epoch},'https://example.invalid'
@@ -70,6 +80,7 @@ async function bind(db,prepared,session='cs_test_gatedfixture') {
 }
 
 async function paidOrder(db,session='cs_test_gatedfixture',intent='pi_gatedfixture') {
+  const path=await claimFixtureAgreement(db,gateOrder,session,intent);
   await db.exec(`
     update orders set status='paid',paid_at=now(),stripe_payment_intent_id='${intent}'
       where id='${gateOrder}' and stripe_checkout_session_id='${session}';
@@ -78,8 +89,9 @@ async function paidOrder(db,session='cs_test_gatedfixture',intent='pi_gatedfixtu
       terms_snapshot_json,pdf_storage_path,pdf_content_type,pdf_size_bytes
     ) values(
       '${gateOrder}','${qaBuyer}','${ids.live}','${ids.license}','GATE-D-LOCAL-1','generated',
-      '{"payment":{"paymentMode":"test","commercialRightsGranted":"false"},"license":{"pricePaidCents":"5000","currency":"USD"}}',
-      '${qaBuyer}/${gateOrder}/agreement.pdf','application/pdf',100
+      '{"payment":{"paymentMode":"test","commercialRightsGranted":false},"license":{"pricePaidCents":"5000","currency":"USD"}}'::jsonb||
+        (select jsonb_build_object('purchase',snapshot,'purchaseHash',snapshot_hash) from licensing_private.acceptances where order_id='${gateOrder}'),
+      ${quote(path)},'application/pdf',100
     );
   `);
 }
@@ -136,6 +148,9 @@ async function readyForConsumeSetupOnly(db) {
 
 async function disableInvariantMutationGuards(db) {
   await db.exec(`
+    alter table public.orders disable trigger legal_order;
+    alter table public.generated_licenses disable trigger legal_license;
+    alter table public.order_asset_entitlements disable trigger legal_entitlement;
     alter table public.order_delivery_contracts disable trigger immutable_commerce;
     alter table commerce_private.contract_context disable trigger immutable_commerce;
     alter table commerce_private.payment_events disable trigger immutable_commerce;

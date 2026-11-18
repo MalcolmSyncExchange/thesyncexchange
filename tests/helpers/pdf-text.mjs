@@ -1,0 +1,2 @@
+import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
+export async function parsePdf(bytes){const task=getDocument({data:new Uint8Array(bytes),useSystemFonts:false,isEvalSupported:false,verbosity:0});const doc=await task.promise;try{const pages=[];for(let i=1;i<=doc.numPages;i++){const page=await doc.getPage(i),content=await page.getTextContent();pages.push(content.items.filter(x=>'str'in x).map(x=>x.str).join(' '));}return{pages,text:pages.join('\n'),count:doc.numPages};}finally{await task.destroy();}}

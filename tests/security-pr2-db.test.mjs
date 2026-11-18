@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { database, asActor, ids, source, root, quote } from './helpers/artist-baseline-db.mjs';
+import {incorporatePurchase,claimFixtureAgreement} from './helpers/purchase-legal-fixture.mjs';
 const migrations=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.startsWith('20260915')).sort();
 async function fixture(fn) {const db=await database();try{await fn(db);}finally{await db.close();}}
 const read=(db,sql)=>db.query(sql).then(r=>r.rows);
@@ -30,15 +31,17 @@ test('profile, finance, buyer and rights boundaries run as real PostgreSQL roles
   assert.deepEqual(await read(db,'select id,artist_name from artist_profiles'),[]);
   await denied(db,'select payout_email from artist_profiles');
   await denied(db,'select * from get_own_artist_finance()');
-  assert.equal((await read(db,'select * from buyer_catalog_public')).length,1);
-  assert.equal((await read(db,'select * from track_license_options')).length,1);
-  assert.equal((await read(db,'select * from track_rights_holders_public')).length,1);
+  // Legacy approved rows are preserved but require explicit System05 catalog publication.
+  assert.equal((await read(db,'select * from buyer_catalog_public')).length,0);
+  assert.equal((await read(db,'select * from track_license_options')).length,0);
+  assert.equal((await read(db,'select * from track_rights_holders_public')).length,0);
   const catalog=JSON.stringify(await read(db,'select * from buyer_catalog_public'));
   const credits=JSON.stringify(await read(db,'select * from track_rights_holders_public'));
   for(const key of ['audio_file_path','artist_user_id','approved_by','approved_at','verification_status','payout_email']) assert.ok(!catalog.includes('"'+key+'"'));
   for(const key of ['email','user_id','approval_status','created_at','updated_at']) assert.ok(!credits.includes('"'+key+'"'));
-  await db.exec(`insert into favorites(buyer_user_id,track_id) values('${ids.buyer}','${ids.live}')`);
-  assert.equal((await read(db,'select * from favorites')).length,1);
+  // System06 rejects direct favorites for an unenrolled listing or inactive session.
+  await assert.rejects(db.exec(`insert into favorites(buyer_user_id,track_id) values('${ids.buyer}','${ids.live}')`),e=>e.code==='42501');
+  assert.equal((await read(db,'select * from favorites')).length,0);
  });
  await asActor(db,ids.admin,async()=>{
   await db.exec(`update rights_holders set name='Reviewed correction' where track_id='${ids.live}'`);
@@ -57,7 +60,9 @@ test('profile, finance, buyer and rights boundaries run as real PostgreSQL roles
 test('Storage uses server-authorized mutations, private buckets and all-role referenced-media immutability',()=>fixture(async db=>{
  const path=`${ids.a}/uploads/audio/live.wav`,fresh=`${ids.a}/uploads/audio/fresh.wav`;
  const policies=await read(db,"select policyname,permissive from pg_policies where schemaname='storage'");
- assert.equal(policies.length,6);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ assert.equal(policies.length,10);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,8);
+ assert.ok(policies.some(p=>p.policyname==='system14_active_session'&&p.permissive==='RESTRICTIVE'));
+ for(const name of ['Avatar uploads require server validation','Avatars require a new object path','Active artist avatars cannot be deleted'])assert.ok(policies.some(p=>p.policyname===name&&p.permissive==='RESTRICTIVE'));
  assert.ok(policies.some(p=>p.policyname==='commerce_private_objects' && p.permissive==='RESTRICTIVE'));
  for(const [actor,role] of [[ids.a,'authenticated'],[ids.b,'authenticated'],[ids.buyer,'authenticated'],[ids.admin,'authenticated'],[null,'anon']]) await asActor(db,actor,async()=>{
   for(const bucket of ['avatars','cover-art','track-previews','track-audio','agreements']) {
@@ -133,18 +138,20 @@ test('narrow avatar cleanup grants allow owner deletion and reject another artis
   assert.equal((await read(db,`delete from storage.objects where name=${quote(path)} returning id`)).length,1);
  });
 }));
-test('account deletion regression: legacy cascade remains explicit before ownership redesign',()=>fixture(async db=>{
+test('account deletion preserves accepted transaction history and allows unused legacy artist deletion',()=>fixture(async db=>{
  await db.exec(`delete from auth.users where id='${ids.b}'`);
  assert.equal((await read(db,`select * from tracks where artist_user_id='${ids.b}'`)).length,0);
  assert.equal((await read(db,`select * from track_audit_log where track_id='${ids.otherTrack}'`)).length,0);
- await db.exec(`insert into orders(id,buyer_user_id,track_id,license_type_id,amount_cents,status) values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}',5000,'fulfilled');
- insert into generated_licenses(order_id,buyer_id,track_id,license_type_id,agreement_number,status,terms_snapshot_json,html_snapshot) values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}','PR2-DELETE','generated','{}','<p>fixture</p>');`);
+ await db.exec(`insert into orders(id,buyer_user_id,track_id,license_type_id,amount_cents,status) values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}',5000,'pending')`);
+ const snapshot=await incorporatePurchase(db,ids.order,{payment:{paymentMode:'test',commercialRightsGranted:false}}),path=await claimFixtureAgreement(db,ids.order);
+ await db.exec(`insert into generated_licenses(order_id,buyer_id,track_id,license_type_id,agreement_number,status,terms_snapshot_json,html_snapshot,pdf_storage_path,pdf_content_type,pdf_size_bytes)
+ values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}','PR2-DELETE','generated',${quote(JSON.stringify(snapshot))},'<p>fixture</p>',${quote(path)},'application/pdf',100)`);
  await assert.rejects(db.exec(`delete from auth.users where id='${ids.a}'`),/foreign key/);
  await asActor(db,ids.buyer,async()=>{
   assert.equal((await read(db,'select * from orders')).length,1);
   assert.equal((await read(db,'select * from generated_licenses')).length,1);
   await assert.rejects(db.exec("update orders set status='paid'"),/permission/);
  });
- await db.exec(`delete from auth.users where id='${ids.buyer}'`);
- assert.equal((await read(db,'select * from orders')).length,0);assert.equal((await read(db,'select * from generated_licenses')).length,0);
+ await assert.rejects(db.exec(`delete from auth.users where id='${ids.buyer}'`),/foreign key|immutable/);
+ assert.equal((await read(db,'select * from orders')).length,1);assert.equal((await read(db,'select * from generated_licenses')).length,1);
 }));

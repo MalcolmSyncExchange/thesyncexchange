@@ -1,0 +1,16 @@
+[Unit]
+Description=TSE DigitalOcean credential-isolated broker
+Requires=docker.service tse-do-accounting.timer tse-do-launcher.service
+After=docker.service tse-do-launcher.service
+[Service]
+LoadCredentialEncrypted=db:/etc/credstore.encrypted/tse-do-db
+LoadCredentialEncrypted=host-signer:/etc/credstore.encrypted/tse-do-host-signer
+ExecStartPre=/usr/bin/python3 /opt/tse-audio/release/do-network.py --apply
+ExecStart=/usr/bin/python3 /opt/tse-audio/release/do-broker-service.py
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/run/tse-audio /var/lib/tse-audio
+PrivateTmp=yes
+Restart=no
+RuntimeMaxSec=3600
+TimeoutStopSec=30

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { selectBuyerCustomer } from "@/lib/billing-customer";
 import { NextResponse } from "next/server";
 
 import { env } from "@/lib/env";
@@ -42,17 +44,17 @@ export async function POST() {
   try {
     const existingCustomers = await stripe.customers.list({
       email: auth.user.email,
-      limit: 1
+      limit: 100
     });
     const customer =
-      existingCustomers.data[0] ||
+      selectBuyerCustomer(existingCustomers, auth.user.id) ||
       (await stripe.customers.create({
         email: auth.user.email,
         metadata: {
           supabaseUserId: auth.user.id,
           source: "buyer_settings"
         }
-      }));
+      }, { idempotencyKey: `buyer-settings-customer-v1:${auth.user.id}:${createHash("sha256").update(auth.user.email.trim().toLowerCase()).digest("hex")}` }));
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customer.id,

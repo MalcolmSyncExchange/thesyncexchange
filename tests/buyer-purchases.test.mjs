@@ -72,6 +72,7 @@ function harness({
   function client(privileged = false) {
     return {
       auth: { getUser: async () => ({ data: { user }, error: null }) },
+      rpc: async name => ({data:name === "auth_session_is_active" ? true : null,error:null}),
       from(table) {
         state.operations.push({ table, privileged });
         let values =
@@ -148,6 +149,7 @@ function harness({
     };
   }
   const modules = {
+    "@/services/delivery/server": { readBuyerAssets: async () => [] },
     "server-only": {},
     "@/lib/purchases/contract": { presentPurchase },
     "@/lib/purchases/pagination": {
@@ -409,10 +411,12 @@ test("UI uses POST form and disabled receipt/files with no new delivery or comme
   );
   const loader = fs.readFileSync("services/buyer/purchases.ts", "utf8");
   assert.match(ui, /<AgreementDownloadForm/);
+  assert.match(loader, /checkout_order_state/);
+  assert.match(loader, /auth_session_is_active/);
   assert.match(ui, /disabled\s+aria-describedby="receipt-reason"/);
   assert.doesNotMatch(
     loader,
-    /\.rpc\(|\.insert\(|\.update\(|\.delete\(|createSignedUrl|record_payment|prepare_purchase/,
+    /\.insert\(|\.update\(|\.delete\(|createSignedUrl|record_payment|prepare_purchase/,
   );
   assert.doesNotMatch(
     ui,

@@ -1,0 +1,80 @@
+// Real PG17, independent connections, no hosted DSN or Docker accepted.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdtemp,mkdir,readdir,rm} from 'node:fs/promises';
+import {join} from 'node:path';
+import {fixtureBootstrapSql,nativeCryptoBootstrapSql,seedDatabase,root,source,ids,quote} from './helpers/artist-baseline-db.mjs';
+import {seedDelivery,beginDownload,finishDownload} from './helpers/secure-delivery-fixture.mjs';
+import {call,sqlCall} from './helpers/purchase-legal-fixture.mjs';
+const command=(bin,args,input='')=>new Promise((resolve,reject)=>{
+ const child=spawn(bin,args,{env:{PATH:process.env.PATH,LC_ALL:'C'},stdio:['pipe','pipe','pipe']});let out='',err='';
+ child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',reject);
+ child.on('close',code=>code===0?resolve(out.trim()):reject(Error(`${bin}: ${err}`)));child.stdin.on('error',()=>{});child.stdin.end(input);
+});
+test('native finance lifecycle, non-superuser definers, simultaneous posting, refund, reservation and recovery',{timeout:90000},async()=>{
+ assert.match(await command('postgres',['--version']),/PostgreSQL\) 17\./);
+ const dir=await mkdtemp('/private/tmp/tse-finance-pg-'),data=join(dir,'data'),socket=join(dir,'socket');let running=false,login='postgres';
+ const sql=text=>command('psql',['-X','-qAt','-v','ON_ERROR_STOP=1','-h',socket,'-U',login,'-d','postgres'],`set client_min_messages=warning;set request.jwt.claim.role='service_role';${text}`);
+ const last=s=>s.trim().split('\n').at(-1);
+ const wait=async predicate=>{for(let i=0;i<200;i++){if(await predicate())return;await new Promise(r=>setTimeout(r,15));}throw Error('Finance lock barrier timed out');};
+ const asAdmin=text=>`set role authenticated;set request.jwt.claim.role='authenticated';set request.jwt.claim.sub='${ids.admin}';${text}`;
+ try {
+  await mkdir(socket,{mode:0o700});await command('initdb',['-D',data,'-U','pk09_fixture_admin','--auth=trust','--encoding=UTF8','--no-locale']);
+  await command('pg_ctl',['-D',data,'-l',join(dir,'postgres.log'),'-o',`-c listen_addresses= -c unix_socket_directories=${socket} -c max_connections=15 -c shared_buffers=16MB`,'-w','start']);running=true;
+  login='pk09_fixture_admin';await sql('create role postgres login superuser');login='postgres';
+  const seed=[];await seedDatabase({exec:async s=>seed.push(s+';')});
+  const files=(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')).sort();
+  await sql([fixtureBootstrapSql,nativeCryptoBootstrapSql,...files.filter(f=>f<'20261022210225_financial_ledger_reconciliation.sql').map(f=>source('supabase/migrations/'+f)),...seed].join('\n'));
+  login='pk09_fixture_admin';await sql('alter schema public owner to postgres;grant create on database postgres to postgres;alter role postgres nosuperuser');
+  login='postgres';for(const file of files.filter(f=>f>='20261022210225_financial_ledger_reconciliation.sql'))await sql(source('supabase/migrations/'+file));login='pk09_fixture_admin';
+  assert.equal(last(await sql("select rolsuper from pg_roles where rolname='postgres'")),'f');
+  assert.equal(last(await sql("select current_setting('listen_addresses')=''")),'t');
+  let actor='';
+  const db={exec:async text=>{if(text.startsWith('set role ')){actor=text+';';return;}if(text.startsWith('reset role;')){actor='';return;}return sql(actor+text);},query:async text=>({rows:(await sql(actor+`select row_to_json(r) from (${text}) r;`)).split('\n').filter(x=>x.startsWith('{')).map(JSON.parse)})};
+  const c=await seedDelivery(db);const d=await beginDownload(c);assert.equal(d.allowed,true);assert.equal(await finishDownload(c,d),true);
+  await sql('update finance_private.capabilities set synthetic_posting_enabled=true');
+  // Event already persisted, process crashes before financial COMMIT.
+  await sql(`begin;${sqlCall('post_financial_order',[c.order])};rollback;`);
+  assert.equal(last(await sql('select count(*) from finance_private.journals')),'0');
+  const first=sql(`set application_name='finance-post-1';begin;${sqlCall('post_financial_order',[c.order])};select pg_sleep(1);commit;`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='finance-post-1' and wait_event='PgSleep'"))==='1');
+  const second=sql(`set application_name='finance-post-2';${sqlCall('post_financial_order',[c.order])};`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='finance-post-2' and wait_event_type='Lock'"))==='1');
+  await Promise.all([first,second]);await sql(sqlCall('post_financial_order',[c.order])+';');
+  assert.equal(last(await sql("select count(*) from finance_private.journals where economic_key='purchase'")),'1');
+  assert.equal(last(await sql(`select finance_private.balance('${c.order}','payable:master')`)),'-2400');
+  const policy={synthetic:true,version:'ALPHA-SYNTHETIC',tier:'fixture-only',approvalReference:'SYNTHETIC ONLY',commissionBasis:'gross',maturitySeconds:0,reserveBps:0,refundPolicy:'proportional-floor-suspense-v1'};
+  await sql(asAdmin(sqlCall('freeze_finance_simulation_policy',[c.order,policy])+';'));
+  const reserve=id=>sqlCall('record_finance_simulation_fact',[c.order,id,'payout_reserve',2000,'USD','b'.repeat(64),'SYNTHETIC local reservation','master',null])+';';
+  await sql(`begin;${asAdmin(reserve('interrupted-reservation'))}rollback;`);
+  assert.equal(last(await sql('select count(*) from finance_private.simulation_facts')),'0');
+  assert.equal(last(await sql(`select finance_private.balance('${c.order}','payable:master')`)),'-2400');
+  const reserveFirst=sql(`set application_name='finance-reserve-1';begin;${asAdmin(reserve('reservation-first'))}select pg_sleep(1);commit;`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='finance-reserve-1' and wait_event='PgSleep'"))==='1');
+  const reserveSecond=sql(`set application_name='finance-reserve-2';${asAdmin(reserve('reservation-second'))}`).then(()=>false,e=>{assert.match(e.message,/reserve requirement|insufficient/);return true;});
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='finance-reserve-2' and wait_event_type='Lock'"))==='1');
+  await reserveFirst;assert.equal(await reserveSecond,true);
+  const reserved=last(await sql("select id from finance_private.simulation_facts where external_id='reservation-first'"));
+  await sql(asAdmin(sqlCall('record_finance_simulation_fact',[c.order,'release-fixture','payout_release',2000,'USD','b'.repeat(64),'SYNTHETIC local release','master',reserved])+';'));
+  // Simultaneous verified refund and financial replay serialize on the same order.
+  const refund=sql(`set application_name='finance-refund';begin;${sqlCall('record_purchase_completion_event',[c.order,'acct_fixture','evt_nativefinancialrefund','cs_test_fixture','pi_fixture','charge.refunded','REFUNDED',5000,5000,'USD','a'.repeat(64),'2026-10-22T01:00:00Z'])};select pg_sleep(1);commit;`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='finance-refund' and wait_event='PgSleep'"))==='1');
+  const replay=sql(`set application_name='finance-refund-post';${sqlCall('post_financial_order',[c.order])};`);
+  await wait(async()=>last(await sql("select count(*) from pg_stat_activity where application_name='finance-refund-post' and wait_event_type='Lock'"))==='1');
+  await Promise.all([refund,replay]);assert.equal((await beginDownload(c)).allowed,false);
+  for(const key of ['clearing','platform_revenue','payable:master','payable:publishing','reserved:master','refund_rounding'])assert.equal(last(await sql(`select finance_private.balance('${c.order}',${quote(key)})`)),'0',key);
+  const report=JSON.parse(last(await sql(asAdmin(sqlCall('read_financial_order',[c.order])+';'))));
+  assert.equal(report.grossMinor,'5000');
+  const provider={providerAccount:'acct_fixture',paymentMode:'test',currency:'USD',grossMinor:5000,refundedMinor:5000,processorFeeMinor:0,settledMinor:0,disputeNetDebitedMinor:0};
+  const reconciled=JSON.parse(last(await sql(asAdmin(sqlCall('reconcile_financial_order',[c.order,provider])+';'))));
+  assert.deepEqual(reconciled.issues,[]);assert.equal(reconciled.matched,true);
+  assert.equal(last(await sql('select count(*) from(select journal_id from finance_private.lines group by journal_id having sum(signed_minor)<>0) q')),'0');
+  assert.equal(last(await sql("select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='finance_private' and c.relkind='r' and (not c.relrowsecurity or not c.relforcerowsecurity)")),'0');
+  await assert.rejects(sql(`set role service_role;select * from finance_private.lines`),/permission/);
+  await assert.rejects(sql(`set role postgres;delete from finance_private.lines`),/immutable/);
+  await assert.rejects(sql(`set role postgres;select finance_private.post('${c.order}','bad-native','invalid','{}','{"clearing":1,"settled":-2}')`),/Unbalanced/);
+  assert.equal(last(await sql('select count(*) from generated_licenses')),'1');
+  console.log(JSON.stringify({scenario:'PK09 native connected lifecycle',paymentEvents:2,licenseCount:1,entitlementAfterRefund:'denied',concurrentPurchaseJournals:1,unbalancedJournals:0,reconciliation:reconciled}));
+ } finally {if(running)await command('pg_ctl',['-D',data,'-m','immediate','-w','stop']);await rm(dir,{recursive:true,force:true});}
+});

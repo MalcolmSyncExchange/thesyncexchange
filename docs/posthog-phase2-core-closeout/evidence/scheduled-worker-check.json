@@ -1,0 +1,8 @@
+{
+  "readOnly": true,
+  "stagingSiteMatches": true,
+  "noNetlifySchedules": true,
+  "noDatabaseAnalyticsSchedules": true,
+  "status": "PASS",
+  "readAt": "2026-10-14T23:03:53.835Z"
+}

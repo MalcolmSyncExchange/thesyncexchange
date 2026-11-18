@@ -68,12 +68,13 @@ test("signup and onboarding role assignment require trusted server role writes",
   assert.match(authActionsSource, /function getTrustedRoleMutationClient\(\)/);
   assert.match(authActionsSource, /Trusted profile role assignment is unavailable/);
   assert.match(authActionsSource, /const client = getTrustedRoleMutationClient\(\);/);
-  assert.match(authActionsSource, /const role = await resolvePersistedRole\(authUser\.id\);/);
+  assert.match(authActionsSource, /role = await resolvePersistedRole\(authUser\.id\);/);
   assert.doesNotMatch(authActionsSource, /resolvePersistedRole\(authUser\.id,\s*parseRole\(authUser\.user_metadata\?\.role\)\)/);
 });
 
 test("session role resolution is database backed and ignores mutable user metadata roles", () => {
-  assert.match(sessionSource, /const role = resolveUserRole\(userRow\?\.role\) \|\| detectPersistedRole/);
+  assert.match(sessionSource, /const role = resolveUserRole\(userRow\?\.role\);/);
+  assert.doesNotMatch(sessionSource, /detectPersistedRole/);
   assert.doesNotMatch(sessionSource, /resolveUserRole\(user\.user_metadata\?\.role\)/);
   assert.doesNotMatch(sessionSource, /fallbackRole/);
 });

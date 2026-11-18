@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getArtistWorkspaceData } from "@/services/artist/queries";
 import { requireSession } from "@/services/auth/session";
@@ -11,6 +12,7 @@ export default async function RightsHoldersPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-semibold">Rights holders</h1>
+      <Link className="underline" href="/artist/rights">Prepare and review separate master and publishing rights</Link>
       <Card>
         <CardHeader>
         <CardTitle>Split management</CardTitle>

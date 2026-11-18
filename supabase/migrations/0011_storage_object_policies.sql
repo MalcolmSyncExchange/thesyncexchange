@@ -1,4 +1,16 @@
-alter table storage.objects enable row level security;
+-- Supabase owns storage.objects and enables its RLS. Application migrations
+-- may manage policies through the platform's policy grants, not ALTER TABLE.
+-- Fail closed if the provider prerequisite is missing; never change ownership.
+do $$
+begin
+  if not exists (
+    select 1 from pg_class
+    where oid = 'storage.objects'::regclass and relrowsecurity
+  ) then
+    raise exception 'Storage prerequisite missing: storage.objects must already have RLS enabled.';
+  end if;
+end;
+$$;
 
 drop policy if exists "Public avatars are readable" on storage.objects;
 drop policy if exists "Owners can manage avatars" on storage.objects;

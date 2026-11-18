@@ -8,7 +8,7 @@ export default async function AdminTracksPage() {
   const tracks = await getAdminTracks();
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold">Track management</h1>
+      <h1 className="text-3xl font-semibold">Track management</h1><Link className="inline-block underline" href="/admin/catalog">Catalog review, metadata corrections and publication</Link>
       <div className="space-y-4">
         {tracks.map((track: (typeof tracks)[number]) => (
           <div key={track.id} className="rounded-lg border border-border bg-background p-5">

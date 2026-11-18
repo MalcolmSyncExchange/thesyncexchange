@@ -3,6 +3,16 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
   public: {
     Tables: {
+      artist_account_details: { Row: { user_id: string; identity: Json; declarations: Json; updated_at: string }; Insert: { user_id: string; identity?: Json; declarations?: Json; updated_at?: string }; Update: { identity?: Json; declarations?: Json; updated_at?: string }; Relationships: [] };
+      artist_account_acceptances: { Row: { id: number; user_id: string; notice_version: string; notice_snapshot: Json; accepted_at: string }; Insert: { user_id: string; notice_version: string; notice_snapshot: Json }; Update: never; Relationships: [] };
+      artist_account_events: { Row: { id: number; user_id: string; actor_id: string | null; action: string; snapshot: Json; created_at: string }; Insert: { user_id: string; actor_id?: string | null; action: string; snapshot: Json }; Update: never; Relationships: [] };
+      analytics_outbox: {
+        Row: { id: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at: string; delivered_at: string | null; lease_id: string | null; lease_until: string | null; delivery_status: string; attempt_count: number; delivery_cycle: number; last_attempt_at: string | null; next_retry_at: string | null; failure_category: string | null };
+        Insert: { id?: string; dedupe_key: string; environment: string; event: string; actor_id: string; actor_role: string; properties: Json; is_internal: boolean; is_test: boolean; occurred_at?: string; delivered_at?: string | null; lease_id?: string | null; lease_until?: string | null; delivery_status?: string; attempt_count?: number; delivery_cycle?: number; last_attempt_at?: string | null; next_retry_at?: string | null; failure_category?: string | null };
+        Update: { delivered_at?: string | null; lease_until?: string | null; delivery_status?: string; attempt_count?: number; delivery_cycle?: number; last_attempt_at?: string | null; next_retry_at?: string | null; failure_category?: string | null };
+        Relationships: [];
+      };
+
       user_profiles: {
         Row: {
           id: string;
@@ -705,6 +715,63 @@ export interface Database {
       };
     };
     Functions: {
+      notification_request_seal: {Args:{p_id:string;p_lease:string;p_hash:string};Returns:boolean};
+      notification_preferences: { Args: {p_operational?:boolean;p_marketing?:boolean;p_notice?:string}; Returns: Json };
+      collect_notification_events: {Args: {p_limit?:number}; Returns:number};
+      claim_notification: {Args: Record<string,never>; Returns:Json};
+      notification_send_allowed: {Args:{p_id:string;p_lease:string};Returns:boolean};
+      finish_notification: {Args:{p_id:string;p_lease:string;p_outcome:string;p_provider?:string|null};Returns:boolean};
+      ingest_notification_event: {Args:{p_event:string;p_hash:string;p_provider:string;p_kind:string;p_at:string};Returns:string};
+      notification_operations: {Args:Record<string,never>;Returns:Json};
+      notification_retry: {Args:{p_id:string;p_reason:string};Returns:boolean};
+      notification_retention: {Args:Record<string,never>;Returns:number};
+      analytics_delivery_allowed: { Args: { p_id: string; p_lease: string }; Returns: boolean };
+      analytics_preferences: { Args: { p_consent?: boolean; p_notice?: string }; Returns: Json };
+      analytics_signup_consent: { Args: { p_user: string; p_notice: string; p_confirmation?: boolean }; Returns: undefined };
+      collect_analytics_events: { Args: { p_environment: string; p_limit?: number; p_internal_ids?: string[]; p_test_ids?: string[] }; Returns: number };
+      analytics_retention: { Args: Record<string, never>; Returns: number };
+      analytics_operations: { Args: { p_environment: string }; Returns: Json };
+      analytics_financial_source: { Args: { p_end: string; p_mode: string }; Returns: Json };
+      analytics_booked_finance: { Args: { p_start: string; p_end: string; p_mode: string }; Returns: Json };
+      sec_registration_open: { Args: Record<string, never>; Returns: boolean };
+      sec_has_capability: { Args: { p_cap: string }; Returns: boolean };
+      auth_session_is_active: { Args: Record<PropertyKey, never>; Returns: boolean };
+      license_records: { Args: { p_page?: number; p_size?: number }; Returns: Json };
+      license_record: { Args: { p_order: string }; Returns: Json };
+      license_lifecycle_command: { Args: { p_order: string; p_revision: number; p_request: string; p_action: string; p_reason: string; p_reference: string }; Returns: Json };
+      license_offer_contract: { Args: { p_track: string; p_license: string }; Returns: Json };
+      license_configure_contract: { Args: { p_track: string; p_license: string; p_expected: string; p_contract: Json; p_reference: string }; Returns: Json };
+      save_artist_account_step: { Args: { p_actor: string; p_expected: string; p_step: string; p_public: Json; p_private: Json; p_avatar?: string | null; p_remove_avatar?: boolean; p_notice_version?: string | null; p_accept?: boolean }; Returns: string };
+      claim_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_event: string; p_operator: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
+      arm_staging_analytics_validation: { Args: { p_authorization: string; p_artist: string; p_operator: string; p_event: string }; Returns: { id: string; created_at: string; expires_at: string }[] };
+      get_staging_analytics_validation_readiness: { Args: { p_authorization: string; p_artist: string; p_operator: string }; Returns: { authorization_matches: boolean; artist_matches: boolean; operator_matches: boolean; grant_usable: boolean }[] };
+      finish_staging_analytics_validation: { Args: { p_authorization: string; p_lease: string; p_accepted: boolean }; Returns: string };
+
+      save_artist_onboarding_atomic: {
+        Args: { p_actor_id: string; p_expected_updated_at: string; p_step: string; p_data: Json; p_avatar_path?: string | null };
+        Returns: string;
+      };
+      complete_artist_onboarding_atomic: {
+        Args: { p_actor_id: string; p_expected_updated_at: string };
+        Returns: string;
+      };
+
+      get_admin_purchase_capabilities: {
+        Args: Record<string, never>;
+        Returns: { foundation_enabled: boolean; asset_preparation_enabled: boolean; receipt_generation_enabled: boolean; entitlement_activation_enabled: boolean; transaction_projection_enabled: boolean; payment_adapter_enabled: boolean }[];
+      };
+      get_analytics_verified_purchase: {
+        Args: { p_order_id: string; p_provider_account: string; p_provider_event_id: string };
+        Returns: { order_id: string; buyer_user_id: string; track_id: string; license_type: string; checkout_session_id: string; payment_intent_id: string; amount_minor: number; currency: string; payment_mode: string; paid_at: string; payment_event_id: string; verified_at: string }[];
+      };
+      enqueue_analytics_event: { Args: { p_environment: string; p_event: string; p_actor_id: string; p_actor_role: string; p_properties: Json; p_dedupe_key: string; p_is_internal: boolean; p_is_test: boolean }; Returns: string | null };
+      claim_analytics_event: { Args: { p_environment: string; p_id?: string }; Returns: Database["public"]["Tables"]["analytics_outbox"]["Row"][] };
+      complete_analytics_event: { Args: { p_id: string; p_lease_id: string }; Returns: boolean };
+      fail_analytics_event: { Args: { p_id: string; p_lease_id: string; p_category: string; p_retry_at?: string | null }; Returns: boolean };
+      hold_analytics_event: { Args: { p_environment: string; p_id: string }; Returns: boolean };
+      release_analytics_event: { Args: { p_environment: string; p_id: string }; Returns: boolean };
+      get_analytics_delivery_health: { Args: { p_environment: string }; Returns: Json };
+
       update_artist_track_atomic: { Args: { p_actor_id: string; p_track_id: string; p_expected_updated_at: string; p_values: Json; p_rights: Json; p_options: Json }; Returns: string };
       get_own_artist_finance: { Args: Record<string, never>; Returns: { payout_email: string | null }[] };
       consume_rate_limit: {

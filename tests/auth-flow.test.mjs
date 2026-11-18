@@ -184,7 +184,7 @@ test("recovery code exchange is skipped without a PKCE verifier", () => {
   );
 });
 
-test("recovery code exchange is allowed only when the PKCE verifier exists", () => {
+test("recovery code exchange cannot substitute for a verified recovery OTP", () => {
   assert.equal(
     shouldExchangeAuthCode({
       hasCode: true,
@@ -192,7 +192,7 @@ test("recovery code exchange is allowed only when the PKCE verifier exists", () 
       isRecoveryFlow: true,
       hasPkceVerifier: true
     }),
-    true
+    false
   );
 });
 
@@ -443,13 +443,13 @@ test("auth confirmation route never uses the request origin as a redirect base o
   assert.match(source, /redirectWithError/);
 });
 
-test("reset password with session and token hash renders form instead of reverifying", () => {
+test("reset password processes a fresh recovery link even with an ordinary session", () => {
   assert.equal(
     getResetPasswordRecoveryRoutingDecision({
       hasAuthParams: true,
       hasSession: true
     }),
-    "render"
+    "confirm"
   );
 });
 
@@ -563,7 +563,7 @@ test("forgot password config errors are safe user-facing states", async () => {
 test("auth email-action does not prefetch one-time token hash confirmation links", () => {
   const source = readFileSync(new URL("../app/auth/email-action/page.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /<a href=\{confirmationUrl\}>/);
+  assert.match(source, /<a href=\{confirmationUrl\}[^>]*>/);
   assert.doesNotMatch(source, /next\/link/);
   assert.doesNotMatch(source, /<Link href=\{confirmationUrl\}/);
 });

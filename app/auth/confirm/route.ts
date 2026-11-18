@@ -1,4 +1,7 @@
-import { createServerClient } from "@supabase/ssr";
+import { issueRecoveryGrant, recoveryCookieName, recoveryCookieOptions } from "@/services/auth/recovery";
+import { isDedicatedStagingIdentity } from "@/lib/health/payment-readiness";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { authAttempt, authFetch } from "@/services/auth/security";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -34,28 +37,50 @@ export async function GET(request: Request) {
     const deploymentTarget = getDeploymentTarget();
     appOrigin = resolveConfiguredAuthAppOrigin({
       configuredAppUrl: env.configuredAppUrl || (deploymentTarget === "local" ? env.appUrl : undefined),
-      deploymentTarget
+      deploymentTarget,
+      dedicatedStagingIdentityVerified: isDedicatedStagingIdentity({
+        ...process.env,
+        TSE_BUILD_NETLIFY_SITE_ID: process.env.TSE_BUILD_NETLIFY_SITE_ID,
+        NEXT_PUBLIC_APP_URL: env.appUrl,
+        NEXT_PUBLIC_SUPABASE_URL: env.supabaseUrl,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: env.supabaseAnonKey
+      }, deploymentTarget)
     });
   } catch (error) {
     reportOperationalError("auth_confirm_configuration_invalid", error, {
       hasConfiguredAppUrl: Boolean(env.configuredAppUrl)
     });
-    return NextResponse.json({ error: AUTH_CONFIRM_CONFIGURATION_ERROR_MESSAGE }, { status: 500 });
+    return NextResponse.json({ error: AUTH_CONFIRM_CONFIGURATION_ERROR_MESSAGE }, { status: 500, headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
   }
 
   const successRedirectUrl = buildAuthConfirmSuccessUrl({ appOrigin, destinationPath: successRedirectPath });
   const successRedirect = new URL(successRedirectUrl);
   const authQueryParamsStripped = Boolean(code) || Boolean(tokenHash) || Boolean(type) || requestUrl.searchParams.has("next");
-  const redirectWithError = (destinationPath: string, message: string) =>
-    NextResponse.redirect(buildAuthConfirmErrorUrl({ appOrigin, destinationPath, message }));
+  const cookieWrites = new Map<string, { name: string; value: string; options: CookieOptions }>();
+  const secure = (response: NextResponse) => {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+    response.headers.set("Netlify-CDN-Cache-Control", "no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    for (const { name, value, options } of cookieWrites.values()) response.cookies.set(name, value, options);
+    return response;
+  };
+  const redirectWithError = (destinationPath: string, message: string) => {
+    const denied = secure(NextResponse.redirect(buildAuthConfirmErrorUrl({ appOrigin, destinationPath, message })));
+    if (recoveryFlow && env.supabaseUrl) denied.cookies.set(recoveryCookieName(),"",{...recoveryCookieOptions(),maxAge:0});
+    return denied;
+  };
+  if ((type && !["signup", "invite", "magiclink", "email", "email_change", "recovery"].includes(type)) ||
+      (code && code.length > 2048) || (tokenHash && tokenHash.length > 2048) || (code && tokenHash)) {
+    return redirectWithError(recoveryFlow ? "/forgot-password" : "/login", AUTH_CONFIRM_LINK_INVALID_MESSAGE);
+  }
 
   reportOperationalEvent("auth_confirm_requested", "Supabase auth confirmation route requested.", {
     hasCode: Boolean(code),
     hasTokenHash: Boolean(tokenHash),
     type: type || null,
-    nextPath,
+    nextPath: new URL(nextPath, appOrigin).pathname,
     successRedirectPath,
-    successRedirectUrl,
+    successRedirectUrl: successRedirect.pathname,
     successRedirectHasSearchParams: Boolean(successRedirect.search),
     authQueryParamsStripped,
     recoveryFlow
@@ -67,38 +92,43 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   const hasPkceVerifier = cookieStore.getAll().some((cookie) => cookie.name.includes("code-verifier"));
-  const response = NextResponse.redirect(successRedirect);
+  const response = secure(NextResponse.redirect(successRedirect));
+  const values = new Map(cookieStore.getAll().map(c => [c.name, c.value]));
   const supabase = createServerClient(env.supabaseUrl!, env.supabaseAnonKey!, {
+    cookieOptions: { path: "/", sameSite: "lax", secure: getDeploymentTarget() !== "local" },
+    global: { fetch: authFetch },
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
-      },
-      set(name: string, value: string, options: Record<string, unknown>) {
-        response.cookies.set({ name, value, ...(options as object) });
-      },
-      remove(name: string, options: Record<string, unknown>) {
-        response.cookies.set({ name, value: "", ...(options as object) });
+      getAll: () => Array.from(values, ([name, value]) => ({ name, value })),
+      setAll(writes: { name: string; value: string; options: CookieOptions }[]) {
+        for (const write of writes) {
+          values.set(write.name, write.value); cookieWrites.set(write.name, write);
+          response.cookies.set(write.name, write.value, write.options);
+        }
       }
     }
   });
+
+  // Routing parameters and an existing ordinary session are not recovery proof.
+  if (recoveryFlow && (type !== "recovery" || !tokenHash || code)) return redirectWithError("/forgot-password", RECOVERY_CODE_LINK_UNSUPPORTED_MESSAGE);
 
   if (tokenHash && type) {
     reportOperationalEvent("auth_confirm_verify_attempted", "Supabase OTP verification attempted.", {
       hasTokenHash: true,
       type,
-      nextPath,
+      nextPath: new URL(nextPath, appOrigin).pathname,
       recoveryFlow
     });
 
-    const { error } = await supabase.auth.verifyOtp({
+    const verification = await authAttempt(() => supabase.auth.verifyOtp({
       type,
       token_hash: tokenHash
-    });
+    }));
+    const { error } = verification;
 
     if (error) {
       reportOperationalError("auth_confirm_verify_failed", new Error("Supabase authentication confirmation failed."), {
         type,
-        nextPath,
+        nextPath: new URL(nextPath, appOrigin).pathname,
         recoveryFlow,
         supabaseErrorCode: error.code || null
       });
@@ -107,16 +137,15 @@ export async function GET(request: Request) {
       return redirectWithError(destination, safeMessage);
     }
 
-    const {
-      data: { session },
-      error: sessionError
-    } = await supabase.auth.getSession();
+    const sessionResult = await authAttempt(() => supabase.auth.getSession());
+    const session = sessionResult.data?.session || null;
+    const sessionError = sessionResult.error;
 
     reportOperationalEvent("auth_confirm_verify_succeeded", "Supabase OTP verification succeeded.", {
       type,
-      nextPath,
+      nextPath: new URL(nextPath, appOrigin).pathname,
       successRedirectPath,
-      successRedirectUrl,
+      successRedirectUrl: successRedirect.pathname,
       successRedirectHasSearchParams: Boolean(successRedirect.search),
       authQueryParamsStripped,
       recoveryFlow,
@@ -125,11 +154,13 @@ export async function GET(request: Request) {
       sessionErrorCode: sessionError?.code || null
     });
 
-    if (recoveryFlow && (sessionError || !session)) {
+    const otpSession = verification.data?.session;
+    const verifiedUser = await authAttempt(() => supabase.auth.getUser(otpSession?.access_token));
+    if (recoveryFlow && (sessionError || !session || verifiedUser.error || !verifiedUser.data?.user)) {
       if (sessionError) {
         reportOperationalError("auth_confirm_verify_session_missing", new Error("Supabase authentication session was unavailable."), {
           type,
-          nextPath,
+          nextPath: new URL(nextPath, appOrigin).pathname,
           recoveryFlow,
           sessionErrorCode: sessionError.code || null
         });
@@ -138,7 +169,14 @@ export async function GET(request: Request) {
       return redirectWithError("/forgot-password", RESET_PASSWORD_SESSION_MISSING_MESSAGE);
     }
 
-    return response;
+    if (type === "recovery") {
+      const verifiedId = verifiedUser.data?.user?.id;
+      const proof = !verifiedUser.error && verifiedId && verification.data?.user?.id === verifiedId && otpSession?.user?.id === verifiedId
+        ? await issueRecoveryGrant(otpSession, verifiedId).catch(() => null) : null;
+      if (!proof) return redirectWithError("/forgot-password", RESET_PASSWORD_SESSION_MISSING_MESSAGE);
+      response.cookies.set(recoveryCookieName(),proof,recoveryCookieOptions());
+    }
+    return secure(response);
   }
 
   if (code) {
@@ -153,7 +191,7 @@ export async function GET(request: Request) {
       hasCode: true,
       hasTokenHash: Boolean(tokenHash),
       type: type || null,
-      nextPath,
+      nextPath: new URL(nextPath, appOrigin).pathname,
       recoveryFlow,
       hasPkceVerifier,
       exchangeCodeForSessionAttempted
@@ -162,7 +200,7 @@ export async function GET(request: Request) {
     if (!exchangeCodeForSessionAttempted) {
       reportOperationalEvent("auth_confirm_code_rejected", "Auth code link rejected because no PKCE verifier was available.", {
         type: type || null,
-        nextPath,
+        nextPath: new URL(nextPath, appOrigin).pathname,
         recoveryFlow,
         hasPkceVerifier,
         exchangeCodeForSessionAttempted: false
@@ -172,12 +210,12 @@ export async function GET(request: Request) {
       return redirectWithError(destination, safeMessage);
     }
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await authAttempt(() => supabase.auth.exchangeCodeForSession(code));
 
     if (error) {
       reportOperationalError("auth_confirm_exchange_failed", new Error("Supabase authentication code exchange failed."), {
         type: type || null,
-        nextPath,
+        nextPath: new URL(nextPath, appOrigin).pathname,
         recoveryFlow,
         hasPkceVerifier,
         supabaseErrorCode: error.code || null
@@ -187,16 +225,15 @@ export async function GET(request: Request) {
       return redirectWithError(destination, safeMessage);
     }
 
-    const {
-      data: { session },
-      error: sessionError
-    } = await supabase.auth.getSession();
+    const sessionResult = await authAttempt(() => supabase.auth.getSession());
+    const session = sessionResult.data?.session || null;
+    const sessionError = sessionResult.error;
 
     reportOperationalEvent("auth_confirm_exchange_succeeded", "Supabase auth code exchange succeeded.", {
       type: type || null,
-      nextPath,
+      nextPath: new URL(nextPath, appOrigin).pathname,
       successRedirectPath,
-      successRedirectUrl,
+      successRedirectUrl: successRedirect.pathname,
       successRedirectHasSearchParams: Boolean(successRedirect.search),
       authQueryParamsStripped,
       recoveryFlow,
@@ -205,11 +242,12 @@ export async function GET(request: Request) {
       sessionErrorCode: sessionError?.code || null
     });
 
-    if (recoveryFlow && (sessionError || !session)) {
+    const verifiedUser = await authAttempt(() => supabase.auth.getUser());
+    if (recoveryFlow && (sessionError || !session || verifiedUser.error || !verifiedUser.data?.user)) {
       if (sessionError) {
         reportOperationalError("auth_confirm_exchange_session_missing", new Error("Supabase authentication session was unavailable."), {
           type: type || null,
-          nextPath,
+          nextPath: new URL(nextPath, appOrigin).pathname,
           recoveryFlow,
           sessionErrorCode: sessionError.code || null
         });
@@ -218,12 +256,12 @@ export async function GET(request: Request) {
       return redirectWithError("/forgot-password", RESET_PASSWORD_SESSION_MISSING_MESSAGE);
     }
 
-    return response;
+    return secure(response);
   }
 
   reportOperationalEvent("auth_confirm_invalid_link", "Supabase auth confirmation route received an incomplete or invalid link.", {
     type: type || null,
-    nextPath,
+    nextPath: new URL(nextPath, appOrigin).pathname,
     recoveryFlow
   });
   return redirectWithError("/login", AUTH_CONFIRM_LINK_INVALID_MESSAGE);

@@ -1,12 +1,15 @@
 "use server";
 
+import { captureCheckoutStarted } from "@/services/analytics/checkout";
+import { captureForUser } from "@/services/analytics/actor";
+
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
-import { assertStripeServerConfiguration, getPaymentActivityMetadata, getPaymentRuntimeConfiguration } from "@/lib/server-env";
-import { canReusePendingOrderForPaymentMode } from "@/lib/payment-mode.mjs";
+import { assertStripeServerConfiguration, getPaymentActivityMetadata } from "@/lib/server-env";
+import { acceptPurchaseQuote, readPurchaseQuote } from "@/services/licensing/purchases";
 import { generateAgreementPlaceholder } from "@/lib/license";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import { preparePurchaseCompletionCheckout } from "@/services/purchase-completion/server";
@@ -49,7 +52,6 @@ export async function createOrderAction(formData: FormData) {
     redirect(`/buyer/checkout/${trackSlug}?error=Selected%20license%20option%20is%20not%20available.`);
   }
 
-  const amountPaid = selectedLicense.price_override ?? selectedLicense.base_price;
 
   if (!hasSupabaseEnv || env.demoMode) {
     const orderId = `ord_demo_${Date.now()}`;
@@ -68,50 +70,23 @@ export async function createOrderAction(formData: FormData) {
   }
 
   const supabase = await createPrivilegedSupabaseClient();
-  const { data: latestPendingOrder } = await supabase
-    .from("orders")
-    .select("id, stripe_checkout_session_id, amount_cents, currency")
-    .eq("buyer_user_id", user.id)
-    .eq("track_id", trackId)
-    .eq("license_type_id", licenseTypeId)
-    .eq("status", "pending")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const paymentRuntime = getPaymentRuntimeConfiguration();
-  const existingPendingOrder =
-    latestPendingOrder?.stripe_checkout_session_id &&
-    canReusePendingOrderForPaymentMode(latestPendingOrder.stripe_checkout_session_id, paymentRuntime.paymentMode)
-      ? latestPendingOrder
-      : null;
-
-  const createdNewOrder = !existingPendingOrder?.id;
-  const orderId = existingPendingOrder?.id || crypto.randomUUID();
-  const amountCents = Math.round(amountPaid * 100);
+  let reservation;
+  try {
+    const buyerClient = await createServerSupabaseClient();
+    const quote = await readPurchaseQuote(buyerClient, String(formData.get("quoteId") || ""));
+    if (quote.schedule.track.id !== trackId || quote.schedule.license.id !== licenseTypeId) throw new Error("Transaction selection mismatch.");
+    reservation = await acceptPurchaseQuote(buyerClient, formData);
+  } catch {
+    redirect(`/buyer/checkout/${trackSlug}?error=${encodeURIComponent("Checkout requires reconciliation. Check your purchases or contact support before retrying.")}`);
+  }
+  const createdNewOrder = reservation.created_new;
+  const orderId = reservation.id;
+  const amountCents = reservation.amount_cents;
   let checkoutSessionId: string | null = null;
+  let checkoutCreationStarted = false;
 
   try {
     if (createdNewOrder) {
-      const { data: order, error } = await supabase
-        .from("orders")
-        .insert({
-          id: orderId,
-          buyer_user_id: user.id,
-          track_id: trackId,
-          license_type_id: licenseTypeId,
-          amount_cents: amountCents,
-          currency: "USD",
-          status: "pending",
-          agreement_url: null
-        })
-        .select("id")
-        .single();
-
-      if (error || !order) {
-        throw new Error(error?.message || "Unable to create order.");
-      }
-
       await appendOrderActivityLog(supabase, {
         orderId,
         actorId: user.id,
@@ -125,36 +100,6 @@ export async function createOrderAction(formData: FormData) {
           ...getPaymentActivityMetadata()
         }
       }).catch(() => undefined);
-    } else if (
-      Number((existingPendingOrder as any).amount_cents) !== amountCents ||
-      String((existingPendingOrder as any).currency || "").toUpperCase() !== "USD"
-    ) {
-      const { error: reconcileError } = await supabase
-        .from("orders")
-        .update({
-          amount_cents: amountCents,
-          currency: "USD"
-        })
-        .eq("id", orderId)
-        .eq("status", "pending");
-
-      if (reconcileError) {
-        throw new Error(reconcileError.message);
-      }
-
-      await appendOrderActivityLog(supabase, {
-        orderId,
-        actorId: user.id,
-        source: "system",
-        eventType: "checkout_price_reconciled",
-        message: "Pending order price was reconciled to the trusted license price before checkout.",
-        metadata: {
-          storedAmountCents: Number((existingPendingOrder as any).amount_cents || 0),
-          storedCurrency: String((existingPendingOrder as any).currency || ""),
-          trustedAmountCents: amountCents,
-          trustedCurrency: "USD"
-        }
-      }).catch(() => undefined);
     }
 
     // The user-facing checkout form is the canonical purchase entry point. If
@@ -163,6 +108,9 @@ export async function createOrderAction(formData: FormData) {
     // preserves the legacy flow; an invalid enabled configuration fails closed.
     await preparePurchaseCompletionCheckout(orderId);
 
+    // A thrown request can still have created a provider session. Retain its
+    // local order reference so a later verified webhook can reconcile it.
+    checkoutCreationStarted = true;
     const session = await createStripeCheckoutSession({
       orderId,
       trackTitle: track.title,
@@ -229,17 +177,32 @@ export async function createOrderAction(formData: FormData) {
       throw new Error("Stripe did not return a hosted checkout URL.");
     }
 
+    await captureCheckoutStarted(user.id, orderId, trackId, selectedLicense.slug, session);
     redirect(session.url);
   } catch (checkoutError) {
     unstable_rethrow(checkoutError);
+    await captureForUser(user.id, "funnel_step_failed", { step: "checkout", error_code: "checkout_failed", retryable: true });
 
-    if (!checkoutSessionId && createdNewOrder) {
-      await supabase.from("orders").delete().eq("id", orderId);
+    // Accepted legal evidence is retained even if preparation fails before the
+    // provider call. Retry the original accepted quote; never delete its order.
+
+    const creationUnconfirmed = checkoutCreationStarted && !checkoutSessionId;
+    if (creationUnconfirmed) {
+      await appendOrderActivityLog(supabase, {
+        orderId,
+        actorId: user.id,
+        source: "system",
+        eventType: "checkout_creation_unconfirmed",
+        message: "Checkout creation could not be confirmed; pending order retained for reconciliation.",
+        metadata: { requiresReconciliation: true, ...getPaymentActivityMetadata() }
+      }).catch(() => undefined);
     }
 
     redirect(
       `/buyer/checkout/${trackSlug}?error=${encodeURIComponent(
-        checkoutError instanceof Error ? checkoutError.message : "Unable to start Stripe checkout."
+        creationUnconfirmed
+          ? "Checkout could not be confirmed. Your pending order was preserved. Check your purchases or contact support before trying again."
+          : checkoutError instanceof Error ? checkoutError.message : "Unable to start Stripe checkout."
       )}`
     );
   }
@@ -259,30 +222,19 @@ export async function toggleFavoriteAction(formData: FormData) {
     revalidatePath("/buyer/dashboard");
     revalidatePath("/buyer/favorites");
     revalidatePath("/buyer/catalog");
-    if (revalidatePathname) revalidatePath(revalidatePathname);
+    if (/^\/buyer\/(?:catalog|favorites|artists)(?:\/[a-zA-Z0-9_-]+)?$/.test(revalidatePathname)) revalidatePath(revalidatePathname);
     return;
   }
 
-  const supabase = await createPrivilegedSupabaseClient();
-
-  if (nextValue === "true") {
-    const { error } = await supabase.from("favorites").upsert(
-      {
-        buyer_user_id: user.id,
-        track_id: trackId
-      },
-      { onConflict: "buyer_user_id,track_id" }
-    );
-    if (error) return { error: "Unable to save this favorite." };
-  } else {
-    const { error } = await supabase.from("favorites").delete().eq("buyer_user_id", user.id).eq("track_id", trackId);
-    if (error) return { error: "Unable to remove this favorite." };
-  }
+  if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(trackId) || !["true","false"].includes(nextValue)) return {error:"Invalid favorite selection."};
+  const supabase = await createServerSupabaseClient();
+  const {error}=await (supabase as unknown as {rpc:(name:string,args:Record<string,unknown>)=>PromiseLike<{error:unknown}>}).rpc("marketplace_set_favorite",{p_track:trackId,p_value:nextValue==="true"});
+  if(error)return {error:"Unable to update this favorite. The track may no longer be available."};
 
   revalidatePath("/buyer/dashboard");
   revalidatePath("/buyer/favorites");
   revalidatePath("/buyer/catalog");
-  if (revalidatePathname) revalidatePath(revalidatePathname);
+  if (/^\/buyer\/(?:catalog|favorites|artists)(?:\/[a-zA-Z0-9_-]+)?$/.test(revalidatePathname)) revalidatePath(revalidatePathname);
 }
 
 async function requireBuyerUser(): Promise<SessionUser> {

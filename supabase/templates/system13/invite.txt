@@ -1,0 +1,7 @@
+Accept your account invitation
+
+Continue to review this account invitation.
+
+{{ .SiteURL }}/auth/email-action?flow=invite&type=invite&token_hash={{ .TokenHash }}&next=/login
+
+Request a new link if it has expired.

@@ -52,12 +52,13 @@ export function SignupRoleForm({
 
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
-          <Input id="password" name="password" type="password" autoComplete="new-password" aria-describedby="password-help" placeholder="Create a secure password" required className="h-11" />
-          <p id="password-help" className="text-sm text-muted-foreground">Use a new password. A password manager can make one for you.</p>
+          <Input id="password" name="password" type="password" minLength={12} maxLength={72} autoComplete="new-password" aria-describedby="password-help" placeholder="Create a secure password" required className="h-11" />
+          <p id="password-help" className="text-sm text-muted-foreground">Use at least 12 characters. A password manager can make one for you.</p>
         </div>
 
         <div className="rounded-md border border-border bg-muted/50 p-3 text-sm text-muted-foreground">{helper}</div>
 
+        <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="analyticsConsent" value="analytics-optional-v1" className="mt-1" /><span>Optional: share pseudonymous product activity to help improve TSE. No messages, audio, rights documents, or payment details. You can withdraw in <a href="/account/analytics" className="underline">Analytics preferences</a>. See our <a href="/privacy" className="underline">Privacy Policy</a>.</span></label>
         <FormSubmitButton className="w-full" pendingLabel={`${submitLabel}...`}>
           {submitLabel}
         </FormSubmitButton>

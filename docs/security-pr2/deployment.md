@@ -7,7 +7,7 @@ The historical [PR #18 reconciliation checkpoint](staging-rollout/reconciliation
 ## Evidence and repository integrity
 
 - Approved historical baseline: `35062fb`, based on deployed `4e47997`.
-- Current expected effects: ordered 31-file [migration manifest](migration-manifest.json). The historical 21 SQL files remain byte-for-byte unchanged; ten forward migrations extend the reviewed security and purchase-completion contracts.
+- Current expected effects: ordered 31-file [migration manifest](migration-manifest.json). Twenty of the historical 21 SQL files remain byte-for-byte unchanged. Migration `0011` now checks the provider's existing Storage RLS instead of attempting owner-only `ALTER TABLE`; its policy body is unchanged. Ten forward migrations extend the reviewed security and purchase-completion contracts.
 - [Read-only inventory](../../scripts/artist-baseline/inventory.sql) captures tables/columns/constraints/indexes/views/functions/triggers/policies/grants/buckets/ledger, not customer rows.
 - [Preflight](../../scripts/security-pr2/preflight.mjs) replays canonical SQL in an isolated in-memory PostgreSQL instance. It does not open a network connection.
 
@@ -15,6 +15,7 @@ The historical [PR #18 reconciliation checkpoint](staging-rollout/reconciliation
 npm run verify:security-baseline
 npm run test:artist-security:gate
 npm run test:security-pr2
+npm run test:storage-ownership
 node scripts/security-pr2/preflight.mjs --capture /absolute/path/to/catalog-export.json --report /absolute/path/to/drift-report.json
 ```
 
@@ -34,6 +35,56 @@ Production records only `20260913180113 / 0021_rate_limit_foundation`, despite i
 6. Until that operation is reviewed, deploy by the explicit approved forward-file list and integrity manifest. The manifest describes expected state; the ledger describes observed execution history. Neither is a substitute for the other.
 
 Fresh projects should use a reviewed baseline provisioning plan that respects this duplicate-version history. Do not use the retired manual bundle as a shortcut.
+
+## Managed Storage ownership and dedicated analytics staging recovery
+
+Supabase owns `storage.objects` and `storage.buckets` as `supabase_storage_admin`
+and enables RLS. The application migration actor `postgres` is not their owner
+or a superuser. The platform's `supautils.policy_grants` permits policy DDL;
+`supautils.drop_trigger_grants` permits trigger removal. Existing TRIGGER and
+REFERENCES grants permit trigger creation and foreign keys. None authorizes
+changing Storage ownership or toggling its RLS. See the official
+[platform restrictions](https://supabase.com/changelog/34270-restricting-access-on-auth-storage-and-realtime-schemas-on-april-21-2025)
+and [policy-grant implementation](https://github.com/supabase/supautils#table-ownership-bypass).
+
+`test:storage-ownership` is a required additional baseline gate. It uses a pinned,
+already-cached Supabase PostgreSQL image with the real supautils library, separate
+managed owners, pre-enabled RLS, and a non-superuser migration actor with no owner
+membership. It reproduces the rejected ALTER, replays all 31 non-analytics files
+unchanged on both fresh and partially initialized databases, and checks role
+boundaries. The lightweight PGlite tests alone do not establish hosted ownership
+compatibility. This test needs local Docker; it publishes no ports, mounts no host
+files, accepts no hosted configuration, and destroys its disposable containers.
+
+For `oppijylbkcbiqfuvckgj` only, read-only inspection found 11 recorded migrations
+through `0010_order_fulfillment_hardening`, no Storage policies, and no marketplace
+data. The old `0011` failed at its first statement; it has no ledger entry and no
+partial policy effects. No cleanup or ledger repair is needed for that observed
+state. Reconfirm the state immediately before any separately authorized resumption.
+
+1. Confirm project ID/name/organization/region/health and the exact existing 11-entry
+   ledger; stop on drift. Keep the application disconnected and analytics disabled.
+2. Verify all 31 current manifest hashes. The already-applied files 1–11 must remain
+   byte-identical. Record `0011`'s old SHA-256
+   `b036c1a7cb546f7c7ce35eaffa68142019b81e9f9800aeb917b352b38f02371c`
+   as the failed attempt, and the corrected manifest hash as the pending source.
+   Preserve the prior pgcrypto correction and the historical capture hashes.
+3. After separate approval, apply corrected `0011` and then manifest positions
+   13–31 individually using the explicitly targeted migration API. Record the actual
+   returned hosted version/name and source checksum after each success. Stop at the
+   first error; no auto-repair, blanket push, reset, or invented ledger entries.
+4. Exclude both analytics migrations. Verify final schema, grants, Storage policies,
+   immutable-media triggers, managed ownership/RLS, disabled capabilities, empty
+   marketplace data, analytics absence, and the final 31-entry ledger.
+5. The five legacy buckets remain a separately approved Storage API setup step;
+   baseline migration 28 provisions the two private commerce buckets. This ownership
+   correction changes neither bucket provisioning nor the reviewed CRUD contracts.
+
+For a new clean Supabase project, verify the same provider prerequisites and apply
+manifest positions 1–31. A later corrective migration cannot fix an earlier clean
+installation failure, so the narrowly changed historical `0011` is used for both
+paths. Do not replay it on existing production/shared environments. No recovery
+operation or hosted write is authorized by this document.
 
 ## Forward deployment sequence — approval required
 

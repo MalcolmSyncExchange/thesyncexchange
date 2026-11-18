@@ -137,7 +137,8 @@ async function runWebhookRoute(livemode) {
       requestGateDRevocation: async () => null,
       runGateDAcceptanceJobs: async () => null
     },
-    "@/services/stripe/server": {
+    "@/services/analytics/purchase": { recordVerifiedPurchase: async () => {} },
+  "@/services/stripe/server": {
       getStripeServerClient: () => stripe,
       markOrderCheckoutSessionPaymentFailed: async () => null,
       markOrderRefundedByPaymentIntent: async () => null,
@@ -148,7 +149,7 @@ async function runWebhookRoute(livemode) {
     module: routeModule,
     exports: routeModule.exports,
     Response,
-    Request,
+    Request,Buffer,TextDecoder,
     console,
     process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
     require(name) {

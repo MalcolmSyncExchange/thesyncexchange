@@ -1,0 +1,29 @@
+{
+  "baseline": "53683b53a47a6b21641573318b395411523a0970",
+  "scope": "Local qualification remediation only; original fixed authorization is not renewed or rearmed",
+  "implementation": {
+    "encryption": "AES-256-GCM with a fresh random nonce per record; authenticated source commit, environment, operator, authorization, run, time and key reference",
+    "custody": "Explicit injected 32-byte key provider; no automatic environment, Keychain, network or credential discovery",
+    "baseline": "Use createDurablePreservationSession so snapshot collector and encrypted baseline share the exact same per-run HMAC key",
+    "persistence": "0700 caller-owned parent/run directories; exclusive run claim; 0600 exclusive no-follow record creation; file and directory fsync; verified decrypt/readback before login and POST",
+    "sequence": "One baseline, authorization and single POST intent; encrypted postflight and terminal records; ciphertext hash chain",
+    "recovery": "recoverDurablePreservation restores original HMAC key and collects read-only current state; never logs in, arms, retries or submits an event",
+    "health": "Mandatory snapshot collection precedes optional health; optional health has bounded timeout; public postflight artifact failure cannot suppress private capture",
+    "exceptions": "Missing/corrupt evidence, wrong scope/key, failed persistence and existing runs fail closed; ambiguous intent requires operator reconciliation, never automatic resubmission"
+  },
+  "trustLimits": [
+    "An injected provider must retain the key independently of the execution process. Local synthetic key-file tests are not hosted custody approval.",
+    "Local encryption/hash chaining does not detect deletion or rollback of an entire valid suffix without an independently retained receipt/anchor. Protect and back up the evidence directory, key and latest receipt under separate custody.",
+    "This protects against accidental loss and unauthorized readers without the key; an attacker controlling the same OS identity, runtime and custody provider is outside this local file-store boundary.",
+    "Run identity must be allocated and retained by the authorized operator. Do not create a new run to replay an uncertain historical authorization.",
+    "No prior missing historical evidence is reconstructed or retroactively accepted by this implementation. PH2-CORE-EVIDENCE-001 remains open.",
+    "Snapshot readers and key providers are trusted injected dependencies. Independent review and environment-specific retention/restore drills remain required."
+  ],
+  "reproduction": [
+    "npm ci --offline (only with an already approved, populated cache; do not replace the lockfile)",
+    "npm run test:durable-evidence",
+    "npm run test:release-recovery",
+    "npm run qualify:local -- --output /absolute/local/qualification-evidence"
+  ],
+  "hostedBoundary": "No hosted command was introduced or executed. No database, Storage policy, migration or product capability change is required by this remediation."
+}

@@ -1,16 +1,19 @@
+import { fulfillmentRecoveryRpc } from "@/services/orders/fulfillment-recovery";
 import { env } from "@/lib/env";
 import { buildPaymentClassification, getStripeCheckoutSessionMode } from "@/lib/payment-mode.mjs";
 import { getPaymentRuntimeConfiguration } from "@/lib/server-env";
 import { getAgreementAccessUrl } from "@/lib/license";
-import { buildAgreementNumber, buildGeneratedLicenseTermsSnapshot } from "@/lib/licenses/generated-license-snapshot";
-import { type GeneratedLicenseTermsSnapshot, renderSyncLicenseAgreementHtml, renderSyncLicenseAgreementPdf } from "@/lib/licenses/templates/sync-license-template";
+import { buildAgreementNumber } from "@/lib/licenses/generated-license-snapshot";
+import { buildAcceptedPurchaseLicense } from "@/lib/licenses/accepted-purchase-snapshot";
+import { licensingRpc, type AcceptedPurchase } from "@/services/licensing/purchases";
+import { createHash } from "node:crypto";
+import { renderSyncLicenseAgreementHtml, renderSyncLicenseAgreementPdf } from "@/lib/licenses/templates/sync-license-template";
 import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
 import { storageBuckets } from "@/lib/storage";
 import { appendOrderActivityLog } from "@/services/orders/activity";
 import {
   buildGeneratedLicenseStoragePath,
   loadGeneratedLicenseByOrderId,
-  persistGeneratedLicenseFailure,
   persistGeneratedLicenseSuccess
 } from "@/services/generated-licenses/server";
 import { createSignedStorageUrl } from "@/services/storage/server";
@@ -55,7 +58,7 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
 
   const existingGeneratedLicense = await loadGeneratedLicenseByOrderId(supabase, orderId);
   const agreementNumber = existingGeneratedLicense?.agreement_number || buildAgreementNumber({ orderId, createdAt: normalizedOrder.created_at });
-  const agreementPath =
+  let agreementPath =
     existingGeneratedLicense?.pdf_storage_path ||
     buildGeneratedLicenseStoragePath({
       buyerId: normalizedOrder.buyer_user_id,
@@ -88,24 +91,12 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
     throw new Error("Stripe-verified payment evidence is required before generating an agreement.");
   }
 
-  const { data: buyerProfile } = (await supabase
-    .from("user_profiles")
-    .select("full_name, email")
-    .eq("id", normalizedOrder.buyer_user_id)
-    .maybeSingle()) as {
-    data: Pick<Database["public"]["Tables"]["user_profiles"]["Row"], "full_name" | "email"> | null;
-  };
-  const { data: buyerCompanyProfile } = await supabase
-    .from("buyer_profiles")
-    .select("company_name, billing_email")
-    .eq("user_id", normalizedOrder.buyer_user_id)
-    .maybeSingle();
-  const artistUserId = normalizedOrder.tracks?.artist_user_id;
-  const { data: artistProfile } = artistUserId
-    ? await supabase.from("artist_profiles").select("artist_name").eq("user_id", artistUserId).maybeSingle()
-    : { data: null };
+  // One durable job per order; a stale worker writes a token-specific object,
+  // then must pass database fencing before it can publish its artifact pointer.
+  const recoveryToken = await fulfillmentRecoveryRpc(supabase, "claim_order_agreement_job", { p_order: orderId });
+  if (typeof recoveryToken !== "string") throw new Error("Agreement generation is awaiting recovery.");
+  agreementPath = `${normalizedOrder.buyer_user_id}/${orderId}/${recoveryToken}.pdf`;
 
-  let failedSnapshot: GeneratedLicenseTermsSnapshot | null = null;
   let htmlSnapshot: string | null = null;
   const generatedAt = normalizedOrder.agreement_generated_at || existingGeneratedLicense?.generated_at || new Date().toISOString();
   const payment = resolveAgreementPaymentClassification({
@@ -114,44 +105,18 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
   });
 
   try {
-    const snapshot = buildGeneratedLicenseTermsSnapshot({
-      agreementNumber,
-      context: {
-        orderId: normalizedOrder.id,
-        buyerId: normalizedOrder.buyer_user_id,
-        trackId: normalizedOrder.track_id,
-        licenseTypeId: normalizedOrder.license_type_id,
-        amountCents: Number(normalizedOrder.amount_cents || 0),
-        currency: String(normalizedOrder.currency || "USD"),
-        createdAt: normalizedOrder.created_at,
-        paidAt: normalizedOrder.paid_at,
-        stripeCheckoutSessionId: normalizedOrder.stripe_checkout_session_id,
-        stripePaymentIntentId: normalizedOrder.stripe_payment_intent_id,
-        payment,
-        trackTitle: normalizedOrder.tracks?.title || "Selected Track",
-        artistName: artistProfile?.artist_name || "The Sync Exchange Artist",
-        buyerLegalName: buyerProfile?.full_name || "Buyer",
-        buyerCompanyName: buyerCompanyProfile?.company_name || null,
-        buyerEmail: buyerCompanyProfile?.billing_email || buyerProfile?.email || "billing@client.example",
-        licenseTypeName: normalizedOrder.license_types?.name || "License",
-        licenseTypeSlug: normalizedOrder.license_types?.slug || null,
-        licenseTermsSummary: normalizedOrder.license_types?.terms_summary || normalizedOrder.license_types?.description || "Sync license terms as recorded by The Sync Exchange at purchase time.",
-        licenseExclusive: Boolean(normalizedOrder.license_types?.exclusive),
-        rightsHolders: (normalizedOrder.tracks?.rights_holders || []).map((holder) => ({
-          name: holder.name,
-          roleType: holder.role_type,
-          ownershipPercent: Number(holder.ownership_percent || 0)
-        }))
-      }
-    });
-    failedSnapshot = snapshot;
+    const accepted = await licensingRpc<AcceptedPurchase>(supabase, "read_accepted_purchase", { p_order: orderId });
+    const snapshot = buildAcceptedPurchaseLicense({ accepted, agreementNumber, payment,
+      paidAt: normalizedOrder.paid_at!, sessionId: normalizedOrder.stripe_checkout_session_id!, intentId: normalizedOrder.stripe_payment_intent_id! });
     htmlSnapshot = renderSyncLicenseAgreementHtml(snapshot);
-    const pdf = renderSyncLicenseAgreementPdf(snapshot);
+    const pdf = await renderSyncLicenseAgreementPdf(snapshot);
+    snapshot.pdfSha256 = createHash("sha256").update(pdf).digest("hex");
+    snapshot.htmlSha256 = createHash("sha256").update(htmlSnapshot).digest("hex");
     const contentType = "application/pdf";
     const sizeBytes = pdf.byteLength;
 
     const { error: uploadError } = await supabase.storage.from(env.agreementsBucket).upload(agreementPath, pdf, {
-      upsert: true,
+      upsert: false,
       contentType
     });
 
@@ -161,6 +126,7 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
 
     const nextStatus = normalizedOrder.status === "refunded" ? "refunded" : "fulfilled";
     const persistedGeneratedLicense = await persistGeneratedLicenseSuccess(supabase, {
+      recoveryToken,
       existing: existingGeneratedLicense,
       orderId,
       buyerId: normalizedOrder.buyer_user_id,
@@ -229,27 +195,9 @@ export async function generateAgreementArtifactForOrder(orderId: string, options
   } catch (error) {
     const message = error instanceof Error ? error.message : "Agreement generation failed.";
 
-    await persistGeneratedLicenseFailure(supabase, {
-      existing: existingGeneratedLicense,
-      orderId,
-      buyerId: normalizedOrder.buyer_user_id,
-      trackId: normalizedOrder.track_id,
-      licenseTypeId: normalizedOrder.license_type_id,
-      agreementNumber,
-      snapshot: failedSnapshot,
-      pdfStoragePath: agreementPath,
-      htmlSnapshot,
-      generatedAt,
-      generationError: message
-    }).catch(() => undefined);
-
-    await persistAgreementFailureState(supabase, {
-      orderId,
-      agreementPath,
-      message,
-      fulfilledAt: normalizedOrder.status === "refunded" ? normalizedOrder.fulfilled_at : null,
-      nextStatus: normalizedOrder.status === "refunded" ? "refunded" : "paid"
-    });
+    // A failed/stale worker cannot upsert over another worker's successful
+    // license or regress a refund. Retain payment evidence and retry the job.
+    await fulfillmentRecoveryRpc(supabase, "finish_order_agreement_job", { p_order: orderId, p_token: recoveryToken, p_payload: null }).catch(() => undefined);
 
     await appendOrderActivityLog(supabase, {
       orderId,
@@ -489,7 +437,7 @@ async function persistAgreementSuccessState(
       fulfilled_at: fulfilledAt,
       status: nextStatus
     })
-    .eq("id", orderId);
+    .eq("id", orderId).in("status", ["paid", "fulfilled"]);
 
   if (!primary.error) {
     return nextStatus;
@@ -513,64 +461,11 @@ async function persistAgreementSuccessState(
       fulfilled_at: nextStatus === "refunded" ? fulfilledAt : null,
       status: fallbackStatus
     })
-    .eq("id", orderId);
+    .eq("id", orderId).in("status", ["paid", "fulfilled"]);
 
   if (fallback.error) {
     throw new Error(fallback.error.message);
   }
 
   return fallbackStatus;
-}
-
-async function persistAgreementFailureState(
-  supabase: NonNullable<ReturnType<typeof createAdminSupabaseClient>>,
-  {
-    orderId,
-    agreementPath,
-    message,
-    fulfilledAt,
-    nextStatus
-  }: {
-    orderId: string;
-    agreementPath: string;
-    message: string;
-    fulfilledAt: string | null | undefined;
-    nextStatus: "paid" | "refunded";
-  }
-) {
-  const primary = await supabase
-    .from("orders")
-    .update({
-      agreement_path: agreementPath,
-      agreement_generation_error: message,
-      fulfilled_at: fulfilledAt,
-      status: nextStatus
-    })
-    .eq("id", orderId);
-
-  if (!primary.error) {
-    return;
-  }
-
-  if (!isMissingColumnError(primary.error, ["agreement_path", "agreement_generation_error"])) {
-    throw new Error(primary.error.message);
-  }
-
-  warnSchemaFallbackOnce(
-    "order-fulfillment-failure-write",
-    "Agreement failure metadata columns are not available yet; order status will fall back to legacy fields until migration 0010 is applied.",
-    primary.error
-  );
-
-  const fallback = await supabase
-    .from("orders")
-    .update({
-      fulfilled_at: fulfilledAt,
-      status: nextStatus
-    })
-    .eq("id", orderId);
-
-  if (fallback.error) {
-    throw new Error(fallback.error.message);
-  }
 }

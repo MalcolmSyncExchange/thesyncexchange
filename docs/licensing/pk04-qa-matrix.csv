@@ -1,0 +1,19 @@
+Case ID,Scenario,Local evidence / planned validation,Formal Status,Release gate
+PK04-QA-01,Complete canonical source-to-delivery chain,immutable-source-integration.test.mjs; actual copy and delivery handlers,Not Run,Private Beta; founder approval required
+PK04-QA-02,Unreviewed source or missing deliverable association,immutable-source-integration.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-03,Master byte hash and destination readback integrity,immutable-source-copy.test.mjs; source-copy SQL test,Not Run,Private Beta; founder approval required
+PK04-QA-04,Unknown copy response; same destination verified without overwrite,immutable-source-copy.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-05,Asset/source replacement before assent and issuance,immutable-source-integration.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-06,Issued license historical bytes after replacement,immutable-source-integration.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-07,Metadata edit/revert; original accepted legal facts,immutable-source-integration.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-08,"Rights revocation, owner change and catalog withdrawal",purchase-legal-snapshot.test.mjs; immutable-source-integration.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-09,"Missing, public, mismatched or deleted source",immutable-source-integration.test.mjs; Storage HTTP Not Run,Not Run,Private Beta; founder approval required
+PK04-QA-10,"Unauthorized role, direct private-schema access and forged Admin",immutable-source-integration.test.mjs; security-pr2 suites,Not Run,Private Beta; founder approval required
+PK04-QA-11,Concurrent catalog edit versus Buyer acceptance,immutable-source-concurrency.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-12,Concurrent source restriction versus final byte release,immutable-source-concurrency.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-13,"Refund, partial refund, dispute, failed payment and late replay",immutable-source-integration.test.mjs; preserved PK07/08 suites,Not Run,Private Beta; founder approval required
+PK04-QA-14,"Interrupted copy, download failure and retry",immutable-source-copy.test.mjs; immutable-source-integration.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-15,Immutable audit/history and original agreement access,immutable-source-integration.test.mjs; agreement-download.test.mjs,Not Run,Private Beta; founder approval required
+PK04-QA-16,"Real decoder, Storage HTTP and non-superuser provider installation",Canonical dependency proof separate; hosted acceptance Not Run,Not Run,Private Beta; founder approval required
+PK04-QA-17,Maximum-size/cold start/TLS/session/ticket broker rehearsal,pk08-hosted-rehearsal-plan.md H0–H3; Not Run,Not Run,Private Beta; founder approval required
+PK04-QA-18,Actual Safari/mobile/keyboard/screen reader and independent review,pk08-hosted-rehearsal-plan.md H4–H5; Not Run,Not Run,Private Beta; founder approval required

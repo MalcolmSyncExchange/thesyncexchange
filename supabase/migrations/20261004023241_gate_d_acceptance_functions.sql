@@ -460,9 +460,9 @@ begin
       to_jsonb(p_app_url || '/license-confirmation/' || g.order_id::text ||
         '?session_id={CHECKOUT_SESSION_ID}')::text || '}';
   if g.stripe_parameters_sha256 is null then
-    g.stripe_parameters_sha256 := encode(public.digest(canonical_parameters,'sha256'),'hex');
+    g.stripe_parameters_sha256 := encode(extensions.digest(canonical_parameters,'sha256'),'hex');
   elsif g.stripe_request_spec is distinct from canonical_parameters
-     or g.stripe_parameters_sha256 is distinct from encode(public.digest(canonical_parameters,'sha256'),'hex') then
+     or g.stripe_parameters_sha256 is distinct from encode(extensions.digest(canonical_parameters,'sha256'),'hex') then
     raise exception 'Gate D Stripe parameter digest mismatch' using errcode = '23514';
   end if;
 

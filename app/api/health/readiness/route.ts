@@ -6,6 +6,8 @@ import { storageBuckets } from "@/lib/storage";
 import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 import { isMissingColumnError, isMissingRelationError, isSchemaCacheTableError } from "@/services/supabase/schema-compat";
+import { blockingOperationalKeys, blockingHealthIssues } from "@/lib/health/payment-readiness";
+import { getHealthPaymentReadiness } from "@/services/health/payment-readiness";
 
 type CapabilityStatus = "available" | "degraded" | "blocked";
 type ReadinessStatus = "healthy" | "degraded" | "blocked";
@@ -23,7 +25,7 @@ type CapabilityReport = {
 };
 
 type DomainReport = {
-  status: CapabilityStatus;
+  status: CapabilityStatus | "disabled";
   summary: string;
 };
 
@@ -44,6 +46,9 @@ export async function GET() {
   const missingCore = getMissingCoreEnvKeys();
   const missingOperational = getMissingOperationalEnvKeys();
   const environment = getServerEnvironmentDiagnostics();
+  const paymentReadiness = await getHealthPaymentReadiness();
+  const paymentDisabled = !paymentReadiness.credentialsRequired;
+  const blockingOperational = blockingOperationalKeys(missingOperational, paymentDisabled);
   const notes: string[] = [];
   if (!maintenance.valid) notes.push("Maintenance mode configuration is invalid.");
 
@@ -314,8 +319,9 @@ export async function GET() {
     storage,
     capabilities,
     missingCore,
-    missingOperational,
-    paymentMode: environment.paymentMode
+    missingOperational: blockingOperational,
+    paymentMode: environment.paymentMode,
+    paymentDisabled
   });
   const blockedDomains = Object.entries(domains)
     .filter(([, value]) => value.status === "blocked")
@@ -323,15 +329,17 @@ export async function GET() {
   const degradedDomains = Object.entries(domains)
     .filter(([, value]) => value.status === "degraded")
     .map(([key]) => key);
-  const criticalOperationalMissing = missingOperational.filter((key) =>
+  const criticalOperationalMissing = blockingOperational.filter((key) =>
     ["SUPABASE_SERVICE_ROLE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].includes(key)
   );
-  const environmentHasBlockingErrors = environment.errors.length > 0 || !maintenance.valid;
-  const environmentHasDeploymentWarnings = environment.deploymentTarget !== "local" && environment.warnings.length > 0;
+  const environmentHasBlockingErrors = blockingHealthIssues(environment.errors, paymentDisabled).length > 0 || !maintenance.valid;
+  const disabledStripeWarnings = ["missing_stripe_secret_key", "missing_stripe_publishable_key", "missing_stripe_webhook_secret"];
+  const environmentHasDeploymentWarnings = environment.deploymentTarget !== "local" &&
+    environment.warnings.some(issue => !paymentDisabled || !disabledStripeWarnings.includes(issue.code));
   const status: ReadinessStatus =
     missingCore.length > 0 || criticalOperationalMissing.length > 0 || blockedDomains.length > 0 || environmentHasBlockingErrors
       ? "blocked"
-      : degradedDomains.length > 0 || missingOperational.length > 0 || environmentHasDeploymentWarnings
+      : degradedDomains.length > 0 || blockingOperational.length > 0 || environmentHasDeploymentWarnings
         ? "degraded"
         : "healthy";
 
@@ -350,6 +358,8 @@ export async function GET() {
       manualSupabaseActionRequired: recommendedManualAction === "review_canonical_migrations" || recommendedManualAction === "run_storage_setup",
       missingCore,
       missingOperational,
+      blockingOperational,
+      paymentReadiness,
       postgrest,
       foundationDiagnostics,
       tableDiagnostics,
@@ -692,7 +702,8 @@ function buildReadinessDomains({
   capabilities,
   missingCore,
   missingOperational,
-  paymentMode
+  paymentMode,
+  paymentDisabled
 }: {
   hasSupabaseEnv: boolean;
   storage: {
@@ -712,6 +723,7 @@ function buildReadinessDomains({
   missingCore: string[];
   missingOperational: string[];
   paymentMode: string;
+  paymentDisabled: boolean;
 }): Record<
   | "authProfile"
   | "catalog"
@@ -754,7 +766,9 @@ function buildReadinessDomains({
   const activityLog = capabilities.orderActivitySupport;
   const testPayments = paymentMode === "test";
 
-  const webhook: DomainReport = missingOperational.includes("STRIPE_SECRET_KEY") || missingOperational.includes("STRIPE_WEBHOOK_SECRET")
+  const webhook: DomainReport = paymentDisabled
+    ? { status: "disabled", summary: "Payment execution is disabled; Stripe credentials are not configured." }
+    : missingOperational.includes("STRIPE_SECRET_KEY") || missingOperational.includes("STRIPE_WEBHOOK_SECRET")
     ? {
         status: "blocked",
         summary: `Stripe ${testPayments ? "test" : "live"} secret/webhook credentials are missing, so the configured order fulfillment loop cannot complete.`
@@ -776,7 +790,9 @@ function buildReadinessDomains({
           };
 
   const domainValues = [authProfile, catalog, storageDomain, orders, generatedLicenses, agreements, activityLog, webhook];
-  const purchaseFlow: DomainReport = domainValues.some((domain) => domain.status === "blocked")
+  const purchaseFlow: DomainReport = paymentDisabled
+    ? { status: "disabled", summary: "Purchase execution is disabled; all six capabilities are OFF and Stripe credentials are absent." }
+    : domainValues.some((domain) => domain.status === "blocked")
     ? {
         status: "blocked",
         summary:

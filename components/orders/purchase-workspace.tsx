@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { DeliveryPanel } from "@/components/orders/delivery-panel";
+import { PaymentPanel } from "@/components/orders/payment-panel";
 import Image from "next/image";
 import {
   ArrowLeft,
@@ -9,6 +11,8 @@ import {
   Search,
 } from "lucide-react";
 import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
+import { LicensedAssets } from "@/components/orders/licensed-assets";
+import type { BuyerAsset } from "@/services/delivery/server";
 import { DomainStatus, StatusRow } from "@/components/ui/domain-status";
 import { Button } from "@/components/ui/button";
 import { FirstUseState } from "@/components/ui/first-use-state";
@@ -266,7 +270,7 @@ export function PurchaseEmpty({ filtered = false }: { filtered?: boolean }) {
     />
   );
 }
-export function PurchaseDetail({ purchase: p }: { purchase: Purchase }) {
+export function PurchaseDetail({ purchase: p, assets = [], assetsUnavailable = false, canceled = false }: { purchase: Purchase; assets?: BuyerAsset[]; assetsUnavailable?: boolean; canceled?: boolean }) {
   const refunded = p.payment.code === "refunded";
   return (
     <div className={styles.workspace} data-purchase-workspace>
@@ -283,6 +287,7 @@ export function PurchaseDetail({ purchase: p }: { purchase: Purchase }) {
         </div>
         <Summary purchase={p} />
       </header>
+      <PaymentPanel order={p.id} canceled={canceled}/>
       {refunded && (
         <div className={styles.banner} role="status">
           <strong>This purchase was refunded.</strong>
@@ -425,31 +430,8 @@ export function PurchaseDetail({ purchase: p }: { purchase: Purchase }) {
           <section className={styles.section}>
             <p className={styles.eyebrow}>Included delivery</p>
             <h2>Included files</h2>
-            <p id="files-delivery-reason">
-              {p.files.detail} Inclusion of optional versions is not recorded.
-            </p>
-            {[
-              "Full Master",
-              "Instrumental",
-              "Clean",
-              "Acapella",
-              "Stems",
-              "Alternate versions",
-            ].map((name) => (
-              <div className={styles.file} key={name}>
-                <FileAudio aria-hidden="true" />
-                <div>
-                  <strong>{name}</strong>
-                </div>
-                <Button
-                  variant="outline"
-                  disabled
-                  aria-describedby="files-delivery-reason"
-                >
-                  Unavailable
-                </Button>
-              </div>
-            ))}
+            <LicensedAssets orderId={p.id} assets={assets} unavailable={assetsUnavailable}/>
+            <DeliveryPanel orderId={p.id}/>
           </section>
           <section className={styles.section}>
             <p className={styles.eyebrow}>Order activity</p>

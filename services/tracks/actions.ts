@@ -1,5 +1,9 @@
 "use server";
 
+import { captureForUser } from "@/services/analytics/actor";
+import { filterProperties } from "@/lib/analytics/schema";
+import { submissionCompleted } from "@/lib/analytics/triggers";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -80,7 +84,7 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
         email: holder.email,
         role_type: holder.roleType,
         ownership_percent: holder.ownershipPercent,
-        approval_status: holder.email === user.email ? "approved" : "pending"
+        approval_status: holder.email === user.email ? "approved" as const : "pending" as const
       }))
     );
 
@@ -124,6 +128,14 @@ export async function submitTrackAction(_prevState: SubmitTrackState, formData: 
         success: false,
         message: licenseOptionError.message
       };
+    }
+
+    if (submissionCompleted(status)) {
+      const safe = filterProperties("submission_completed", {
+        track_id: track.id, is_resubmission: false,
+        ...(formData.get("analyticsSubmissionAttempt") ? { submission_attempt_id: formData.get("analyticsSubmissionAttempt") } : {})
+      });
+      if (safe) await captureForUser(user.id, "submission_completed", safe, `submission:${track.id}:created`);
     }
 
     await appendTrackAuditLog(supabase, track.id, user.id, "track_created", {
@@ -246,7 +258,7 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       email: holder.email,
       role_type: holder.roleType,
       ownership_percent: holder.ownershipPercent,
-      approval_status: holder.email === user.email ? "approved" : "pending"
+      approval_status: holder.email === user.email ? "approved" as const : "pending" as const
     }));
     const nextLicenseOptions = licenseTypes.map((licenseType: { id: string; slug: string }) => ({
       track_id: trackId,
@@ -264,6 +276,14 @@ export async function updateTrackAction(_prevState: SubmitTrackState, formData: 
       p_options: nextLicenseOptions
     });
     if (mutationError) return { success: false, message: mutationError.message };
+
+    if (submissionCompleted(status, existingTrack.status)) {
+      const safe = filterProperties("submission_completed", {
+        track_id: trackId, is_resubmission: existingTrack.status === "rejected",
+        ...(formData.get("analyticsSubmissionAttempt") ? { submission_attempt_id: formData.get("analyticsSubmissionAttempt") } : {})
+      });
+      if (safe) await captureForUser(user.id, "submission_completed", safe, `submission:${trackId}:${existingTrack.updated_at}`);
+    }
 
     // Retain superseded objects until provenance and concurrent reference-safe cleanup exist.
 

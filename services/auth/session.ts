@@ -1,3 +1,4 @@
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -20,10 +21,10 @@ const getCachedSessionUser = cache(async (): Promise<SessionUser | null> => {
     try {
       const supabase = await createServerSupabaseClient();
       const {
-        data: { user }
+        data: { user }, error
       } = await supabase.auth.getUser();
 
-      if (!user?.email) {
+      if (error || !user?.email) {
         return null;
       }
 
@@ -80,6 +81,10 @@ export async function requireSession(role?: UserRole) {
 
   if (role && user.role !== role) {
     redirect(resolveRoleRedirect(user.role));
+  }
+
+  if (user.role === "admin" && hasSupabaseEnv && !env.demoMode && !(await hasPrivilegedAssurance(await createServerSupabaseClient()))) {
+    redirect("/account/security?mfa=required");
   }
 
   if ((user.role === "artist" || user.role === "buyer") && user.onboardingComplete !== true) {
@@ -201,8 +206,9 @@ async function getPersistedUserState(
     { data: { id: string } | null }
   ];
 
+  if (userResult.error) throw new Error("Unable to verify the canonical account profile.");
   const userRow = userResult.data;
-  const role = resolveUserRole(userRow?.role) || detectPersistedRole(artistProfileResult.data, buyerProfileResult.data);
+  const role = resolveUserRole(userRow?.role);
   const fullName = String(userRow?.full_name || fallbackFullName);
   const onboardingStep = role === "admin" ? null : String(userRow?.onboarding_step || "");
   const onboardingComplete = await resolveOnboardingCompletionState(
@@ -215,7 +221,7 @@ async function getPersistedUserState(
 
   return {
     id: userId,
-    email: userRow?.email || email,
+    email,
     role,
     fullName,
     avatarPath: userRow?.avatar_path || null,
@@ -227,6 +233,7 @@ async function getPersistedUserState(
     onboardingStartedAt: userRow?.onboarding_started_at || null,
     onboardingCompletedAt: userRow?.onboarding_completed_at || null,
     onboardingStep,
+    onboardingUpdatedAt: userRow?.updated_at || null,
     onboardingData: (userRow?.onboarding_payload as Record<string, unknown> | null) || {},
     onboardingComplete
   } satisfies SessionUser;
@@ -246,12 +253,6 @@ async function resolveOnboardingCompletionState(
     hasArtistProfile: Boolean(artistProfile),
     hasBuyerProfile: Boolean(buyerProfile)
   });
-}
-
-function detectPersistedRole(artistProfile?: { id: string } | null, buyerProfile?: { id: string } | null): UserRole | null {
-  if (artistProfile && !buyerProfile) return "artist";
-  if (buyerProfile && !artistProfile) return "buyer";
-  return null;
 }
 
 function isSafeInternalPath(path: string) {

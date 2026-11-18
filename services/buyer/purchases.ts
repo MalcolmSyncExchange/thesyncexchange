@@ -23,6 +23,7 @@ import { requireSession } from "@/services/auth/session";
 import { selectUserProfileCompat } from "@/services/auth/user-profiles";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import { createPrivilegedSupabaseClient } from "@/services/supabase/privileged";
+import { readBuyerAssets } from "@/services/delivery/server";
 
 const ORDER_FIELDS =
   "id,buyer_user_id,track_id,license_type_id,status,created_at,paid_at,refunded_at,checkout_created_at,amount_cents,currency,agreement_generation_error";
@@ -41,12 +42,15 @@ async function buyerContext() {
   const profile = await selectUserProfileCompat(client, user.id);
   if (profile.error || profile.data?.role !== "buyer")
     throw new Error("Buyer access required.");
+  const active = await client.rpc("auth_session_is_active");
+  if (active.error || active.data !== true) throw new Error("Buyer access required.");
   return { user, client };
 }
 
 async function presentOwned(
   buyerId: string,
   scoped: OrderFacts[],
+  authenticated: Awaited<ReturnType<typeof createServerSupabaseClient>>,
 ): Promise<Purchase[]> {
   if (!scoped.length) return [];
   // The authenticated query has established ownership for every ID before privileged access.
@@ -109,14 +113,22 @@ async function presentOwned(
         .select("user_id,artist_name")
         .in("user_id", artistIds)
     : { data: [], error: null };
+  const paymentStates = await Promise.all(rows.map(async row => {
+    try { const { data, error } = await (authenticated as unknown as { rpc(name: string, args: object): PromiseLike<{data: unknown; error: unknown}> }).rpc("checkout_order_state", {p_order: row.id});
+      return { id: row.id, state: error ? null : data as { paymentState: string; paymentHold: boolean; verifiedPayment: boolean; recovery: string } };
+    } catch { return { id: row.id, state: null }; }
+  }));
+  const availability = await Promise.all(rows.map(async row => {
+    try { return { id: row.id, assets: await readBuyerAssets(authenticated, row.id) }; }
+    catch { return { id: row.id, assets: null }; }
+  }));
   // Display identity is optional; no private profile fields are loaded.
   // No signing, workers, payment/commerce RPCs, or audit writes occur during presentation.
   return scoped.flatMap((scope) => {
     const row = rows.find((o) => o.id === scope.id);
     if (!row) return [];
     const track = tracks.data?.find((t) => t.id === row.track_id);
-    return [
-      presentPurchase(
+    const purchase = presentPurchase(
         row,
         (licenses.data?.find((l) => l.order_id === row.id) as
           | LicenseFacts
@@ -141,8 +153,27 @@ async function presentOwned(
                 )
               : null,
         },
-      ),
-    ];
+      );
+    const payment = paymentStates.find(x => x.id === row.id)?.state;
+    if (payment) {
+      const labels: Record<string,string> = {PAID:"Payment verified",PENDING:"Awaiting payment",EXPIRED:"Checkout expired",REFUNDED:"Refunded",PARTIALLY_REFUNDED:"Partially refunded",DISPUTED:"Payment disputed",PAYMENT_FAILED:"Payment failed",SECURITY_HOLD:"Payment review required"};
+      const adverse = !["PAID","PENDING"].includes(payment.paymentState);
+      purchase.payment = {code:payment.paymentState.toLowerCase(),label:labels[payment.paymentState] || "Payment review required",detail:"Authenticated payment evidence is separate from contractual license status. Failed refund attempts do not establish a completed refund.",evidence:"authoritative",tone:adverse?"warning":payment.verifiedPayment?"success":"info"};
+      purchase.hold = {code:payment.paymentHold?"held":"clear",label:payment.paymentHold?"Delivery held for review":"No payment hold recorded",detail:"Rights and license access are checked independently at use.",evidence:"authoritative",tone:payment.paymentHold?"warning":"neutral"};
+      if (adverse || payment.paymentHold) purchase.summary = {...purchase.payment};
+    } else {
+      purchase.payment = {...purchase.payment,code:"unknown",label:"Payment status unavailable",evidence:"unknown",tone:"warning",detail:"Refresh this purchase or contact support. Current provider evidence could not be verified."};
+    }
+    const assets = availability.find(item => item.id === row.id)?.assets;
+    if (assets?.length) {
+      const ready = assets.filter(a => a.available).length;
+      purchase.files = { code: ready ? "available" : "restricted", label: ready ? `${ready} of ${assets.length} available` : "Access unavailable",
+        detail: "Only the immutable included asset entitlements are shown. Access is rechecked at download.", evidence: "authoritative", tone: ready ? "success" : "warning" };
+      if (purchase.summary.code === "partial") purchase.summary.detail = "Agreement, receipt and file availability are shown separately.";
+    } else if (assets === null) {
+      purchase.files = { ...purchase.files, evidence: "unknown", detail: "File availability could not be verified. Open this purchase and refresh or contact support." };
+    }
+    return [purchase];
   });
 }
 
@@ -224,7 +255,7 @@ export async function getBuyerPurchasePage(
     throw new Error("Purchase scope denied.");
   const page = scoped.slice(0, options.pageSize);
   return {
-    items: await presentOwned(user.id, page),
+    items: await presentOwned(user.id, page, client),
     nextCursor:
       scoped.length > options.pageSize
         ? purchaseCursor(page[page.length - 1])
@@ -250,5 +281,5 @@ export async function getBuyerPurchase(
     .maybeSingle();
   if (scope.error) throw new Error("Unable to load purchase.");
   if (!scope.data || scope.data.buyer_user_id !== user.id) return null;
-  return (await presentOwned(user.id, [scope.data as OrderFacts]))[0] || null;
+  return (await presentOwned(user.id, [scope.data as OrderFacts], client))[0] || null;
 }

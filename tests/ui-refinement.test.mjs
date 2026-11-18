@@ -24,7 +24,8 @@ test("homepage uses the latest approved messaging overlay", () => {
   assert.doesNotMatch(source, /Music to start with|Independent artists\. Distinctive tracks\./);
   assert.doesNotMatch(styles, /\.feature|\.photo/);
   assert.match(styles, /min-height: clamp\(680px, 76vh, 780px\)/);
-  assert.match(styles, /animation-timeline: scroll\(root block\)/);
+  assert.match(styles, /--hero-scroll-y/);
+  assert.match(source, /HomepageMotion/);
   assert.match(styles, /@media\(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /scale\(1\.008\)/);
   assert.match(styles, /scale\(1\.018\)/);
@@ -60,12 +61,13 @@ test("homepage hero uses a separate native mobile crop", () => {
   assert.ok(compact.byteLength < hero.byteLength);
 });
 
-test("homepage hero can request the high-quality optimized image tier", () => {
+test("homepage retains the quality tier and serves approved artwork without query-cache aliasing", () => {
   const config = read("next.config.mjs");
   const source = read("components/marketing/homepage.tsx");
 
   assert.match(config, /qualities: \[75, 90\]/);
   assert.match(source, /quality=\{90\}/);
+  assert.match(source, /<Image unoptimized src="\/images\/sync-sound-sculpture-hero\.webp"/);
   assert.match(source, /fetchPriority="high"/);
   assert.doesNotMatch(source, /\bpriority\b/);
 });

@@ -1,0 +1,32 @@
+{
+  "status": "required_future_configuration_not_applied",
+  "netlifySiteId": "d8e851a6-ab37-4b0e-9403-9b2c1be65f13",
+  "context": "deploy-preview",
+  "supabaseProject": "oppijylbkcbiqfuvckgj",
+  "posthogProject": 657650,
+  "buildsAndFunctions": {
+    "ANALYTICS_ENABLED": "false",
+    "NEXT_PUBLIC_APP_URL": "EXACT_FOUNDER_APPROVED_REPLACEMENT_HTTPS_ORIGIN_REQUIRED",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://oppijylbkcbiqfuvckgj.supabase.co",
+    "SYNC_EXCHANGE_PAYMENT_MODE": "test",
+    "SYNC_EXCHANGE_PHASE2B_PAYMENT_ADAPTER_ENABLED": "false",
+    "SYNC_EXCHANGE_BILLING_PORTAL_ENABLED": "false",
+    "SYNC_EXCHANGE_DEMO_MODE": "false"
+  },
+  "functions": { "POSTHOG_HOST": "https://us.i.posthog.com" },
+  "privateBindingChecks": [
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY belongs only to staging",
+    "SUPABASE_SERVICE_ROLE_KEY belongs only to staging; Functions scope only",
+    "POSTHOG_PREVIEW_TOKEN maps to project 657650; Functions scope only"
+  ],
+  "excluded": ["POSTHOG_PRODUCTION_TOKEN", "production Supabase credentials", "live Stripe credentials", "NEXT_PUBLIC privileged credentials"],
+  "auth": {
+    "siteUrl": "EXACT_APPROVED_REPLACEMENT_ORIGIN_REQUIRED",
+    "callback": "/auth/confirm?next=%2Fonboarding",
+    "confirmationTemplate": "Preserve approved token_hash/type=email callback and confirmation requirement",
+    "recovery": "Preserve /reset-password and existing safe-next/PKCE behavior"
+  },
+  "runtimeEvidenceRequired": true,
+  "storedValuesAreNotRuntimeProof": true,
+  "schedulerEnablement": "prohibited_without_separate_authorization"
+}

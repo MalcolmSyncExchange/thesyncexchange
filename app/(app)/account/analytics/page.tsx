@@ -1,0 +1,11 @@
+import Link from "next/link";
+import { createServerSupabaseClient } from "@/services/supabase/server";
+import { requireSession } from "@/services/auth/session";
+import { saveAnalyticsPreferences } from "@/services/analytics/preferences";
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string,string|undefined>> }) {
+ await requireSession();
+ const db=await createServerSupabaseClient(), result=await db.rpc("analytics_preferences");
+ const p=result.data as {consented?:boolean;noticeVersion?:string;deliveryEnabled?:boolean;retentionDays?:number}|null;
+ const params=await searchParams;
+ return <section className="mx-auto max-w-2xl space-y-5 rounded-xl border bg-card p-6"><h1 className="text-2xl font-semibold">Analytics preferences</h1><p>Optional product analytics use your pseudonymous account identifier and limited activity, such as searches, previews and licensing steps. We do not send names, email addresses, search text, messages, audio, rights documents, payment details or download links.</p><p>Declining does not affect access to TSE. No analytics cookies, advertising tracking, autocapture or session replay are installed. <Link className="underline" href="/privacy">Privacy Policy</Link></p>{params.saved && <p role="status">Preferences saved.</p>}{params.error && <p role="alert">Preferences could not be saved. Try again.</p>}{result.error || !p ? <p role="alert">Preferences are unavailable. Optional collection fails closed.</p> : <form action={saveAnalyticsPreferences} className="space-y-4"><input type="hidden" name="notice" value={p.noticeVersion}/><label className="flex items-start gap-3"><input className="mt-1 h-4 w-4 shrink-0" type="checkbox" name="consent" value="yes" defaultChecked={p.consented===true}/><span>I agree to optional pseudonymous product analytics as described above and in the Privacy Policy.</span></label><p>Local event retention: {p.retentionDays} days. External collection {p.deliveryEnabled ? "configured" : "disabled pending authorization and privacy review"}. Withdrawing removes local queued observations; a request to delete previously delivered provider data requires the privacy process linked above.</p><button className="rounded bg-primary px-4 py-2 text-primary-foreground">Save preferences</button></form>}</section>;
+}

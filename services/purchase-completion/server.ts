@@ -16,7 +16,8 @@ export type VerifiedStripePaymentEvidence = {
     | "checkout.session.async_payment_succeeded"
     | "checkout.session.async_payment_failed"
     | "charge.refunded"
-    | "charge.dispute.created";
+    | "charge.dispute.created"
+    | "charge.dispute.updated" | "charge.dispute.closed" | "charge.dispute.funds_withdrawn" | "charge.dispute.funds_reinstated";
   paymentState: PurchaseCompletionPaymentState;
   checkoutSessionId?: string;
   paymentIntentId: string;

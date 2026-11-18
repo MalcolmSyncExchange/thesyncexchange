@@ -69,6 +69,7 @@ export interface RightsHolder {
 }
 
 export interface LicenseType {
+  reviewed_scope?: ReviewedLicenseScope;
   id: string;
   name: string;
   slug: string;
@@ -88,6 +89,7 @@ export interface TrackLicenseOption {
 }
 
 export interface Track {
+  catalog_publication?: { state: string; visible: boolean; blockers: string[]; licenseCount: number };
   id: string;
   artist_user_id: string;
   artist_name: string;
@@ -119,7 +121,12 @@ export interface Track {
   created_at: string;
   updated_at: string;
   rights_holders: RightsHolder[];
-  license_options: Array<LicenseType & { price_override?: number | null }>;
+  license_options: Array<LicenseType & {
+    price_override?: number | null;
+    track_license_option_id?: string;
+    offer_active?: boolean;
+    amount_cents?: number;
+  }>;
   is_favorite?: boolean;
 }
 
@@ -245,9 +252,11 @@ export interface SessionUser {
   onboardingStartedAt?: string | null;
   onboardingCompletedAt?: string | null;
   onboardingData?: Record<string, unknown> | null;
+  onboardingUpdatedAt?: string | null;
 }
 
 export type ArtistPublicProfile = Omit<ArtistProfile, "payout_email">;
 export interface ArtistFinance { payout_email: string | null; legal_entity: null; }
+export type ReviewedLicenseScope = { contract?: Omit<import("@/services/licensing/purchases").LicenseContract, "pricing" | "approval"> | null; uses: string[]; territories: string[]; restrictions: string[]; excludedUses: string[]; deliverables: {kind: string; label: string}[]; noncommercialTest: boolean };
 export type BuyerRightsCredit = Pick<RightsHolder, "id" | "track_id" | "name" | "role_type" | "ownership_percent">;
-export type BuyerTrack = Omit<Track, "artist_user_id" | "audio_file_path" | "approved_at" | "approved_by" | "rights_holders"> & { artist_id?: string; rights_holders: BuyerRightsCredit[] };
+export type BuyerTrack = Omit<Track, "artist_user_id" | "audio_file_path" | "approved_at" | "approved_by" | "rights_holders"> & { artist_id?: string; catalog_metadata?: { credits: {name: string; role: string}[]; releaseTitle: string; releaseStatus: string; releaseDate: string; language: string; vocal: string; explicit: string; keywords: string[] }; rights_holders: BuyerRightsCredit[] };

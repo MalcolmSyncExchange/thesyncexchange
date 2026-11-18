@@ -1,0 +1,64 @@
+{
+  "status": "LOCAL_PACKAGE_ONLY_NOT_DEPLOYED",
+  "siteId": "e5bcc3bc-fb1d-4e46-b302-a95cc3ed70a5",
+  "manifestSha256": "f8cbb68dc6abdeb99bf3b38fbff5ab65b07b7226751653d871828e0e35c48afb",
+  "bundleSha256": "75d0461ba2ec73116da7c4f852ac5c65fc54fb1fd9da7926ed6bc3451821081f",
+  "bundleBytes": 12783986,
+  "sourceImage": "sha256:d8883208b6be77b61d4c0869f96dca3a7c9473016e20d52cecea3b14cd2b4d41",
+  "memoryMB": 1024,
+  "synchronousSeconds": 60,
+  "applicationDeadlineSeconds": 40,
+  "maximumInvocations": 1,
+  "maximumExistingCredits": 1,
+  "applicationCredentials": false,
+  "productionWrites": false,
+  "functions": [
+    {
+      "name": "packaged-media-runtime",
+      "path": "packaged-media-runtime.zip",
+      "runtime": "js",
+      "runtimeVersion": "nodejs24.x",
+      "invocationMode": "stream",
+      "routes": [
+        {
+          "pattern": "/_qualification/packaged-media-runtime",
+          "literal": "/_qualification/packaged-media-runtime",
+          "methods": [
+            "POST"
+          ]
+        }
+      ],
+      "buildData": {
+        "bootstrapVersion": "2.24.0",
+        "runtimeAPIVersion": 2
+      }
+    }
+  ],
+  "teamId": "69dd559baa411c224e5e8507",
+  "authorization": "PENDING_FOUNDER_REVIEW_DO_NOT_DEPLOY_OR_INVOKE",
+  "protectedUnpublishedOnly": true,
+  "runtime": "nodejs24.x Linux AMD64",
+  "credentials": "Existing Netlify operator session only; no application credentials or new secrets",
+  "fileTransport": "Rehearsal: synthetic local scratch only. Production proposal: lease-bound 30-second private Storage grants; hosted Storage qualification separate.",
+  "newRecurringCostUSD": 0,
+  "maximumComputeCreditsAtPlatformCeiling": 0.16666666666666666,
+  "currentProduction": "Preserve current deployment; last observed 6aded2ca28006086cbcd03c7. Refresh read-only identity before any approved execution.",
+  "rollback": "Stop invocation; keep unpublished draft team-protected. No production mutation or data cleanup.",
+  "acceptance": [
+    "exact hashes and x64 architecture",
+    "anonymous denial on every draft route",
+    "bundled Python and native confinement before parsing",
+    "synthetic WAV/waveform/AAC only if isolation passes",
+    "no credentials/Storage/production activity",
+    "one invocation, no uncertain retries, within one existing credit",
+    "evidence and production-preservation readback"
+  ],
+  "stopConditions": [
+    "missing private protection",
+    "hash/target mismatch",
+    "insufficient cost allowance",
+    "isolation unavailable",
+    "unexpected credentials/configuration requirements",
+    "production changes required"
+  ]
+}

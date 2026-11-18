@@ -1,3 +1,5 @@
+import { readPaymentRequest, PaymentError } from "@/services/orders/payment-request";
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { NextResponse } from "next/server";
 
 import { env, hasSupabaseEnv } from "@/lib/env";
@@ -40,11 +42,20 @@ export async function POST(request: Request) {
 
   const { data: profile } = await selectUserProfileCompat(authSupabase, user.id);
   const role = profile?.role;
+  if (role === "admin" && !(await hasPrivilegedAssurance(authSupabase))) {
+    return NextResponse.json({ error: "Additional authentication required." }, { status: 403 });
+  }
+  if (role === "admin") {
+    const access=await authSupabase.rpc("sec_has_capability",{p_cap:"full_admin"});
+    if(access.error||access.data!==true)return NextResponse.json({error:"Forbidden."},{status:403});
+  }
   if (role !== "artist" && role !== "admin") {
     return NextResponse.json({ error: "Only artist or admin accounts can upload track assets." }, { status: 403 });
   }
 
-  const payload = (await request.json().catch(() => null)) as {
+  let value:unknown;
+  try { value=await readPaymentRequest(request); } catch(error) { return NextResponse.json({error:"Invalid upload request."},{status:error instanceof PaymentError?error.status:400}); }
+  const payload = value as {
     kind?: StorageAssetKind;
     scope?: string;
     fileName?: string;
@@ -61,8 +72,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsupported storage asset kind." }, { status: 400 });
   }
 
-  if (!scope) {
-    return NextResponse.json({ error: "Asset scope is required for track uploads." }, { status: 400 });
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(scope)) {
+    return NextResponse.json({ error: "A valid asset scope is required for track uploads." }, { status: 400 });
   }
 
   try {

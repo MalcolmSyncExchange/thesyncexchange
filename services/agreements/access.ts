@@ -1,3 +1,4 @@
+import { hasPrivilegedAssurance } from "@/services/auth/security";
 import { NextResponse } from "next/server";
 
 import { demoUsers, licenseTypes, orders, tracks } from "@/lib/demo-data";
@@ -12,6 +13,8 @@ import { createAdminSupabaseClient } from "@/services/supabase/admin";
 import { isMissingColumnError, warnSchemaFallbackOnce } from "@/services/supabase/schema-compat";
 import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { Database } from "@/types/database";
+import { readPrivateArtifact } from "@/services/delivery/server";
+import { verifyArtifact, MAX_INLINE_BYTES } from "@/services/delivery/transfer.mjs";
 
 const privateHeaders = { "Cache-Control": "private, no-store, max-age=0", "Netlify-CDN-Cache-Control": "no-store" };
 const json = (body: object, status = 200) => NextResponse.json(body, { status, headers: privateHeaders });
@@ -22,7 +25,7 @@ export async function handleAgreementAccess(request: Request, orderId: string, d
     // Cookie authentication alone is insufficient for a mutating download authorization.
     const origin = request.headers.get("origin");
     const site = request.headers.get("sec-fetch-site");
-    if (request.method !== "POST" || origin !== new URL(request.url).origin ||
+    if (request.method !== "POST" || origin !== new URL(env.appUrl).origin ||
         (site && site !== "same-origin" && site !== "none")) {
       return json({ error: "Forbidden." }, 403);
     }
@@ -52,7 +55,10 @@ export async function handleAgreementAccess(request: Request, orderId: string, d
   if (!user?.id) return json({ error: "Unauthorized." }, 401);
   const { data: profile, error: roleError } = await selectUserProfileCompat(authSupabase, user.id);
   const role = profile?.role;
+  if (role === "admin" && !(await hasPrivilegedAssurance(authSupabase))) return json({ error: "Additional authentication required." }, 403);
   if (roleError || (role !== "buyer" && role !== "admin")) return json({ error: "Forbidden." }, 403);
+  const active = await authSupabase.rpc("auth_session_is_active");
+  if (active.error || active.data !== true) return json({ error: "Forbidden." }, 403);
   const scope = await authSupabase.from("orders").select("id, buyer_user_id").eq("id", orderId).maybeSingle();
   if (scope.error || !scope.data || (role !== "admin" && scope.data.buyer_user_id !== user.id)) {
     return json({ error: "Forbidden." }, 403);
@@ -73,6 +79,20 @@ export async function handleAgreementAccess(request: Request, orderId: string, d
   }
 
   try {
+    const snapshot = license.terms_snapshot_json as { purchaseHash?: string; pdfSha256?: string } | null;
+    if (snapshot?.purchaseHash) {
+      if (!snapshot.pdfSha256 || !license.pdf_size_bytes || license.pdf_size_bytes > MAX_INLINE_BYTES || license.pdf_content_type !== "application/pdf") {
+        return json({ error: "Agreement integrity evidence requires review. Please contact support." }, 409);
+      }
+      const expected = { sha256: snapshot.pdfSha256, byteSize: license.pdf_size_bytes };
+      const bytes = verifyArtifact(await readPrivateArtifact({ bucket: env.agreementsBucket, path: license.pdf_storage_path, byteSize: expected.byteSize, signal: request.signal }), expected);
+      await appendOrderActivityLog(supabase, {
+        orderId, actorId: user.id, requirePersistence: true, source: role === "admin" ? "admin" : "buyer",
+        eventType: "agreement_download_authorized", message: "Immutable agreement bytes verified and prepared. Client receipt is not observed.",
+        metadata: { agreementNumber: license.agreement_number, sha256: expected.sha256, transferCompletionObserved: false }
+      });
+      return new Response(bytes, { headers: { ...deliveryHeaders(orderId, "application/pdf"), "X-Content-Type-Options": "nosniff" } });
+    }
     const signedUrl = await createAgreementSignedUrl(license.pdf_storage_path, 60).catch(() => null);
     const file = signedUrl ? null : await downloadAgreementArtifact(license.pdf_storage_path);
     // One event per successful explicit authorization. A fresh explicit POST is a new authorization,

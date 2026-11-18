@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import {database,ids,quote,asActor,source} from './helpers/artist-baseline-db.mjs';
 import {classifyLegacyOrder} from '../lib/commerce/legacy-classifier.mjs';
 import {legacyRow} from './fixtures/purchase-completion/legacy-row.mjs';
+import {financialSimulation} from '../lib/commerce/alpha-financial-simulation.mjs';
+import {incorporatePurchase,claimFixtureAgreement,seedLegalReview,call as legalCall} from './helpers/purchase-legal-fixture.mjs';
 
 const buyer2='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const order2='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -43,9 +45,11 @@ async function entitlement({db,contract,asset}) {
  return service(db,()=>call(db,`commerce_private.reserve_entitlement('${contract}','${asset}')`));
 }
 async function agreement({db}) {
- await db.exec(`insert into generated_licenses(order_id,buyer_id,track_id,license_type_id,agreement_number,status,pdf_storage_path,terms_snapshot_json)
- values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}','FIXTURE-1','generated','fixture/agreement.pdf',
- '{"payment":{"paymentMode":"test","commercialRightsGranted":false},"license":{"pricePaidCents":5000,"currency":"USD"}}')`);
+ const snapshot=await incorporatePurchase(db,ids.order,{payment:{paymentMode:'test',commercialRightsGranted:false},license:{pricePaidCents:5000,currency:'USD'}});
+ const path=await claimFixtureAgreement(db,ids.order);
+ await db.exec(`insert into generated_licenses(order_id,buyer_id,track_id,license_type_id,agreement_number,status,pdf_storage_path,pdf_content_type,pdf_size_bytes,terms_snapshot_json)
+ values('${ids.order}','${ids.buyer}','${ids.live}','${ids.license}','FIXTURE-1','generated',${q(path)},'application/pdf',100,
+ ${q(JSON.stringify(snapshot))})`);
 }
 async function claim({db},task) {
  return service(db,()=>one(db,`select * from commerce_private.claim_job(${q(task)})`));
@@ -62,6 +66,34 @@ async function receipt(ctx) {
  return id;
 }
 async function withFixture(run,options) {const ctx=await setup(options);try{await run(ctx);}finally{await ctx.db.close();}}
+
+test('Alpha financial simulation connects verified foundation payment, actual entitlement activation and full-refund revocation',()=>withFixture(async ctx=>{
+ const {amount_minor:amount}=await one(ctx.db,`select amount_minor from order_delivery_contracts where id='${ctx.contract}'`);
+ const sim=financialSimulation({orderId:ids.order,amountMinor:amount,currency:'USD',commissionBps:2000,contributors:[{id:'fixture-master',bps:6000},{id:'fixture-composition',bps:4000}],policyVersion:'ALPHA-SYNTHETIC-ONLY'});
+ const simulated=(id,type,extra={})=>sim.apply({id,type,orderId:ids.order,amountMinor:amount,currency:'USD',verified:true,...extra});
+ simulated('paid','paid');await agreement(ctx);await finish(ctx,await claim(ctx,'entitlement_activation'));
+ const allowed=()=>service(ctx.db,()=>call(ctx.db,`commerce_private.can_deliver((select id from order_asset_entitlements where order_id='${ids.order}'),'${ids.buyer}')`));
+ assert.equal(await allowed(),true);assert.equal(sim.snapshot().balances.cash,amount);
+ // Signed-event adapter input is synthetic and deliberately explicit; the
+ // actual SQL hold/revocation runs in the disposable database only.
+ const e={providerEventId:'evt_alpharefund',eventType:'charge.refunded',paymentState:'REFUNDED',paymentIntentId:'pi_fixture',amountMinor:amount,refundedMinor:amount,currency:'USD',evidenceSha256:digest,providerCreatedAt:'2026-10-21T00:00:00Z',livemode:false};
+ await service(ctx.db,()=>call(ctx.db,`public.record_verified_checkout_payment('${ids.order}','${'a'.repeat(64)}:test',${q(JSON.stringify(e))})`));
+ await event(ctx,{id:'evt_alpharefund',state:'REFUNDED',type:'charge.refunded',refund:amount});
+ const s=simulated('refund','refund',{refundedMinor:amount});assert.ok(Object.values(s.balances).every(x=>x===0));
+ assert.equal(s.entitlement,'revoked');assert.equal((await one(ctx.db,'select state from order_asset_entitlements')).state,'revoked');assert.equal(await allowed(),false);
+ await event(ctx,{id:'evt_alphareplayedpaid'});assert.equal(await allowed(),false);
+ assert.equal((await one(ctx.db,'select count(*)::int n from generated_licenses')).n,1);
+ assert.equal((await one(ctx.db,'select commercial_rights_granted from order_asset_entitlements')).commercial_rights_granted,false);
+}));
+test('Alpha failed-payment simulation and late paid event never activate a license entitlement',()=>withFixture(async ctx=>{
+ const sim=financialSimulation({orderId:ids.order,amountMinor:5000,currency:'USD',commissionBps:0,contributors:[{id:'fixture',bps:10000}],policyVersion:'ALPHA-SYNTHETIC-FAILURE'});
+ sim.apply({id:'failed',type:'failed',orderId:ids.order,amountMinor:5000,currency:'USD',verified:true});
+ await event(ctx,{id:'evt_alphafailed',state:'PAYMENT_FAILED',type:'checkout.session.async_payment_failed'});
+ assert.equal(sim.snapshot().journal.length,0);assert.equal(sim.snapshot().entitlement,'none');
+ await event(ctx,{id:'evt_alphalatepaid'});
+ assert.equal((await one(ctx.db,"select count(*)::int n from order_asset_entitlements where state='active'")).n,0);
+ assert.equal((await one(ctx.db,"select count(*)::int n from commerce_private.fulfillment_jobs where task='entitlement_activation'")).n,0);
+},{paid:false}));
 
 test('capabilities default OFF; no legacy rows generated; original enum unchanged',async()=>{
  const db=await database();try{
@@ -201,6 +233,15 @@ test('Delivery predicate rechecks canonical buyer, feature gate and QA revocatio
  assert.equal(await allowed(ids.buyer),false);assert.equal((await one(ctx.db,'select state from order_asset_entitlements')).state,'suspended');
  await assert.rejects(ctx.db.exec('update commerce_private.qa_fixture_designations set revoked_at=null'),/immutable/);
 }));
+test('rights withdrawal denies existing asset delivery and reactivation without changing the accepted historical license',()=>withFixture(async ctx=>{
+ const id=await entitlement(ctx);await agreement(ctx);await finish(ctx,await claim(ctx,'entitlement_activation'));
+ const before=await legalCall(ctx.db,'read_accepted_purchase',[ids.order]);const r=await seedLegalReview(ctx.db);
+ await legalCall(ctx.db,'invalidate_licensing_review',[ids.admin,'evidence',r.evidence,'disputed','Synthetic rights investigation']);
+ assert.equal(await service(ctx.db,()=>call(ctx.db,`commerce_private.can_deliver('${id}','${ids.buyer}')`)),false);
+ await assert.rejects(ctx.db.exec(`update order_asset_entitlements set state='active' where id='${id}'`),/documentation/);
+ assert.deepEqual(await legalCall(ctx.db,'read_accepted_purchase',[ids.order]),before);
+ assert.equal((await one(ctx.db,'select count(*)::int n from generated_licenses')).n,1);
+}));
 test('Retirement suspends existing access; existing file bytes remain immutable',()=>withFixture(async ctx=>{
  await agreement(ctx);await finish(ctx,await claim(ctx,'entitlement_activation'));
  await ctx.db.exec(`update commerce_private.asset_versions set retired_at=now() where id='${ctx.asset}'`);
@@ -322,7 +363,7 @@ test('Revoked agreement readiness and canonical role change immediately fail del
  const id=await entitlement(ctx);await agreement(ctx);await finish(ctx,await claim(ctx,'entitlement_activation'));
  const allowed=()=>service(ctx.db,()=>call(ctx.db,`commerce_private.can_deliver('${id}','${ids.buyer}')`));
  assert.equal(await allowed(),true);
- await ctx.db.exec("update generated_licenses set status='failed'");assert.equal(await allowed(),false);
- await ctx.db.exec("update generated_licenses set status='generated'");
+ await assert.rejects(ctx.db.exec("update generated_licenses set status='failed'"),/immutable/);
+ assert.equal(await allowed(),true);
  await ctx.db.exec(`update user_profiles set role='artist' where id='${ids.buyer}'`);assert.equal(await allowed(),false);
 }));

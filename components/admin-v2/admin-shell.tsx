@@ -22,31 +22,37 @@ const groups: Array<{ label: string; destinations: Destination[] }> = [
       { label: "Action Center", href: "/admin/action-center", icon: Activity },
       { label: "Review Queue", href: "/admin/review-queue", icon: ClipboardList },
       { label: "Catalog & Tracks", href: "/admin/tracks", icon: AudioLines },
-      { label: "Trusted Artists", icon: ShieldCheck }
+      { label: "Organizations", href: "/admin/command/organizations", icon: ShieldCheck }
     ]
   },
   {
     label: "People + commerce",
     destinations: [
+      { label: "Support & disputes", href: "/admin/command/support", icon: Users },
+      { label: "Subscriptions", href: "/admin/command/subscriptions", icon: Users },
+      { label: "Settings", href: "/admin/command/settings", icon: ShieldCheck },
       { label: "Users", href: "/admin/users", icon: Users },
-      { label: "Admin Access", icon: ShieldCheck },
+      { label: "Admin Access", href: "/admin/command/permissions", icon: ShieldCheck },
       { label: "Orders & Licenses", href: "/admin/orders", icon: BookOpenCheck },
-      { label: "Refunds", icon: ArrowRight },
-      { label: "Deals & Requests", icon: FileText },
-      { label: "Conversations", icon: FileText },
-      { label: "Integrity", icon: Flag },
-      { label: "Suspensions", icon: ShieldCheck },
-      { label: "Financial Overrides", icon: FileText }
+      { label: "License oversight", href: "/admin/licenses", icon: BookOpenCheck },
+      { label: "Financial accounting", href: "/admin/accounting", icon: FileText },
+      { label: "Refunds", href: "/admin/payments", icon: ArrowRight },
+      { label: "Deals & Requests", href: "/admin/command/deals", icon: FileText },
+      { label: "Conversations", href: "/admin/command/deals", icon: FileText },
+      { label: "Integrity", href: "/admin/command/integrity", icon: Flag },
+      { label: "Suspensions", href: "/admin/command/users", icon: ShieldCheck },
+      { label: "Financial Overrides", href: "/admin/accounting", icon: FileText }
     ]
   },
   {
     label: "Assurance",
     destinations: [
-      { label: "Media Operations", icon: AudioLines },
+      { label: "Media Operations", href: "/admin/media", icon: AudioLines },
       { label: "Compliance", href: "/admin/compliance", icon: ShieldCheck },
-      { label: "Reports", href: "/admin/analytics", icon: FileText },
-      { label: "Audit Log", icon: ClipboardList },
-      { label: "System Health", icon: Activity }
+      { label: "Email operations", href: "/admin/notifications", icon: FileText },
+      { label: "SEC Intelligence", href: "/admin/analytics", icon: FileText },
+      { label: "Audit Log", href: "/admin/command/audit", icon: ClipboardList },
+      { label: "System Health", href: "/admin/command/incidents", icon: Activity }
     ]
   }
 ];
@@ -55,7 +61,8 @@ function isCurrent(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminShell({ user, children }: { user: SessionUser; children: ReactNode }) {
+export function AdminShell({ user, children, capabilities=[],founder=false }: { user: SessionUser; children: ReactNode; capabilities?:string[];founder?:boolean }) {
+  const allowed=(href?:string)=>href==="/admin/dashboard"||capabilities.includes("full_admin")||(href?.startsWith("/admin/command/")&&(href.endsWith("/permissions")?founder:capabilities.includes(href.split("/").at(-1)||"")));
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -124,7 +131,7 @@ export function AdminShell({ user, children }: { user: SessionUser; children: Re
           {groups.map((group) => (
             <div className={styles.navGroup} key={group.label}>
               <h2>{group.label}</h2>
-              {group.destinations.map(({ label, href, icon: Icon }) => href ? (
+              {group.destinations.filter(d=>allowed(d.href)).map(({ label, href, icon: Icon }) => href ? (
                 <Link key={label} href={href} onClick={() => setMenuOpen(false)} aria-current={isCurrent(pathname, href) ? "page" : undefined} className={`${styles.navLink} ${isCurrent(pathname, href) ? styles.selected : ""}`}>
                   <Icon size={17} aria-hidden="true" /><span>{label}</span>
                 </Link>
@@ -136,7 +143,7 @@ export function AdminShell({ user, children }: { user: SessionUser; children: Re
             </div>
           ))}
         </nav>
-        <div className={styles.railFooter}><span className={styles.railDot} /> Admin workspace · read-only overview</div>
+        <div className={styles.railFooter}><span className={styles.railDot} /> Admin workspace · audited operations</div>
       </aside>
       <div className={styles.workspace}>
         <header className={styles.topbar}>
@@ -147,6 +154,7 @@ export function AdminShell({ user, children }: { user: SessionUser; children: Re
           </div>
           <div className={styles.topActions}>
             <span className={styles.identity} title={user.fullName}>{user.fullName}<small>Admin</small></span>
+            <Link href="/account/security" className={styles.logout}>Account security</Link>
             <ThemeToggle className={styles.themeButton} />
             <form action={logoutAction}><button className={styles.logout} type="submit" aria-label="Log out"><LogOut size={16} aria-hidden="true" /><span>Log out</span></button></form>
           </div>

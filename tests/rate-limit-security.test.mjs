@@ -1,12 +1,22 @@
+import * as zod from "zod";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { webcrypto } from "node:crypto";
 import ts from "typescript";
+import * as authSecurity from "../services/auth/security.ts";
+import * as selection from "../lib/licenses/selection.ts";
+import { load } from "./helpers/license-selection-harness.mjs";
 
-const userId = "12345678-1234-1234-1234-123456789abc";
-const otherId = "87654321-1234-1234-1234-123456789abc";
+const userId = "12345678-1234-4234-8234-123456789abc";
+const otherId = "87654321-1234-4234-8234-123456789abc";
+const licenseTypeId = "11111111-1111-4111-8111-111111111111";
+const trustedTrack = { id: "track", title: "Track", slug: "track", status: "approved", preview_file_path: "fixture-preview", license_options: [{ id: licenseTypeId, track_license_option_id: otherId, active: true, offer_active: true, amount_cents: 120000, name: "Digital", slug: "digital-campaign", base_price: 1200, exclusive: false, description: "Approved description", terms_summary: "Approved usage" }] };
+const offers = load("services/orders/license-offers.ts", {
+  "@/lib/env": { env: { demoMode: false, appUrl: "https://example.invalid" } }, "./checkout-pricing": { CHECKOUT_CURRENCY: "USD" },
+  "@/services/auth/session": {}, "@/services/buyer/queries": {}
+});
 const resetAt = "2030-01-01T00:01:00.000Z";
 const allowedRow = { allowed: true, remaining: 4, retry_after_seconds: 0, reset_at: resetAt };
 const deniedRow = { allowed: false, remaining: 0, retry_after_seconds: 42, reset_at: resetAt };
@@ -21,9 +31,13 @@ function loadModule(path, stubs) {
   });
   const loadedModule = { exports: {} };
   runInNewContext(outputText, {
-    module: loadedModule, exports: loadedModule.exports, Response, Request, FormData, File,
-    AbortSignal, URL, crypto: webcrypto, process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
+    module: loadedModule, exports: loadedModule.exports, Response, Request, FormData, File, Headers,
+    AbortSignal, URL, Buffer, TextDecoder, setTimeout, clearTimeout, crypto: webcrypto, process: { env: { SYNC_EXCHANGE_MAINTENANCE_MODE: "off" } },
     require(name) {
+      if (name === "zod") return zod;
+      if (name === "@/services/storage/upload-request") return loadModule("services/storage/upload-request.ts", stubs);
+      if (name === "@/services/orders/payment-request") return loadModule("services/orders/payment-request.ts", stubs);
+      if (name === "@/services/auth/security") return authSecurity;
       assert.ok(Object.hasOwn(stubs, name), `Unmocked dependency: ${name}`);
       return stubs[name];
     }
@@ -57,21 +71,31 @@ function limiter({ rows = [allowedRow], error = null, throws = false, missingCli
   return { helper, calls };
 }
 
-function harness({ role = "buyer", authenticated = true, owner = userId, pricingError = false, prepareError = false, limitOptions = {} } = {}) {
+function harness({ role = "buyer", authenticated = true, owner = userId, pricingError = false, prepareError = false, stripeResponseLost = false, auditFails = false, limitOptions = {} } = {}) {
   const events = [];
+  const orderRecords = new Map();
+  const activityEvents = [];
+  let providerOrderId;
   const { helper, calls } = limiter(limitOptions);
   const db = {
-    auth: { getUser: async () => ({ data: { user: authenticated ? { id: userId, email: "test@example.invalid" } : null } }) },
+    auth: { getUser: async () => ({ data: { user: authenticated ? { id: userId, email: "test@example.invalid", factors:[{status:"verified"}] } : null } }), mfa:{ getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:"aal2"},error:null})} },
+    rpc:async()=>({data:true,error:null}),
     from(table) {
       let mutation = false, selected = "";
-      const result = () => ({ data: mutation ? { id: "new-order" } : table === "orders" && selected === "id, buyer_user_id" ? { id: "order", buyer_user_id: owner } : null, error: null });
+      const result = () => ({ data: mutation ? { id: "new-order" } : table === "orders" && selected.startsWith("id,buyer_user_id") ? { id: otherId, buyer_user_id: owner, status:"pending" } : null, error: null });
       const query = {
         select(fields) { selected = fields; return query; }, eq() { return query; }, order() { return query; }, limit() { return query; },
         maybeSingle: async () => result(), single: async () => result(),
         then(resolve, reject) { return Promise.resolve(result()).then(resolve, reject); }
       };
       for (const op of ["insert", "update", "upsert", "delete"]) {
-        query[op] = () => { mutation = true; events.push(`${table}:${op}`); return query; };
+        query[op] = (values) => {
+          mutation = true;
+          events.push(`${table}:${op}`);
+          if (table === "orders" && op === "insert") orderRecords.set(values.id, values);
+          if (table === "orders" && op === "delete") orderRecords.clear();
+          return query;
+        };
       }
       return query;
     },
@@ -82,11 +106,15 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
   };
   const redirect = (url) => { const e = new Error("redirect"); e.url = url; e.digest = "NEXT_REDIRECT"; throw e; };
   const stubs = {
+    "@/services/analytics/checkout": { captureCheckoutStarted: async () => {} },
+    "@/services/orders/license-offers": offers,
+    "@/lib/licenses/selection": selection,
+    "@/services/analytics/actor": { captureForUser: async () => {} },
     "next/server": { NextResponse: { json: Response.json } },
     "next/cache": { revalidatePath() {} },
     "next/headers": { cookies: async () => ({ get: () => undefined }) },
     "next/navigation": { redirect, unstable_rethrow(e) { if (e.digest === "NEXT_REDIRECT") throw e; } },
-    "@/lib/env": { env: { demoMode: false }, hasSupabaseEnv: true },
+    "@/lib/env": { env: { demoMode: false, appUrl: "https://example.invalid" }, hasSupabaseEnv: true },
     "@/lib/maintenance-mode.mjs": { resolveMaintenanceMode: () => ({ blocksApplication: false }) },
     "@/lib/server-env": {
       assertStripeServerConfiguration() {},
@@ -108,27 +136,47 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
     "@/services/supabase/server": { createServerSupabaseClient: async () => db },
     "@/services/supabase/privileged": { createPrivilegedSupabaseClient: async () => db },
     "@/services/supabase/schema-compat": { isMissingColumnError: () => false, warnSchemaFallbackOnce() {} },
-    "@/services/orders/activity": { appendOrderActivityLog: async () => { events.push("activity"); } },
+    "@/services/orders/activity": { appendOrderActivityLog: async (_client, activity) => {
+      if (auditFails) throw new Error("private audit detail");
+      activityEvents.push(activity);
+      events.push("activity");
+    } },
     "@/services/purchase-completion/server": { preparePurchaseCompletionCheckout: async () => {
       events.push("prepare");
       if (prepareError) throw new Error("adapter fail closed");
       return { enabled: false };
     } },
+    "@/services/orders/checkout-recovery": { hasFrozenCheckoutAttempt: async () => false },
+    "@/services/licensing/purchases": {
+      readPurchaseQuote: async () => ({schedule:{track:{id:"track"},license:{id:licenseTypeId}}}),
+      assertAcceptedPurchase: async () => { if(pricingError) throw Error("Invalid rights"); return {snapshot:{buyer:{userId},track:{id:"track",title:"Track"},license:{id:licenseTypeId,name:"Digital",slug:"digital-campaign"},amountCents:120000,currency:"USD"}}; },
+      acceptPurchaseQuote: async () => {
+      const id = webcrypto.randomUUID();
+      events.push("orders:insert");
+      orderRecords.set(id, { id, buyer_user_id: userId, status: "pending", amount_cents: 120000 });
+      return { id, created_new: true, amount_cents: 120000, currency: "USD" };
+    } },
     "@/services/orders/checkout-pricing": {
       loadTrustedCheckoutDetails: async () => {
         if (pricingError) throw new Error("Unapproved track or inactive license");
         return { order: { id: "order", buyer_user_id: owner, status: "pending", track_id: "track", license_type_id: "license" },
-          amountCents: 120000, currency: "USD", trackTitle: "Track", trackSlug: "track", licenseName: "Digital" };
+          licenseType: { slug: "digital-campaign" }, amountCents: 120000, currency: "USD", trackTitle: "Track", trackSlug: "track", licenseName: "Digital" };
       },
       getStoredOrderPricingMismatch: () => ({ amountMismatch: true, currencyMismatch: false })
     },
     "@/services/stripe/server": { createStripeCheckoutSession: async args => {
       events.push("stripe"); assert.equal(args.amountCents, 120000); assert.equal(args.buyerUserId, userId);
+      if (stripeResponseLost) {
+        // The provider accepted the request, but the caller never receives its ID.
+        providerOrderId = args.orderId;
+        events.push("provider-session-created");
+        throw new Error("private Stripe network diagnostic");
+      }
       return { id: "cs_test", url: "https://example.invalid/checkout" };
     } },
     "@/services/buyer/queries": { getBuyerTrackBySlug: async () => {
       events.push("catalog-preview-read");
-      return { id: "track", title: "Track", slug: "track", license_options: [{ id: "license", name: "Digital", base_price: 1200 }] };
+      return trustedTrack;
     } },
     "@/services/storage/assets": {
       assertStorageUploadMetadata() {},
@@ -140,17 +188,17 @@ function harness({ role = "buyer", authenticated = true, owner = userId, pricing
   const uploadUrl = loadModule("app/api/storage/upload-url/route.ts", stubs).POST;
   const upload = loadModule("app/api/storage/upload/route.ts", stubs).POST;
   const action = loadModule("services/buyer/actions.ts", stubs).createOrderAction;
-  return { checkout, uploadUrl, upload, action, calls, events };
+  return { checkout, uploadUrl, upload, action, calls, events, orderRecords, activityEvents, get providerOrderId() { return providerOrderId; } };
 }
 
 const jsonRequest = body => new Request("https://example.invalid/api", {
-  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  method: "POST", headers: { "Content-Type": "application/json", Origin:"https://example.invalid" }, body: JSON.stringify(body)
 });
-const checkoutRequest = () => jsonRequest({ orderId: "order", userId: otherId, amountCents: 1 });
+const checkoutRequest = () => jsonRequest({ orderId: otherId });
 const uploadRequest = () => jsonRequest({ kind: "cover-art", scope: "draft", fileName: "cover.png", fileSize: 10, userId: otherId });
 function orderForm() {
   const form = new FormData();
-  for (const [key, value] of Object.entries({ trackId: "track", trackSlug: "track", licenseSelection: "license|1", userId: otherId })) form.set(key, value);
+  for (const [key, value] of Object.entries({ trackId: "track", trackSlug: "track", licenseTypeId, reviewRevision: offers.getTrackLicenseOffers(trustedTrack)[0].revision, reviewConfirmed: "on", licenseSelection: licenseTypeId+"|1", userId: otherId })) form.set(key, value);
   return form;
 }
 
@@ -210,12 +258,61 @@ test("both checkout entry points stop before Stripe when Phase 2B preparation fa
   assert.equal(h.events.filter(event => event === "stripe").length, 0);
 });
 
+test("lost Stripe creation response preserves the exact pending order for later reconciliation", async () => {
+  const h = harness({ stripeResponseLost: true });
+  await assert.rejects(h.action(orderForm()), error => {
+    assert.match(decodeURIComponent(error.url), /Checkout could not be confirmed/);
+    assert.doesNotMatch(decodeURIComponent(error.url), /private Stripe/);
+    return error.digest === "NEXT_REDIRECT";
+  });
+  assert.equal(h.events.filter(event => event === "stripe").length, 1);
+  assert.equal(h.events.includes("orders:delete"), false);
+  assert.equal(h.orderRecords.size, 1);
+  const retained = h.orderRecords.get(h.providerOrderId);
+  assert.ok(retained, "provider metadata still resolves to the original order");
+  assert.equal(retained.status, "pending");
+  assert.equal(retained.buyer_user_id, userId);
+  assert.equal(retained.amount_cents, 120000);
+  const audit = h.activityEvents.find(event => event.eventType === "checkout_creation_unconfirmed");
+  assert.equal(audit.orderId, h.providerOrderId);
+  assert.equal(audit.metadata.requiresReconciliation, true);
+  assert.equal(audit.metadata.commercialRightsGranted, false);
+});
+
+test("failed uncertainty audit cannot delete a pending provider order or expose diagnostics", async () => {
+  const h = harness({ stripeResponseLost: true, auditFails: true });
+  await assert.rejects(h.action(orderForm()), error => {
+    assert.match(decodeURIComponent(error.url), /pending order was preserved/);
+    assert.doesNotMatch(decodeURIComponent(error.url), /private/);
+    return error.digest === "NEXT_REDIRECT";
+  });
+  assert.ok(h.orderRecords.has(h.providerOrderId));
+  assert.equal(h.events.includes("orders:delete"), false);
+});
+
+test("failure before contacting Stripe now retains the accepted order and its immutable legal evidence", async () => {
+  const h = harness({ prepareError: true });
+  await assert.rejects(h.action(orderForm()), error => error.digest === "NEXT_REDIRECT");
+  assert.equal(h.events.includes("stripe"), false);
+  assert.equal(h.events.includes("orders:delete"), false);
+  assert.equal(h.orderRecords.size, 1);
+  assert.equal(h.activityEvents.some(event => event.eventType === "checkout_creation_unconfirmed"), false);
+});
+
+test("successful Stripe redirect is not reclassified as unconfirmed checkout", async () => {
+  const h = harness();
+  await assert.rejects(h.action(orderForm()), error => error.url === "https://example.invalid/checkout");
+  assert.equal(h.events.includes("orders:delete"), false);
+  assert.equal(h.activityEvents.some(event => event.eventType === "checkout_creation_unconfirmed"), false);
+  assert.equal(h.activityEvents.some(event => event.eventType === "checkout_created"), true);
+});
+
 test("upload denial prevents signed tokens and prevents even multipart parsing", async () => {
   for (const limitOptions of [{ rows: [deniedRow] }, { error: { message: "private detail" } }]) {
     const h = harness({ role: "artist", limitOptions });
     const expected = limitOptions.rows ? 429 : 503;
     assert.equal((await h.uploadUrl(uploadRequest())).status, expected);
-    const response = await h.upload({ formData() { throw new Error("Must not parse multipart"); } });
+    const response = await h.upload({ headers:new Headers({origin:"https://example.invalid"}),formData() { throw new Error("Must not parse multipart"); } });
     assert.equal(response.status, expected);
     assert.equal(response.headers.get("Retry-After"), expected === 429 ? "42" : "15");
     assert.deepEqual(h.calls.map(c => c.p_operation), ["upload", "server-upload"]);
@@ -228,7 +325,7 @@ test("upload authentication and canonical role checks happen before multipart pa
   for (const options of [{ authenticated: false }, { role: "buyer" }, { role: null }]) {
     const h = harness(options);
     assert.ok([401, 403].includes((await h.uploadUrl(uploadRequest())).status));
-    assert.ok([401, 403].includes((await h.upload({ formData() { throw new Error("Must not parse"); } })).status));
+    assert.ok([401, 403].includes((await h.upload({ headers:new Headers({origin:"https://example.invalid"}),formData() { throw new Error("Must not parse"); } })).status));
     assert.deepEqual(h.calls, []);
     assert.deepEqual(h.events, []);
   }
@@ -241,7 +338,7 @@ test("Artist and Admin upload behavior continues after admission", async () => {
     const form = new FormData();
     form.set("kind", "cover-art"); form.set("scope", "draft");
     form.set("file", new File(["dummy"], "cover.png", { type: "image/png" }));
-    assert.equal((await h.upload({ formData: async () => form })).status, 200);
+    assert.equal((await h.upload(new Request("https://example.invalid/api/storage/upload",{method:"POST",headers:{origin:"https://example.invalid"},body:form}))).status, 200);
     assert.deepEqual(h.events, ["signed-upload", "storage-upload"]);
   }
 });
@@ -357,7 +454,7 @@ test("malformed numeric admission cannot reach checkout writes, Stripe, upload t
     assert.deepEqual(buyer.events, []);
     const artist = harness({ role: "artist", limitOptions });
     assert.equal((await artist.uploadUrl(uploadRequest())).status, 503);
-    assert.equal((await artist.upload({ formData() { throw new Error("Must not parse"); } })).status, 503);
+    assert.equal((await artist.upload({ headers:new Headers({origin:"https://example.invalid"}),formData() { throw new Error("Must not parse"); } })).status, 503);
     assert.deepEqual(artist.events, []);
   }
 });
@@ -426,7 +523,7 @@ for (const [operation, policy, maximum, role] of [
       const form = new FormData();
       form.set("kind", "cover-art"); form.set("scope", "draft");
       form.set("file", new File(["dummy"], "cover.png", { type: "image/png" }));
-      return h.upload({ formData: async () => form });
+      return h.upload(new Request("https://example.invalid/api/storage/upload",{method:"POST",headers:{origin:"https://example.invalid"},body:form}));
     };
     for (let i = 0; i < maximum; i++) assert.equal((await request()).status, 200);
     assert.equal(fixture.counts.get(policy), maximum);
@@ -450,7 +547,7 @@ test("exhausted hour/day and later direct-upload budgets leave earlier budgets u
     const before = [...fixture.counts];
     const response = operation === "checkout" ? await h.checkout(checkoutRequest())
       : operation === "upload" ? await h.uploadUrl(uploadRequest())
-      : await h.upload({ formData() { throw new Error("Denied before parsing"); } });
+      : await h.upload({ headers:new Headers({origin:"https://example.invalid"}),formData() { throw new Error("Denied before parsing"); } });
     assert.equal(response.status, 429);
     assert.equal(response.headers.get("Retry-After"), String(retry));
     if (operation === "checkout") {

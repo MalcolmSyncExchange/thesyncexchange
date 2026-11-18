@@ -1,0 +1,16 @@
+Case ID,Scenario,Local evidence,Formal crosswalk,Hosted acceptance,Formal status
+PK08-QA-01,Owner receives only exact reviewed license versions,secure-delivery-db.test.mjs,QA-013 / QA-014,Required,Not Run
+PK08-QA-02,Anon Artist Admin and other Buyer cannot obtain purchased audio,secure-delivery-transfer.test.mjs / secure-delivery-db.test.mjs,QA-014 / QA-023,Required,Not Run
+PK08-QA-03,Distinct tier cannot reuse another tier entitlement,secure-delivery-db.test.mjs,QA-010 / QA-014,Required,Not Run
+PK08-QA-04,Missing pending unpaid and failed orders deny files,secure-delivery-db.test.mjs,QA-011 / QA-022,Required,Not Run
+PK08-QA-05,Refund partial refund and dispute during preparation deny release,secure-delivery-db.test.mjs / secure-delivery-concurrency.test.mjs,QA-012 / QA-022,Required,Not Run
+PK08-QA-06,Rights ownership license and administrative revocation deny access,secure-delivery-db.test.mjs,QA-019 / QA-020 / QA-023,Required,Not Run
+PK08-QA-07,Expired authorization or revoked Auth session cannot release bytes,secure-delivery-db.test.mjs,QA-014 / QA-023,Required,Not Run
+PK08-QA-08,Concurrent requests and ticket replay allow one release,secure-delivery-db.test.mjs / secure-delivery-concurrency.test.mjs,QA-012 / QA-014,Required,Not Run
+PK08-QA-09,Storage failure truncation substitution timeout and interrupted request fail closed,secure-delivery-transfer.test.mjs / secure-delivery-broker.test.mjs,QA-014 / QA-022,Required,Not Run
+PK08-QA-10,Asset replacement preserves old exact manifest and Storage identity,secure-delivery-db.test.mjs,QA-013 / QA-014,Required,Not Run
+PK08-QA-11,Historical refunded agreement remains owner scoped and hash verified,agreement-download.test.mjs,QA-014,Required,Not Run
+PK08-QA-12,GET HEAD preflight cross-origin traversal and enumeration boundaries,secure-delivery-transfer.test.mjs / secure-delivery-broker.test.mjs / secure-delivery-db.test.mjs,QA-014 / QA-023,Required,Not Run
+PK08-QA-13,Durable authorization outcome revocation audit and SEC isolation,secure-delivery-db.test.mjs,QA-020 / QA-023,Required,Not Run
+PK08-QA-14,Large file uses single-use broker and never a Netlify binary response,secure-delivery-broker.test.mjs actual greater-than-4-MB loopback transfer,QA-014 / QA-025,Required including 250-MB capacity,Not Run
+PK08-QA-15,Chrome Firefox Safari mobile keyboard screen-reader and download recovery,No human browser acceptance executed,QA-014 / QA-024 / QA-025,Required,Not Run

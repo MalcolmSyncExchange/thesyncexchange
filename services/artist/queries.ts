@@ -1,3 +1,4 @@
+import { catalogReviewPhase } from "@/lib/catalog/contract";
 import { artistProfiles, tracks as demoTracks } from "@/lib/demo-data";
 import { shouldUseDemoData } from "@/lib/env";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
@@ -154,6 +155,8 @@ export async function getArtistCatalogPage(userId: string, input: ArtistCatalogI
 
   const artistName = String(profileResult.data?.artist_name || "Artist");
   const allIndexRows = (indexResult.data || []) as any[];
+  const publication = await loadPublication(supabase, allIndexRows.map(row => row.id));
+  for (const row of allIndexRows) row.catalog_publication = publication[row.id];
   const filteredIndexRows = filterArtistTrackIndex(allIndexRows, query, status);
   const total = filteredIndexRows.length;
   const pageCount = Math.max(1, Math.ceil(total / artistCatalogPageSize));
@@ -170,7 +173,7 @@ export async function getArtistCatalogPage(userId: string, input: ArtistCatalogI
     }
     const order = new Map(pageIds.map((id, index) => [id, index]));
     pageTracks = (pageResult.data || [])
-      .map(row => mapTrack(row, artistName, true))
+      .map(row => mapTrack({ ...row, catalog_publication: publication[row.id] }, artistName, true))
       .sort((left, right) => (order.get(left.id) || 0) - (order.get(right.id) || 0));
   }
 
@@ -225,7 +228,8 @@ async function getAuthorizedArtistTrack(userId: string, slug: string, includePre
   }
 
   if (!trackResult.data) return null;
-  return mapTrack(trackResult.data, String(profileResult.data?.artist_name || "Artist"), includePreview);
+  const publication = await loadPublication(supabase, [trackResult.data.id]);
+  return mapTrack({ ...trackResult.data, catalog_publication: publication[trackResult.data.id] }, String(profileResult.data?.artist_name || "Artist"), includePreview);
 }
 
 function paginateArtistCatalog(tracks: Track[], { query, status, page: requestedPage }: { query: string; status: ArtistCatalogStatusFilter; page: number }): ArtistCatalogPageData {
@@ -255,13 +259,13 @@ function paginateArtistCatalog(tracks: Track[], { query, status, page: requested
 function filterArtistTrackIndex(rows: any[], query: string, status: ArtistCatalogStatusFilter) {
   return rows.filter(row => {
     const activeLicenseCount = getActiveLicenseCount(row.track_license_options || []);
-    const eligible = row.status === "approved" && Boolean(row.preview_file_path) && activeLicenseCount > 0;
+    const eligible = row.catalog_publication?.visible ?? (row.status === "approved" && Boolean(row.preview_file_path) && activeLicenseCount > 0);
     const queryMatches = !query || [row.title, row.slug, row.genre].some(value => String(value || "").toLocaleLowerCase().includes(query.toLocaleLowerCase()));
     if (!queryMatches) return false;
     if (status === "discoverable") return eligible;
-    if (status === "in_review") return row.status === "pending_review";
-    if (status === "draft") return row.status === "draft";
-    if (status === "needs_attention") return row.status === "rejected" || (row.status === "approved" && !eligible);
+    if (status === "in_review") return catalogReviewPhase(row.status,row.catalog_publication) === "in_review";
+    if (status === "draft") return catalogReviewPhase(row.status,row.catalog_publication) === "draft";
+    if (status === "needs_attention") return catalogReviewPhase(row.status,row.catalog_publication) === "needs_attention" || (catalogReviewPhase(row.status,row.catalog_publication) === "other" && row.status === "approved" && !eligible);
     return true;
   });
 }
@@ -269,14 +273,15 @@ function filterArtistTrackIndex(rows: any[], query: string, status: ArtistCatalo
 function getArtistCatalogCounts(rows: any[]) {
   const index = rows.map(row => ({
     status: row.status as TrackStatus,
-    eligible: row.status === "approved" && Boolean(row.preview_file_path) && getActiveLicenseCount(row.track_license_options || []) > 0
+    phase: catalogReviewPhase(row.status,row.catalog_publication),
+    eligible: row.catalog_publication?.visible ?? (row.status === "approved" && Boolean(row.preview_file_path) && getActiveLicenseCount(row.track_license_options || []) > 0)
   }));
   return {
     total: index.length,
     discoverable: index.filter(item => item.eligible).length,
-    inReview: index.filter(item => item.status === "pending_review").length,
-    drafts: index.filter(item => item.status === "draft").length,
-    needsAttention: index.filter(item => item.status === "rejected" || (item.status === "approved" && !item.eligible)).length
+    inReview: index.filter(item => item.phase === "in_review").length,
+    drafts: index.filter(item => item.phase === "draft").length,
+    needsAttention: index.filter(item => item.phase === "needs_attention" || (item.phase === "other" && item.status === "approved" && !item.eligible)).length
   };
 }
 
@@ -351,6 +356,7 @@ function mapTrack(row: any, artistName: string, includePreview: boolean): Track 
 
   return {
     id: row.id,
+    catalog_publication: row.catalog_publication,
     artist_user_id: row.artist_user_id,
     artist_name: artistName,
     title: row.title,
@@ -383,4 +389,20 @@ function mapTrack(row: any, artistName: string, includePreview: boolean): Track 
     rights_holders: rightsHolders,
     license_options: licenseOptions
   };
+}
+
+async function loadPublication(client: unknown, ids: string[]): Promise<Record<string, NonNullable<Track["catalog_publication"]>>> {
+  const rpc = client as { rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{data: unknown; error: unknown}> };
+  const result: Record<string, NonNullable<Track["catalog_publication"]>> = {};
+  for (let i = 0; i < ids.length; i += 1000) {
+    const response = await rpc.rpc("catalog_publication_status", {p_tracks: ids.slice(i, i+1000), p_admin: false});
+    if (response.error || !response.data) throw new Error("Unable to verify catalog publication right now.");
+    const values = response.data as Record<string, NonNullable<Track["catalog_publication"]>>;
+    for (const id of ids.slice(i, i+1000)) {
+      const value = values[id];
+      if (!value || typeof value.state !== "string" || typeof value.visible !== "boolean" || !Array.isArray(value.blockers) || !Number.isSafeInteger(value.licenseCount) || value.licenseCount < 0) throw new Error("Unable to verify catalog publication right now.");
+      result[id] = value;
+    }
+  }
+  return result;
 }

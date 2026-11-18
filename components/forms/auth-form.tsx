@@ -64,7 +64,7 @@ export function AuthStatusMessage({ error, success }: { error?: string; success?
     <>
       {error ? <div role="alert" className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
       {success ? (
-        <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">{success}</div>
+        <div role="status" aria-live="polite" className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">{success}</div>
       ) : null}
     </>
   );

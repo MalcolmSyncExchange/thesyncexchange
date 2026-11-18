@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 export const root = new URL('../../', import.meta.url);
 export const source = path => readFileSync(new URL(path, root), 'utf8');
@@ -6,29 +7,46 @@ export const snapshot = name => JSON.parse(source(`tests/fixtures/artist-baselin
 export const ids = { a:'11111111-1111-4111-8111-111111111111', b:'22222222-2222-4222-8222-222222222222', buyer:'33333333-3333-4333-8333-333333333333', admin:'44444444-4444-4444-8444-444444444444', draft:'55555555-5555-4555-8555-555555555555', live:'66666666-6666-4666-8666-666666666666', otherTrack:'77777777-7777-4777-8777-777777777777', order:'88888888-8888-4888-8888-888888888888', license:'99999999-9999-4999-8999-999999999999' };
 export const quote = x => `'${String(x).replaceAll("'","''")}'`;
 export const ident = x => `"${String(x).replaceAll('"','""')}"`;
-export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls;
+// Lightweight policy/row tests only. Platform ownership compatibility must also
+// pass managed-storage-baseline.test.mjs using real Supabase supautils.
+export const fixtureBootstrapSql = `create role anon; create role authenticated; create role service_role bypassrls; create role supabase_storage_admin;
    create schema auth; create schema storage;
    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');
    create table auth.sessions(id uuid primary key,user_id uuid not null references auth.users(id) on delete cascade);
    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
    create function auth.role() returns text language sql stable as $$ select current_setting('request.jwt.claim.role',true) $$;
    create function auth.jwt() returns jsonb language sql stable as $$
-     select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''))
+     select jsonb_build_object('session_id',nullif(current_setting('request.jwt.claim.session_id',true),''),'aal',nullif(current_setting('request.jwt.claim.aal',true),''),'amr',coalesce(nullif(current_setting('request.jwt.claim.amr',true),'')::jsonb,'[]'::jsonb))
    $$;
    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
    create table storage.buckets(id text primary key,name text not null,public boolean default false,file_size_limit bigint,allowed_mime_types text[]);
    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb,version text,owner uuid,owner_id text,unique(bucket_id,name));
+   alter table storage.objects enable row level security;
+   alter table storage.buckets enable row level security;
    grant usage on schema public,auth,storage to anon,authenticated,service_role;
    alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
    grant all on all tables in schema storage to anon,authenticated,service_role;
    select set_config('request.jwt.claim.role','service_role',false);`;
-export const pgliteDigestFixtureSql = `create schema fixture_support;
-   create function fixture_support.digest(value text,algorithm text) returns bytea language sql immutable as $$
-     select decode(repeat(md5(value),2),'hex') where algorithm='sha256'
+// Vanilla PostgreSQL test containers start without Supabase's preinstalled
+// extension. Install it directly in the hosted schema before replaying SQL;
+// never relocate it or create a public compatibility function.
+export const postgresPgcryptoBootstrapSql = `create schema extensions;
+   create extension pgcrypto with schema extensions;`;
+export const nativeCryptoBootstrapSql = postgresPgcryptoBootstrapSql;
+// PGlite cannot load pgcrypto. This explicit SHA-256-only test adapter uses
+// PostgreSQL's real core hash and the hosted signature/schema. Migration calls
+// are never rewritten. Real extension/runtime proof lives in gate-d-concurrency.
+export const pgliteDigestFixtureSql = `create schema extensions;
+   create function extensions.digest(value text,algorithm text) returns bytea language plpgsql immutable strict as $$
+   begin
+     if algorithm <> 'sha256' then raise exception 'Unsupported fixture digest algorithm'; end if;
+     return pg_catalog.sha256(pg_catalog.convert_to(value,'UTF8'));
+   end
    $$;`;
 export const adaptMigrationForPGlite = sql => sql
   .replace(/create extension if not exists "pgcrypto";/gi,'')
-  .replace(/\bpublic\.digest\s*\(/gi,'fixture_support.digest(');
+  // Only PGlite lacks extension metadata; native replay uses exact source SQL.
+  .replace(/  if pg_catalog\.to_regprocedure\('extensions\.digest\(text,text\)'\)[\s\S]*?end if;/,'');
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
 export async function database(target='repository', {seed=true}={}) {
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
@@ -37,9 +55,17 @@ export async function database(target='repository', {seed=true}={}) {
   await db.exec(`${fixtureBootstrapSql}\n${pgliteDigestFixtureSql}`);
   for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
    (target==='repository' || (target==='pr27' && x<'20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
-   // PGlite has no pgcrypto. Its isolated shim must never shadow the production public.digest function.
+   // Only extension installation is omitted; function names/bodies are unchanged.
    const sql=adaptMigrationForPGlite(source(`supabase/migrations/${file}`));
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }
+  }
+  if(target==='repository') {
+   // Restore the already-installed production rights contract only in the local
+   // database fixture. These historical DDL files are not pending migrations.
+   const targetSchema=JSON.parse(source('docs/audio-reconstruction/production-schema-evidence.json'));
+   await db.exec('create role media_broker_production_login nologin');
+   await db.exec(targetSchema.functions.find(f=>f.schema==='submission_media'&&f.name==='vm_audit_immutable').definition);
+   for(const name of ['20261029023407_artist_master_ownership_rows.sql','20261029032813_artist_structured_rights_and_agreements.sql'])await db.exec(source('tests/fixtures/production-rights/'+name));
   }
   if(['production','staging'].includes(target)) await applyCapturedAuthorization(db,snapshot(target));
   if(seed) await seedDatabase(db);
@@ -64,10 +90,20 @@ export async function applyCapturedAuthorization(db,s) {
  for(const g of s.grants.filter(g=>['anon','authenticated','service_role'].includes(g.grantee)&&(g.schema!=='storage'||['objects','buckets'].includes(g.table))))
   await db.exec(`grant ${g.privilege} on ${ident(g.schema)}.${ident(g.table)} to ${ident(g.grantee)}`);
 }
-export async function asActor(db,id,run,role='authenticated',sessionId='') {
- if(!['authenticated','anon','service_role'].includes(role)) throw Error('Unknown fixture role');
- await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false); select set_config('request.jwt.claim.session_id',${quote(sessionId)},false)`);
- try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false); select set_config('request.jwt.claim.session_id','',false)"); }
+export async function asActor(db,id,run,role='authenticated',sessionId,assurance='aal2') {
+ if(!['authenticated','anon','service_role','submission_media_broker'].includes(role)) throw Error('Unknown fixture role');
+ // An omitted customer session is a valid synthetic fixture. An explicitly empty
+ // session remains empty so missing-session security negatives stay meaningful.
+ const explicitSession=sessionId!==undefined;sessionId??='';
+ let generatedSession=null;
+ const fixtureRole=role==='authenticated'&&!sessionId?(await db.query('select role from public.user_profiles where id=$1',[id])).rows[0]?.role:null;
+ if(role==='authenticated' && !sessionId && (fixtureRole==='admin'||['buyer','artist'].includes(fixtureRole)&&!explicitSession)) {
+   generatedSession=randomUUID();sessionId=generatedSession;
+   await db.query('insert into auth.sessions(id,user_id) values($1,$2)',[sessionId,id]);
+ }
+
+ await db.exec(`set role ${role}; select set_config('request.jwt.claim.sub',${quote(id||'')},false); select set_config('request.jwt.claim.role',${quote(role)},false); select set_config('request.jwt.claim.session_id',${quote(sessionId)},false); select set_config('request.jwt.claim.aal',${quote(assurance)},false)`);
+ try { return await run(); } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); select set_config('request.jwt.claim.role','service_role',false); select set_config('request.jwt.claim.session_id','',false); select set_config('request.jwt.claim.aal','',false)"); if(generatedSession)await db.query('delete from auth.sessions where id=$1',[generatedSession]); }
 }
 export async function seedDatabase(db) {
  for(const [key,role] of [['a','artist'],['b','artist'],['buyer','buyer'],['admin','admin']])

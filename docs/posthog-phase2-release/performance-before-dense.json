@@ -1,0 +1,22 @@
+{
+  "baseline": true,
+  "node": "v24.14.1",
+  "method": "three sequential fixture runs; all samples <=2s and DTO <=2MB required for supported requests; no hosted timing",
+  "results": [
+    {
+      "label": "dense-unmatched-checkout",
+      "rows": 10000,
+      "tracks": 2,
+      "days": 7,
+      "comparePrevious": false,
+      "samplesMs": [
+        6022.32,
+        5928.87,
+        5946.51
+      ],
+      "medianMs": 5946.51,
+      "serializedBytes": 1140271,
+      "returnedTracks": 2
+    }
+  ]
+}

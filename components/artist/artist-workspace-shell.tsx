@@ -18,6 +18,8 @@ const artistNavigation = [
   { href: "/artist/catalog", label: "My catalog", icon: Music2 },
   { href: "/artist/submit", label: "Submit music", icon: Upload },
   { href: "/artist/rights-holders", label: "Rights holders", icon: Users },
+  { href: "/artist/licenses", label: "Licensing activity", icon: ReceiptText },
+  { href: "/artist/earnings", label: "Earnings", icon: CreditCard },
   { href: "/artist/payout-settings", label: "Payout settings", icon: CreditCard }
 ];
 
@@ -26,6 +28,7 @@ const buyerNavigation = [
   { href: "/buyer/catalog", label: "Discover music", icon: Search },
   { href: "/buyer/favorites", label: "Saved tracks", icon: Heart },
   { href: "/buyer/orders", label: "My Purchases", icon: ReceiptText },
+  { href: "/buyer/licenses", label: "Licenses", icon: Music2 },
   { href: "/buyer/settings", label: "Account settings", icon: Settings }
 ];
 type WorkspaceKind = "artist" | "buyer";
@@ -45,11 +48,12 @@ function Navigation({ pathname, onNavigate, kind }: { pathname: string; onNaviga
 function AccountLinks({ pathname, onNavigate, kind }: { pathname: string; onNavigate: () => void; kind: WorkspaceKind }) {
     return <div className={styles.accountLinks}>
       {kind === "artist" ? <Link href="/artist/profile" onClick={onNavigate} aria-current={pathname === "/artist/profile" ? "page" : undefined}><UserRound aria-hidden="true" size={20} />Profile</Link> : null}
+      <Link href="/account/security" onClick={onNavigate}><Settings aria-hidden="true" size={20} />Account security</Link>
       <form action={logoutAction}><button type="submit"><LogOut aria-hidden="true" size={20} />Log out</button></form>
     </div>;
   }
 
-function WorkspaceShell({ user, children, kind }: { user: SessionUser; children: ReactNode; kind: WorkspaceKind }) {
+function WorkspaceShell({ user, children, kind }: { user: Pick<SessionUser, "fullName">; children: ReactNode; kind: WorkspaceKind }) {
   const label = kind === "artist" ? "Artist workspace" : "Buyer workspace";
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -89,7 +93,8 @@ function WorkspaceShell({ user, children, kind }: { user: SessionUser; children:
               <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/payout-settings" : "/buyer/settings"}>{kind === "artist" ? "Payout settings" : "Settings"}</Link></DropdownMenu.Item>
               <DropdownMenu.Item asChild><Link href={kind === "artist" ? "/artist/catalog" : "/buyer/orders"}>{kind === "artist" ? "Catalog" : "My Purchases"}</Link></DropdownMenu.Item>
               {kind === "buyer" ? <DropdownMenu.Item asChild><Link href="/buyer/settings#account-notifications">Notification preferences</Link></DropdownMenu.Item> : null}
-              <DropdownMenu.Item asChild><Link href="/contact">Help</Link></DropdownMenu.Item>
+              <DropdownMenu.Item asChild><Link href="/account/security">Account security</Link></DropdownMenu.Item>
+              <DropdownMenu.Item asChild><Link href="/account/support">Support and disputes</Link></DropdownMenu.Item>
               <DropdownMenu.Separator className={styles.accountMenuSeparator} />
               <form action={logoutAction}>
                 <DropdownMenu.Item asChild onSelect={event => event.preventDefault()}>
@@ -105,10 +110,10 @@ function WorkspaceShell({ user, children, kind }: { user: SessionUser; children:
   </div>;
 }
 
-export function ArtistWorkspaceShell(props: { user: SessionUser; children: ReactNode }) {
+export function ArtistWorkspaceShell(props: { user: Pick<SessionUser, "fullName">; children: ReactNode }) {
   return <WorkspaceShell {...props} kind="artist" />;
 }
 
-export function BuyerWorkspaceShell(props: { user: SessionUser; children: ReactNode }) {
+export function BuyerWorkspaceShell(props: { user: Pick<SessionUser, "fullName">; children: ReactNode }) {
   return <WorkspaceShell {...props} kind="buyer" />;
 }

@@ -15,7 +15,7 @@ export const defaultCatalogFilters: CatalogFilters = {
 export function getCatalogPrice(track: Pick<BuyerTrack, "license_options">, licenseType = "all") {
   const eligible = track.license_options.flatMap((option) => {
     const amount = option.price_override ?? option.base_price;
-    if (option.active === false || (licenseType !== "all" && option.slug !== licenseType) ||
+    if (option.active === false || (licenseType !== "all" && option.slug !== licenseType && option.id !== licenseType) ||
       typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return [];
     return [{ amount, name: option.name }];
   });

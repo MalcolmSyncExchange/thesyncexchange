@@ -222,10 +222,10 @@ test("notification preferences persist enabled buyer settings while security ale
     securityAlerts: false
   });
 
-  assert.equal(isNotificationPreferencesDirty(initial, current), true);
+  assert.equal(isNotificationPreferencesDirty(initial, current), false);
   assert.deepEqual(buildNotificationPreferencesUpsert("user_123", current), {
     user_id: "user_123",
-    purchase_receipts: false,
+    purchase_receipts: true,
     license_agreement_ready: true,
     platform_updates: false,
     security_alerts: true

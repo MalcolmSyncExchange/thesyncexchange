@@ -1,4 +1,7 @@
 import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
+import { OrderSourceChain } from "@/components/admin/order-source-chain";
+import { OrderFinancialEvidence } from "@/components/admin/order-financial-evidence";
+import { OrderDeliveryAudit } from "@/components/admin/order-delivery-audit";
 
 import { RetryAgreementGenerationForm } from "@/components/admin/retry-agreement-generation-form";
 import { OrderStatusForm } from "@/components/admin/order-status-form";
@@ -14,6 +17,9 @@ export default async function AdminOrdersPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-semibold">License and order management</h1>
+      <a href="/admin/delivery" className="text-sm underline">Secure delivery operations</a>
+      <a href="/admin/payments" className="text-sm underline">Payment evidence and checkout recovery</a>
+      <a href="/admin/finance" className="text-sm underline">Financial processing and reconciliation operations</a>
       <div className="space-y-4">
         {orders.length ? (
           orders.map((order: any) => (
@@ -37,6 +43,9 @@ export default async function AdminOrdersPage() {
                   </div>
                 </div>
 
+                <OrderDeliveryAudit orderId={order.id}/>
+                <OrderSourceChain orderId={order.id}/>
+                <OrderFinancialEvidence orderId={order.id}/>
                 <OrderStatusProgress
                   status={order.order_status}
                   stripe_checkout_session_id={order.stripe_checkout_session_id}

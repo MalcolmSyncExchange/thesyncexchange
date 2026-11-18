@@ -7,3 +7,10 @@ dist
 coverage
 *.log
 tsconfig.tsbuildinfo
+
+.netlify/
+
+# Netlify CLI edge bundling generates this root-only Deno graph cache.
+# Keep dependency lockfiles and nested deno.lock files subject to source checks.
+# See docs/netlify-generated-deno-lock.md.
+/deno.lock

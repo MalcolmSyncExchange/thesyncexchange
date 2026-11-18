@@ -47,7 +47,7 @@ test("catalog and detail projections expose readiness while keeping source paths
   const source = await readFile(new URL("../services/artist/catalog-contract.ts", import.meta.url), "utf8");
   assert.match(source, /fullMasterStored: Boolean\(track\.audio_file_path\)/);
   assert.match(source, /buyerPreviewReady: Boolean\(track\.audio_file_url\)/);
-  assert.match(source, /Current records do not yet separate Recording and Composition rights/);
+  assert.match(source, /Legacy credits do not establish separate master or publishing authority/);
   assert.doesNotMatch(source, /audioFilePath:/);
   assert.doesNotMatch(source, /previewFilePath:/);
   assert.doesNotMatch(source, /rightsHolderEmail/);

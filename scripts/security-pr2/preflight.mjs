@@ -14,7 +14,23 @@ const db=await database('repository',{seed:false});
 try {
  const canonical=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
  const policies=canonical.policies.filter(p=>p.schema==='storage');
- assert.equal(policies.length,6);assert.equal(policies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ const legacyPolicies=policies.filter(p=>!p.name.startsWith('submission_media_'));
+ assert.deepEqual(legacyPolicies.map(p=>p.name).sort(),[
+  'Active artist avatars cannot be deleted','Artists can delete own cleanup avatars',
+  'Artists can select own cleanup avatars','Avatar uploads require server validation',
+  'Avatars require a new object path','Referenced track media cannot be deleted',
+  'Referenced track media cannot be overwritten','Referenced track media cannot be recreated',
+  'commerce_private_objects','system14_active_session'
+ ].sort());
+ assert.equal(legacyPolicies.filter(p=>p.permissive==='RESTRICTIVE').length,8);
+ const mediaPolicies=policies.filter(p=>p.name.startsWith('submission_media_'));
+ assert.equal(mediaPolicies.length,0,'Ordinary database install must not configure provider-owned Storage');
+ const setup=source('docs/slice3-foundation/storage-protection.sql');
+ assert.equal([...setup.matchAll(/create policy /g)].length,5);
+ assert.equal([...setup.matchAll(/as restrictive/g)].length,4);
+ assert.ok(setup.includes('Gate 2 requires exact non-superuser postgres actor'));
+ const mediaManifest=JSON.parse(source('docs/slice3-foundation/source-manifest.json'));
+ assert.equal(mediaManifest.storageSetup.sha256,sha(setup),'Separate Storage setup hash drift');
  assert.ok(policies.some(p=>p.name==='commerce_private_objects' && p.permissive==='RESTRICTIVE'));
  assert.ok(!canonical.triggers.some(t=>['on_auth_user_created','on_auth_user_updated'].includes(t.name)));
  const {rows:[g]}=await db.query(`select

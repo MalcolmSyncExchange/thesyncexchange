@@ -1,3 +1,4 @@
+import { secRequest } from "@/services/admin/sec";
 import type { ReactNode } from "react";
 
 import { AdminShell } from "@/components/admin-v2/admin-shell";
@@ -7,5 +8,6 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireSession("admin");
-  return <AdminShell user={user}>{children}</AdminShell>;
+  const scope=await secRequest({operation:"context"}).catch(()=>null) as {capabilities?:string[];founder?:boolean}|null;
+  return <AdminShell user={user} capabilities={scope?.capabilities||[]} founder={scope?.founder===true}>{children}</AdminShell>;
 }

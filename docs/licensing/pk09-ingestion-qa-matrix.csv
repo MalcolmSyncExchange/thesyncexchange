@@ -1,0 +1,25 @@
+ID,Scenario,Stage,FormalStatus,LocalEvidence,AcceptanceOwner
+PK09R-QA-01,Real endpoint raw HMAC and timestamp verification,Internal Alpha,Not Run,Real SDK HMAC with synthetic secret only,Independent Security
+PK09R-QA-02,Platform account TEST mode and registered credential scopes,Internal Alpha,Not Run,Provider account and scope negative tests,Independent Security
+PK09R-QA-03,Bounded malformed unsupported and oversized events,Internal Alpha,Not Run,Ingestion and actual route composition tests,Engineering
+PK09R-QA-04,Original event and raw delivery retained without overwrite,Internal Alpha,Not Run,Immutable events and serialization replay tests,Engineering
+PK09R-QA-05,Conflicting signed or API evidence quarantined and audited,Internal Alpha,Not Run,Conflict retention and delivery hold tests,Independent Security
+PK09R-QA-06,Canonical order association after initially unknown binding,Internal Alpha,Not Run,Pending binding and adverse-before-binding tests,Engineering
+PK09R-QA-07,No license issuance from failed unpaid or unverified claims,Internal Alpha,Not Run,Failed purchase and preserved PK07 security tests,Engineering
+PK09R-QA-08,Duplicate event IDs and balance IDs create one economic effect,Internal Alpha,Not Run,Duplicate event and balance reuse tests,Accountant and Engineering
+PK09R-QA-09,Actual provider fee and fee-credit arithmetic,Internal Alpha,Not Run,Synthetic authenticated read API fixtures,Accountant
+PK09R-QA-10,Partial full stale and out-of-order refunds,Internal Alpha,Not Run,Provider refund and original allocation regressions,Accountant
+PK09R-QA-11,Dispute debit fee won and lost outcomes retain access holds,Internal Alpha,Not Run,Dispute API fixture and SQL ledger tests,Accountant and Legal
+PK09R-QA-12,Concurrent claims and completion preserve exclusive lease,Internal Alpha,Not Run,Native PostgreSQL independent sessions,Engineering
+PK09R-QA-13,Interrupted worker and unknown commit acknowledgment recover once,Internal Alpha,Not Run,Native rollback and acknowledgment-loss tests,Engineering
+PK09R-QA-14,Exponential retry exhaustion and dead-letter recovery,Internal Alpha,Not Run,Backoff and exhausted lease tests,Operations
+PK09R-QA-15,Database failure and unbalanced posting roll back and alert,Internal Alpha,Not Run,Injected database and balance faults,Engineering and Accountant
+PK09R-QA-16,Provider order payment license delivery and every payee reconcile,Internal Alpha,Not Run,Connected native gross/refund/fee/clearing trace,Accountant
+PK09R-QA-17,Periodic and operator reconciliation refresh retains prior results,Internal Alpha,Not Run,Fulfillment exception and periodic refresh tests,Operations
+PK09R-QA-18,Admin retry acknowledgment and independent restatement approval,Private Beta,Not Run,Canonical role denial and existing PK09 approval tests,Independent Security
+PK09R-QA-19,Credential rotation retains original endpoint evidence,Private Beta,Not Run,Immutable identity and same-account recovery test,Independent Security
+PK09R-QA-20,Hosted worker bearer TLS secret and timeout configuration,Private Beta,Not Run,Local worker auth and redacted endpoint tests only,Independent Security
+PK09R-QA-21,Stopped worker backlog and external alert delivery drill,Private Beta,Not Run,Durable metrics built external paging not configured,Operations
+PK09R-QA-22,Exact hosted migration API version and role compatibility,Private Beta,Not Run,Local eleven-file manifest and NOSUPER fixture only,Engineering
+PK09R-QA-23,Source legal catalog contributor and PK08 hosted acceptance,Private Beta,Not Run,Preserved package tests are local only,Founder and Legal
+PK09R-QA-24,Financial rollback continuity and explicit stage transition,Private Beta,Not Run,Prepared runbook no hosted rehearsal or founder transition,Founder and Operations

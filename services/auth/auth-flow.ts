@@ -33,7 +33,7 @@ export const AUTH_CONFIRM_LINK_INVALID_MESSAGE = "The confirmation link is inval
 export const AUTH_CALLBACK_COMPLETION_PARAM = "auth_callback";
 export const AUTH_CALLBACK_COMPLETION_VALUE = "complete";
 
-const authCallbackReservedParams = new Set(["code", "next", "token_hash", "type"]);
+const authCallbackReservedParams = new Set(["code", "next", "token_hash", "type", "token", "access_token", "refresh_token", "id_token", "provider_token", "provider_refresh_token", "expires_in", "expires_at", "error_description", "state"]);
 const productionAppHosts = new Set(["thesyncexchange.com", "www.thesyncexchange.com"]);
 
 export function normalizeAuthEmail(value: unknown) {
@@ -67,17 +67,20 @@ export function getMissingLoginAccountMessage(authMode: AuthMode) {
 export function buildAuthCallbackRedirectUrl({
   appUrl,
   deploymentTarget,
+  dedicatedStagingIdentityVerified = false,
   nextPath
 }: {
   appUrl: string;
   deploymentTarget: DeploymentTarget;
+  dedicatedStagingIdentityVerified?: boolean;
   nextPath: string;
 }) {
   const callbackUrl = new URL(
     "/auth/confirm",
     resolveConfiguredAuthAppOrigin({
       configuredAppUrl: appUrl,
-      deploymentTarget
+      deploymentTarget,
+      dedicatedStagingIdentityVerified
     })
   );
   callbackUrl.searchParams.set("next", nextPath);
@@ -126,14 +129,15 @@ export function isRecoveryAuthFlow({
 export function shouldExchangeAuthCode({
   hasCode,
   hasTokenHash,
-  hasPkceVerifier
+  hasPkceVerifier,
+  isRecoveryFlow
 }: {
   hasCode: boolean;
   hasTokenHash: boolean;
   isRecoveryFlow: boolean;
   hasPkceVerifier: boolean;
 }) {
-  if (!hasCode || hasTokenHash) {
+  if (!hasCode || hasTokenHash || isRecoveryFlow) {
     return false;
   }
 
@@ -152,10 +156,12 @@ export function getAuthConfirmSuccessRedirectPath({
 
 export function resolveConfiguredAuthAppOrigin({
   configuredAppUrl,
-  deploymentTarget
+  deploymentTarget,
+  dedicatedStagingIdentityVerified = false
 }: {
   configuredAppUrl?: string | null;
   deploymentTarget: DeploymentTarget;
+  dedicatedStagingIdentityVerified?: boolean;
 }) {
   const candidate = normalizeOptionalString(configuredAppUrl);
 
@@ -194,7 +200,12 @@ export function resolveConfiguredAuthAppOrigin({
     throw new Error("Hosted authentication application origins cannot use localhost.");
   }
 
-  if (deploymentTarget === "production" && !productionAppHosts.has(normalizedHostname)) {
+  // This server-derived proof is supplied only after independent platform, build,
+  // project and credential checks; a staging classification flag is insufficient.
+  const verifiedStagingOrigin = dedicatedStagingIdentityVerified &&
+    parsedAppUrl.origin === "https://sync-exchange-posthog-staging.netlify.app";
+
+  if (deploymentTarget === "production" && !productionAppHosts.has(normalizedHostname) && !verifiedStagingOrigin) {
     throw new Error("Production authentication redirects must use the configured production application origin.");
   }
 
@@ -275,12 +286,12 @@ export function buildAuthConfirmErrorUrl({
 
 export function getResetPasswordRecoveryRoutingDecision({
   hasAuthParams,
-  hasSession
+  hasSession: _hasSession
 }: {
   hasAuthParams: boolean;
   hasSession: boolean;
 }): "render" | "confirm" {
-  if (!hasAuthParams || hasSession) {
+  if (!hasAuthParams) {
     return "render";
   }
 
@@ -419,18 +430,16 @@ export async function requestPasswordResetEmail({
     hasError: Boolean(error),
     supabaseErrorCode: error?.code || null,
     supabaseErrorStatus: error?.status || null,
-    supabaseErrorMessage: error?.message || null,
     responseKeys: data && typeof data === "object" ? Object.keys(data) : []
   });
 
-  if (error) {
-    logError("forgot_password_failed", error, {
+  if (error && !["user_not_found", "email_not_confirmed"].includes(error.code || "")) {
+    logError("forgot_password_failed", new Error("Password recovery delivery unavailable."), {
       emailDomain,
       redirectTo,
       resetPasswordForEmailCalled: true,
       supabaseErrorCode: error.code || null,
       supabaseErrorStatus: error.status || null,
-      supabaseErrorMessage: error.message
     });
     return {
       status: "error",
@@ -470,4 +479,23 @@ export function resolveSafeNextPath(rawNext: string | null | undefined, fallback
   } catch {
     return fallback;
   }
+}
+
+/** Accept only the configured Auth verification endpoint or our own callback. */
+export function resolveEmailConfirmationUrl(raw: string | undefined, appUrl: string, supabaseUrl?: string) {
+  if (!raw || raw.length > 8192) return null;
+  try {
+    const url = new URL(raw), app = new URL(appUrl);
+    const provider = supabaseUrl ? new URL(supabaseUrl) : null;
+    if (url.username || url.password || url.hash || (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhostHost(url.hostname)))) return null;
+    const own = url.origin === app.origin && url.pathname === "/auth/confirm";
+    const auth = provider && url.origin === provider.origin && url.pathname === "/auth/v1/verify";
+    if (!own && !auth) return null;
+    const rawRedirect = url.searchParams.get("redirect_to");
+    if (rawRedirect) {
+      const destination = new URL(rawRedirect);
+      if (destination.origin !== app.origin || destination.username || destination.password || !["/auth/confirm", "/reset-password", "/onboarding"].includes(destination.pathname)) return null;
+    }
+    return url.toString();
+  } catch { return null; }
 }

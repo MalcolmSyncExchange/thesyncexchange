@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import vm from "node:vm";
 import ts from "typescript";
+import * as analyticsSchema from "../lib/analytics/schema.ts";
+import * as analyticsTriggers from "../lib/analytics/triggers.ts";
 
 const require = createRequire(import.meta.url);
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -91,7 +93,11 @@ function harness(options = {}) {
   const avatarCleanup = load("services/storage/avatar-cleanup.ts", { ...mocks, "@/lib/env": config });
   const server = load("services/storage/server.ts", { ...mocks, "@/services/storage/track-assets": assets });
   let parsed = 0;
+  const analytics = [];
   const actions = load("services/tracks/actions.ts", {
+    "@/services/analytics/actor": { captureForUser: async (...args) => { analytics.push(args); events.push({op: "analytics"}); } },
+    "@/lib/analytics/schema": analyticsSchema,
+    "@/lib/analytics/triggers": analyticsTriggers,
     ...mocks, "@/lib/env": options.demo ? { ...config, env: { ...config.env, demoMode: true } } : config,
     "@/lib/utils": { slugify: () => "test-track" }, "next/cache": { revalidatePath() {} },
     "@/services/storage/track-assets": assets, "@/services/storage/server": server,
@@ -99,7 +105,7 @@ function harness(options = {}) {
     "@/services/auth/user-profiles": { selectUserProfileCompat: async () => ({ data: role ? { role } : null, error: options.roleError }) },
     "@/lib/validation/track-submission": { ...schema, parseTrackSubmissionFormData(data) { parsed++; return schema.parseTrackSubmissionFormData(data); } }
   });
-  return { assets, actions, server, avatarCleanup, client, events, parsed: () => parsed };
+  return { assets, actions, server, avatarCleanup, client, events, analytics, parsed: () => parsed };
 }
 
 function form(overrides = {}) {
@@ -288,4 +294,30 @@ test("track actions contain no storage deletion path; signing uses only canonica
   assert.match(assets, /import "server-only"/);
   assert.doesNotMatch(assets + actions, /user_metadata|app_metadata/);
   assert.match(assets, /from\("user_profiles"\)\.select\("role"\)/);
+});
+
+test('submission analytics follows required create writes and qualifying atomic updates only', async () => {
+ for (const failTable of ['tracks', 'rights_holders', 'track_license_options']) {
+  const h=harness({failTable});await h.actions.submitTrackAction({},form());assert.equal(h.analytics.length,0);
+  await h.actions.updateTrackAction({},form());assert.equal(h.analytics.length,0);
+ }
+ for (const saveMode of ['draft','publish']) {
+  const h=harness();assert.equal((await h.actions.submitTrackAction({},form({saveMode,analyticsSubmissionAttempt:fileId}))).success,true);
+  assert.equal(h.analytics.length,saveMode==='publish'?1:0);
+  if (saveMode==='publish') {
+   assert.deepEqual(h.analytics[0].slice(0,3),[artistA,'submission_completed',{submission_attempt_id:fileId,track_id:trackId,is_resubmission:false}]);
+   assert.ok(h.events.findIndex(e=>e.op==='analytics')>h.events.findIndex(e=>e.table==='track_license_options'&&e.op==='insert'));
+  }
+ }
+ for (const status of ['draft','rejected','pending_review']) {
+  const h=harness({track:{...snapshot(),status,updated_at:'2026-10-09T00:00:00Z'}});
+  assert.equal((await h.actions.updateTrackAction({},form({analyticsSubmissionAttempt:fileId}))).success,true);
+  assert.equal(h.analytics.length,status==='pending_review'?0:1);
+  if(h.analytics.length) {
+   assert.equal(h.analytics[0][2].is_resubmission,status==='rejected');
+   assert.ok(h.events.findIndex(e=>e.op==='analytics')>h.events.findIndex(e=>e.name==='update_artist_track_atomic'));
+   assert.ok(!JSON.stringify(h.analytics).includes('artist@example.invalid'));
+  }
+ }
+ const conflict=harness({failTable:'atomic-conflict'});await conflict.actions.updateTrackAction({},form());assert.equal(conflict.analytics.length,0);
 });

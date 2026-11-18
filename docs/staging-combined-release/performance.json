@@ -1,0 +1,113 @@
+{
+  "baseline": false,
+  "node": "v24.14.1",
+  "method": "three sequential fixture runs; all samples <=2s and DTO <=2MB required for supported requests; no hosted timing",
+  "results": [
+    {
+      "label": "daily-small",
+      "rows": 1000,
+      "tracks": 50,
+      "days": 89,
+      "comparePrevious": false,
+      "samplesMs": [
+        20.96,
+        7.09,
+        7.46
+      ],
+      "medianMs": 7.46,
+      "serializedBytes": 288047,
+      "returnedTracks": 50,
+      "allMetricMaxMs": 7.32,
+      "allMetricMaxBytes": 288759
+    },
+    {
+      "label": "daily-cap",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 89,
+      "comparePrevious": false,
+      "samplesMs": [
+        26,
+        25.19,
+        23.63
+      ],
+      "medianMs": 25.19,
+      "serializedBytes": 288193,
+      "returnedTracks": 50,
+      "allMetricMaxMs": 22.49,
+      "allMetricMaxBytes": 288816
+    },
+    {
+      "label": "daily-comparison-cap",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 44,
+      "comparePrevious": true,
+      "samplesMs": [
+        36.83,
+        33.62,
+        34.54
+      ],
+      "medianMs": 34.54,
+      "serializedBytes": 436992,
+      "returnedTracks": 50,
+      "allMetricMaxMs": 35.09,
+      "allMetricMaxBytes": 437300
+    },
+    {
+      "label": "hourly-cap",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 7,
+      "comparePrevious": false,
+      "samplesMs": [
+        20.82,
+        21.09,
+        20
+      ],
+      "medianMs": 20.82,
+      "serializedBytes": 327366,
+      "returnedTracks": 50,
+      "allMetricMaxMs": 21.65,
+      "allMetricMaxBytes": 329501
+    },
+    {
+      "label": "hourly-comparison-cap",
+      "rows": 10000,
+      "tracks": 500,
+      "days": 7,
+      "comparePrevious": true,
+      "samplesMs": [
+        34.03,
+        33.97,
+        32.92
+      ],
+      "medianMs": 33.97,
+      "serializedBytes": 533408,
+      "returnedTracks": 50,
+      "allMetricMaxMs": 37.24,
+      "allMetricMaxBytes": 535508
+    },
+    {
+      "label": "legacy-hourly-range",
+      "result": "explicitly rejected; no shortened report"
+    },
+    {
+      "label": "dense-unmatched-checkout",
+      "rows": 10000,
+      "tracks": 2,
+      "days": 7,
+      "comparePrevious": false,
+      "samplesMs": [
+        234.38,
+        242.66,
+        135.52
+      ],
+      "medianMs": 234.38,
+      "serializedBytes": 209367,
+      "returnedTracks": 2,
+      "allMetricMaxMs": 201.82,
+      "allMetricMaxBytes": 211551
+    }
+  ]
+}

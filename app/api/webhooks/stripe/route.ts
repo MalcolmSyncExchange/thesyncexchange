@@ -1,3 +1,4 @@
+import { recordVerifiedPurchase } from "@/services/analytics/purchase";
 import { createHash } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -20,6 +21,8 @@ import {
   runGateDAcceptanceJobs
 } from "@/services/gate-d/server";
 import {
+  retainOrderDisputeLifecycle,
+  expireOrderCheckout,
   getStripeServerClient,
   markOrderCheckoutSessionPaymentFailed,
   markOrderRefundedByPaymentIntent,
@@ -63,16 +66,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing Stripe signature." }, { status: 400 });
   }
 
-  const payload = await request.text();
+  let payload: string;
+  try {
+    payload = await readBoundedFinancialPayload(request);
+  } catch { return NextResponse.json({ error: "Webhook payload exceeds the supported limit." }, { status: 413 }); }
 
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(payload, signature, serverEnv.stripeWebhookSecret!);
   } catch (error) {
-    console.warn("[stripe webhook] signature verification failed", error instanceof Error ? error.message : error);
+    console.warn("[stripe webhook] signature verification failed");
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unable to verify Stripe webhook signature."
+        error: "Unable to verify Stripe webhook signature."
       },
       { status: 400 }
     );
@@ -98,7 +104,17 @@ export async function POST(request: Request) {
   const providerCreatedAt = new Date(event.created * 1000).toISOString();
 
   try {
-    switch (event.type) {
+    let financialCaptureFailed = false;
+    if (process.env.SYNC_EXCHANGE_FINANCIAL_INGESTION_ENABLED === "true") {
+      try {
+        const { captureFinancialWebhook } = await import("@/services/finance/ingestion");
+        await captureFinancialWebhook(payload, signature);
+      } catch { financialCaptureFailed = true; }
+    }
+    if (["refund.created", "refund.updated", "refund.failed"].includes(event.type)) {
+      const { retainRefundObservation } = await import("@/services/orders/refund-observations");
+      await retainRefundObservation(event, evidenceSha256, providerCreatedAt);
+    } else switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -128,7 +144,14 @@ export async function POST(request: Request) {
             orderId: gateDRoute.order_id,
             session,
             webhookEventId: event.id,
-            webhookEventType: event.type
+            webhookEventType: event.type,
+            foundationRecording: false,
+            verifiedEvent: {
+              providerEventId: event.id, eventType: event.type, paymentState: "PAID",
+              checkoutSessionId: session.id, paymentIntentId,
+              amountMinor: session.amount_total, refundedMinor: 0, currency: session.currency,
+              evidenceSha256, providerCreatedAt, livemode: event.livemode
+            }
           });
           await recordGateDVerifiedPayment({
             grantId: gateDRoute.grant_id,
@@ -176,8 +199,28 @@ export async function POST(request: Request) {
             webhookEventType: event.type,
             verifiedEvent
           });
+          // Ordinary marketplace only: paid persistence and evidence processing have succeeded.
+          if (verifiedEvent) {
+            try { await recordVerifiedPurchase(orderId, session, verifiedEvent.providerEventId); }
+            catch { /* System12 collector recovers from retained verified payment facts. Analytics cannot fail payment acknowledgement. */ }
+          }
           revalidateBuyerOrderPaths(orderId);
         }
+        break;
+      }
+      case "checkout.session.expired": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const orderId = session.client_reference_id || session.metadata?.orderId;
+        if (!orderId) throw new Error("Expired checkout has no order reference.");
+        const route = await routeGateDWebhook({ checkoutSessionId: session.id, orderHint: isUuid(orderId) ? orderId : null, livemode: event.livemode, connectAccount: event.account || null });
+        if (route.route_code === "conflict") throw new Error("Expired checkout binding conflict.");
+        if (route.route_code === "gate_d") {
+          if (!route.grant_id) throw new Error("Expired Gate D grant missing.");
+          await requestGateDRevocation(route.grant_id, "payment_failed");
+        } else {
+          await expireOrderCheckout(orderId, session);
+        }
+        revalidateBuyerOrderPaths(orderId);
         break;
       }
       case "checkout.session.async_payment_failed": {
@@ -267,6 +310,15 @@ export async function POST(request: Request) {
         }
         break;
       }
+      case "charge.dispute.updated":
+      case "charge.dispute.closed":
+      case "charge.dispute.funds_withdrawn":
+      case "charge.dispute.funds_reinstated": {
+        const d = event.data.object as Stripe.Dispute;
+        const id = await retainOrderDisputeLifecycle({providerEventId:event.id,eventType:event.type,paymentState:"DISPUTED",paymentIntentId:stripeIdentity(d.payment_intent),amountMinor:d.amount,refundedMinor:0,currency:d.currency,evidenceSha256,providerCreatedAt,livemode:event.livemode});
+        revalidateBuyerOrderPaths(id);
+        break;
+      }
       case "charge.dispute.created": {
         const dispute = event.data.object as Stripe.Dispute;
         const paymentIntentId = stripeIdentity(dispute.payment_intent);
@@ -301,6 +353,9 @@ export async function POST(request: Request) {
       default:
         break;
     }
+    // Retain PK07 payment/adverse safeguards even if finance admission fails.
+    // Returning 500 afterward asks Stripe to retry the missing durable capture.
+    if (financialCaptureFailed) throw new Error("Financial evidence admission requires retry.");
   } catch (error) {
     reportOperationalError("stripe_webhook_processing_failed", error, {
       eventId: event.id,
@@ -308,13 +363,28 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Stripe webhook fulfillment failed."
+        error: "Stripe webhook processing requires retry."
       },
       { status: 500 }
     );
   }
 
   return NextResponse.json({ received: true });
+}
+
+async function readBoundedFinancialPayload(request: Request) {
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = []; let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      size += value.byteLength;
+      if (size > 262144) { await reader.cancel(); throw new Error("payload_limit"); }
+      chunks.push(value);
+    }
+    return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+  } finally { reader.releaseLock(); }
 }
 
 function stripeIdentity(value: string | { id: string } | null | undefined) {

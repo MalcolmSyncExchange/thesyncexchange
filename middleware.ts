@@ -1,13 +1,23 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { authFetch } from "@/services/auth/security";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { env, hasSupabaseEnv } from "@/lib/env";
+import { env, getDeploymentTarget, hasSupabaseEnv } from "@/lib/env";
 import { isMaintenanceHealthRequest, resolveMaintenanceMode } from "@/lib/maintenance-mode.mjs";
 
-const protectedPrefixes = ["/artist", "/buyer", "/admin", "/onboarding", "/dashboard"];
+const protectedPrefixes = ["/artist", "/buyer", "/admin", "/onboarding", "/dashboard", "/account"];
+const matches = (path: string, prefix: string) => path === prefix || path.startsWith(prefix + "/");
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Do not overwrite route-owned sandbox/CSP policies on private documents.
+  const pagePolicy = (result:NextResponse) => {
+    if (!matches(pathname,"/api") && !matches(pathname,"/.netlify/functions")) {
+      result.headers.set("Content-Security-Policy", "base-uri 'self'; object-src 'none'; frame-ancestors 'none'");
+      result.headers.set("Referrer-Policy", "no-referrer");
+    }
+    return result;
+  };
   const maintenance = resolveMaintenanceMode(process.env.SYNC_EXCHANGE_MAINTENANCE_MODE);
   if (maintenance.blocksApplication) {
     if (isMaintenanceHealthRequest(pathname, request.method)) {
@@ -30,60 +40,50 @@ export async function middleware(request: NextRequest) {
       { status: 503, headers: { ...headers, "Content-Type": "text/html; charset=utf-8" } }
     );
   }
-  const needsSession = protectedPrefixes.some((prefix) => pathname.startsWith(prefix));
-
-  if (!needsSession) {
-    return NextResponse.next();
-  }
-
+  const needsSession = protectedPrefixes.some(prefix => matches(pathname, prefix));
+  const refreshAuth = needsSession || ["/login", "/signup", "/forgot-password", "/reset-password", "/auth"].some(prefix => matches(pathname, prefix));
+  if (!refreshAuth) return pagePolicy(NextResponse.next());
+  let response = NextResponse.next({ request });
+  const pendingCookies = new Map<string, { name: string; value: string; options: CookieOptions }>();
+  const privateResponse = (result: NextResponse) => {
+    result.headers.set("Cache-Control", "private, no-store, max-age=0");
+    result.headers.set("Netlify-CDN-Cache-Control", "no-store");
+    result.headers.set("Referrer-Policy", "no-referrer");
+    return pagePolicy(result);
+  };
+  const login = () => {
+    const url = new URL("/login", request.url);
+    url.searchParams.set("redirectTo", pathname + request.nextUrl.search);
+    const denied = NextResponse.redirect(url);
+    for (const cookie of response.cookies.getAll()) denied.cookies.set(cookie);
+    denied.headers.set("Cache-Control", "private, no-store");
+    return privateResponse(denied);
+  };
   if (hasSupabaseEnv && !env.demoMode) {
     try {
-      let response = NextResponse.next({
-        request: {
-          headers: request.headers
-        }
-      });
-
       const supabase = createServerClient(env.supabaseUrl!, env.supabaseAnonKey!, {
+        cookieOptions: { path: "/", sameSite: "lax", secure: getDeploymentTarget() !== "local" },
+        global: { fetch: authFetch },
         cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value;
-          },
-          set(name: string, value: string, options: Record<string, unknown>) {
-            request.cookies.set({ name, value, ...(options as object) });
-            response.cookies.set({ name, value, ...(options as object) });
-          },
-          remove(name: string, options: Record<string, unknown>) {
-            request.cookies.set({ name, value: "", ...(options as object) });
-            response.cookies.set({ name, value: "", ...(options as object) });
+          getAll: () => request.cookies.getAll(),
+          setAll(writes: { name: string; value: string; options: CookieOptions }[]) {
+            for (const write of writes) {
+              request.cookies.set(write.name, write.value);
+              pendingCookies.set(write.name, write);
+            }
+            response = NextResponse.next({ request });
+            for (const { name, value, options } of pendingCookies.values()) response.cookies.set(name, value, options);
           }
         }
       });
-
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        return response;
-      }
-    } catch {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirectTo", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
+      const { data: { user }, error } = await supabase.auth.getUser();
+      response.headers.set("Cache-Control", "private, no-store");
+      response.headers.set("Netlify-CDN-Cache-Control", "no-store");
+      return !needsSession || (!error && user) ? privateResponse(response) : login();
+    } catch { return needsSession ? login() : privateResponse(response); }
   }
-
-  if (env.demoMode) {
-    const session = request.cookies.get("sync-exchange-session")?.value;
-    if (session) {
-      return NextResponse.next();
-    }
-  }
-
-  const loginUrl = new URL("/login", request.url);
-  loginUrl.searchParams.set("redirectTo", pathname);
-  return NextResponse.redirect(loginUrl);
+  if (env.demoMode && request.cookies.get("sync-exchange-session")?.value) return privateResponse(response);
+  return needsSession ? login() : privateResponse(response);
 }
 
 export const config = {

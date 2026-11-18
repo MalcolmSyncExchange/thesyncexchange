@@ -84,6 +84,13 @@ if (!payment.valid) {
   blockingIssues.push(payment.message);
 }
 
+if (deploymentTarget === "production" && process.env.SYNC_EXCHANGE_PRODUCTION_TEST_ENABLED &&
+    process.env.SYNC_EXCHANGE_PRODUCTION_TEST_ENABLED !== "false" &&
+    (process.env.SYNC_EXCHANGE_PRODUCTION_TEST_ENABLED !== "true" ||
+     process.env.SYNC_EXCHANGE_PAYMENT_MODE !== "test" || stripeSecretKeyMode !== "test" || stripePublishableKeyMode !== "test")) {
+  blockingIssues.push("Production testing requires an explicit true flag, test payment mode and matching test Stripe keys.");
+}
+
 if (stripeSecretKeyMode === "unknown" || stripePublishableKeyMode === "unknown") {
   blockingIssues.push("Stripe keys must use recognized test or live key prefixes.");
 }

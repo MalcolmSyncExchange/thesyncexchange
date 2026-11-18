@@ -10,6 +10,8 @@ import Stripe from 'stripe';
 import * as paymentMode from '../lib/payment-mode.mjs';
 import * as deploymentTarget from '../lib/deployment-target.mjs';
 import * as maintenance from '../lib/maintenance-mode.mjs';
+import * as stagingIdentity from '../lib/staging-identity.ts';
+import * as capabilities from '../lib/admin-v2/payment-readiness.ts';
 import {database,asActor} from './helpers/artist-baseline-db.mjs';
 
 const order='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -28,7 +30,7 @@ function load(path,dependencies,variables=fixtureEnv) {
     compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
   }).outputText;
   vm.runInNewContext(compiled,{
-    module:loadedModule,exports:loadedModule.exports,Buffer,URL,Response,Request,console:{...console,warn(){}},process:{env:variables},
+    module:loadedModule,exports:loadedModule.exports,Buffer,TextDecoder,URL,Response,Request,console:{...console,warn(){}},process:{env:variables},
     require:name=>{
       assert.ok(Object.hasOwn(dependencies,name),`Unmocked dependency: ${name}`);
       return dependencies[name];
@@ -74,7 +76,8 @@ function harness({db,account,classification,error}={}) {
     'server-only':{},'node:crypto':{createHash,timingSafeEqual},
     '@/lib/env':env,'@/lib/server-env':serverEnv,
     '@/services/supabase/admin':{createAdminSupabaseClient:()=>admin},
-    '@/services/stripe/server':{
+    '@/services/analytics/purchase': { recordVerifiedPurchase: async () => {} },
+  '@/services/stripe/server':{
       getStripeServerClient:()=>stripe,
       syncOrderFromStripeSession:async input=>ordinary.push(['paid',input]),
       markOrderCheckoutSessionPaymentFailed:async input=>ordinary.push(['failed',input]),
@@ -87,6 +90,9 @@ function harness({db,account,classification,error}={}) {
     '@/lib/maintenance-mode.mjs':maintenance,
     '@/lib/monitoring':{reportOperationalError(){},reportOperationalEvent(){}}
   };
+  const healthRules=load('lib/health/payment-readiness.ts',{'@/lib/admin-v2/payment-readiness':capabilities,'../staging-identity.ts':stagingIdentity},variables);
+  common['@/lib/health/payment-readiness']=healthRules;
+  common['@/services/health/payment-readiness']=load('services/health/payment-readiness.ts',{...common,'server-only':{}},variables);
   const gate=load('services/gate-d/server.ts',common,variables);
   const route=load('app/api/webhooks/stripe/route.ts',{...common,'@/services/gate-d/server':gate},variables);
   const health=load('app/api/health/config/route.ts',common,variables);

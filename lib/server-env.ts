@@ -17,6 +17,7 @@ const rawPurchaseCompletionAdapterEnabled = process.env.SYNC_EXCHANGE_PHASE2B_PA
 const rawPaymentMode = process.env.SYNC_EXCHANGE_PAYMENT_MODE ??
   (getDeploymentTarget() === "preview" ? process.env.TSE_BUILD_PREVIEW_PAYMENT_MODE : undefined);
 const rawBillingPortalEnabled = process.env.SYNC_EXCHANGE_BILLING_PORTAL_ENABLED;
+const rawProductionTestEnabled = process.env.SYNC_EXCHANGE_PRODUCTION_TEST_ENABLED;
 
 export type StripeKeyMode = "test" | "live" | "missing" | "unknown";
 export type BillingPortalFlagState = "enabled" | "disabled" | "missing" | "invalid";
@@ -62,6 +63,14 @@ export function getStripeKeyMode(key: string | undefined, expectedPrefix: "sk" |
   return "unknown";
 }
 
+// Explicitly authorize only synthetic payments on the real production target.
+// This does not enable any adapter, database capability, webhook or worker.
+export function isProductionTestExecutionAllowed() {
+  return getDeploymentTarget() === "production" && rawProductionTestEnabled === "true" &&
+    rawPaymentMode === "test" && getStripeKeyMode(rawStripeSecretKey, "sk") === "test" &&
+    getStripeKeyMode(env.stripePublishableKey, "pk") === "test";
+}
+
 export function getServerEnvironmentDiagnostics() {
   const publicDiagnostics = getPublicEnvironmentDiagnostics();
   const deploymentTarget = getDeploymentTarget();
@@ -99,7 +108,16 @@ export function getServerEnvironmentDiagnostics() {
     });
   }
 
-  if (rawPurchaseCompletionAdapterEnabled === "true" && deploymentTarget === "production") {
+  if (deploymentTarget === "production" && rawProductionTestEnabled && rawProductionTestEnabled !== "false" &&
+      !isProductionTestExecutionAllowed()) {
+    issues.push({
+      code: "production_test_configuration_invalid",
+      severity: "error",
+      message: "Production testing requires an explicit true flag, test payment mode and matching test Stripe keys."
+    });
+  }
+
+  if (rawPurchaseCompletionAdapterEnabled === "true" && deploymentTarget === "production" && !isProductionTestExecutionAllowed()) {
     issues.push({
       code: "purchase_completion_adapter_production_prohibited",
       severity: "error",
@@ -266,7 +284,8 @@ export function assertStripeServerConfiguration(
       "missing_stripe_webhook_secret",
       "missing_purchase_completion_provider_account",
       "purchase_completion_adapter_requires_test_mode",
-      "purchase_completion_adapter_production_prohibited"
+      "purchase_completion_adapter_production_prohibited",
+      "production_test_configuration_invalid"
     ].includes(issue.code)
   );
 
@@ -351,7 +370,7 @@ export function getPurchaseCompletionAdapterConfiguration() {
     rawPurchaseCompletionAdapterEnabled === "true";
   const accountValid = Boolean(rawStripeAccountId && /^acct_[A-Za-z0-9]+$/.test(rawStripeAccountId));
   const deploymentTarget = getDeploymentTarget();
-  const targetValid = deploymentTarget !== "production";
+  const targetValid = deploymentTarget !== "production" || isProductionTestExecutionAllowed();
   const payment = resolvePaymentConfiguration(rawPaymentMode, deploymentTarget);
 
   return {

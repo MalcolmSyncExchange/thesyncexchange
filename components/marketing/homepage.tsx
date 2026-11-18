@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, FileCheck2, Music2, Search, ShieldCheck } fro
 import { Button } from "@/components/ui/button";
 import surface from "@/components/layout/sync-surface.module.css";
 import styles from "./homepage.module.css";
+import { HomepageMotion } from "./homepage-motion";
 
 const buyerSteps = [
   { icon: Search, title: "Find it.", text: "Search by sound, mood, genre, track, or artist." },
@@ -12,8 +13,8 @@ const buyerSteps = [
 ];
 
 export function Homepage() {
-  return <main className={styles.home}>
-    <section className={styles.hero} aria-labelledby="home-title">
+  return <HomepageMotion>
+    <section className={styles.hero} data-home-hero aria-labelledby="home-title">
       <div className={styles.heroMedia} aria-hidden="true">
         <picture className={styles.heroPicture}>
           <source
@@ -21,9 +22,10 @@ export function Homepage() {
             srcSet="/images/sync-sound-sculpture-hero-mobile-400.webp 400w, /images/sync-sound-sculpture-hero-mobile.webp 800w"
             sizes="100vw"
           />
-          <Image src="/images/sync-sound-sculpture-hero.webp" alt="" fill fetchPriority="high" sizes="100vw" quality={90} className={styles.heroArtwork} />
+          <Image unoptimized src="/images/sync-sound-sculpture-hero.webp" alt="" fill fetchPriority="high" sizes="100vw" quality={90} className={styles.heroArtwork} />
         </picture>
       </div>
+      <div className={styles.heroLight} aria-hidden="true" />
       <div className={styles.heroAtmosphere} aria-hidden="true" />
       <div className={styles.heroTransition} aria-hidden="true" />
       <div className={styles.heroContent}>
@@ -33,8 +35,8 @@ export function Homepage() {
           <p className={`${surface.description} ${styles.heroDescription}`}>A music licensing marketplace for buyers and artists. Find music, review what is offered, and choose a license for your project.</p>
           <div className={styles.heroConversion}>
             <div className={styles.actions}>
-              <Button asChild size="lg" className={styles.primaryAction}><Link href="/discover">Search music<ArrowRight aria-hidden="true" size={18} /></Link></Button>
-              <Button asChild variant="outline" size="lg" className={styles.secondaryAction}><Link href="/signup/artist">List your music<Music2 aria-hidden="true" size={18} /></Link></Button>
+              <Button asChild size="lg" className={`${styles.primaryAction} ${styles.heroPrimary}`}><Link href="/discover">Search music<ArrowRight aria-hidden="true" size={18} /></Link></Button>
+              <Button asChild variant="outline" size="lg" className={`${styles.secondaryAction} ${styles.heroSecondary}`}><Link href="/signup/artist">List your music<Music2 aria-hidden="true" size={18} /></Link></Button>
             </div>
             <p className={styles.signin}>Already part of The Sync Exchange? <Link href="/login">Log in</Link></p>
           </div>
@@ -42,16 +44,16 @@ export function Homepage() {
       </div>
     </section>
 
-    <section className={styles.discovery} aria-labelledby="discovery-title">
-      <div className={styles.sectionHeading}><div><p className={surface.eyebrow}>How it works</p><h2 id="discovery-title">From first listen to license record.</h2></div><Link href="/how-it-works" className={surface.link}>See both paths<ArrowRight aria-hidden="true" size={18} /></Link></div>
-      <ol className={styles.steps}>{buyerSteps.map(({icon: Icon,title,text},index)=><li key={title}><div className={styles.stepTop}><Icon aria-hidden="true" size={26} /><span>0{index+1}</span></div><h3>{title}</h3><p>{text}</p></li>)}</ol>
+    <section className={styles.discovery} data-reveal="divider" aria-labelledby="discovery-title">
+      <div className={styles.sectionHeading}><div><p className={surface.eyebrow} data-reveal>How it works</p><h2 id="discovery-title" data-reveal data-reveal-step="1">From first listen to license record.</h2></div><Link href="/how-it-works" className={surface.link} data-reveal data-reveal-step="3">See both paths<ArrowRight aria-hidden="true" size={18} /></Link></div>
+      <ol className={styles.steps}>{buyerSteps.map(({icon: Icon,title,text},index)=><li key={title} data-reveal data-reveal-step={index + 1}><div className={styles.stepTop}><Icon aria-hidden="true" size={26} /><span>0{index+1}</span></div><h3>{title}</h3><p>{text}</p></li>)}</ol>
     </section>
 
     <section className={styles.artist} aria-labelledby="artist-title">
-      <div><p className={surface.eyebrow}>For artists & rightsholders</p><h2 id="artist-title">Make your music easy to find and ready to license.</h2><p className={surface.description}>Build your public profile, add your catalog, provide recording and composition details, and set supported license prices.</p><Link href="/for-artists" className={surface.link}>Learn about Artist Desk<ArrowRight aria-hidden="true" size={18} /></Link></div>
-      <div className={styles.artistJourney}><h3>Your music. Your offer.</h3><ol>{[["Be found.","Build a public artist profile and add your catalog."],["Make the rights clear.","Provide recording and composition information separately."],["Set license options.","Choose supported offer prices. Platform terms stay separate."]].map(([title,text])=><li key={title}><CheckCircle2 aria-hidden="true" size={26} /><div><h4>{title}</h4><p>{text}</p></div></li>)}</ol></div>
+      <div><p className={surface.eyebrow} data-reveal>For artists & rightsholders</p><h2 id="artist-title" data-reveal data-reveal-step="1">Make your music easy to find and ready to license.</h2><p className={surface.description} data-reveal data-reveal-step="2">Build your public profile, add your catalog, provide recording and composition details, and set supported license prices.</p><Link href="/for-artists" className={surface.link} data-reveal data-reveal-step="3">Learn about Artist Desk<ArrowRight aria-hidden="true" size={18} /></Link></div>
+      <div className={styles.artistJourney} data-reveal data-reveal-step="2"><h3>Your music. Your offer.</h3><ol>{[["Be found.","Build a public artist profile and add your catalog."],["Make the rights clear.","Provide recording and composition information separately."],["Set license options.","Choose supported offer prices. Platform terms stay separate."]].map(([title,text])=><li key={title}><CheckCircle2 aria-hidden="true" size={26} /><div><h4>{title}</h4><p>{text}</p></div></li>)}</ol></div>
     </section>
 
-    <section className={styles.closing}><div><p className={surface.eyebrow}>Clear it.</p><h2>Know what is offered before you move forward.</h2><p className={surface.description}>See the track’s rights information, license availability, price, and terms. This helps you understand the offer. It is not a promise that every right has been independently verified.</p></div><Button asChild size="lg" variant="outline"><Link href="/rights-and-licensing">How rights and licensing work<ArrowRight aria-hidden="true" size={18} /></Link></Button></section>
-  </main>;
+    <section className={styles.closing}><div><p className={surface.eyebrow} data-reveal>Clear it.</p><h2 data-reveal data-reveal-step="1">Know what is offered before you move forward.</h2><p className={surface.description} data-reveal data-reveal-step="2">See the track’s rights information, license availability, price, and terms. This helps you understand the offer. It is not a promise that every right has been independently verified.</p></div><Button asChild size="lg" variant="outline"><Link href="/rights-and-licensing" data-reveal data-reveal-step="3">How rights and licensing work<ArrowRight aria-hidden="true" size={18} /></Link></Button></section>
+  </HomepageMotion>;
 }

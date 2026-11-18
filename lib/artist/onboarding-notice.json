@@ -1,0 +1,18 @@
+{
+  "version": "artist-account-2026-10-23-v1",
+  "text": "I am authorized to provide these account and collaborator details. I have read the linked Terms of Use and Privacy Policy. I understand that master recording and composition/publishing rights are separate, these are account-level declarations only, and every track must pass its own rights and licensing review. Completing onboarding does not verify rights, approve a catalog, authorize a license, or enable payouts. The current Terms of Use are marked as draft and require legal approval before commercial use.",
+  "documents": [
+    {
+      "path": "/terms",
+      "version": "terms-placeholder-baseline-b87e943",
+      "sourceSha256": "8269a58f313154f1ccb37b6851e29a42e5989e91fb8cd6566ba3f136783fc380",
+      "status": "draft"
+    },
+    {
+      "path": "/privacy",
+      "version": "privacy-2026-04-30",
+      "sourceSha256": "94b9273c0ca2fc3dd2d9c057ea6c97605ca2df9cb8ff6188bd482c6c107f331a",
+      "status": "published-copy-review-required"
+    }
+  ]
+}

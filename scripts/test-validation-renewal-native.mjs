@@ -1,0 +1,40 @@
+// Isolated native PostgreSQL only. No database URL or existing cluster is accepted.
+import{mkdtempSync,mkdirSync,readFileSync,readdirSync,rmSync}from'node:fs';
+import{tmpdir}from'node:os';import{join}from'node:path';import{execFile}from'node:child_process';import{promisify}from'node:util';import assert from'node:assert/strict';
+import{fixtureBootstrapSql,postgresPgcryptoBootstrapSql,seedDatabase,ids}from'../tests/helpers/artist-baseline-db.mjs';
+const run=promisify(execFile),root=new URL('../',import.meta.url),temporary=mkdtempSync(join(tmpdir(),'tse-renewal-native-')),data=join(temporary,'data'),socket=join(temporary,'socket');mkdirSync(socket);
+const port='55553',args=['-h',socket,'-p',port,'-U','postgres','-d','postgres','-X','-q','-A','-t','-v','ON_ERROR_STOP=1'];let started=false;
+const sql=async text=>(await run('psql',[...args,'-c',text],{maxBuffer:8*1024*1024})).stdout;
+const identity="set local role service_role;select set_config('request.jwt.claims','{\"ref\":\"oppijylbkcbiqfuvckgj\",\"role\":\"service_role\"}',true);select set_config('request.jwt.claim.role','service_role',true);";
+const service=text=>sql('begin;'+identity+text+';commit;');
+const legacy='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',one='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',two='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const arm=id=>`select row_to_json(t) from arm_staging_analytics_validation('${id}','${ids.a}','${ids.admin}','submission_started') t;`;
+const claim=(id,operator=ids.admin,artist=ids.a)=>`select row_to_json(t) from claim_staging_analytics_validation('${id}','${artist}','submission_started','${operator}') t;`;
+const rows=text=>text.split('\n').filter(s=>s.startsWith('{"id"')).map(s=>JSON.parse(s));
+try{
+ await run('initdb',['-D',data,'-U','postgres','--auth=trust','--no-locale']);await run('pg_ctl',['-D',data,'-l',join(temporary,'server.log'),'-o',`-k ${socket} -p ${port} -h ''`,'start']);started=true;
+ await sql(fixtureBootstrapSql+postgresPgcryptoBootstrapSql);
+ const files=readdirSync(new URL('supabase/migrations/',root)).filter(f=>f.endsWith('.sql')).sort(),follow=files.find(f=>f.includes('immutable_staging_validation_renewal'));
+ for(const f of files.filter(f=>f!==follow))await sql(readFileSync(new URL('supabase/migrations/'+f,root),'utf8'));
+ await seedDatabase({exec:async t=>sql("select set_config('request.jwt.claim.role','service_role',false);"+t)});
+ await sql(`insert into staging_analytics_validation(id,artist_id,event,created_at,expires_at)values('${legacy}','${ids.a}','submission_started',clock_timestamp()-interval '10 minutes',clock_timestamp()-interval '5 minutes');`);
+ const before=(await sql(`select to_jsonb(t)::text from staging_analytics_validation t where id='${legacy}'`)).trim();
+ const migration=readFileSync(new URL('supabase/migrations/'+follow,root),'utf8');await sql(migration);
+ assert.equal((await sql(`select (to_jsonb(t)-'operator_id')::text from staging_analytics_validation t where id='${legacy}'`)).trim(),before);
+ await assert.rejects(sql(`delete from staging_analytics_validation where id='${legacy}'`),/immutable/);await assert.rejects(sql(`update staging_analytics_validation set revoked_at=clock_timestamp() where id='${legacy}'`),/immutable/);
+ const arms=await Promise.allSettled([service(arm(one)),service(arm(two))]);assert.equal(arms.filter(x=>x.status==='fulfilled').length,1);assert.match(arms.find(x=>x.status==='rejected').reason.stderr,/authorization_active/);
+ const active=(await sql('select authorization_id from staging_analytics_validation_slot')).trim();assert.equal(rows(await service(claim(active,ids.b))).length,0);assert.equal(rows(await service(claim(active,ids.admin,ids.b))).length,0);assert.equal(rows(await service(claim(legacy))).length,0);
+ const claimed=await Promise.all([service(claim(active)),service(claim(active)),service(claim(active)),service(claim(active))]);const events=claimed.flatMap(rows);assert.equal(events.length,1);assert.equal(events[0].attempt_count,1);assert.equal((await sql('select count(*) from analytics_outbox')).trim(),'1');
+ assert.equal(rows(await service(claim(active))).length,0);await assert.rejects(service(arm('dddddddd-dddd-4ddd-8ddd-dddddddddddd')),/authorization_active/);
+ const e=events[0];await service(`select finish_staging_analytics_validation('${active}','${e.lease_id}',true);`);assert.equal((await sql(`select outcome from staging_analytics_validation where id='${active}'`)).trim(),'accepted');
+ await assert.rejects(service(`delete from staging_analytics_validation where id='${active}'`),/permission denied/);await assert.rejects(service(`update staging_analytics_validation set consumed_at=null where id='${active}'`),/permission denied/);
+ await assert.rejects(sql(`update staging_analytics_validation set revoked_at=clock_timestamp() where id='${active}'`),/immutable/);
+ const expired='ffffffff-ffff-4fff-8fff-ffffffffffff';
+ await sql(`insert into staging_analytics_validation(id,artist_id,operator_id,event,created_at,expires_at)values('${expired}','${ids.a}','${ids.admin}','submission_started','2020-01-01','2020-01-01 00:05');update staging_analytics_validation_slot set authorization_id='${expired}';`);
+ assert.equal(rows(await service(claim(expired))).length,0);await assert.rejects(service(arm(expired)),/authorization_exists/);await assert.rejects(sql(`update staging_analytics_validation set expires_at=clock_timestamp()+interval '5 minutes' where id='${expired}'`),/immutable/);
+ const replacement=active===one?two:one;assert.equal(rows(await service(arm(replacement))).length,1);assert.equal((await sql(`select extract(epoch from expires_at-created_at)::int from staging_analytics_validation where id='${replacement}'`)).trim(),'300');assert.equal(rows(await service(claim(active))).length,0);
+ await sql(migration);assert.equal((await sql(`select (to_jsonb(t)-'operator_id')::text from staging_analytics_validation t where id='${legacy}'`)).trim(),before);
+ for(const role of ['anon','authenticated'])await assert.rejects(sql(`begin;set local role ${role};select arm_staging_analytics_validation('${one}','${ids.a}','${ids.admin}','submission_started');commit;`),/permission denied/);
+ await assert.rejects(sql(`begin;set local role service_role;select set_config('request.jwt.claims','{"ref":"production","role":"service_role"}',true);${arm('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')}commit;`),/staging_validation_identity/);
+ console.log(JSON.stringify({nativePostgres:true,simultaneousArms:2,successfulArms:1,concurrentClaims:4,events:1,historicalGrantPreserved:true,operatorAndArtistRejected:true,expiredGrantRejected:true,finishedGrantImmutable:true,reuseRejected:true,exactFiveMinuteExpiry:true,renewalAfterCompletedGrant:true,permissionsAndProduction:'PASS'}));
+}finally{if(started)await run('pg_ctl',['-D',data,'-m','immediate','stop']);rmSync(temporary,{recursive:true,force:true});}

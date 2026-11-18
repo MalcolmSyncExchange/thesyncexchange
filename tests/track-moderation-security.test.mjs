@@ -95,10 +95,16 @@ test("admin actions remain the only app path for approval, rejection, and featur
 });
 
 test("buyer catalog remains restricted to legitimately approved tracks", () => {
-  assert.match(buyerQueriesSource, /from\("buyer_catalog_public"\)/);
+  assert.match(buyerQueriesSource, /getMarketplacePage/);
+  const marketplace = readFileSync(new URL("../services/buyer/marketplace.ts", import.meta.url), "utf8");
+  assert.match(marketplace, /requireAccountScope\("buyer",userId\)/);
+  assert.match(marketplace, /"marketplace_search"/);
   const projection = readFileSync(new URL("../supabase/migrations/20260915224822_separate_profile_finance_and_buyer_access.sql", import.meta.url), "utf8");
   assert.match(projection, /where t.status='approved' and public.current_app_role\(\) in \('buyer','admin'\)/);
-  assert.match(buyerQueriesSource, /demoTracks\.filter\(\(track\) => track\.status === "approved"\)/);
+  assert.match(marketplace, /tracks\.filter\(t=>t\.status==="approved"\)/);
+  const current = readFileSync(new URL("../supabase/migrations/20261024070934_system06_buyer_marketplace.sql", import.meta.url), "utf8");
+  assert.match(current, /catalog_private\.marketplace_buyer\(\)/);
+  assert.match(current, /catalog_private\.visible\(t.id\)/);
   assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "pending_review"\)/);
   assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "draft"\)/);
   assert.doesNotMatch(buyerQueriesSource, /\.eq\("status", "rejected"\)/);

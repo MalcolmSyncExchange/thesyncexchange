@@ -48,7 +48,7 @@
     },
     {
       "file": "0011_storage_object_policies.sql",
-      "sha256": "b036c1a7cb546f7c7ce35eaffa68142019b81e9f9800aeb917b352b38f02371c"
+      "sha256": "88d3e3c6f17d2105f6f27a44ee339e490502048631094e62903805dc089a9c85"
     },
     {
       "file": "0012_avatar_storage_path.sql",
@@ -85,6 +85,10 @@
     {
       "file": "0021_rate_limit_foundation.sql",
       "sha256": "756f51f0a06308b0acff1a6ee2cc0a615e21e981df536630e94c183af6391ec9"
+    },
+    {
+      "file": "20260915072720_analytics_purchase_outbox.sql",
+      "sha256": "3ead2fac00430b5bfa79603fc5b721fdb0dd8f23e9ab7d1ab172ebb0de584e12"
     },
     {
       "file": "20260915224738_reconcile_reviewed_rights_and_storage.sql",
@@ -124,7 +128,179 @@
     },
     {
       "file": "20261004023241_gate_d_acceptance_functions.sql",
-      "sha256": "4d8ed789f5d938028fe86eacfaab14f424e3354761a5d3fe2a5761d1a3802dfc"
+      "sha256": "b3dfbde1e6f2fd90ab9a084fd7e3e37713ccb28a00e36ec6009c75c47875c4cd"
+    },
+    {
+      "file": "20261008091022_slice3_submission_media_schema.sql",
+      "sha256": "6c6fba892d2fd64eead9bd5aafa8fb5cd9c95a0bc5d7b2e51b35270ff8534ede"
+    },
+    {
+      "file": "20261008091023_slice3_submission_media_functions.sql",
+      "sha256": "07b650baea1cc6c1452bfe07ae21db6da5d71a0893992705304c734724ec9c10"
+    },
+    {
+      "file": "20261008091024_slice3_submission_media_storage.sql",
+      "sha256": "58129847813b6878980c78e86efbcd74fb46d0d40716a10d949c7804bcfd6897"
+    },
+    {
+      "file": "20261008231329_slice3_media_worker_fenced_io.sql",
+      "sha256": "62da6eac9a058e42aec76022872b680601c91fd62730f7306b6539a5c0809a57"
+    },
+    {
+      "file": "20261009010228_slice3_media_execution_permits.sql",
+      "sha256": "45379f2ef5019bdc4f29135521c5e0b1bd7d037605d776b71631e9c3497dfbd3"
+    },
+    {
+      "file": "20261010060000_analytics_verified_purchase_evidence.sql",
+      "sha256": "3b86b6e7cae163e92857e052fef685b3b84985a3665d7763008db6992760efc3"
+    },
+    {
+      "file": "20261011004710_sec_payment_readiness.sql",
+      "sha256": "6fc3d2714e585f4566068dd371120aeb1323145b23da0b00ca6acb4ab15bcc50"
+    },
+    {
+      "file": "20261011191427_analytics_delivery_reliability.sql",
+      "sha256": "717cf8b444288c3bcaa8a581cf5bf5ccd15effeb1fff57aea01081dc5a81131e"
+    },
+    {
+      "file": "20261011210517_analytics_reporting_index.sql",
+      "sha256": "0ac62cb3ebf55120d043b8166274261fab4c4013c37be273539b17cdcfee0b99"
+    },
+    {
+      "file": "20261012173855_artist_onboarding_atomic.sql",
+      "sha256": "8cc4d1c4fbdf74a48b9685920576fbc5ab06a8d4ab225ca72bc62a56a87e80a2"
+    },
+    {
+      "file": "20261012173856_staging_avatar_storage_readiness.sql",
+      "sha256": "a3c216f8aada2c8eec140ac08e7fdc24a24df46401ba0d3d2179692d52eb669d"
+    },
+    {
+      "file": "20261014024758_bounded_staging_analytics_validation.sql",
+      "sha256": "0f9dfb056661b9a89bda9a06d6e589fb88dcaaa3cdbc3a6c9579457732ece7e1"
+    },
+    {
+      "file": "20261014050032_immutable_staging_validation_renewal.sql",
+      "sha256": "50482a775cfb2ef6b57a845d546d264c2139a484c3ccf3f0ba216bade7789a21"
+    },
+    {
+      "file": "20261022053950_checkout_recovery.sql",
+      "sha256": "94e619349006661971e5069f8f2ed48a3519ecc927ba689f8849f8ba21269619"
+    },
+    {
+      "file": "20261022165929_purchase_legal_snapshots.sql",
+      "sha256": "0e3f81c5e50c1283b7c6cbeb1a5dedde463fec71060f5a8df3aca44fbbcbb950"
+    },
+    {
+      "file": "20261022180614_secure_asset_delivery.sql",
+      "sha256": "c869f440d54cc196f6e43f7d78509e4e402311d932a619619fc42374840b35de"
+    },
+    {
+      "file": "20261022191602_immutable_source_integration.sql",
+      "sha256": "d90006ac5a107a74fa7fda0e479c3ec576c94d262ac2b20772784f86551e5ad8"
+    },
+    {
+      "file": "20261022210225_financial_ledger_reconciliation.sql",
+      "sha256": "ef36177ed00856927b6ad4827e15385373411c4cc334d8d79f0a6a757b14da02"
+    },
+    {
+      "file": "20261022213225_financial_ingestion_recovery.sql",
+      "sha256": "f1872d35ce5484460eb08b1617f316baf85b222b51452cbf420e87d54d0be14c"
+    },
+    {
+      "file": "20261023000941_authenticated_adverse_financial_evidence.sql",
+      "sha256": "826df468da6de1fbc56d062d3910e025fffb74f7d1bde63f671d22ed1268bec6"
+    },
+    {
+      "file": "20261023001622_verified_provider_fee_bounds.sql",
+      "sha256": "7a1eee7f2caee1188d67b6b330aa81d34b3f53fdf8236a02ff52d82c13e07557"
+    },
+    {
+      "file": "20261024021823_system01_authentication_guards.sql",
+      "sha256": "cfe55ed5ca09bdac75beb3e55a4243ae9839ad2c778155a0e20f5061d4fbff96"
+    },
+    {
+      "file": "20261024032018_system02_artist_account.sql",
+      "sha256": "eaa572dc480a4f1c7adc7264a3dd142fd8901f305556bad9d81c799e7f40a7e7"
+    },
+    {
+      "file": "20261024035806_system03_music_uploads.sql",
+      "sha256": "ed1072090339c99d02c8cf9e6c1627a5510731d529c678f58f512d8f07d2d099"
+    },
+    {
+      "file": "20261024044101_system04_rights_verification.sql",
+      "sha256": "edb5504de25b6f865b35dc2368031d2a8deead72819e43238fcca2fffcb78942"
+    },
+    {
+      "file": "20261024060044_system05_catalog_management.sql",
+      "sha256": "1ad3cc36317cd1c8f9df2e7c2ef1429f54eff2711d86cbc4507de885875aae70"
+    },
+    {
+      "file": "20261024070934_system06_buyer_marketplace.sql",
+      "sha256": "435565c26590d2f8907852ffe82bcabfe48a6c105c14e8f30f88403330084fa5"
+    },
+    {
+      "file": "20261024080855_system07_licensing.sql",
+      "sha256": "7717a6626bc93196a19bd2f4a0b73d93ced4fe3cfb285eba9589da4dd5493cdb"
+    },
+    {
+      "file": "20261024094011_system08_checkout_payments.sql",
+      "sha256": "e945282358b341cb2b42adb8660afff80247b18be603b75b59124cd2e7c0d871"
+    },
+    {
+      "file": "20261024105306_system09_secure_delivery.sql",
+      "sha256": "c4aa50fe7ab529637e3dec5b1187234388e391cba3ce5ab5ed26bf0bf6fceeb4"
+    },
+    {
+      "file": "20261024175837_system10_financial_accounting.sql",
+      "sha256": "a8512a75721e368931d40f99da90f1b364c311022f0d2790a1876e5045e60d0d"
+    },
+    {
+      "file": "20261024185357_system11_sec_admin.sql",
+      "sha256": "353574c7efdee12f0673666edf1fe806fb56542ba31e81880e0e6831f9c7b962"
+    },
+    {
+      "file": "20261024210014_system12_analytics_integration.sql",
+      "sha256": "82c1d965a26d18becdb3bdf40bed9dfe69ab0d85badb0a7e40c70cf2b468b3ec"
+    },
+    {
+      "file": "20261024220724_system13_email_notifications.sql",
+      "sha256": "c16d9f8236130eade8fec54f22d70b834d83e74f47f93bd93b3ec22754be2432"
+    },
+    {
+      "file": "20261024232453_system14_security_guards.sql",
+      "sha256": "f8899cd7236f8f71106f8b082862e6823051e3fc9466ab1238b8935d468547fc"
+    },
+    {
+      "file": "20261025000001_production_upgrade_reconciliation.sql",
+      "sha256": "92b1e6418f89496136fc49c0c89b232d2ee7f7e4e837d8dc221678e3e26c1836"
+    },
+    {
+      "file": "20261026021846_artist_submission_workspace.sql",
+      "sha256": "22c4977f28c780789e734feda2e20c42f016c94d5f3d39f20fc452b6d893edeb"
+    },
+    {
+      "file": "20261118014919_digitalocean_fenced_media_admission.sql",
+      "sha256": "f4ee91ec951e0ef6e84028559bf155a79893fe8edfff19ad486e359b168c4850"
+    },
+    {
+      "file": "20261118020018_digitalocean_sealed_credential_bootstrap.sql",
+      "sha256": "5b0637de5a27678fa823d3a0f10bf19260d1c4bc10f00b09ff009f8d67adec3d"
+    },
+    {
+      "file": "20261118020133_suspend_uninstalled_do_login.sql",
+      "sha256": "95647557d2f08b2a9be13441f1846d0176b734767caf0b0d0e8ecac97cb70895"
+    },
+    {
+      "file": "20261118022213_digitalocean_live_permit_status.sql",
+      "sha256": "61430f264e5783a363919f20773d71634718f362845d32617b9b4c851accd13f"
+    },
+    {
+      "file": "20261118022453_automatic_audio_preview_and_waveform.sql",
+      "sha256": "bae227ad971d675a056e44df62e0e310e30e0d5ac2c59a33866c186061c5b3e4"
+    },
+    {
+      "file": "20261118024724_digitalocean_conservative_transfer_reservation.sql",
+      "sha256": "6280c0e63c6cea16cbfe24092d2cd14d0ed5995858923e5a08a132582677bbdc"
     }
   ],
   "storageBuckets": {

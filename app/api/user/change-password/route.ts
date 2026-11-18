@@ -1,62 +1,22 @@
-import { NextResponse } from "next/server";
-
-import { reportOperationalError, reportOperationalEvent } from "@/lib/monitoring";
-import { buildPasswordUpdatePayload, validatePasswordChange } from "@/services/buyer/settings";
-import { createServerSupabaseClient } from "@/services/supabase/server";
+import { reportOperationalEvent } from "@/lib/monitoring";
+import { validatePasswordChange } from "@/services/buyer/settings";
+import { accountJson, authorizeBuyerAccountMutation, readAccountJson, verifyAccountPassword } from "@/services/auth/account-mutations";
+import { clearAccountCookies } from "@/services/auth/cookies";
+import { authAttempt } from "@/services/auth/security";
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user?.id || !user.email) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-
-  const body = (await request.json().catch(() => null)) as {
-    currentPassword?: string;
-    newPassword?: string;
-    confirmPassword?: string;
-  } | null;
-  const validation = validatePasswordChange({
-    currentPassword: body?.currentPassword || "",
-    newPassword: body?.newPassword || "",
-    confirmPassword: body?.confirmPassword || ""
-  });
-
-  if (!validation.ok) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
-  }
-
-  reportOperationalEvent("buyer_password_update_triggered", "Buyer password update triggered.", {
-    userId: user.id
-  });
-
-  const { error: verifyError } = await supabase.auth.signInWithPassword({
-    email: user.email,
-    password: validation.value.currentPassword
-  });
-
-  if (verifyError) {
-    reportOperationalError("buyer_password_current_password_failed", verifyError, {
-      userId: user.id,
-      supabaseErrorCode: verifyError.code || null
-    });
-    return NextResponse.json({ error: "Current password is incorrect." }, { status: 400 });
-  }
-
-  const { error } = await supabase.auth.updateUser(buildPasswordUpdatePayload(validation.value.newPassword));
-
-  if (error) {
-    reportOperationalError("buyer_password_update_failed", error, {
-      userId: user.id,
-      supabaseErrorCode: error.code || null
-    });
-    return NextResponse.json({ error: "Unable to update password right now." }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    message: "Password updated."
-  });
+  const access = await authorizeBuyerAccountMutation(request);
+  if (access.response) return access.response;
+  const body = await readAccountJson(request);
+  if (!body || ["currentPassword", "newPassword", "confirmPassword"].some(key => typeof body[key] !== "string")) return accountJson({ error: "Enter your current and new passwords." }, 400);
+  const validation = validatePasswordChange({ currentPassword: String(body?.currentPassword || ""), newPassword: String(body?.newPassword || ""), confirmPassword: String(body?.confirmPassword || "") });
+  if (!validation.ok) return accountJson({ error: validation.error }, 400);
+  reportOperationalEvent("buyer_password_update_triggered", "Authenticated account security request.", { userId: access.user.id });
+  if (!(await verifyAccountPassword(access.user, validation.value.currentPassword))) return accountJson({ error: "We could not verify your current password." }, 400);
+  const result = await authAttempt(() => access.db.auth.updateUser({ password: validation.value.newPassword }));
+  if (result.error) return accountJson({ error: "Unable to update password right now." }, 503);
+  const signedOut = await authAttempt(() => access.db.auth.signOut({ scope: "global" }));
+  await clearAccountCookies();
+  const message = signedOut.error ? "Password updated. Signed out on this device; other sessions could not be confirmed signed out." : "Password updated. Sign in again.";
+  return accountJson({ message, redirectTo: "/login?success=" + encodeURIComponent(message) });
 }

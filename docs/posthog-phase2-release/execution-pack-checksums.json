@@ -1,0 +1,8 @@
+{
+  "sourceBaseline": "3ecac8489d9d11fc29e440902fa0e02bd42941dc",
+  "outboxSnapshot": "outbox-baseline.json",
+  "sha256": {
+    "reliability-execution.sql": "52c21070a6f78a42f44fabcc3701e612970c3c589dcf00493a62b5a955038278",
+    "reporting-index-execution.sql": "773ddd5ca0f8c26201c2fb75774d5e4e14e5da51b2dce76d78ed90930cccd374"
+  }
+}

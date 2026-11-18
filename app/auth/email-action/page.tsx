@@ -1,4 +1,7 @@
-import { resolveSafeNextPath as resolveInternalNextPath } from "@/services/auth/auth-flow";
+import type { Metadata } from "next";
+export const dynamic = "force-dynamic";
+export const metadata: Metadata = { referrer: "no-referrer", robots: { index: false, follow: false } };
+import { resolveEmailConfirmationUrl, resolveSafeNextPath as resolveInternalNextPath } from "@/services/auth/auth-flow";
 import { BrandLogo } from "@/components/layout/brand-assets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,44 +72,8 @@ function parseFlow(rawFlow?: string): AuthEmailFlow {
   return "signup";
 }
 
-function getAllowedConfirmationHosts() {
-  const hosts = new Set<string>();
-
-  if (env.supabaseUrl) {
-    try {
-      hosts.add(new URL(env.supabaseUrl).host);
-    } catch {
-      // Ignore invalid env in this presentation-only helper.
-    }
-  }
-
-  if (env.appUrl) {
-    try {
-      hosts.add(new URL(env.appUrl).host);
-    } catch {
-      // Ignore invalid env in this presentation-only helper.
-    }
-  }
-
-  return hosts;
-}
-
 function resolveConfirmationUrl(rawConfirmationUrl?: string) {
-  if (!rawConfirmationUrl) {
-    return null;
-  }
-
-  try {
-    const parsed = new URL(rawConfirmationUrl);
-    const allowedHosts = getAllowedConfirmationHosts();
-    if (!allowedHosts.has(parsed.host)) {
-      return null;
-    }
-
-    return parsed.toString();
-  } catch {
-    return null;
-  }
+  return resolveEmailConfirmationUrl(rawConfirmationUrl, env.appUrl, env.supabaseUrl);
 }
 
 function parseTokenHashOtpType(rawType: string | undefined, flow: AuthEmailFlow): TokenHashOtpType | null {
@@ -249,7 +216,7 @@ export default async function AuthEmailActionPage(
             {confirmationUrl ? (
               <div className="space-y-3">
                 <Button asChild size="lg" className="w-full rounded-full">
-                  <a href={confirmationUrl}>{copy.buttonLabel}</a>
+                  <a href={confirmationUrl} referrerPolicy="no-referrer">{copy.buttonLabel}</a>
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
                   You’ll continue into <span className="font-medium text-foreground">{destinationLabel}</span>.

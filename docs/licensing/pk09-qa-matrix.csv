@@ -1,0 +1,25 @@
+ID,Scenario,Stage,FormalStatus,LocalAutomatedEvidence,AcceptanceOwner
+PK09-QA-01,Approved source through assent payment license delivery and journal,Internal Alpha,Not Run,financial-ledger connected lifecycle and native concurrency,Engineering and Founder
+PK09-QA-02,Failed pending canceled or expired checkout creates no earnings or license,Internal Alpha,Not Run,financial-ledger failure and existing PK07 expiration tests,Engineering
+PK09-QA-03,Duplicate signed events and lost acknowledgment post one obligation,Internal Alpha,Not Run,financial-ledger replay and native contention,Engineering
+PK09-QA-04,Interrupted posting rolls back journal and acknowledgment together,Internal Alpha,Not Run,financial-ledger rollback and native lifecycle,Engineering
+PK09-QA-05,Cumulative partial and full refunds preserve original allocations,Internal Alpha,Not Run,financial-ledger refund property and SQL cases,Accountant and Founder
+PK09-QA-06,Refund before paid and stale refund events cannot restore access,Internal Alpha,Not Run,financial-ledger out-of-order cases,Engineering
+PK09-QA-07,Dispute opened and won or lost preserves payment holds,Internal Alpha,Not Run,financial-ledger dispute outcome cases,Accountant and Engineering
+PK09-QA-08,Overlapping refunds and chargebacks do not reverse payee twice,Internal Alpha,Not Run,financial-ledger overlap case,Accountant
+PK09-QA-09,Actual provider fees and settlement statements reconcile by account currency mode,Controlled Live Beta,Not Run,Synthetic facts only provider ingestion not implemented,Accountant and Founder
+PK09-QA-10,Tax treatment and invoice responsibilities match approved commercial policy,Controlled Live Beta,Not Run,Synthetic tax expense fixtures only,Accountant and Counsel
+PK09-QA-11,Accepted tier fee and payee minor units never reprice,Internal Alpha,Not Run,financial-ledger frozen economics and policy tests,Founder and Accountant
+PK09-QA-12,Immature reserved or restricted obligations cannot pay out,Internal Alpha,Not Run,financial-ledger explicit maturity reserve tests,Engineering and Accountant
+PK09-QA-13,Concurrent payout reservations cannot overdraw,Internal Alpha,Not Run,financial-ledger native independent sessions,Engineering
+PK09-QA-14,Interrupted payout reservation leaves no journal or obligation change,Internal Alpha,Not Run,financial-ledger native rollback,Engineering
+PK09-QA-15,Refund after simulated payout records recovery without netting it away,Internal Alpha,Not Run,financial-ledger party recovery test,Accountant
+PK09-QA-16,Empty unbalanced cross-currency or late-added journal lines fail,Internal Alpha,Not Run,financial-ledger DB constraints and native NOSUPER checks,Security and Engineering
+PK09-QA-17,Buyer Artist anonymous and service callers cannot alter Admin financial evidence,Private Beta,Not Run,financial-ledger role and tamper tests,Independent Security
+PK09-QA-18,Separate current Admin approves exactly one retained restatement pair,Private Beta,Not Run,financial-ledger independent approval tests,Founder and Independent Security
+PK09-QA-19,Per-payee and per-account discrepancies remain visible even when net is zero,Internal Alpha,Not Run,financial-ledger wrong-account fixture,Accountant
+PK09-QA-20,SEC reporting is canonical Admin only and segregated by currency account mode,Private Beta,Not Run,financial-ledger summary and denial tests,Founder and Engineering
+PK09-QA-21,Operator investigation acknowledgment never clears an unresolved finding,Private Beta,Not Run,financial-ledger reconciliation case action test,Operations
+PK09-QA-22,Storage failure and retry do not duplicate license or financial obligation,Internal Alpha,Not Run,financial-ledger real transfer handler with disposable SQL,Engineering
+PK09-QA-23,Hosted exact-candidate compatibility TLS Storage and independent review,Private Beta,Not Run,Prepared PK08 H0-H5 rehearsal not executed,Founder and Independent Security
+PK09-QA-24,Formal stage transition approval follows integrated acceptance,Private Beta,Not Run,No founder stage approval inferred,Founder

@@ -1,5 +1,6 @@
 "use client";
 
+import { PaymentPanel } from "@/components/orders/payment-panel";
 import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
 import Image from "next/image";
 import Link from "next/link";
@@ -18,6 +19,9 @@ import {
 
 type ConfirmationOrder = {
   id: string;
+  payment_state?: string;
+  payment_hold?: boolean;
+  verified_payment?: boolean;
   order_status: "pending" | "paid" | "fulfilled" | "refunded";
   stripe_checkout_session_id?: string | null;
   checkout_started?: boolean;
@@ -156,7 +160,7 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
 
   const agreement = useMemo(() => buildAgreement(order, initialAgreement), [order, initialAgreement]);
   const pending = order?.order_status === "pending";
-  const complete = Boolean(order?.agreement_ready && order?.agreement_url);
+  const complete = Boolean(order?.agreement_ready && order?.agreement_url && order.payment_state === "PAID" && order.verified_payment && !order.payment_hold);
 
   return (
     <main className="relative mx-auto max-w-3xl overflow-hidden px-4 py-16">
@@ -185,13 +189,14 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
           <p className="text-muted-foreground">
             This confirmation tracks payment, agreement generation, and private delivery for your purchased sync license.
           </p>
+          {order ? <PaymentPanel order={order.id}/> : null}
           {pending ? (
             <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200" role="status" aria-live="polite">
               <div className="flex items-center gap-3">
                 <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-sky-500/30 border-t-sky-700 dark:border-sky-200/30 dark:border-t-sky-100" />
-                <span className="font-medium">Finalizing your license… This usually takes a few seconds.</span>
+                <span className="font-medium">Awaiting verified payment. A return from checkout does not confirm a purchase.</span>
               </div>
-              {timedOut ? <p className="mt-2 text-xs">Still finalizing. You can refresh or check your Orders page.</p> : null}
+              {timedOut ? <p className="mt-2 text-xs">Payment confirmation is still pending. Refresh this purchase or contact support before paying again.</p> : null}
             </div>
           ) : null}
           {complete ? (
@@ -203,23 +208,17 @@ export function LicenseConfirmationClient({ orderId, initialOrder, initialAgreem
           ) : null}
           {order?.agreement_failed ? (
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
-              Payment was recorded, but agreement generation needs attention from the Sync Exchange team.
+              Agreement processing needs review. Check the verified payment status above before retrying.
             </div>
           ) : null}
           {order?.agreement_delivery_blocked ? (
             <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
-              The agreement document was generated, but secure delivery is blocked until the Supabase fulfillment metadata migration is applied.
+              Your agreement is temporarily unavailable. Contact support with your order reference.
             </div>
           ) : null}
           {order?.schema_degraded ? (
             <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-900 dark:text-sky-200">
-              {(order.degraded_messages || [
-                "Extended fulfillment diagnostics are running in compatibility mode until the manual Supabase order hardening SQL is applied."
-              ]).map((message: string) => (
-                <p key={message} className="mt-1 first:mt-0">
-                  {message}
-                </p>
-              ))}
+              Some purchase information is temporarily unavailable. Refresh or contact support with your order reference.
             </div>
           ) : null}
           <div className="rounded-lg border border-border bg-muted/40 p-5">

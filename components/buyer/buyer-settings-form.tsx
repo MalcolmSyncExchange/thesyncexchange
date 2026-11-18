@@ -1,5 +1,6 @@
 "use client";
 
+import { isValidNewPassword, PASSWORD_REQUIREMENTS_MESSAGE } from "@/services/auth/security";
 import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
 import Link from "next/link";
 import surface from "@/components/layout/sync-surface.module.css";
@@ -82,6 +83,7 @@ export function BuyerSettingsForm({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState("");
   const [notificationBaseline, setNotificationBaseline] = useState(() => normalizeNotificationPreferences(initialNotificationPreferences));
   const [notifications, setNotifications] = useState(() => normalizeNotificationPreferences(initialNotificationPreferences));
   const [teamInvites, setTeamInvites] = useState(initialTeamInvites);
@@ -152,8 +154,8 @@ export function BuyerSettingsForm({
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (newPassword.length < 8) {
-      setPasswordFeedback({ type: "error", message: "New password must be at least 8 characters." });
+    if (!isValidNewPassword(newPassword)) {
+      setPasswordFeedback({ type: "error", message: PASSWORD_REQUIREMENTS_MESSAGE });
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -175,7 +177,7 @@ export function BuyerSettingsForm({
           confirmPassword
         })
       });
-      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string; redirectTo?: string } | null;
 
       if (!response.ok) {
         throw new Error(payload?.error || "Unable to update password.");
@@ -185,6 +187,7 @@ export function BuyerSettingsForm({
       setNewPassword("");
       setConfirmPassword("");
       setPasswordFeedback({ type: "success", message: payload?.message || "Password updated." });
+      window.location.assign(payload?.redirectTo || "/login");
     } catch (error) {
       setPasswordFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to update password." });
     } finally {
@@ -209,16 +212,17 @@ export function BuyerSettingsForm({
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          newEmail: normalizedEmail
+          newEmail: normalizedEmail, currentPassword: emailCurrentPassword
         })
       });
-      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string; redirectTo?: string } | null;
 
       if (!response.ok) {
         throw new Error(payload?.error || "Unable to start email change.");
       }
 
       setNewEmail("");
+      setEmailCurrentPassword("");
       setEmailFeedback({ type: "success", message: payload?.message || "Check your email to confirm the change." });
     } catch (error) {
       setEmailFeedback({ type: "error", message: error instanceof Error ? error.message : "Unable to start email change." });
@@ -475,8 +479,10 @@ export function BuyerSettingsForm({
                 <Input id="newEmail" type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} autoComplete="email" />
               </div>
             </div>
+            <div className="space-y-2"><Label htmlFor="emailCurrentPassword">Current password to confirm email change</Label><Input id="emailCurrentPassword" type="password" autoComplete="current-password" maxLength={1024} required value={emailCurrentPassword} onChange={event => setEmailCurrentPassword(event.target.value)} /></div>
+            <p className="text-sm text-muted-foreground">For authenticator verification, open <Link href="/account/security" className="underline">Account Security</Link>.</p>
             <FormFeedback feedback={emailFeedback} />
-            <Button type="submit" disabled={emailSaving || !newEmail.trim()}>
+            <Button type="submit" disabled={emailSaving || !newEmail.trim() || !emailCurrentPassword}>
               {emailSaving ? "Sending Confirmation..." : "Change Email"}
             </Button>
           </form>
@@ -486,7 +492,7 @@ export function BuyerSettingsForm({
       <Card id="account-notifications" className="scroll-mt-6 bg-transparent shadow-none">
         <CardHeader>
           <CardTitle>Notifications</CardTitle>
-          <CardDescription>Control the workspace updates that should reach your team.</CardDescription>
+          <CardDescription>Essential account and transaction notices remain required. Manage optional updates separately.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={saveNotifications} className="space-y-5">
@@ -511,7 +517,8 @@ export function BuyerSettingsForm({
                 <label key={item.key} className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-sm">
                   <input
                     type="checkbox"
-                    checked={notifications[item.key]}
+                    checked={item.key === "platformUpdates" ? notifications[item.key] : true}
+                    disabled={item.key !== "platformUpdates"}
                     onChange={(event) =>
                       setNotifications((current) => ({
                         ...current,
@@ -534,6 +541,7 @@ export function BuyerSettingsForm({
                 </span>
               </label>
             </div>
+            <a className="block underline" href="/account/notifications">Manage all email preferences and unsubscribe from optional updates</a>
             <FormFeedback feedback={notificationFeedback} />
             <Button type="submit" disabled={!notificationDirty || notificationSaving}>
               {notificationSaving ? "Saving Preferences..." : "Save Notifications"}

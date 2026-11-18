@@ -20,6 +20,7 @@ const navByRole: Record<UserRole, Array<{ href: string; label: string }>> = {
     { href: "/artist/catalog", label: "My Catalog" },
     { href: "/artist/rights-holders", label: "Rights" },
     { href: "/artist/payout-settings", label: "Payouts" },
+    { href: "/account/security", label: "Account Security" },
     { href: "/artist/profile", label: "Profile" }
   ],
   buyer: [
@@ -27,7 +28,8 @@ const navByRole: Record<UserRole, Array<{ href: string; label: string }>> = {
     { href: "/buyer/catalog", label: "Catalog" },
     { href: "/buyer/favorites", label: "Favorites" },
     { href: "/buyer/orders", label: "Orders" },
-    { href: "/buyer/settings", label: "Settings" }
+    { href: "/buyer/settings", label: "Settings" },
+    { href: "/account/security", label: "Account Security" }
   ],
   admin: [
     { href: "/admin/dashboard", label: "Dashboard" },
@@ -36,7 +38,7 @@ const navByRole: Record<UserRole, Array<{ href: string; label: string }>> = {
     { href: "/admin/tracks", label: "Tracks" },
     { href: "/admin/orders", label: "Orders" },
     { href: "/admin/compliance", label: "Compliance" },
-    { href: "/admin/analytics", label: "Analytics" }
+    { href: "/admin/analytics", label: "SEC Intelligence" }
   ]
 };
 

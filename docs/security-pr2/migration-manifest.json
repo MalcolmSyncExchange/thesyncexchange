@@ -309,6 +309,10 @@
     {
       "file": "20261118183023_unix_transport_150mb_worker_identity.sql",
       "sha256": "de7d872e9dc9a753d3c9cae60663dec8e566013eaf69708e1bdb85f9c59f29df"
+    },
+    {
+      "file": "20261118203109_unified_master_playback.sql",
+      "sha256": "fb9a3c411139dea4072775d86db1595a364dd890820d145cdb3f0354e3751d23"
     }
   ],
   "storageBuckets": {

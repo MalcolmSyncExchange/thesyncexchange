@@ -29,3 +29,20 @@
 @media(max-width:480px){.wave{height:130px}.volume{width:60px}.controls{gap:10px}.player{border-radius:14px}.badge{display:none}}
 @media(prefers-reduced-motion:reduce){.spinner{animation:none}.player *{scroll-behavior:auto;transition:none!important}}
 .peakCaps {stroke:hsl(var(--muted-foreground) / .4);stroke-width:1;fill:none;}
+.recordingTimeline {position:relative;isolation:isolate;margin:14px 0;touch-action:pan-y;cursor:ew-resize;}
+.selectionOverlay {position:absolute;inset-block:0;background:hsl(var(--accent) / .13);border:1px solid hsl(var(--accent) / .7);border-radius:8px;cursor:grab;touch-action:none;display:flex;justify-content:space-between;align-items:center;}
+.selectionOverlay:active {cursor:grabbing;}
+.selectionOverlay span {height:30px;width:3px;margin:0 3px;border-radius:3px;background:hsl(var(--accent));pointer-events:none;}
+.scrubLabel {display:block;font-size:12px;color:hsl(var(--muted-foreground));margin-bottom:16px;}
+.scrubLabel input,.regionControls input[type=range] {display:block;width:100%;min-height:32px;accent-color:hsl(var(--accent));}
+.modeButton {display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 14px;border:1px solid hsl(var(--accent) / .5);border-radius:10px;font-size:13px;color:hsl(var(--foreground));background:hsl(var(--accent) / .07);}
+.modeButton svg {height:16px;width:16px;}
+.modeButton[aria-pressed=true] {background:hsl(var(--accent) / .2);}
+.modeButton:disabled {opacity:.45;cursor:not-allowed;}
+.modeButton:focus-visible,.regionControls input:focus-visible,.scrubLabel input:focus-visible {outline:2px solid hsl(var(--ring));outline-offset:3px;}
+.regionControls {border-top:1px solid hsl(var(--border));margin-top:18px;padding-top:18px;font-size:13px;display:grid;gap:12px;}
+.regionHeading {display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-variant-numeric:tabular-nums;}
+.precise {display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.precise input {width:115px;padding:9px;border:1px solid hsl(var(--border));border-radius:8px;background:hsl(var(--background));}
+.actions,.generated {display:flex;flex-wrap:wrap;align-items:center;gap:12px;}
+.generated p {flex-basis:100%;}

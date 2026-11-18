@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { masterEnvelope, parseWaveform, readWaveformResponse, waveformBars, type Envelope } from '@/lib/media/waveform.mjs';
 import styles from './waveform-player.module.css';
 
@@ -33,14 +33,12 @@ export function ValidatedWaveform({ url, format = 'preview', label = 'Preview wa
     })().catch(()=>{if(!controller.signal.aborted)setFailed(true);}).finally(()=>clearTimeout(deadline));
     return()=>{controller.abort();clearTimeout(deadline);};
   },[url,format,start,end,rate,us]);
-  const bars=envelope?waveformBars(envelope,columns):null;
+  const bars=useMemo(()=>envelope?waveformBars(envelope,columns):null,[envelope,columns]);
   const fraction=Number.isFinite(progress)?Math.max(0,Math.min(1,progress)):0;
   return <div ref={holder} className={styles.wave}>
     {failed?<span role="status">Waveform unavailable. Audio controls remain available.</span>:!bars?<span role="status" className={styles.waveStatus}>Loading waveform…</span>:<svg role="img" aria-label={label} viewBox="0 0 1000 160" preserveAspectRatio="none" data-visual-gain={bars.gain.toFixed(3)}>
       <defs><clipPath id={clip}><rect width={fraction*1000} height="160"/></clipPath></defs>
-      <line x1="0" x2="1000" y1="80" y2="80" className={styles.centerline}/>
       <g className={styles.unplayed}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={80-height*70} width={.64*1000/bars.heights.length} height={height*140} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
-      <g className={styles.peakCaps}>{bars.peakHeights.map((height,i)=><path key={i} d={`M${(i+.18)*1000/bars.heights.length},${80-height*70}h${.64*1000/bars.heights.length}M${(i+.18)*1000/bars.heights.length},${80+height*70}h${.64*1000/bars.heights.length}`}/>)}</g>
       <g className={styles.played} clipPath={`url(#${clip})`}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={80-height*70} width={.64*1000/bars.heights.length} height={height*140} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
       <line x1={fraction*1000} x2={fraction*1000} y1="6" y2="154" className={styles.playhead}/>
     </svg>}

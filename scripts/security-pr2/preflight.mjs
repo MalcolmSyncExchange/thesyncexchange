@@ -15,7 +15,14 @@ try {
  const canonical=(await db.query(source('scripts/artist-baseline/inventory.sql'))).rows[0].baseline;
  const policies=canonical.policies.filter(p=>p.schema==='storage');
  const legacyPolicies=policies.filter(p=>!p.name.startsWith('submission_media_'));
- assert.equal(legacyPolicies.length,6);assert.equal(legacyPolicies.filter(p=>p.permissive==='RESTRICTIVE').length,4);
+ assert.deepEqual(legacyPolicies.map(p=>p.name).sort(),[
+  'Active artist avatars cannot be deleted','Artists can delete own cleanup avatars',
+  'Artists can select own cleanup avatars','Avatar uploads require server validation',
+  'Avatars require a new object path','Referenced track media cannot be deleted',
+  'Referenced track media cannot be overwritten','Referenced track media cannot be recreated',
+  'commerce_private_objects','system14_active_session'
+ ].sort());
+ assert.equal(legacyPolicies.filter(p=>p.permissive==='RESTRICTIVE').length,8);
  const mediaPolicies=policies.filter(p=>p.name.startsWith('submission_media_'));
  assert.equal(mediaPolicies.length,0,'Ordinary database install must not configure provider-owned Storage');
  const setup=source('docs/slice3-foundation/storage-protection.sql');

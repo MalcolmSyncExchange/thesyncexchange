@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "status": "LOCAL_PLAN_REQUIRES_FOUNDER_SPENDING_APPROVAL",
-  "provisioning_authorized": false,
-  "processing_authorized": false,
+  "status": "NATIVE_HOST_AND_PARSER_PASS_PRODUCTION_ADMISSION_CLOSED",
+  "provisioning_authorized": true,
+  "processing_authorized": true,
   "application_candidate": "91bb92af58288ea5f915a3af86b5d94c31de2bca",
   "target_schema_review": "ac75347c",
   "retained_production_adapter_source": {
@@ -28,8 +28,9 @@
     "paid_backups": false,
     "extra_volumes": false,
     "load_balancer": false,
-    "admin_ssh_source": null,
-    "authoritative_host_id": null
+    "admin_ssh_source": "70.176.3.99/32",
+    "authoritative_host_id": "620470021",
+    "ipv4": "165.22.37.35"
   },
   "security": {
     "minimum_landlock_abi": 3,
@@ -55,7 +56,11 @@
     "worker_cpu": 1,
     "broker_memory_mib": 256,
     "scratch_tmpfs_mib": 512,
-    "scratch_options": ["noexec", "nosuid", "nodev"],
+    "scratch_options": [
+      "noexec",
+      "nosuid",
+      "nodev"
+    ],
     "scratch_counts_inside_worker_memory": true,
     "parser_cpu_seconds": 40,
     "parser_address_space_bytes": 805306368,
@@ -67,7 +72,7 @@
   },
   "release": {
     "broker_image": null,
-    "worker_image": null,
+    "worker_image": "sha256:c678ad81c316b0e8f56dd9a822e7da80ed7dbee09f8d667e2f5a64e6e64239b0",
     "image_policy": "verified linux/amd64 manifest + config + archive hashes; immutable Docker ID at execution",
     "startup": "disabled maintenance until host binding, synthetic isolation and admission tests pass",
     "rollback": "stop admission; drain or fence active leases; stop worker; restore prior signed release; preserve DB records",
@@ -85,5 +90,7 @@
     "Reconcile new host admission/accounting explicitly; fail closed on unresolved authorization",
     "Apply only reviewed target-specific additive SQL with verified rollback; no blanket claim_job privilege",
     "Run one approved synthetic end-to-end acceptance before normal admission"
-  ]
+  ],
+  "processing_enabled": false,
+  "authorization_note": "Founder authorized deployment subject to mandatory security, production compatibility and rollback gates. Processing remains disabled pending those gates."
 }

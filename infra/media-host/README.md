@@ -3,8 +3,9 @@
 One DigitalOcean Basic Regular Droplet, NYC3, Ubuntu 24.04 x64,
 `s-1vcpu-2gb`: 1 shared vCPU, 2 GiB RAM, 50 GiB SSD. One job at a time.
 This is a dedicated TSE workload VM, not a dedicated physical CPU.
-No server/account purchase or provisioning has occurred. `plan.json` is a
-deployment specification, not a ready-to-run production launcher.
+The founder subsequently approved and provisioned this configuration. See
+`PROVISIONED.md` for actual host identity, native results and the remaining
+production-admission stop. `plan.json` is not a ready-to-run production launcher.
 
 ## Existing infrastructure first
 
@@ -112,11 +113,12 @@ including explicit host identity/admission adaptation and outstanding applicatio
 feature-parity/rollback gates. This is an estimate, not a completed qualification.
 No further broad provider comparison is needed.
 
-Required approval: one TSE-owned DigitalOcean Droplet at $12/month base, a proposed
+Authorization received: one TSE-owned DigitalOcean Droplet at $12/month base,
 $15/month pre-tax total incremental operating envelope and up to $1 for bounded
 initial setup/testing; provider account access. Production credential installation,
 new-host admission binding and processing acceptance must be included explicitly
-in the later execution scope. Do not assume spending approval clears those gates.
+in the approved execution scope, subject to the mandatory security and release
+gates. Spending approval does not clear an unverified production authority path.
 
 Official sources:
 - https://www.digitalocean.com/pricing/droplets

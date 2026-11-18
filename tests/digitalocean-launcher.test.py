@@ -23,7 +23,7 @@ class Launcher(unittest.TestCase):
  def test_fixed_credential_free_one_shot_boundary(self):
   self.assertEqual(self.launch()['state'],'RUNNING');self.launch();self.assertEqual(sum(c[0]=='start' for c in self.calls),1)
   args=next(c for c in self.calls if c[0]=='create')
-  for flag in ['--network=none','--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--user=1000:1000','--cpus=1','--memory=1g','--memory-swap=1g','--pids-limit=32','--restart=no']:self.assertIn(flag,args)
+  for flag in ['--network=none','--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--user=1000:1000','--cpus=1','--memory=1g','--memory-swap=1g','--pids-limit=32','--restart=no','--log-opt=max-size=1m','--log-opt=max-file=1','--log-opt=compress=false']:self.assertIn(flag,args)
   self.assertNotIn('docker.sock',' '.join(args));self.assertNotIn('credentials',' '.join(args));self.assertNotIn(self.context['capability'],' '.join(args))
   self.engine.stop(self.context['run_id']);self.assertFalse((self.engine.root/(self.context['run_id']+'.context')).exists());self.launch();self.assertEqual(sum(c[0]=='start' for c in self.calls),1)
  def test_interrupted_start_never_retries(self):

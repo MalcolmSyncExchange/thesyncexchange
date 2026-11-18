@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {generateKeyPairSync,sign,randomUUID} from 'node:crypto';
 import {HostSigner,DOStorage} from '../services/media-broker/do-storage.mjs';
 import {verifyTransfer,transferBytes} from '../services/media-broker/do-transfer-proof.mjs';
-import {DODatabase} from '../services/media-broker/do-database.mjs';
+import {DODatabase,DOAuthority} from '../services/media-broker/do-database.mjs';
 import {DODispatcher} from '../services/media-broker/do-dispatcher.mjs';
 import {doConfig,doUsage} from '../services/media-broker/do-entrypoint.mjs';
 const boot=randomUUID(),run=randomUUID(),l={job_id:randomUUID(),lease_epoch:1,lease_token:randomUUID()};
@@ -46,4 +46,33 @@ test('independent root launch evidence rejects another host, boot, run, image, m
  const {launchBytes,verifyLaunch}=await import('../services/media-broker/do-transfer-proof.mjs');
  const p={version:1,host_id:'620470021',run_id:run,boot_id:boot,worker_digest:'sha256:c678ad81c316b0e8f56dd9a822e7da80ed7dbee09f8d667e2f5a64e6e64239b0',nonce:randomUUID(),issued_at:100000,expires_at:110000};const signature=sign(null,launchBytes(p),privateKey).toString('base64');assert.equal(verifyLaunch(p,signature,pem,100001).run_id,run);
  for(const patch of [{host_id:'8797328859122759463'},{boot_id:randomUUID()},{run_id:randomUUID()},{worker_digest:'sha256:'+'a'.repeat(64)},{expires_at:99999},{expires_at:200000}])assert.throws(()=>verifyLaunch({...p,...patch},signature,pem,100001));assert.throws(()=>verifyLaunch(p,signature,undefined,100001));assert.throws(()=>verifyLaunch(p,signature,pem,110000));
+});
+
+test('DO output callback never holds a database transaction across independently fenced application transfer',async()=>{
+ let held=false;const calls=[];const value={asset_id:randomUUID(),profile:'waveform-v1',bucket:'submission-derived',path:'exact/output',source:{sha256:'a'.repeat(64)}};
+ const query=async(sql)=>{calls.push(sql);if(sql==='begin')held=true;if(['commit','rollback'].includes(sql))held=false;return {rows:[{value}]};};
+ const pool={query,connect:async()=>({query,release(){}})},authority=new DOAuthority(new DODatabase(pool,boot),run);
+ await authority.withLease(l,async(job,recheck,record)=>{
+  assert.equal(job.asset_id,value.asset_id);await recheck();
+  // The real application transfer re-enters do_resolve on another connection.
+  // Holding the broker transaction here reproduces its PostgreSQL lock timeout.
+  assert.equal(held,false,'Application cannot re-enter a run locked by the awaiting broker');
+  await record({object_id:randomUUID(),version:'verified',sha256:'b'.repeat(64),bytes:100});
+ });
+ assert.equal(calls.some(sql=>sql==='begin'),false);
+ assert.equal(calls.filter(sql=>sql.startsWith('select submission_media.do_resolve')).length,3);
+ assert.equal(calls.filter(sql=>sql.startsWith('select submission_media.do_record')).length,1);
+});
+test('revocation during a private transfer prevents output recording and accepted completion',async()=>{
+ let revoked=false,privateWrites=0,recorded=0;const pool={query:async(sql)=>{
+  if(sql.includes('do_record')){recorded++;throw Error('must not record stale output');}
+  if(revoked)throw Object.assign(Error('expired live fence'),{code:'40001'});
+  return{rows:[{value:{asset_id:randomUUID()}}]};
+ }};const authority=new DOAuthority(new DODatabase(pool,boot),run);
+ await assert.rejects(authority.withLease(l,async(job,recheck,record)=>{
+  await recheck();privateWrites++;revoked=true;
+  await recheck();await record({object_id:randomUUID(),version:'private',sha256:'a'.repeat(64),bytes:3});
+ }));
+ assert.equal(privateWrites,1);assert.equal(recorded,0);
+ await assert.rejects(authority.complete(l,{sha256:'a'.repeat(64)},null));
 });

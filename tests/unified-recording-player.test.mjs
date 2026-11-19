@@ -71,3 +71,28 @@ test('full waveform seeks leave preview mode without changing selection',()=>{
 });
 
 test('normal preview workflow autosaves and hides manual save/generate controls',()=>{const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');assert.doesNotMatch(ui,/Save preview selection|Generate AAC preview|onSave|onGenerate/);assert.match(ui,/pendingLocal.current/);assert.match(ui,/onRegionChange\?\.\(source.id,nextRegion.startMs,nextRegion.endMs\)/);assert.match(ui,/onRegionChange\?\.\(source.id,region.startMs,region.endMs\)/);});
+
+test('local and final waveforms reserve region dragging for handles; the playhead seeks above them',()=>{
+ for(const file of ['recording-player.tsx','local-recording-audition.tsx']){
+  const ui=readFileSync(new URL('../components/audio/'+file,import.meta.url),'utf8');
+  assert.equal((ui.match(/data-preview-handle className/g)||[]).length,2);
+  assert.match(ui,/closest\('\[data-preview-handle\]'\)/);
+  assert.doesNotMatch(ui,/closest\('\[data-preview-region\]'\)/);
+  for(const token of ['e.stopPropagation()','setPointerCapture','onLostPointerCapture','onPointerCancel','onKeyDown={regionKey}','onKeyDown={timelineKey}'])assert.ok(ui.includes(token),token);
+ }
+ const css=readFileSync(new URL('../components/audio/waveform-player.module.css',import.meta.url),'utf8');
+ assert.match(css,/\.selectionOverlay \{pointer-events:none/);
+ assert.match(css,/\.selectionHandle \{[^}]*pointer-events:auto;touch-action:none/);
+ assert.match(css,/\.recordingPlayhead \{[^}]*pointer-events:auto;touch-action:none/);
+ assert.match(css,/\.recordingPlayhead \{z-index:4/);
+});
+
+test('mouse and touch seeking inside and outside a selection never changes its fixed duration',()=>{
+ for(const width of [320,390,1024]){
+  const region=selectionFromDrag(180e6,0,width/3,width),saved={...region};
+  for(const x of [0,width*.4,width*.45,width*.9,width]){
+   const plan=seekPlayback('selection',180e6,region,x/width*180);
+   assert.equal(plan.time,x/width*180);assert.deepEqual(region,saved);assert.equal(region.endMs-region.startMs,30000);
+  }
+ }
+});

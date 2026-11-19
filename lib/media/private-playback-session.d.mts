@@ -1,0 +1,1 @@
+export function privatePlaybackSession(submission:string,asset:string,options?:{fetcher?:typeof fetch;now?:()=>number}):{activate:()=>void;get:()=>Promise<string>;warm:()=>void;clear:()=>void;dispose:()=>void};

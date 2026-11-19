@@ -48,12 +48,14 @@ export const adaptMigrationForPGlite = sql => sql
   // Only PGlite lacks extension metadata; native replay uses exact source SQL.
   .replace(/  if pg_catalog\.to_regprocedure\('extensions\.digest\(text,text\)'\)[\s\S]*?end if;/,'');
 // No URL option exists: fixtures always run inside a new in-memory PostgreSQL instance.
-export async function database(target='repository', {seed=true}={}) {
+export async function database(target='repository', {seed=true,throughMigration=null}={}) {
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
+ const availableMigrations=readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql'));
+ if(throughMigration!==null&&!availableMigrations.includes(throughMigration))throw Error('Unknown migration cutoff');
  const db=new PGlite();
  try {
   await db.exec(`${fixtureBootstrapSql}\n${pgliteDigestFixtureSql}`);
-  for(const file of readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql') &&
+  for(const file of availableMigrations.filter(x=>(throughMigration===null||x<=throughMigration) &&
    (target==='repository' || (target==='pr27' && x<'20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
    // Only extension installation is omitted; function names/bodies are unchanged.
    const sql=adaptMigrationForPGlite(source(`supabase/migrations/${file}`));

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import type { ArtistMediaAsset } from '@/contracts/submission-media/profiles';
 import { matchesSelection, playbackBounds, previewSelection, recordingSelection, selectionFromDrag } from '@/lib/media/preview-selection.mjs';
+import { privatePlaybackSession } from '@/lib/media/private-playback-session.mjs';
 import { ValidatedWaveform } from './validated-waveform';
 import styles from './waveform-player.module.css';
 
@@ -25,16 +26,18 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
  const currentPreview=preview?.state==='ready'&&matchesSelection(preview,source.id,region)&&!dirty?preview:null;
  const audio=useRef<HTMLAudioElement>(null),modeRef=useRef<Mode>('full'),boundsRef=useRef(playbackBounds('full',durationUs,region));
  const [mode,setMode]=useState<Mode>('full'),[playing,setPlaying]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState(0),[volume,setVolume]=useState(.72),[muted,setMuted]=useState(false),[heard,setHeard]=useState<string|null>(null);
- const signed=useRef<{url:string;expiresAt:number}|null>(null),request=useRef(0),pending=useRef<AbortController|null>(null),endTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const session=useMemo(()=>privatePlaybackSession(submission,source.id),[submission,source.id]);
+ const request=useRef(0),endTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
  const drag=useRef<{pointer:number;x:number;start:number;width:number}|null>(null),wave=useRef<HTMLDivElement>(null);
  const playbackKey=useRef(''),seekPointer=useRef<number|null>(null),positionRef=useRef(0);
  useEffect(()=>{onSelectionDirty?.(dirty&&!readOnly);return()=>onSelectionDirty?.(false);},[dirty,readOnly,onSelectionDirty]);
- function stop(){++request.current;pending.current?.abort();pending.current=null;audio.current?.pause();setLoading(false);if(endTimer.current)clearTimeout(endTimer.current);}
+ function stop(){++request.current;audio.current?.pause();setLoading(false);if(endTimer.current)clearTimeout(endTimer.current);}
  const update=useCallback(()=>{const a=audio.current;if(!a)return;const b=boundsRef.current;if(a.currentTime>=b.end){a.pause();if(a.currentTime>b.end)a.currentTime=b.end;}positionRef.current=Math.max(0,Math.min(duration,a.currentTime+b.offset));setPosition(positionRef.current);},[duration]);
  function scheduleEnd(){if(endTimer.current)clearTimeout(endTimer.current);const a=audio.current;if(a&&!a.paused)endTimer.current=setTimeout(()=>{if(audio.current){audio.current.pause();audio.current.currentTime=boundsRef.current.end;update();}},Math.max(0,(boundsRef.current.end-a.currentTime)*1000));}
  useEffect(()=>{stop();playbackKey.current='';setRetainSaved(true);setStart(previewSelection(durationUs,selection.start_ms??0).startMs);},[durationUs,selection.start_ms,selection.end_ms]);
  useEffect(()=>{stop();playbackKey.current='';setHeard(null);},[preview?.id]);
- useEffect(()=>{const element=audio.current,generation=request,authorization=pending,deadline=endTimer,capability=signed;return()=>{++generation.current;authorization.current?.abort();element?.pause();element?.removeAttribute('src');element?.load();capability.current=null;if(deadline.current)clearTimeout(deadline.current);};},[]);
+ useEffect(()=>{session.activate();const element=audio.current,generation=request,deadline=endTimer,capability=session;return()=>{++generation.current;element?.pause();element?.removeAttribute('src');element?.load();capability.dispose();if(deadline.current)clearTimeout(deadline.current);};},[session]);
+ useEffect(()=>{const target=wave.current;if(!target||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(entries=>{if(document.visibilityState==='visible'&&entries.some(entry=>entry.isIntersecting)){session.warm();observer.disconnect();}},{threshold:.1});observer.observe(target);return()=>observer.disconnect();},[session]);
  useEffect(()=>{const hidden=()=>{if(document.hidden)stop();};document.addEventListener('visibilitychange',hidden);return()=>document.removeEventListener('visibilitychange',hidden);},[]);
  useEffect(()=>{if(!playing||matchMedia('(prefers-reduced-motion: reduce)').matches)return;let frame=0;const tick=()=>{update();frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[playing,update]);
  useEffect(()=>{if(audio.current){audio.current.volume=volume;audio.current.muted=muted;}},[volume,muted]);
@@ -43,31 +46,24 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
  async function play(nextMode:Mode){
   const a=audio.current;if(!a)return;
   if(modeRef.current===nextMode&&(!a.paused||loading)){stop();return;}
-  stop();const token=++request.current;setError('');setLoading(true);
+  const previousMode=modeRef.current;stop();const token=++request.current;modeRef.current=nextMode;setMode(nextMode);setError('');setLoading(true);
   try{
    let url:string;
    if(nextMode==='generated'){if(!currentPreview)throw Error();url=`/api/media/${submission}/${currentPreview.id}`;}
    else{
-    if(!signed.current||signed.current.expiresAt<Date.now()+5000){
-     const abort=new AbortController();pending.current=abort;
-     const response=await fetch(`/api/media/${submission}/${source.id}/original`,{method:'POST',credentials:'same-origin',redirect:'error',cache:'no-store',signal:AbortSignal.any([abort.signal,AbortSignal.timeout(15000)])});
-     if(!response.ok)throw Error();const value=await response.json();
-     if(value.assetId!==source.id||typeof value.url!=='string'||!Number.isFinite(value.expiresAt)||value.expiresAt<=Date.now()||value.expiresAt>Date.now()+60000)throw Error();
-     const u=new URL(value.url);if(u.protocol!=='https:'||u.username||u.password)throw Error();
-     if(token!==request.current)return;signed.current=value;
-    }url=signed.current!.url;
+    url=await session.get();
    }
    if(token!==request.current)return;
    const b=playbackBounds(nextMode,durationUs,region,currentPreview);
    const key=nextMode==='full'?'full':nextMode==='generated'?`generated:${currentPreview?.id}`:`selection:${region.startMs}:${region.endMs}`;
-   const resume=playbackKey.current===key&&modeRef.current===nextMode&&a.currentTime>=b.start&&a.currentTime<b.end;
+   const resume=playbackKey.current===key&&previousMode===nextMode&&a.currentTime>=b.start&&a.currentTime<b.end;
    const at=resume?a.currentTime:nextMode==='full'?Math.min(positionRef.current,duration):b.start;
    modeRef.current=nextMode;playbackKey.current=key;setMode(nextMode);boundsRef.current=b;
    if(a.getAttribute('src')!==url){a.src=url;a.load();}
    a.currentTime=at>=b.end?b.start:at;positionRef.current=a.currentTime+b.offset;setPosition(positionRef.current);
    await a.play();if(token!==request.current)return;if(nextMode==='generated'&&currentPreview)setHeard(currentPreview.id);
    scheduleEnd();
-  }catch{if(token===request.current){a.pause();setPlaying(false);setLoading(false);signed.current=null;setError('Playback unavailable. Your browser may not support this original format, or access expired. Try again; generated AAC remains separate.');}}
+  }catch{if(token===request.current){a.pause();setPlaying(false);setLoading(false);session.clear();setError('Playback unavailable. Your browser may not support this original format, or access expired. Try again; generated AAC remains separate.');}}
  }
  function seek(seconds:number){const a=audio.current;if(!a)return;const b=boundsRef.current;const next=Math.max(b.start,Math.min(b.end,seconds-b.offset));a.currentTime=next;update();scheduleEnd();}
  function pointerDown(e:PointerEvent<HTMLDivElement>){if(readOnly||disabled)return;const rect=wave.current?.getBoundingClientRect();if(!rect?.width)return;stop();playbackKey.current='';e.currentTarget.setPointerCapture(e.pointerId);drag.current={pointer:e.pointerId,x:e.clientX,start:region.startMs,width:rect.width};}
@@ -87,7 +83,7 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
  const active=(m:Mode)=>mode===m&&(playing||loading);
  return <section className={styles.player} aria-label="Full recording and preview selection">
   <div className={styles.heading}><div><p className={styles.eyebrow}>The Sync Exchange · Listening room</p><h3 className={styles.title}>Your recording</h3></div><span className={styles.badge}>Private master</span></div>
-  <audio ref={audio} crossOrigin="anonymous" preload="none" aria-label="Private recording playback" onPlaying={()=>{setPlaying(true);setLoading(false);scheduleEnd();}} onPause={()=>{setPlaying(false);if(endTimer.current)clearTimeout(endTimer.current);}} onEnded={()=>{setPlaying(false);update();}} onTimeUpdate={update} onSeeking={()=>{update();scheduleEnd();}} onWaiting={()=>{if(!audio.current?.paused)setLoading(true);}} onCanPlay={()=>setLoading(false)} onError={()=>{stop();setPlaying(false);signed.current=null;setError('Audio unavailable. Retry playback or use the generated AAC preview when ready.');}}/>
+  <audio ref={audio} crossOrigin="anonymous" preload="none" aria-label="Private recording playback" onPlaying={()=>{setPlaying(true);setLoading(false);scheduleEnd();}} onPause={()=>{setPlaying(false);if(endTimer.current)clearTimeout(endTimer.current);}} onEnded={()=>{setPlaying(false);update();}} onTimeUpdate={update} onSeeking={()=>{update();scheduleEnd();}} onWaiting={()=>{if(!audio.current?.paused)setLoading(true);}} onCanPlay={()=>setLoading(false)} onError={()=>{stop();setPlaying(false);session.clear();setError('Audio unavailable. Retry playback or use the generated AAC preview when ready.');}}/>
   <div ref={wave} className={styles.recordingTimeline} role="group" aria-label="Waveform timeline" onPointerDown={seekDown} onPointerMove={e=>{if(seekPointer.current===e.pointerId)seekAt(e);}} onPointerUp={seekEnd} onPointerCancel={seekEnd} onLostPointerCapture={()=>{seekPointer.current=null;}}>
    <div className={styles.waveformSeek} role="slider" tabIndex={0} aria-label="Recording playback position" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={position} aria-valuetext={`${stamp(position)} of ${stamp(duration)}`} onKeyDown={timelineKey}/>
    <ValidatedWaveform url={waveformUrl} format="master" label="Full recording waveform" progress={position/duration} showPlayhead={false}/>
@@ -96,8 +92,8 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
    <div className={styles.recordingPlayhead} style={{left:`${position/duration*100}%`}} aria-hidden="true"/>
   </div>
   <div className={styles.controls}>
-   <button type="button" className={styles.modeButton} disabled={loading&&!active('full')} aria-pressed={active('full')} onClick={()=>void play('full')}>{active('full')?<Pause aria-hidden/>:<Play aria-hidden/>}{active('full')?'Pause Full Track':'Play Full Track'}</button>
-   <button type="button" className={styles.modeButton} disabled={loading&&!active('selection')} aria-pressed={active('selection')} onClick={()=>void play('selection')}>{active('selection')?<Pause aria-hidden/>:<Play aria-hidden/>}{active('selection')?'Pause Preview':'Play Preview'}</button>
+   <button type="button" className={styles.modeButton} disabled={loading&&!active('full')} aria-pressed={active('full')} onPointerEnter={session.warm} onFocus={session.warm} onClick={()=>void play('full')}>{active('full')?<Pause aria-hidden/>:<Play aria-hidden/>}{active('full')?'Pause Full Track':'Play Full Track'}</button>
+   <button type="button" className={styles.modeButton} disabled={loading&&!active('selection')} aria-pressed={active('selection')} onPointerEnter={session.warm} onFocus={session.warm} onClick={()=>void play('selection')}>{active('selection')?<Pause aria-hidden/>:<Play aria-hidden/>}{active('selection')?'Pause Preview':'Play Preview'}</button>
    <p className={styles.time}>{stamp(position)} <span>/ {stamp(duration)}</span></p>
    <div className={styles.sound}><button type="button" className={styles.mute} aria-label={muted?'Unmute recording':'Mute recording'} onClick={()=>setMuted(!muted)}>{muted?<VolumeX aria-hidden/>:<Volume2 aria-hidden/>}</button><input className={styles.volume} aria-label="Recording volume" type="range" min="0" max="1" step="0.01" value={muted?0:volume} onChange={e=>{setMuted(false);setVolume(Number(e.target.value));}}/></div>
   </div>

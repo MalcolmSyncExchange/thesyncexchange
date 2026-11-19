@@ -45,3 +45,12 @@ test('transfer and daily quota responses expose only exact approved error codes'
  for(const code of ['UPLOAD_TRANSFERS_FULL','UPLOAD_DAILY_QUOTA']){const f=fixture({error:'54000',message:code});const r=await f.route.POST(request({action:'list'}));assert.equal(r.status,429);assert.equal((await r.json()).error,code);}
  const f=fixture({error:'54000',message:'PRIVATE DIAGNOSTIC'});const r=await f.route.POST(request({action:'list'}));assert.equal((await r.json()).error,'UPLOAD_LIMIT');
 });
+
+test('draft lifecycle uses only authenticated Artist RPCs with server-derived actor and separates trash from active drafts',async()=>{
+ for(const options of [{role:'buyer'},{role:'admin',aal:'aal2'},{user:null}]){
+  const f=fixture(options);for(const action of ['delete_draft','restore_draft']){const body=action==='delete_draft'?{action,submission,revision:1}:{action,submission};assert.ok([401,403].includes((await f.route.POST(request(body))).status));}assert.equal(f.calls.length,0);
+ }
+ const f=fixture({result:{deleted:true}});assert.equal((await f.route.POST(request({action:'delete_draft',submission,revision:1}))).status,200);assert.deepEqual(JSON.parse(JSON.stringify(f.calls)),[['media_submission_delete',{p_submission:submission,p_revision:1}]]);
+ const forged=fixture();assert.equal((await forged.route.POST(request({action:'delete_draft',submission,revision:1,owner:userId}))).status,400);assert.equal(forged.calls.length,0);
+ const rows=[{id:'active',deleted:false},{id:'trash',deleted:true}];for(const [action,id] of [['list','active'],['list_deleted','trash']]){const f=fixture({result:rows});const response=await f.route.POST(request({action}));assert.equal(response.status,200);assert.deepEqual(await response.json(),[rows.find(r=>r.id===id)]);}
+});

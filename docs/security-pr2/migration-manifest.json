@@ -337,6 +337,10 @@
     {
       "file": "20261119213500_digitalocean_35usd_allowance.sql",
       "sha256": "66f6547b20611b8c078c1823ae2d740c4f80af72ca21a48e7af212b7e517aff0"
+    },
+    {
+      "file": "20261119222415_upload_first_optional_tempo.sql",
+      "sha256": "7430a1119d0fd740c92feeadaf17d1ff2e09b8fbe4e4a34371b7db6331034b86"
     }
   ],
   "storageBuckets": {

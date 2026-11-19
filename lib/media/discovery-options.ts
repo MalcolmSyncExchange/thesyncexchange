@@ -9,3 +9,5 @@ export function durationLabel(us:number){const seconds=Math.max(0,Math.round(us/
 export const audioVersions=[['master','Main Recording'],['instrumental','Instrumental'],['clean','Clean Version'],['alternate','Censored Version'],['alternate','Acapella'],['stem','Stems'],['alternate','Extended Version'],['alternate','Radio Edit'],['alternate','Alternate Mix'],['supporting','Other Version']] as const;
 
 export function tempoSuggestion(current:string,manual:boolean,lastAuto:string|null,bpm?:number){return !manual&&(!current||current===lastAuto)&&typeof bpm==='number'&&Number.isInteger(bpm)&&bpm>=40&&bpm<=220?String(bpm):null;}
+
+export type AudioAnalysis={bpm?:number;alternatives?:number[];reason?:string;durationUs?:number;sampleRate?:number;channels?:number;bits?:number;moods?:string[]};

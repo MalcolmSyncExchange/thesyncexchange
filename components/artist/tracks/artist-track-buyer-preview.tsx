@@ -28,7 +28,7 @@ export function ArtistTrackBuyerPreview({ data }: { data: ArtistTrackBuyerPrevie
           <div className={styles.buyerTags}>{track.moods.map(mood => <span key={mood}>{mood}</span>)}</div>
           <PreviewAudioButton track={{ id: track.id, slug: track.slug, title: track.title, artistName: track.artistName, artworkUrl: track.coverArtUrl, previewUrl: track.previewAudioUrl, waveformUrl: track.waveformUrl, durationSeconds: track.durationSeconds }} className={styles.buyerPlay} />
           <p className={styles.buyerDescription}>{track.description || "No public track description is available."}</p>
-          <dl className={styles.buyerMetadata}><div><dt>BPM</dt><dd>{track.bpm}</dd></div><div><dt>Key</dt><dd>{track.musicalKey}</dd></div><div><dt>Duration</dt><dd>{formatDuration(track.durationSeconds)}</dd></div><div><dt>Vocals</dt><dd>{track.vocals ? "Vocals" : "Instrumental"}</dd></div></dl>
+          <dl className={styles.buyerMetadata}><div><dt>BPM</dt><dd>{track.bpm??"Not provided"}</dd></div><div><dt>Key</dt><dd>{track.musicalKey}</dd></div><div><dt>Duration</dt><dd>{formatDuration(track.durationSeconds)}</dd></div><div><dt>Vocals</dt><dd>{track.vocals ? "Vocals" : "Instrumental"}</dd></div></dl>
         </div>
       </main>
       <div className={styles.buyerLower}>

@@ -36,7 +36,7 @@ export function TrackCard({ track, href }: { track: BuyerTrack; href: string }) 
           ))}
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm text-muted-foreground">
-          <span>{track.bpm} BPM</span>
+          <span>{track.bpm==null?'Tempo unspecified':`${track.bpm} BPM`}</span>
           <span>{track.key}</span>
           <span>{formatDuration(track.duration_seconds)}</span>
           <span>{track.vocals ? "Vocals" : "Instrumental"}</span>

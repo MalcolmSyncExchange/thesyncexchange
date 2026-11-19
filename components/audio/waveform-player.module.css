@@ -55,3 +55,7 @@
 
 .waveformSeek {position:absolute;inset:0;pointer-events:none;z-index:1;border-radius:8px;}
 .waveformSeek:focus-visible {outline:2px solid hsl(var(--ring));outline-offset:4px;}
+
+.processingWave .wave svg,.processingWave.wave svg {animation:wave-process 1.8s ease-in-out infinite;}
+@keyframes wave-process {50%{opacity:.55}}
+@media(prefers-reduced-motion:reduce){.processingWave .wave svg,.processingWave.wave svg{animation:none}}

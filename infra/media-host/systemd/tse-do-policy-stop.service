@@ -1,0 +1,7 @@
+[Unit]
+Description=Independent end of approved November TSE processing policy
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl stop tse-do-broker.service tse-do-launcher.service tse-do-availability.timer
+TimeoutStartSec=60

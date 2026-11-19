@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "enabled": false,
+  "host_id": "620470021",
+  "root_uuid": "59134bd0-a76f-4ea0-8e4a-770b2e1eafc2",
+  "boot_id": "REQUIRES_CURRENT_VERIFIED_BOOT",
+  "month": "2026-11",
+  "ceiling_usd": 20,
+  "expires_at": 1796083200000,
+  "max_workers": 1
+}

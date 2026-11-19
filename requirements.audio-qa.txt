@@ -1,0 +1,4 @@
+# Local/CI tests only; production uses the existing Ubuntu cryptography package.
+cryptography==41.0.7
+cffi==2.0.0
+pycparser==2.23

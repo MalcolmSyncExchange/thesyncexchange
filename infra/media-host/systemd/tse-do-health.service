@@ -1,0 +1,12 @@
+[Unit]
+Description=TSE read-only local worker health and queue alerts
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/tse-audio/release/do-health.py
+User=tse-broker
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateNetwork=yes
+PrivateTmp=yes
+TimeoutStartSec=5

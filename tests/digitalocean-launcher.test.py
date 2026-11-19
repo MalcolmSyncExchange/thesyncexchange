@@ -41,11 +41,14 @@ class Launcher(unittest.TestCase):
   self.assertFalse(any(c[0]=='create' for c in self.calls))
  def test_stale_over_budget_nan_and_persistent_hold_deny(self):
   original=json.loads(self.status.read_text())
-  for patch in [{'sampled_at':0},{'projected_usd':15},{'projected_usd':float('nan')},{'paused':True},{'host_id':'8797328859122759463'}]:
+  for patch in [{'sampled_at':0},{'projected_usd':20},{'projected_usd':20.01},{'projected_usd':float('nan')},{'paused':True},{'host_id':'8797328859122759463'}]:
    self.status.write_text(json.dumps({**original,**patch}))
    with self.assertRaises(ValueError):self.launch()
   self.status.write_text(json.dumps(original));(self.root/'SUSPENDED').write_text('hold')
   with self.assertRaises(ValueError):self.launch()
+ def test_founder_approved_ceiling_accepts_below_twenty_without_changing_limits(self):
+  data=json.loads(self.status.read_text());data['projected_usd']=19.99;self.status.write_text(json.dumps(data))
+  self.assertEqual(self.launch()['state'],'RUNNING')
  def test_independent_deadline_kills_hung_worker(self):
   self.launch();self.engine.now=lambda:1561;self.assertEqual(self.engine.status(self.context['run_id'])['state'],'EXITED');self.assertTrue(any(c[0]=='kill' for c in self.calls))
  def test_missing_live_permit_never_creates_container(self):

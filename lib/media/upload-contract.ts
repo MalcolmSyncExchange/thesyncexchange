@@ -3,7 +3,7 @@ import type { ArtistMediaAsset } from "@/contracts/submission-media/profiles";
 export const uploadRoles = ["master", "instrumental", "clean", "alternate", "stem", "supporting", "artwork"] as const;
 export const uploadLabels: Record<typeof uploadRoles[number],string> = {master:"Master recording",instrumental:"Instrumental",clean:"Clean version",alternate:"Alternate mix",stem:"Stem",supporting:"Supporting audio",artwork:"Cover artwork"};
 export const uploadMetadataSchema = z.object({
- title:z.string().trim().min(2).max(160),description:z.string().trim().min(20).max(5000),genre:z.string().trim().min(1).max(80),subgenre:z.string().trim().min(1).max(80),moods:z.string().trim().min(1).max(500),bpm:z.coerce.number().int().min(40).max(220),key:z.string().trim().min(1).max(40),releaseYear:z.coerce.number().int().min(1950).max(2030),instrumental:z.boolean(),vocals:z.boolean(),explicit:z.boolean()
+ title:z.string().trim().min(2).max(160),description:z.string().trim().max(3000),genre:z.string().trim().min(1).max(80),subgenre:z.string().trim().max(80),moods:z.string().trim().min(1).max(500),bpm:z.coerce.number().int().min(40).max(220),key:z.string().trim().min(1).max(40),releaseYear:z.coerce.number().int().min(1950).max(2030),instrumental:z.boolean(),vocals:z.boolean(),explicit:z.boolean()
 }).strict().refine(v=>!v.instrumental||!v.vocals,{message:"An instrumental cannot also have vocals."});
 export type UploadMetadata=z.infer<typeof uploadMetadataSchema>;
 export type UploadFile={asset:ArtistMediaAsset;role:typeof uploadRoles[number];label:string;retired:boolean;reason?:string;expires_at:string};

@@ -85,3 +85,5 @@
 .tse-upload-progress::-webkit-progress-value { background: hsl(var(--accent)); border-radius: 999px; transition: width .25s ease-out; }
 .tse-upload-progress::-moz-progress-bar { background: hsl(var(--accent)); border-radius: 999px; }
 @media (prefers-reduced-motion: reduce) { .tse-upload-progress::-webkit-progress-value { transition: none; } }
+
+[data-submission-workspace] [aria-invalid="true"] { outline: 2px solid hsl(var(--destructive)); outline-offset: 2px; }

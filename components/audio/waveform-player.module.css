@@ -99,3 +99,8 @@
 /* A forgiving playhead hit target sits above even the region handles. */
 .recordingPlayhead {width:18px;transform:translateX(-9px);background:transparent;box-shadow:none;pointer-events:auto;touch-action:none;cursor:ew-resize;}
 .recordingPlayhead::after {content:"";position:absolute;inset-block:0;left:8px;width:2px;background:hsl(var(--foreground));box-shadow:0 0 3px hsl(var(--background));pointer-events:none;}
+
+/* Click the region to seek; drag its body or handles to move the region.
+   The playhead remains an independent hit target above this layer. */
+.selectionOverlay {pointer-events:auto;touch-action:none;cursor:grab;}
+.selectionOverlay[aria-disabled=true] {cursor:default;}

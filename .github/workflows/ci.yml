@@ -48,6 +48,8 @@ jobs:
 
       - name: Root launcher shutdown and confinement
         run: python3 tests/digitalocean-launcher.test.py
+      - name: Reboot accounting continuity
+        run: python3 tests/digitalocean-accounting.test.py
 
       - name: Artist authorization baseline (offline)
         run: npm run test:artist-baseline

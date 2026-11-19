@@ -30,3 +30,18 @@ test('pauses have real reasons and processing never invents completion percentag
  }
  assert.match(processingCopy('Validating audio','paused','budget_reserved').detail,/capacity/);
 });
+
+test('unified presentation transitions from preparation through final completion without fake progress',async()=>{
+ const {recordingPresentation:p}=await import('../lib/media/audio-workflow.mjs');
+ assert.deepEqual(p({local:true}),{label:'Preparing waveform',animate:false});
+ assert.equal(p({local:true,analyzed:true}).label,'Ready to upload');
+ assert.equal(p({local:true,transfer:true}).label,'Uploading recording');
+ assert.equal(p({transfer:true,paused:true}).label,'Upload paused');
+ for(const [stage,label] of [['Waiting for processing','Waiting for processing'],['Validating audio','Validating audio'],['Generating waveform','Generating final waveform'],['Generating preview','Creating AAC preview'],['Ready for review','Ready for review']]){
+  const state=stage==='Ready for review'?'succeeded':stage==='Waiting for processing'?'queued':'running';
+  assert.deepEqual(p({stage,state}),{label,animate:state==='running'});
+  for(const guard of ['local','transfer','paused','unavailable'])assert.equal(p({stage,state,[guard]:true}).animate,false);
+ }
+ for(const state of ['queued','paused','failed','retry_wait','succeeded'])assert.equal(p({stage:'Generating waveform',state}).animate,false);
+ assert.equal(p({state:'running',unavailable:true}).label,'Checking saved status');
+});

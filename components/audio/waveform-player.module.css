@@ -5,7 +5,7 @@
 .badge {font-size:10px;border:1px solid hsl(var(--accent) / .3);padding:5px 9px;border-radius:999px;color:hsl(var(--accent));white-space:nowrap;}
 .timeline {position:relative;min-width:0;}
 .wave {width:100%;height:152px;display:grid;align-items:center;min-width:0;}
-.wave svg {width:100%;height:100%;overflow:visible;}
+.wave svg {width:100%;height:100%;overflow:hidden;}
 .centerline {stroke:hsl(var(--muted-foreground) / .22);stroke-width:1;}
 .unplayed {fill:var(--wave-idle,hsl(var(--muted-foreground) / .48));}
 .played {fill:var(--wave-played,hsl(var(--accent)));}
@@ -59,3 +59,14 @@
 .processingWave .wave svg,.processingWave.wave svg {animation:wave-process 1.8s ease-in-out infinite;}
 @keyframes wave-process {50%{opacity:.55}}
 @media(prefers-reduced-motion:reduce){.processingWave .wave svg,.processingWave.wave svg{animation:none}}
+
+/* One stable listening surface, shared by local and authoritative envelopes. */
+.unifiedRecording .player {padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
+.unifiedRecording .player .heading {display:none;}
+.unifiedRecording .wave {height:152px;}
+@media(max-width:480px){.unifiedRecording .wave{height:130px;}}
+
+.studioSurface {min-width:0;min-height:450px;}
+
+.studioSurface,.studioSurface .player,.studioSurface [aria-label="Local recording audition"] {display:flow-root;}
+.studioSurface .recordingTimeline {margin-block:36px 14px;}

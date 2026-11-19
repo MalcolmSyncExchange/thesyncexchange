@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { masterEnvelope, parseWaveform, readWaveformResponse, waveformBars, type Envelope } from '@/lib/media/waveform.mjs';
+import { masterEnvelope, parseWaveform, readWaveformResponse, waveformBarGeometry, waveformBars, type Envelope } from '@/lib/media/waveform.mjs';
 import styles from './waveform-player.module.css';
 
 type Region = {startSample:number;endSample:number;sampleRate:number;durationUs:number};
@@ -38,8 +38,8 @@ export function ValidatedWaveform({ url, format = 'preview', label = 'Preview wa
   return <div ref={holder} className={styles.wave}>
     {failed?<span role="status">Waveform unavailable. Audio controls remain available.</span>:!bars?<span role="status" className={styles.waveStatus}>Loading waveform…</span>:<svg role="img" aria-label={label} viewBox="0 0 1000 160" preserveAspectRatio="none" data-visual-gain={bars.gain.toFixed(3)}>
       <defs><clipPath id={clip}><rect width={fraction*1000} height="160"/></clipPath></defs>
-      <g className={styles.unplayed}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={80-height*70} width={.64*1000/bars.heights.length} height={height*140} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
-      <g className={styles.played} clipPath={`url(#${clip})`}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={80-height*70} width={.64*1000/bars.heights.length} height={height*140} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
+      <g className={styles.unplayed}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={waveformBarGeometry(height).y} width={.64*1000/bars.heights.length} height={waveformBarGeometry(height).height} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
+      <g className={styles.played} clipPath={`url(#${clip})`}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={waveformBarGeometry(height).y} width={.64*1000/bars.heights.length} height={waveformBarGeometry(height).height} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
       {showPlayhead?<line x1={fraction*1000} x2={fraction*1000} y1="6" y2="154" className={styles.playhead}/>:null}
     </svg>}
   </div>;

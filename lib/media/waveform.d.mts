@@ -8,3 +8,5 @@ export function waveformBars(envelope: Envelope, columns?: number): {heights:num
 export function masterEnvelope(wave: Waveform, region?: {startSample:number;endSample:number;sampleRate:number;durationUs:number}): Envelope;
 export function seekTime(fraction: number, duration: number): number;
 export function artistPreviewRegion(asset:{sourceId?:string;startMs?:number;endMs?:number;durationUs?:number},source?:{id:string;sampleRate?:number;durationUs?:number}): {startSample:number;endSample:number;sampleRate:number;durationUs:number}|undefined;
+
+export function waveformBarGeometry(height:number, displayHeight?:number): {y:number;height:number};

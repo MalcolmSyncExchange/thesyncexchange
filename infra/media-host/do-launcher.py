@@ -162,7 +162,7 @@ class Engine:
             raise ValueError('ADMISSION_CLOSED')
         status=json.loads(self.status_path.read_text())
         if type(status.get('projected_usd')) not in (int,float) or not math.isfinite(status['projected_usd']) or status['projected_usd']<12:raise ValueError('INVALID_ACCOUNTING')
-        if status.get('host_id')!='620470021' or status.get('boot_id')!=self.config['boot_id'] or status['paused'] or status['projected_usd']>=20 or not 0<=self.now()*1000-status['sampled_at']<90000:
+        if status.get('host_id')!='620470021' or status.get('boot_id')!=self.config['boot_id'] or status['paused'] or status['projected_usd']>=35 or not 0<=self.now()*1000-status['sampled_at']<90000:
             raise ValueError('BUDGET_OR_ACCOUNTING_CLOSED')
         snapshot=self.snapshot()
         for other in self.root.glob('*.json'):

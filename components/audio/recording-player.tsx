@@ -66,7 +66,7 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
    modeRef.current=nextMode;playbackKey.current=key;setMode(nextMode);boundsRef.current=b;
    if(a.getAttribute('src')!==url){a.src=url;a.load();}
    a.currentTime=seekTo===undefined&&at>=b.end?b.start:at;positionRef.current=a.currentTime+b.offset;setPosition(positionRef.current);
-   if(!continuePlaying){setPlaying(false);setLoading(false);return;}
+   if(!continuePlaying||seekTo!==undefined&&at>=b.end){setPlaying(false);setLoading(false);return;}
    await a.play();if(token!==request.current)return;if(nextMode==='generated'&&currentPreview)setHeard(currentPreview.id);
    scheduleEnd();
   }catch{if(token===request.current){a.pause();setPlaying(false);setLoading(false);session.clear();setError('Playback unavailable. Your browser may not support this original format, or access expired. Try again; generated AAC remains separate.');}}

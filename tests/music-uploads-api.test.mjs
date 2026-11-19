@@ -54,3 +54,31 @@ test('draft lifecycle uses only authenticated Artist RPCs with server-derived ac
  const forged=fixture();assert.equal((await forged.route.POST(request({action:'delete_draft',submission,revision:1,owner:userId}))).status,400);assert.equal(forged.calls.length,0);
  const rows=[{id:'active',deleted:false},{id:'trash',deleted:true}];for(const [action,id] of [['list','active'],['list_deleted','trash']]){const f=fixture({result:rows});const response=await f.route.POST(request({action}));assert.equal(response.status,200);assert.deepEqual(await response.json(),[rows.find(r=>r.id===id)]);}
 });
+
+// Execute the actual nested client command against the actual route validator.
+// The initial-file effect can invoke a closure captured before data was loaded.
+async function clientCommand(f,{recovery=null,beforeChange=async()=>{},apiOverride}={}){
+ const ts=await import('typescript'),{readFileSync}=await import('node:fs');const source=readFileSync('components/artist/uploads/upload-workbench.tsx','utf8');const ast=ts.createSourceFile('ui.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let fn;
+ function visit(n){if(ts.isFunctionDeclaration(n)&&n.name?.text==='command')fn=n;else ts.forEachChild(n,visit);}visit(ast);assert.ok(fn);
+ const code=ts.transpileModule(fn.getText(ast),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;const events=[],store=new Map();
+ const api=apiOverride||(async body=>{events.push(body);if(body.action==='read')return {revision:7};const response=await f.route.POST(request(body)),value=await response.json();if(response.status!==200)throw Object.assign(Error(value.error),{status:response.status});return value;});
+ const command=new Function('recovery','beforeChange','api','id','setRecovery','sessionStorage','Error',code+';return command;')(recovery,beforeChange,api,submission,()=>{},{setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)},Error);
+ return {command,events,store};
+}
+test('initial-file stale closure acquires authoritative revision before reservation without Track Details',async()=>{
+ const f=fixture({result:{asset_id:asset}}),h=await clientCommand(f);const body={action:'reserve',submission,revision:undefined,key:crypto.randomUUID(),role:'master',label:'Master recording',filename:'Synthetic.wav',bytes:45_547_778};
+ const result=await h.command(body);assert.equal(result.asset_id,asset);assert.deepEqual(h.events.map(x=>x.action),['read','reserve']);assert.equal(h.events[1].revision,7);assert.equal(f.calls.find(x=>x[0]==='media_upload_reserve')[1].p_revision,7);assert.equal(h.store.size,0);assert.ok(!f.calls.some(x=>/metadata|prepare|submit/.test(x[0])));
+});
+test('failed reservation retains the original idempotency key for uncertain-response recovery',async()=>{
+ const f=fixture(),body={action:'reserve',revision:1,key:crypto.randomUUID(),role:'master',label:'Master',filename:'Synthetic.wav',bytes:45_547_778};let sent;
+ const h=await clientCommand(f,{apiOverride:async input=>{if(input.action==='read')return {revision:8};sent=input;throw Error('network interrupted');}});await assert.rejects(h.command(body),/network interrupted/);assert.equal(sent.key,body.key);assert.equal(JSON.parse([...h.store.values()][0]).key,body.key);
+ const recovery=sent,k=await clientCommand(f,{recovery,apiOverride:async input=>{assert.deepEqual(input,recovery);return {asset_id:asset};},beforeChange:()=>{throw Error('must not alter recovered request');}});assert.equal((await k.command(recovery)).asset_id,asset);
+});
+
+test('initial upload errors describe upload initialization, never Track Details or preview acceptance',async()=>{
+ const {readFileSync}=await import('node:fs'),{uploadRequestMessage}=await import('../lib/media/submission-draft.ts');
+ for(const action of ['reserve','destination','confirm']){const text=uploadRequestMessage('CHECK_REQUIRED_FIELDS',action);assert.doesNotMatch(text,/required fields|preview selection|Track Details/);assert.match(text,/upload|stor/);}
+ const ui=readFileSync('components/artist/uploads/upload-workbench.tsx','utf8');assert.ok(ui.indexOf('useEffect(()=>{latestUpload.current=upload;});')<ui.indexOf('useEffect(()=>{if(initialFile&&data'));
+ assert.match(ui,/Retry private upload/);assert.match(ui,/disabled=\{!!recovery\} onClick=\{\(\)=>void upload\(selectedFile,undefined,'master'\)\}/);
+ const f=fixture({error:'22023'}),h=await clientCommand(f);await assert.rejects(h.command({action:'reserve',key:crypto.randomUUID(),role:'master',label:'Master',filename:'Synthetic.wav',bytes:45547778}));assert.equal(h.store.size,0,'a definitive rejection does not leave a false recovery hold');
+});

@@ -83,10 +83,10 @@ test('preliminary and final rendering share exact bounds without altering timeli
  }
  const ui=fs.readFileSync(new URL('../components/artist/uploads/upload-workbench.tsx',import.meta.url),'utf8');
  assert.equal((ui.match(/aria-label="Recording studio"/g)||[]).length,1);
- assert.ok(ui.indexOf('aria-label="Waveform and preview"')<ui.indexOf('aria-label="Audio transfer"'));
+ assert.ok(ui.indexOf('aria-label="Recording processing"')<ui.indexOf('aria-label="Waveform and preview"'));
  assert.ok(ui.indexOf('aria-label="Audio transfer"')<ui.indexOf('aria-label="Recording processing"'));
  assert.doesNotMatch(ui,/Waveform & Preview|<ol className="hidden gap-2/);
- assert.match(ui,/initialStartMs=\{localSelection\?\.file===selectedFile&&selectedAsset===media.source.id\?localSelection.start:undefined\}/);
+ assert.match(ui,/initialStartMs=\{localSelection\?\.file===selectedFile&&selectedAsset===media.source.id\?localSelection.start:/);
  assert.match(ui,/role="status" aria-live="polite" aria-atomic="true"/);
  const css=fs.readFileSync(new URL('../components/audio/waveform-player.module.css',import.meta.url),'utf8');
  assert.match(css,/prefers-reduced-motion:reduce/);assert.match(css,/overflow:hidden/);

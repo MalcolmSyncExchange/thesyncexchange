@@ -64,7 +64,7 @@ interface PreviewAudioContextValue {
 }
 
 const PreviewAudioContext = createContext<PreviewAudioContextValue | null>(null);
-const previewFailureMessage = "Buyer preview unavailable. Try again or choose another track.";
+const previewFailureMessage = "Public Preview unavailable. Try again or choose another track.";
 
 export function usePreviewAudio() {
   const value = useContext(PreviewAudioContext);
@@ -256,7 +256,7 @@ export function PreviewAudioButton({
   const selected = active?.id === track.id;
   const isPlaying = selected && playing;
   const isLoading = selected && loading;
-  const label = !track.previewUrl ? "Buyer preview unavailable" : isPlaying ? "Pause Buyer preview" : "Play Buyer preview";
+  const label = !track.previewUrl ? "Public Preview unavailable" : isPlaying ? "Pause Public Preview" : "Play Public Preview";
 
   return (
     <Button
@@ -285,12 +285,12 @@ function PersistentPreviewPlayer() {
   const identity = (
     <>
       <strong>{active.title}</strong>
-      <span>{active.artistName} · Buyer preview</span>
+      <span>{active.artistName} · Public Preview</span>
     </>
   );
 
   return (
-    <section className={styles.player} aria-label="Buyer preview player" data-testid="persistent-preview-player" data-error={Boolean(error)}>
+    <section className={styles.player} aria-label="Public Preview player" data-testid="persistent-preview-player" data-error={Boolean(error)}>
       <div className={styles.inner}>
         <div className={styles.identity}>
           <div className={styles.artwork}>
@@ -312,32 +312,32 @@ function PersistentPreviewPlayer() {
             step={0.1}
             value={Math.min(time, total || 1)}
             disabled={!total}
-            aria-label="Buyer preview position"
+            aria-label="Public Preview position"
             aria-valuetext={`${formatDuration(Math.floor(time))} of ${formatDuration(Math.floor(total))}`}
             onChange={event => seek(Number(event.target.value))}
           />
         </div>
         <span className={styles.time}>{formatDuration(Math.floor(time))} / {formatDuration(Math.floor(total))}</span>
         <div className={styles.volume} data-open={volumeOpen}>
-          <Button type="button" variant="ghost" className={styles.iconButton} aria-label={muted ? "Unmute Buyer preview" : "Mute Buyer preview"} aria-pressed={muted} onClick={toggleMute}>
+          <Button type="button" variant="ghost" className={styles.iconButton} aria-label={muted ? "Unmute Public Preview" : "Mute Public Preview"} aria-pressed={muted} onClick={toggleMute}>
             <VolumeIcon aria-hidden="true" />
           </Button>
           <Button type="button" variant="ghost" className={styles.mobileVolumeButton} aria-label="Open volume control" aria-expanded={volumeOpen} onClick={() => setVolumeOpen(current => !current)}>
             <VolumeIcon aria-hidden="true" />
           </Button>
           <label className={styles.volumeSlider}>
-            <span className="sr-only">Buyer preview volume</span>
+            <span className="sr-only">Public Preview volume</span>
             <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} onChange={event => setVolume(Number(event.target.value))} />
           </label>
         </div>
-        <Button type="button" variant="ghost" className={styles.iconButton} aria-label="Close Buyer preview player" onClick={close}><X aria-hidden="true" /></Button>
+        <Button type="button" variant="ghost" className={styles.iconButton} aria-label="Close Public Preview player" onClick={close}><X aria-hidden="true" /></Button>
         {error ? (
           <div className={styles.errorNotice} role="alert">
             <span>{error}</span>
             <Button type="button" variant="outline" className={styles.retryButton} onClick={() => void toggle(active)}>Retry</Button>
           </div>
         ) : null}
-        <div className={styles.playerStatus} aria-live="polite">{error ? "" : loading ? "Loading Buyer preview" : playing ? `Playing ${active.title}` : `Paused ${active.title}`}</div>
+        <div className={styles.playerStatus} aria-live="polite">{error ? "" : loading ? "Loading Public Preview" : playing ? `Playing ${active.title}` : `Paused ${active.title}`}</div>
       </div>
     </section>
   );

@@ -50,7 +50,7 @@ test("Buyer Preview serializes only the approved buyer-safe track contract", () 
 test("shared player owns one audio element and exposes seek, volume, mute and recovery states", async () => {
   const source = await readFile(new URL("../components/audio/preview-audio-provider.tsx", import.meta.url), "utf8");
   assert.equal((source.match(/<audio\b/g) || []).length, 1);
-  for (const requirement of ["activeIdRef", "audio.currentTime", "audio.volume", "audio.muted", "Buyer preview volume", "Buyer preview position", "onWaiting", "onError"]) {
+  for (const requirement of ["activeIdRef", "audio.currentTime", "audio.volume", "audio.muted", "Public Preview volume", "Public Preview position", "onWaiting", "onError"]) {
     assert.match(source, new RegExp(requirement.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   for (const forbidden of ["audio_file_path", "track-audio", "purchase-assets", "createSignedUrl", "signAuthorizedTrackAudio"]) {

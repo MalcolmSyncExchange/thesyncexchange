@@ -35,7 +35,7 @@ test('performance evidence is bounded, local and excludes private identifiers',a
 test('local audition stays separate from server approval and cleans its bounded Blob URL',async()=>{
  const {readFileSync}=await import('node:fs');
  const ui=readFileSync(new URL('../components/audio/local-recording-audition.tsx',import.meta.url),'utf8');
- for(const text of ['URL.createObjectURL(file)','URL.revokeObjectURL(url)','removeAttribute(\'src\')','file.size>150000000','token===request.current','onPointerCancel','onLostPointerCapture','onKeyDown={timelineKey}','onKeyDown={regionKey}',"setMode('full')",'not validated and not the generated AAC','prefers-reduced-motion','document.hidden'])assert.ok(ui.includes(text),text);
+ for(const text of ['URL.createObjectURL(file)','URL.revokeObjectURL(url)','removeAttribute(\'src\')','file.size>150000000','token===request.current','onPointerCancel','onLostPointerCapture','onKeyDown={timelineKey}','onKeyDown={regionKey}',"setMode('full')",'On-device audition · final Public Preview follows secure processing.','prefers-reduced-motion','document.hidden'])assert.ok(ui.includes(text),text);
  assert.doesNotMatch(ui,/fetch\(|\/api\/|service_role|decodeAudioData|onAccept|onGenerate/);
  const player=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
  assert.match(player,/useState\(initialStartMs===undefined\)/);assert.match(player,/localOverride.current.start===selection.start_ms/);

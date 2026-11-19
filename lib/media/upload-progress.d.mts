@@ -8,3 +8,5 @@ export function transferEstimate(samples:{at:number;bytes:number}[],now:number,b
 export function readinessActions(state:UploadState):string[];
 
 export function processingPollDelay(state:import('./upload-contract').UploadState|null,failures?:number):number;
+
+export function previewGenerationNeeded(state:UploadState):boolean;

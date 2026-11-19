@@ -37,6 +37,7 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
  useEffect(()=>{stop();playbackKey.current='';setRetainSaved(true);setStart(previewSelection(durationUs,selection.start_ms??0).startMs);},[durationUs,selection.start_ms,selection.end_ms]);
  useEffect(()=>{stop();playbackKey.current='';setHeard(null);},[preview?.id]);
  useEffect(()=>{session.activate();const element=audio.current,generation=request,deadline=endTimer,capability=session;return()=>{++generation.current;element?.pause();element?.removeAttribute('src');element?.load();capability.dispose();if(deadline.current)clearTimeout(deadline.current);};},[session]);
+ useEffect(()=>{const target=wave.current;if(!target||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(entries=>{if(document.visibilityState==='visible'&&entries.some(entry=>entry.isIntersecting)){session.warm();observer.disconnect();}},{threshold:.1});observer.observe(target);return()=>observer.disconnect();},[session]);
  useEffect(()=>{const hidden=()=>{if(document.hidden)stop();};document.addEventListener('visibilitychange',hidden);return()=>document.removeEventListener('visibilitychange',hidden);},[]);
  useEffect(()=>{if(!playing||matchMedia('(prefers-reduced-motion: reduce)').matches)return;let frame=0;const tick=()=>{update();frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[playing,update]);
  useEffect(()=>{if(audio.current){audio.current.volume=volume;audio.current.muted=muted;}},[volume,muted]);
@@ -45,7 +46,7 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
  async function play(nextMode:Mode){
   const a=audio.current;if(!a)return;
   if(modeRef.current===nextMode&&(!a.paused||loading)){stop();return;}
-  stop();const token=++request.current;setError('');setLoading(true);
+  const previousMode=modeRef.current;stop();const token=++request.current;modeRef.current=nextMode;setMode(nextMode);setError('');setLoading(true);
   try{
    let url:string;
    if(nextMode==='generated'){if(!currentPreview)throw Error();url=`/api/media/${submission}/${currentPreview.id}`;}
@@ -55,7 +56,7 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
    if(token!==request.current)return;
    const b=playbackBounds(nextMode,durationUs,region,currentPreview);
    const key=nextMode==='full'?'full':nextMode==='generated'?`generated:${currentPreview?.id}`:`selection:${region.startMs}:${region.endMs}`;
-   const resume=playbackKey.current===key&&modeRef.current===nextMode&&a.currentTime>=b.start&&a.currentTime<b.end;
+   const resume=playbackKey.current===key&&previousMode===nextMode&&a.currentTime>=b.start&&a.currentTime<b.end;
    const at=resume?a.currentTime:nextMode==='full'?Math.min(positionRef.current,duration):b.start;
    modeRef.current=nextMode;playbackKey.current=key;setMode(nextMode);boundsRef.current=b;
    if(a.getAttribute('src')!==url){a.src=url;a.load();}

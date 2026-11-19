@@ -3,7 +3,8 @@
 This release follows the November $20 ceiling approval; it does not activate a
 worker, change billing, alter image pins or change processing resource limits.
 
-Playback authorization warms on explicit play-button pointer/keyboard intent.
+Playback authorization warms once when the listening room becomes visible, and
+on subsequent explicit play-button pointer/keyboard intent if renewal is needed.
 Concurrent requests coalesce; a component-local capability expires within the
 existing 60-second server limit, renews with five seconds remaining, and is never
 persisted. No master bytes are prefetched. Unmount aborts authorization and clears
@@ -42,3 +43,7 @@ checks including the newest rate-limit case passed; 300 security regressions and
 five security gates passed; native macOS ARM64 PostgreSQL replay and restricted
 role checks passed. Typecheck, lint and build are required before publication.
 Native codec/sandbox qualification is reused, not repeated or relabeled.
+
+Current pre-release production baseline: cold 2231.3ms, warm 6.3ms; original
+selection audition stopped at exactly 45.000s without media errors. This is the
+previous implementation, not the new release or a generated AAC result.

@@ -715,6 +715,7 @@ export interface Database {
       };
     };
     Functions: {
+      media_account_notices: { Args: Record<string, never>; Returns: Json };
       notification_request_seal: {Args:{p_id:string;p_lease:string;p_hash:string};Returns:boolean};
       notification_preferences: { Args: {p_operational?:boolean;p_marketing?:boolean;p_notice?:string}; Returns: Json };
       collect_notification_events: {Args: {p_limit?:number}; Returns:number};

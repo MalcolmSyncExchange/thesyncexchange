@@ -329,6 +329,10 @@
     {
       "file": "20261119064613_continuous_audio_health.sql",
       "sha256": "896a17ea24037e39786374ae46caba4992b8c371734126a6333b4219c1c53fc9"
+    },
+    {
+      "file": "20261119193818_submission_workflow_repair.sql",
+      "sha256": "895ae367a28616ac2fb6376b77ff0e70e1d58d95177ea4bcd6407b23aa578ffd"
     }
   ],
   "storageBuckets": {

@@ -7,7 +7,7 @@ export const catalogMetadataSchema=z.object({
  title:text(),artist:text(),credits:z.array(z.object({name:text(),role:z.enum(creditRoles)}).strict()).max(50),description:z.string().trim().max(3000).refine(v=>!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v),'Use readable plain text.'),
  releaseTitle:text(),releaseStatus:z.enum(['unreleased','released']),releaseDate:z.union([z.literal(''),z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v)]),releaseYear:z.number().int().min(1900).max(2200).nullable(),
  genre:text(),subgenre:text(),moods:tags,bpm:z.number().int().min(1).max(400).nullable(),musicalKey:text(200).refine(v=>v===''||/^([A-G](#|b)?(m| (major|minor))?|atonal|unknown)$/.test(v),'Use a note and optional major/minor, atonal or unknown.'),durationSeconds:z.number().int().min(0).max(36000),
- explicit:z.enum(['unknown','clean','explicit']),vocal:z.enum(['unknown','instrumental','vocal','mixed']),language:text(35).refine(v=>v===''||/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(v),'Use a language code such as en or zxx for no lyrics.'),
+ explicit:z.enum(['unknown','clean','explicit','censored']),vocal:z.enum(['unknown','instrumental','vocal','mixed']),language:text(35).refine(v=>v===''||/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(v),'Use a language code such as en or zxx for no lyrics.'),
  isrc:z.union([z.literal(''),z.string().regex(/^[A-Z]{2}[A-Z0-9]{3}[0-9]{7}$/)]),iswc:z.union([z.literal(''),z.string().regex(/^T[0-9]{10}$/)]),recordingIdentifier:text(),workIdentifier:text(),keywords:tags
 }).strict();
 export type CatalogMetadata=z.infer<typeof catalogMetadataSchema>;

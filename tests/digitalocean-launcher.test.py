@@ -11,10 +11,10 @@ class Launcher(unittest.TestCase):
  def docker(self,args):
   self.calls.append(args)
   if args[0]==self.fail:raise ValueError('uncertain command')
-  if args[0]=='ps':return 'id' if self.container else ''
+  if args[0]=='ps':return (self.container['Name'].lstrip('/') if '{{.Names}}' in args else 'id') if self.container else ''
   if args[0]=='inspect':return json.dumps([self.container])
   if args[:2]==['image','inspect']:return json.dumps([{'Architecture':'amd64','Id':self.config['image']}])
-  if args[0]=='create':self.container={'Config':{'Image':self.config['image'],'Labels':{'io.thesyncexchange.vm-run':self.context['run_id']}},'State':{'Running':False,'ExitCode':0}}
+  if args[0]=='create':self.container={'Name':'/tse-media-run-'+self.context['run_id'],'Config':{'Image':self.config['image'],'Labels':{'io.thesyncexchange.vm-run':self.context['run_id']}},'State':{'Running':False,'ExitCode':0}}
   if args[0]=='start':self.container['State']['Running']=True
   if args[0]=='kill':self.container['State']['Running']=False
   return ''
@@ -82,7 +82,7 @@ class Launcher(unittest.TestCase):
   self.launch();old_name='tse-media-run-'+self.context['run_id'];old_container=self.container
   self.config.update(image='sha256:'+'c'*64,build_digest='sha256:'+'c'*64)
   def exact_docker(args):
-   if args[0]=='ps':return 'id' if ('name=^/'+old_name+'$') in args else ''
+   if args[0]=='ps':return old_name if '{{.Names}}' in args else ('id' if ('name=^/'+old_name+'$') in args else '')
    if args[0]=='inspect':return json.dumps([old_container])
    return self.docker(args)
   self.engine.execute=exact_docker
@@ -91,4 +91,31 @@ class Launcher(unittest.TestCase):
    with self.assertRaisesRegex(ValueError,'ONE_JOB_ONLY'):self.engine.start(next_context)
   self.assertEqual(sum(c[0]=='start' for c in self.calls),1)
   self.assertTrue(old_container['State']['Running'])
+ def test_bulk_snapshot_preserves_identity_and_running_checks(self):
+  self.launch();snapshot=self.engine.snapshot()
+  self.assertEqual(self.engine.status(self.context['run_id'],snapshot)['state'],'RUNNING')
+  self.container['Config']['Image']='wrong'
+  with self.assertRaisesRegex(ValueError,'IDENTITY'):self.engine.status(self.context['run_id'],self.engine.snapshot())
+ def test_bulk_snapshot_missing_container_still_rejects(self):
+  self.launch();self.engine.stop(self.context['run_id'])
+  with self.assertRaisesRegex(ValueError,'DISAPPEARED'):self.engine.status(self.context['run_id'],{})
+ def test_bulk_inspection_failure_is_not_empty(self):
+  self.launch();self.fail='inspect'
+  with self.assertRaises(ValueError):self.engine.snapshot()
+ def test_bulk_reconciliation_constant_daemon_round_trips(self):
+  values=[]
+  for _ in range(100):
+   run=str(uuid.uuid4());name='tse-media-run-'+run
+   values.append({'Name':'/'+name,'Config':{'Image':self.config['image'],'Labels':{'io.thesyncexchange.vm-run':run}},'State':{'Running':False,'ExitCode':0}})
+   (self.engine.root/(run+'.json')).write_text(json.dumps({'run_id':run,'image':self.config['image'],'created_at':1000,'state':'exited','exit_code':0}))
+  calls=[]
+  def batch(args):
+   calls.append(args);return '\n'.join(v['Name'][1:] for v in values) if args[0]=='ps' else json.dumps(values)
+  self.engine.execute=batch;snapshot=self.engine.snapshot()
+  for p in self.engine.root.glob('*.json'):self.assertEqual(self.engine.status(p.stem,snapshot)['state'],'EXITED')
+  self.assertEqual([x[0]for x in calls],['ps','inspect'])
+ def test_bulk_snapshot_rejects_conflicting_names(self):
+  self.launch();original=self.engine.execute
+  self.engine.execute=lambda args: json.dumps([{**self.container,'Name':'/wrong'}]) if args[0]=='inspect' else original(args)
+  with self.assertRaisesRegex(ValueError,'IDENTITY'):self.engine.snapshot()
 if __name__=='__main__':unittest.main()

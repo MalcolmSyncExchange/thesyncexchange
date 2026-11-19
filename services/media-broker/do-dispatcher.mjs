@@ -11,12 +11,14 @@ export class RootLauncher {
  stop(run_id){return this.call('stop',{run_id});}
 }
 export class DODispatcher {
- constructor({db,broker,launcher,digest,syncUsage,log=()=>{},sleep=ms=>new Promise(r=>setTimeout(r,ms))}){Object.assign(this,{db,broker,launcher,digest,syncUsage,log,sleep});this.busy=false;}
+ constructor({db,broker,launcher,digest,syncUsage,ready=async()=>true,log=()=>{},sleep=ms=>new Promise(r=>setTimeout(r,ms))}){Object.assign(this,{db,broker,launcher,digest,syncUsage,ready,log,sleep});this.busy=false;}
  async once(signal){if(this.busy)return {state:'busy'};this.busy=true;let context;
   try{
    const existing=await this.db.rpc('do_scope_status',[null]);
    if(existing.state==='issued')return await this.recover(existing);
    const budget=await this.syncUsage();if(!budget.enabled||budget.paused)return {state:budget.enabled?'budget_or_accounting_paused':'operator_disabled'};
+   if(budget.queue?.queue_depth===0)return {state:'idle'};
+   if(!await this.ready(signal)||signal?.aborted)return {state:signal?.aborted?'cancelled':'launch_endpoint_unavailable'};
    const run=await this.db.rpc('do_admit',[randomUUID(),this.digest]);
    if(run.state!=='issued')return run;
    const prior=await this.launcher.status(run.run_id);

@@ -20,3 +20,26 @@ test('unsupported compressed codecs and malformed/oversized headers fail gracefu
  for(const file of [new Blob(['fLaC'+''.padEnd(100,'0')]),{size:150000001,slice(){throw Error('must not read');}},new Blob([Buffer.alloc(100)])])await assert.rejects(localWaveform(file),/LOCAL_FORMAT_UNAVAILABLE/);
  const f=wav(1000000);await assert.rejects(localWaveform(f.file,{now:(()=>{let n=0;return()=>n+=1000;})(),timeoutMs:1500}),/LOCAL_FORMAT_UNAVAILABLE/);
 });
+
+test('performance evidence is bounded, local and excludes private identifiers',async()=>{
+ const {audioTrace}=await import('../lib/media/audio-performance.mjs');
+ const file=new Blob([new Uint8Array(100)]),trace=audioTrace(file);
+ assert.equal(trace,audioTrace(file));trace.mark('reserved');trace.mark('reserved');trace.mark('https://private.invalid/secret');
+ for(let i=0;i<300;i++)trace.patch(100,20);
+ const entries=performance.getEntriesByType('measure').filter(e=>e.name.startsWith('tse.audio.'));
+ assert.ok(entries.length<=128);assert.ok(entries.length>0);
+ for(const e of entries){assert.match(e.name,/^tse\.audio\.[a-z_]+$/);assert.deepEqual(Object.keys(e.detail).sort(),['bytes','bytes_per_second','elapsed_ms','file_bytes','trace']);assert.equal(e.detail.bytes_per_second,5000);}
+ for(const name of new Set(entries.map(e=>e.name)))performance.clearMeasures(name);
+});
+
+test('local audition stays separate from server approval and cleans its bounded Blob URL',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const ui=readFileSync(new URL('../components/audio/local-recording-audition.tsx',import.meta.url),'utf8');
+ for(const text of ['URL.createObjectURL(file)','URL.revokeObjectURL(url)','removeAttribute(\'src\')','file.size>150000000','token===request.current','onPointerCancel','onLostPointerCapture','onKeyDown={timelineKey}','onKeyDown={regionKey}',"setMode('full')",'not validated and not the generated AAC','prefers-reduced-motion','document.hidden'])assert.ok(ui.includes(text),text);
+ assert.doesNotMatch(ui,/fetch\(|\/api\/|service_role|decodeAudioData|onAccept|onGenerate/);
+ const player=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
+ assert.match(player,/useState\(initialStartMs===undefined\)/);assert.match(player,/localOverride.current.start===selection.start_ms/);
+ const workbench=readFileSync(new URL('../components/artist/uploads/upload-workbench.tsx',import.meta.url),'utf8');
+ assert.match(workbench,/localSelection\?\.file===selectedFile&&selectedAsset===media.source.id/);
+ assert.match(workbench,/current.source\?\.id!==selectedAsset/);
+});

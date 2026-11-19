@@ -9,13 +9,13 @@ import { ValidatedWaveform } from './validated-waveform';
 import styles from './waveform-player.module.css';
 
 type Mode='full'|'selection'|'generated';
-type Props={submission:string;source:ArtistMediaAsset;waveformUrl:string;selection:{start_ms:number|null;end_ms:number|null};preview?:ArtistMediaAsset;readOnly?:boolean;disabled?:boolean;processingPaused?:boolean;onSelectionDirty?:(dirty:boolean)=>void;onSave:(start:number,end:number)=>void;onGenerate:()=>void;onAccept:(asset:string)=>void};
+type Props={submission:string;source:ArtistMediaAsset;waveformUrl:string;selection:{start_ms:number|null;end_ms:number|null};preview?:ArtistMediaAsset;readOnly?:boolean;disabled?:boolean;processingPaused?:boolean;initialStartMs?:number;onSelectionDirty?:(dirty:boolean)=>void;onSave:(start:number,end:number)=>void;onGenerate:()=>void;onAccept:(asset:string)=>void};
 const stamp=(seconds:number,precise=false)=>{const n=Number.isFinite(seconds)?Math.max(0,seconds):0;return `${Math.floor(n/60)}:${(precise?(n%60).toFixed(3):String(Math.floor(n%60))).padStart(precise?6:2,'0')}`;};
 
-export function RecordingPlayer({submission,source,waveformUrl,selection,preview,readOnly=false,disabled=false,processingPaused=false,onSelectionDirty,onSave,onGenerate,onAccept}:Props){
+export function RecordingPlayer({submission,source,waveformUrl,selection,preview,readOnly=false,disabled=false,processingPaused=false,initialStartMs,onSelectionDirty,onSave,onGenerate,onAccept}:Props){
  const durationUs=source.duration_us!,duration=durationUs/1e6;
- const [start,setStart]=useState(()=>previewSelection(durationUs,selection.start_ms??0).startMs);
- const [retainSaved,setRetainSaved]=useState(true);
+ const [start,setStart]=useState(()=>previewSelection(durationUs,initialStartMs??selection.start_ms??0).startMs);
+ const [retainSaved,setRetainSaved]=useState(initialStartMs===undefined);
  const region=useMemo(()=>recordingSelection(durationUs,start,selection,retainSaved),[durationUs,start,retainSaved,selection]);
  const fullShort=durationUs<30_000_000&&region.startMs===0&&region.endMs===Math.floor(durationUs/1000);
  const legacyRegion=!fullShort&&region.endMs-region.startMs!==30000;
@@ -29,12 +29,13 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
  const session=useMemo(()=>privatePlaybackSession(submission,source.id),[submission,source.id]);
  const request=useRef(0),endTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
  const drag=useRef<{pointer:number;x:number;start:number;width:number}|null>(null),wave=useRef<HTMLDivElement>(null);
+ const localOverride=useRef(initialStartMs===undefined?null:{start:selection.start_ms,end:selection.end_ms});
  const playbackKey=useRef(''),seekPointer=useRef<number|null>(null),positionRef=useRef(0);
  useEffect(()=>{onSelectionDirty?.(dirty&&!readOnly);return()=>onSelectionDirty?.(false);},[dirty,readOnly,onSelectionDirty]);
  function stop(){++request.current;audio.current?.pause();setLoading(false);if(endTimer.current)clearTimeout(endTimer.current);}
  const update=useCallback(()=>{const a=audio.current;if(!a)return;const b=boundsRef.current;if(a.currentTime>=b.end){a.pause();if(a.currentTime>b.end)a.currentTime=b.end;}positionRef.current=Math.max(0,Math.min(duration,a.currentTime+b.offset));setPosition(positionRef.current);},[duration]);
  function scheduleEnd(){if(endTimer.current)clearTimeout(endTimer.current);const a=audio.current;if(a&&!a.paused)endTimer.current=setTimeout(()=>{if(audio.current){audio.current.pause();audio.current.currentTime=boundsRef.current.end;update();}},Math.max(0,(boundsRef.current.end-a.currentTime)*1000));}
- useEffect(()=>{stop();playbackKey.current='';setRetainSaved(true);setStart(previewSelection(durationUs,selection.start_ms??0).startMs);},[durationUs,selection.start_ms,selection.end_ms]);
+ useEffect(()=>{if(localOverride.current&&localOverride.current.start===selection.start_ms&&localOverride.current.end===selection.end_ms)return;localOverride.current=null;stop();playbackKey.current='';setRetainSaved(true);setStart(previewSelection(durationUs,selection.start_ms??0).startMs);},[durationUs,selection.start_ms,selection.end_ms]);
  useEffect(()=>{stop();playbackKey.current='';setHeard(null);},[preview?.id]);
  useEffect(()=>{session.activate();const element=audio.current,generation=request,deadline=endTimer,capability=session;return()=>{++generation.current;element?.pause();element?.removeAttribute('src');element?.load();capability.dispose();if(deadline.current)clearTimeout(deadline.current);};},[session]);
  useEffect(()=>{const target=wave.current;if(!target||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(entries=>{if(document.visibilityState==='visible'&&entries.some(entry=>entry.isIntersecting)){session.warm();observer.disconnect();}},{threshold:.1});observer.observe(target);return()=>observer.disconnect();},[session]);

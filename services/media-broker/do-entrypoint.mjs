@@ -1,5 +1,6 @@
 import {operationalAlerts} from './operational-health.mjs';
 import {dispatchLoop} from './dispatch-loop.mjs';
+import {launchReadiness} from './do-launch-readiness.mjs';
 import {readFile,lstat} from 'node:fs/promises';
 import {DODatabase} from './do-database.mjs';
 import {doServer} from './do-server.mjs';
@@ -13,7 +14,7 @@ export function doConfig(c){exactKeys(c,['enabled','host_id','root_uuid','worker
 export async function doUsage(db,boot,{path='/run/tse-audio/accounting/usage.json',status='/run/tse-audio/status/runtime-status.json',now=Date.now,load=sealedJson,save}={}){
  const value=await load(path);requireValue(value.provider==='digitalocean'&&value.host_id==='620470021'&&value.boot_id===boot&&Number.isSafeInteger(value.traffic_bytes)&&value.traffic_bytes>=0&&Number.isSafeInteger(value.log_bytes)&&value.log_bytes>=0&&Number.isSafeInteger(value.sampled_at)&&now()-value.sampled_at>=0&&now()-value.sampled_at<90000);
  const result=await db.rpc('do_observe',[value.traffic_bytes,value.log_bytes]);const queue=await db.rpc('do_health');const output={provider:'digitalocean',host_id:'620470021',boot_id:boot,paused:result.paused||!result.enabled,projected_usd:Number(result.projected_usd),sampled_at:now(),month:result.month,queue,alerts:operationalAlerts({queue,projectedUsd:Number(result.projected_usd),ceilingUsd:result.month==='2026-11'?20:15})};
- requireValue(Number.isFinite(output.projected_usd));if(save)await save(output);else{const {writeFile,rename}=await import('node:fs/promises');await writeFile(status+'.tmp',JSON.stringify(output),{mode:0o640});await rename(status+'.tmp',status);}return result;
+ requireValue(Number.isFinite(output.projected_usd));if(save)await save(output);else{const {writeFile,rename}=await import('node:fs/promises');await writeFile(status+'.tmp',JSON.stringify(output),{mode:0o640});await rename(status+'.tmp',status);}return {...result,queue};
 }
 export async function startDO(e=process.env){
  requireValue(e.MEDIA_DO_ENABLED==='founder-beta'&&process.getuid?.()===20000);
@@ -29,7 +30,7 @@ export async function startDO(e=process.env){
  const controller=new AbortController();process.once('SIGTERM',()=>controller.abort());process.once('SIGINT',()=>controller.abort());
  const sync=async()=>{const current=await verify();requireValue(current.boot_id===binding.boot_id);return doUsage(db,binding.boot_id);};
  let syncing;const syncOnce=()=>syncing??(syncing=sync().finally(()=>{syncing=undefined;}));const interval=setInterval(()=>{syncOnce().catch(()=>controller.abort());},30000);
- const dispatcher=new DODispatcher({db,broker,launcher:new RootLauncher('/run/tse-audio/control/launcher.sock'),digest:c.worker_digest,syncUsage:syncOnce});
+ const dispatcher=new DODispatcher({db,broker,launcher:new RootLauncher('/run/tse-audio/control/launcher.sock'),digest:c.worker_digest,syncUsage:syncOnce,ready:launchReadiness()});
  try{await dispatchLoop({dispatcher,verify,signal:controller.signal});}
  finally{clearInterval(interval);controller.abort();broker.revoke();try{const active=await db.rpc('do_scope_status',[null]).catch(()=>null);if(active?.state==='issued')await dispatcher.recover(active);}catch{process.stderr.write('MEDIA_DO_STOP_RECONCILIATION_REQUIRED\n');}finally{await new Promise(r=>broker.server.close(r));await pool.end();}}
 }

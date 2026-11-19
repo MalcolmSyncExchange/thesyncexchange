@@ -118,4 +118,19 @@ class Launcher(unittest.TestCase):
   self.launch();original=self.engine.execute
   self.engine.execute=lambda args: json.dumps([{**self.container,'Name':'/wrong'}]) if args[0]=='inspect' else original(args)
   with self.assertRaisesRegex(ValueError,'IDENTITY'):self.engine.snapshot()
+ def test_shutdown_batches_stopped_history_without_restarting(self):
+  self.launch();self.engine.stop(self.context['run_id']);self.calls=[]
+  self.engine.stop_all()
+  self.assertEqual([c[0] for c in self.calls],['ps','inspect'])
+  self.assertEqual(json.loads((self.engine.root/(self.context['run_id']+'.json')).read_text())['state'],'exited')
+ def test_shutdown_running_job_uses_fresh_kill_confirmation(self):
+  self.launch();self.calls=[];self.engine.stop_all()
+  self.assertFalse(self.container['State']['Running'])
+  self.assertEqual(sum(c[0]=='kill' for c in self.calls),1)
+  self.assertFalse((self.engine.root/(self.context['run_id']+'.context')).exists())
+  self.assertEqual(self.calls[-1][0],'inspect')
+ def test_shutdown_identity_conflict_is_never_treated_as_safe_exit(self):
+  self.launch();self.container['Config']['Image']='wrong'
+  with self.assertRaisesRegex(ValueError,'IDENTITY'):self.engine.stop_all()
+  self.assertFalse(any(c[0]=='kill' for c in self.calls))
 if __name__=='__main__':unittest.main()

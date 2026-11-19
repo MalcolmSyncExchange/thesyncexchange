@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {previewSelection,recordingSelection,selectionFromDrag,matchesSelection,playbackBounds} from '../lib/media/preview-selection.mjs';
+import {previewSelection,recordingSelection,selectionFromDrag,matchesSelection,playbackBounds,seekPlayback} from '../lib/media/preview-selection.mjs';
 
 test('long recordings retain exactly thirty seconds with precise worker-compatible boundaries',()=>{
  for(const duration of [30_000_000,30_000_001,172_137_937,900_000_000])for(const start of [-1000,0,1234,60_999,Infinity,1e9]){
@@ -56,4 +56,16 @@ test('one full waveform and native audio engine preserve security, cancellation 
  assert.match(ui,/showPlayhead=\{false\}/);
  assert.doesNotMatch(ui,/decodeAudioData|createObjectURL|Math.random|service_role/);
  const bars=readFileSync(new URL('../components/audio/validated-waveform.tsx',import.meta.url),'utf8');assert.doesNotMatch(bars,/styles.peakCaps|styles.centerline/);assert.match(bars,/useMemo/);
+});
+
+test('full waveform seeks leave preview mode without changing selection',()=>{
+ const region=previewSelection(180e6,30000),saved={...region};
+ for(const time of [0,29.9,60,150,180])assert.deepEqual(seekPlayback('selection',180e6,region,time),{mode:'full',time});
+ assert.deepEqual(seekPlayback('selection',180e6,region,45),{mode:'selection',time:45});
+ assert.deepEqual(seekPlayback('generated',180e6,region,45,{start_ms:30000,duration_us:30e6}),{mode:'generated',time:15});
+ for(const time of [0,60,150])assert.deepEqual(seekPlayback('generated',180e6,region,time,{start_ms:30000,duration_us:30e6}),{mode:'full',time});
+ assert.deepEqual(region,saved);
+ assert.deepEqual(seekPlayback('full',180e6,region,-10),{mode:'full',time:0});
+ assert.deepEqual(seekPlayback('full',180e6,region,999),{mode:'full',time:180});
+ assert.throws(()=>seekPlayback('selection',180e6,region,NaN));
 });

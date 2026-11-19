@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import type { ArtistMediaAsset } from '@/contracts/submission-media/profiles';
-import { matchesSelection, playbackBounds, previewSelection, recordingSelection, selectionFromDrag } from '@/lib/media/preview-selection.mjs';
+import { matchesSelection, playbackBounds, previewSelection, recordingSelection, selectionFromDrag, seekPlayback } from '@/lib/media/preview-selection.mjs';
 import { privatePlaybackSession } from '@/lib/media/private-playback-session.mjs';
 import { ValidatedWaveform } from './validated-waveform';
 import styles from './waveform-player.module.css';
@@ -43,9 +43,9 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
  useEffect(()=>{if(audio.current){audio.current.volume=volume;audio.current.muted=muted;}},[volume,muted]);
  useEffect(()=>{if(!loading)return;const timer=setTimeout(()=>{stop();setError('Playback timed out. Try again.');},15000);return()=>clearTimeout(timer);},[loading]);
  function select(next:number){stop();playbackKey.current='';setRetainSaved(false);setStart(previewSelection(durationUs,next).startMs);setError('');}
- async function play(nextMode:Mode){
+ async function play(nextMode:Mode, seekTo?:number, continuePlaying=true){
   const a=audio.current;if(!a)return;
-  if(modeRef.current===nextMode&&(!a.paused||loading)){stop();return;}
+  if(seekTo===undefined&&modeRef.current===nextMode&&(!a.paused||loading)){stop();return;}
   const previousMode=modeRef.current;stop();const token=++request.current;modeRef.current=nextMode;setMode(nextMode);setError('');setLoading(true);
   try{
    let url:string;
@@ -57,15 +57,27 @@ export function RecordingPlayer({submission,source,waveformUrl,selection,preview
    const b=playbackBounds(nextMode,durationUs,region,currentPreview);
    const key=nextMode==='full'?'full':nextMode==='generated'?`generated:${currentPreview?.id}`:`selection:${region.startMs}:${region.endMs}`;
    const resume=playbackKey.current===key&&previousMode===nextMode&&a.currentTime>=b.start&&a.currentTime<b.end;
-   const at=resume?a.currentTime:nextMode==='full'?Math.min(positionRef.current,duration):b.start;
+   const at=seekTo!==undefined?seekTo:resume?a.currentTime:nextMode==='full'?Math.min(positionRef.current,duration):b.start;
    modeRef.current=nextMode;playbackKey.current=key;setMode(nextMode);boundsRef.current=b;
    if(a.getAttribute('src')!==url){a.src=url;a.load();}
-   a.currentTime=at>=b.end?b.start:at;positionRef.current=a.currentTime+b.offset;setPosition(positionRef.current);
+   a.currentTime=seekTo===undefined&&at>=b.end?b.start:at;positionRef.current=a.currentTime+b.offset;setPosition(positionRef.current);
+   if(!continuePlaying){setPlaying(false);setLoading(false);return;}
    await a.play();if(token!==request.current)return;if(nextMode==='generated'&&currentPreview)setHeard(currentPreview.id);
    scheduleEnd();
   }catch{if(token===request.current){a.pause();setPlaying(false);setLoading(false);session.clear();setError('Playback unavailable. Your browser may not support this original format, or access expired. Try again; generated AAC remains separate.');}}
  }
- function seek(seconds:number){const a=audio.current;if(!a)return;const b=boundsRef.current;const next=Math.max(b.start,Math.min(b.end,seconds-b.offset));a.currentTime=next;update();scheduleEnd();}
+ function seek(seconds:number){
+  const a=audio.current;if(!a)return;
+  const plan=seekPlayback(modeRef.current,durationUs,region,seconds,currentPreview);
+  if(plan.mode==='full'&&(modeRef.current==='generated'||loading&&playbackKey.current.startsWith('generated:'))){void play('full',plan.time,!a.paused||loading);return;}
+  if(plan.mode!==modeRef.current){
+   // Selection audition already uses the master URL; switch bounds before
+   // seeking so timeupdate/seeking cannot clamp back into the preview.
+   ++request.current;setLoading(false);modeRef.current='full';setMode('full');playbackKey.current='full';
+   boundsRef.current=playbackBounds('full',durationUs,region);
+  }
+  a.currentTime=plan.time;update();scheduleEnd();
+ }
  function pointerDown(e:PointerEvent<HTMLDivElement>){if(readOnly||disabled)return;const rect=wave.current?.getBoundingClientRect();if(!rect?.width)return;stop();playbackKey.current='';e.currentTarget.setPointerCapture(e.pointerId);drag.current={pointer:e.pointerId,x:e.clientX,start:region.startMs,width:rect.width};}
  function pointerMove(e:PointerEvent<HTMLDivElement>){const d=drag.current;if(!d||d.pointer!==e.pointerId)return;setRetainSaved(false);setStart(selectionFromDrag(durationUs,d.start,e.clientX-d.x,d.width).startMs);}
  function pointerEnd(e:PointerEvent<HTMLDivElement>){if(drag.current?.pointer===e.pointerId){drag.current=null;if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}

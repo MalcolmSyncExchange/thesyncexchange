@@ -75,26 +75,41 @@ class Engine:
         if str(uuid.UUID(run)) != run: raise ValueError('RUN_ID_INVALID')
         return self.root / (run + '.json'), 'tse-media-run-' + run
 
-    def inspect(self, name, expected_image=None):
+    def snapshot(self):
+        # One fresh daemon snapshot per reconciliation pass, not two Docker
+        # subprocesses per historical run under the launcher's CPU quota.
+        names=self.execute(['ps','-a','--filter','name=^/tse-media-run-','--format','{{.Names}}']).splitlines()
+        if not names:return {}
+        if len(set(names))!=len(names) or any(not re.fullmatch(r'tse-media-run-[a-f0-9-]{36}',name) for name in names):raise ValueError('CONTAINER_IDENTITY_CONFLICT')
+        values=json.loads(self.execute(['inspect']+names))
+        snapshot={value['Name'].lstrip('/'):value for value in values}
+        if len(values)!=len(names) or set(snapshot)!=set(names):raise ValueError('CONTAINER_IDENTITY_CONFLICT')
+        return snapshot
+
+    def inspect(self, name, expected_image=None, snapshot=None):
         # A successful list distinguishes a missing container from daemon failure.
-        ids = self.execute(['ps','-a','--filter','name=^/' + name + '$','--format','{{.ID}}']).strip()
-        if not ids: return None
-        value = json.loads(self.execute(['inspect',name]))[0]
+        if snapshot is None:
+            ids = self.execute(['ps','-a','--filter','name=^/' + name + '$','--format','{{.ID}}']).strip()
+            if not ids: return None
+            value = json.loads(self.execute(['inspect',name]))[0]
+        else:
+            value=snapshot.get(name)
+            if value is None:return None
         if value['Config']['Image'] != (expected_image or self.config['image']) or value['Config']['Labels'].get('io.thesyncexchange.vm-run') != name[14:]:
             raise ValueError('CONTAINER_IDENTITY_CONFLICT')
         return value
 
-    def status(self, run):
+    def status(self, run, snapshot=None):
         path,name = self.identity(run)
         if not path.exists():
-            if self.inspect(name): raise ValueError('ORPHAN_REQUIRES_REVIEW')
+            if self.inspect(name,snapshot=snapshot): raise ValueError('ORPHAN_REQUIRES_REVIEW')
             return {'state':'NONE'}
         record=json.loads(path.read_text())
         # Historical one-shot records keep their own immutable image identity.
         # They cannot be restarted; new starts still require the current pin.
         if record.get('run_id')!=run or type(record.get('image')) is not str or not re.fullmatch(r'sha256:[a-f0-9]{64}',record.get('image','')):
             raise ValueError('RECORDED_IDENTITY_CONFLICT')
-        value=self.inspect(name,record['image'])
+        value=self.inspect(name,record['image'],snapshot=snapshot)
         if not value:
             if record['state'] != 'intent': raise ValueError('CONTAINER_DISAPPEARED')
             return {'state':'NONE'}
@@ -121,8 +136,9 @@ class Engine:
         if type(status.get('projected_usd')) not in (int,float) or not math.isfinite(status['projected_usd']) or status['projected_usd']<12:raise ValueError('INVALID_ACCOUNTING')
         if status.get('host_id')!='620470021' or status.get('boot_id')!=self.config['boot_id'] or status['paused'] or status['projected_usd']>=20 or not 0<=self.now()*1000-status['sampled_at']<90000:
             raise ValueError('BUDGET_OR_ACCOUNTING_CLOSED')
+        snapshot=self.snapshot()
         for other in self.root.glob('*.json'):
-            if self.status(other.stem)['state']=='RUNNING': raise ValueError('ONE_JOB_ONLY')
+            if self.status(other.stem,snapshot=snapshot)['state']=='RUNNING': raise ValueError('ONE_JOB_ONLY')
         image=json.loads(self.execute(['image','inspect',self.config['image']]))[0]
         if image['Architecture']!='amd64' or self.config['image'] not in [image.get('Id')]+image.get('RepoDigests',[]): raise ValueError('IMAGE_NOT_VERIFIED')
         self.authorize(self.config,context['run_id'])
@@ -168,7 +184,8 @@ class Server(socketserver.UnixStreamServer):
         try:
             with (ROOT/'active.lock').open('a') as lock:
                 fcntl.flock(lock,fcntl.LOCK_EX)
-                for p in ROOT.glob('*.json'): engine.status(p.stem)
+                snapshot=engine.snapshot()
+                for p in ROOT.glob('*.json'): engine.status(p.stem,snapshot=snapshot)
         except BaseException:
             # The cgroup kill is independent of Docker API availability.
             try:subprocess.run(['/usr/bin/systemctl','kill','--kill-whom=all','--signal=KILL','tse-media-worker.slice'],capture_output=True,timeout=5)

@@ -321,6 +321,10 @@
     {
       "file": "20261119004313_digitalocean_november_20usd_ceiling.sql",
       "sha256": "61cc781f8bdff750590347bfbc0b408b487d2ce61e0606e081eb573bac1ff493"
+    },
+    {
+      "file": "20261119005330_recoverable_artist_draft_deletion.sql",
+      "sha256": "b7f2fbcc27ab6bf14ae2e46206b48fde256be1f34d3026331b516e4a453a97cb"
     }
   ],
   "storageBuckets": {

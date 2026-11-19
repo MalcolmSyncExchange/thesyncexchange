@@ -43,7 +43,7 @@ test('existing accepted regions survive load/reset; a deliberate edit switches t
 test('one full waveform and native audio engine preserve security, cancellation and keyboard controls',()=>{
  const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
  assert.equal((ui.match(/<ValidatedWaveform /g)||[]).length,1);assert.equal((ui.match(/<audio /g)||[]).length,1);
- for(const text of ['Play Full Track','Play Preview','Play Generated AAC','Accept Generated Preview','Preview region start','Waveform timeline','onKeyDown={timelineKey}','onKeyDown={regionKey}','Recording playback position','onPointerCancel','onLostPointerCapture','setPointerCapture','clearTimeout(endTimer.current)','prefers-reduced-motion','heard!==currentPreview.id','!dirty','onSelectionDirty','Reset selection'])assert.ok(ui.includes(text),text);
+ for(const text of ['Play Full Track','Play Public Preview','Listen to Public Preview','Accept Public Preview','Preview region start','Waveform timeline','onKeyDown={timelineKey}','onKeyDown={regionKey}','Recording playback position','onPointerCancel','onLostPointerCapture','setPointerCapture','clearTimeout(endTimer.current)','prefers-reduced-motion','heard===currentPreview.id','!dirty','onSelectionDirty','onRegionChange'])assert.ok(ui.includes(text),text);
  assert.match(ui,/new IntersectionObserver/);assert.match(ui,/observer.disconnect/);assert.match(ui,/document.visibilityState==='visible'/);
  assert.match(ui,/onPointerEnter=\{session.warm\}/);assert.match(ui,/url=await session.get\(\)/);
  // Signed Storage ranges may use application/octet-stream; CORS media loading
@@ -69,3 +69,5 @@ test('full waveform seeks leave preview mode without changing selection',()=>{
  assert.deepEqual(seekPlayback('full',180e6,region,999),{mode:'full',time:180});
  assert.throws(()=>seekPlayback('selection',180e6,region,NaN));
 });
+
+test('normal preview workflow autosaves and hides manual save/generate controls',()=>{const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');assert.doesNotMatch(ui,/Save preview selection|Generate AAC preview|onSave|onGenerate/);assert.match(ui,/pendingLocal.current/);assert.match(ui,/onRegionChange\?\.\(source.id,nextRegion.startMs,nextRegion.endMs\)/);assert.match(ui,/onRegionChange\?\.\(source.id,region.startMs,region.endMs\)/);});

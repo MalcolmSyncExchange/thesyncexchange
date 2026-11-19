@@ -5,8 +5,8 @@ import { masterEnvelope, parseWaveform, readWaveformResponse, waveformBarGeometr
 import styles from './waveform-player.module.css';
 
 type Region = {startSample:number;endSample:number;sampleRate:number;durationUs:number};
-export function ValidatedWaveform({ url, format = 'preview', label = 'Preview waveform', progress = 0, region, showPlayhead = true }: {
-  url:string;format?:'preview'|'master';label?:string;progress?:number;region?:Region;showPlayhead?:boolean;
+export function ValidatedWaveform({ url, format = 'preview', label = 'Preview waveform', progress = 0, region, showPlayhead = true, fallbackEnvelope }: {
+  url:string;format?:'preview'|'master';label?:string;progress?:number;region?:Region;showPlayhead?:boolean;fallbackEnvelope?:Envelope;
 }) {
   const [envelope,setEnvelope] = useState<Envelope|null>(null);
   const [failed,setFailed] = useState(false);
@@ -33,10 +33,10 @@ export function ValidatedWaveform({ url, format = 'preview', label = 'Preview wa
     })().catch(()=>{if(!controller.signal.aborted)setFailed(true);}).finally(()=>clearTimeout(deadline));
     return()=>{controller.abort();clearTimeout(deadline);};
   },[url,format,start,end,rate,us]);
-  const bars=useMemo(()=>envelope?waveformBars(envelope,columns):null,[envelope,columns]);
+  const bars=useMemo(()=>envelope||fallbackEnvelope?waveformBars(envelope||fallbackEnvelope!,columns):null,[envelope,fallbackEnvelope,columns]);
   const fraction=Number.isFinite(progress)?Math.max(0,Math.min(1,progress)):0;
   return <div ref={holder} className={styles.wave}>
-    {failed?<span role="status">Waveform unavailable. Audio controls remain available.</span>:!bars?<span role="status" className={styles.waveStatus}>Loading waveform…</span>:<svg role="img" aria-label={label} viewBox="0 0 1000 160" preserveAspectRatio="none" data-visual-gain={bars.gain.toFixed(3)}>
+    {failed&&!bars?<span role="status">Waveform unavailable. Audio controls remain available.</span>:!bars?<span role="status" className={styles.waveStatus}>Loading waveform…</span>:<svg role="img" aria-label={!envelope&&fallbackEnvelope?'Preliminary waveform · final waveform loading':label} viewBox="0 0 1000 160" preserveAspectRatio="none" data-visual-gain={bars.gain.toFixed(3)}>
       <defs><clipPath id={clip}><rect width={fraction*1000} height="160"/></clipPath></defs>
       <g className={styles.unplayed}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={waveformBarGeometry(height).y} width={.64*1000/bars.heights.length} height={waveformBarGeometry(height).height} rx={Math.min(4,320/bars.heights.length)}/>)}</g>
       <g className={styles.played} clipPath={`url(#${clip})`}>{bars.heights.map((height,i)=><rect key={i} x={(i+.18)*1000/bars.heights.length} y={waveformBarGeometry(height).y} width={.64*1000/bars.heights.length} height={waveformBarGeometry(height).height} rx={Math.min(4,320/bars.heights.length)}/>)}</g>

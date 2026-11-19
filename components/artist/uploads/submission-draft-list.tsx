@@ -1,7 +1,6 @@
 "use client";
 import Link from 'next/link';
 import {useEffect,useRef,useState} from 'react';
-import {useRouter} from 'next/navigation';
 import * as Dialog from '@radix-ui/react-dialog';
 import {uploadRequestMessage} from '@/lib/media/submission-draft';
 type Draft={id:string;title:string;revision?:number;file_count?:number;review_state?:string|null;can_delete?:boolean};
@@ -11,13 +10,14 @@ async function request<T>(body:Record<string,unknown>,signal?:AbortSignal):Promi
 }
 export function SubmissionDraftList({compact=false,currentDraft,disabled=false}:{compact?:boolean;currentDraft?:string;disabled?:boolean}){
  const trigger=useRef<HTMLButtonElement|null>(null),fallback=useRef<HTMLElement|null>(null);
- const router=useRouter(),[drafts,setDrafts]=useState<Draft[]>([]),[trash,setTrash]=useState<Draft[]>([]),[selected,setSelected]=useState<Draft|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
- useEffect(()=>{const controller=new AbortController();Promise.all([request<Draft[]>({action:'list'},controller.signal),request<Draft[]>({action:'list_deleted'},controller.signal)]).then(([active,deleted])=>{if(!controller.signal.aborted){setDrafts(active);setTrash(deleted);}}).catch(()=>{});return()=>controller.abort();},[]);
+ const [drafts,setDrafts]=useState<Draft[]>([]),[trash,setTrash]=useState<Draft[]>([]),[selected,setSelected]=useState<Draft|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{const controller=new AbortController();Promise.all([request<Draft[]>({action:'list'},controller.signal),request<Draft[]>({action:'list_deleted'},controller.signal)]).then(([active,deleted])=>{if(!controller.signal.aborted){setDrafts(active);setTrash(deleted);}}).catch(()=>{});return()=>controller.abort();},[currentDraft]);
  async function remove(){if(!selected)return;setBusy(true);setError('');try{
   const state=await request<{revision:number}>({action:'read',submission:selected.id});
   await request({action:'delete_draft',submission:selected.id,revision:state.revision});
   setDrafts(items=>items.filter(d=>d.id!==selected.id));setTrash(items=>[selected,...items]);setSelected(null);
-  if(selected.id===currentDraft){router.replace('/artist/submit');router.refresh();}
+  // A full same-origin navigation discards the deleted workspace's client state.
+  if(selected.id===currentDraft)window.location.assign(new URL('/artist/submit',window.location.origin).href);
  }catch(e){setError(e instanceof Error?e.message:'Draft deletion could not be confirmed.');}finally{setBusy(false);}}
  async function restore(draft:Draft){setBusy(true);setError('');try{await request({action:'restore_draft',submission:draft.id});setTrash(items=>items.filter(d=>d.id!==draft.id));setDrafts(items=>[draft,...items]);}catch(e){setError(e instanceof Error?e.message:'Draft restoration could not be confirmed.');}finally{setBusy(false);}}
  if(!drafts.length&&!trash.length)return null;

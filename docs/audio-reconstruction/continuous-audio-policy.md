@@ -53,3 +53,11 @@ Stop new admissions, stop broker and launcher, and verify all processes exited a
 ## Current rollout blockers
 
 Exact main merge / production health SQL / finite activation approval are still required by AGENTS.md. Pinned management SSH is timing out from this Mac; do not alter either firewall silently. A verified archive handoff and native acceptance are required before the continuous policy can be enabled. Continuous availability, actual speedup and multi-host capacity are not yet production claims.
+
+## Release validation receipt
+
+Implementation commit `7ab43fe2078a72281c601373a8ae0930ef22cfcc`. Final local full suite: 2,093/2,093; root identity renewal 5 test methods, launcher 22/22, accounting 14/14; typecheck and production build passed. Lint: zero errors, one retained unrelated React Hook Form warning. The temporary local browser QA route and generated stale route cache were removed; final build passed afterward. Actual Chrome local waveform progress, identical bar geometry, keyboard interaction, mobile layout and reduced-motion animation suppression passed.
+
+Offline AMD64 broker manifest `sha256:648c94c3d3950e7547fd0fe63cacd21592f2c64c47ef9d4cb35865a741b98e51`; archive SHA-256 `e371c8d1b134ae94f1f57793dcadd2df7173eaf717fc2babbd220ecb05e6e854`, 53,745,664 bytes. All 14 OCI blobs and 12 layers verified against content hashes, architecture and full implementation revision. Complete record: `continuous-broker-manifest.json`. This is a local build/integrity receipt, not native-host acceptance.
+
+Exact health migration SHA-256: `896a17ea24037e39786374ae46caba4992b8c371734126a6333b4219c1c53fc9`. No production SQL or admission update has been applied. Fresh host counters and a concrete compare-and-set activation statement must be captured before activation; stale benchmark observations cannot authorize it.

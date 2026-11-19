@@ -13,4 +13,3 @@ ReadWritePaths=/run/tse-audio
 PrivateNetwork=yes
 PrivateTmp=yes
 TimeoutStartSec=10
-

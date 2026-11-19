@@ -333,6 +333,10 @@
     {
       "file": "20261119193818_submission_workflow_repair.sql",
       "sha256": "895ae367a28616ac2fb6376b77ff0e70e1d58d95177ea4bcd6407b23aa578ffd"
+    },
+    {
+      "file": "20261119213500_digitalocean_35usd_allowance.sql",
+      "sha256": "66f6547b20611b8c078c1823ae2d740c4f80af72ca21a48e7af212b7e517aff0"
     }
   ],
   "storageBuckets": {

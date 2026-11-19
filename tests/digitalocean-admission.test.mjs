@@ -6,7 +6,7 @@ import {uploadsFixture,create,reserve,observed,ids,artist} from './helpers/music
 const boot='c6204700-2001-4000-8000-000000000001',digest='sha256:37eaf7342bfbcb1917862d0003be87ef96cc22e935765bd2abb11d6fa44f3876';
 const fresh=async fn=>{const db=await uploadsFixture();try{await fn(db);}finally{await db.close();}};
 const rpc=async(db,name,args=[])=>(await db.query(`select submission_media.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')}) v`,args)).rows[0].v;
-async function enabled(db){await db.query("update submission_media.do_control set enabled=true,boot_id=$1,worker_digest=$4,broker_digest=$2,allowed_owner=$3,jobs_after=clock_timestamp(),expires_at=clock_timestamp()+interval '1 hour',carry_forward_usd=.10,accounting_reconciled=true",[boot,'sha256:'+'d'.repeat(64),ids.a,digest]);await rpc(db,'do_observe',[boot,0,0]);}
+async function enabled(db){await db.query("update submission_media.do_control set monthly_ceiling_usd=20,enabled=true,boot_id=$1,worker_digest=$4,broker_digest=$2,allowed_owner=$3,jobs_after=clock_timestamp(),expires_at=clock_timestamp()+interval '1 hour',carry_forward_usd=.10,accounting_reconciled=true",[boot,'sha256:'+'d'.repeat(64),ids.a,digest]);await rpc(db,'do_observe',[boot,0,0]);}
 async function job(db){const s=await create(db),r=await reserve(db,s);await observed(db,s,r.asset_id);return {s,asset:r.asset_id};}
 async function admitted(db){const value=await rpc(db,'do_admit',[randomUUID(),boot,digest]);assert.equal(value.state,'issued');return value;}
 test('DO migration is dormant and restricted role has wrappers only, no generic claim, IAM-like roles or private tables',()=>fresh(async db=>{
@@ -85,4 +85,14 @@ test('November approval changes only the ceiling, preserves settled liabilities,
  delete before.monthly_ceiling_usd;delete after.monthly_ceiling_usd;assert.deepEqual(after,before);
  assert.deepEqual((await db.query('select * from submission_media.do_runs order by id')).rows,ledger);
  for(const update of ['monthly_ceiling_usd=20.01',"month='2026-12'"])await assert.rejects(db.exec('update submission_media.do_control set '+update),e=>e.code==='23514');
+}));
+
+ test('35 USD allowance preserves all control fields and settled reservations, is idempotent, and rejects excess',()=>fresh(async db=>{
+ await enabled(db);await job(db);const run=await admitted(db);await rpc(db,'do_claim',[run.run_id,boot]);await rpc(db,'do_settle',[run.run_id,boot]);
+ const before=(await db.query('select * from submission_media.do_control')).rows[0],ledger=(await db.query('select * from submission_media.do_runs order by id')).rows;
+ const sql=await readFile(new URL('../supabase/migrations/20261119213500_digitalocean_35usd_allowance.sql',import.meta.url),'utf8');
+ await db.exec(sql);await db.exec(sql);const after=(await db.query('select * from submission_media.do_control')).rows[0];assert.equal(Number(after.monthly_ceiling_usd),35);
+ delete before.monthly_ceiling_usd;delete after.monthly_ceiling_usd;assert.deepEqual(after,before);assert.deepEqual((await db.query('select * from submission_media.do_runs order by id')).rows,ledger);
+ for(const amount of [35.01,100])await assert.rejects(db.exec('update submission_media.do_control set monthly_ceiling_usd='+amount),e=>e.code==='23514');
+ await db.exec('update submission_media.do_control set carry_forward_usd=22.99');assert.equal((await rpc(db,'do_admit',[randomUUID(),boot,digest])).state,'budget_limit');
 }));

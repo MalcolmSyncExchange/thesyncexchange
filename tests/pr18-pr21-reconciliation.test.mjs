@@ -71,7 +71,8 @@ test('PR21 reconciliation remains intact with the additive purchase foundation a
     '20261119004313_digitalocean_november_20usd_ceiling.sql',
     '20261119005330_recoverable_artist_draft_deletion.sql',
     '20261119064613_continuous_audio_health.sql',
-    '20261119193818_submission_workflow_repair.sql'
+    '20261119193818_submission_workflow_repair.sql',
+    '20261119213500_digitalocean_35usd_allowance.sql'
   ]);
 });
 

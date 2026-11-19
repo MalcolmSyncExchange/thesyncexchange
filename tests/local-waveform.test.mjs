@@ -43,3 +43,14 @@ test('local audition stays separate from server approval and cleans its bounded 
  assert.match(workbench,/localSelection\?\.file===selectedFile&&selectedAsset===media.source.id/);
  assert.match(workbench,/current.source\?\.id!==selectedAsset/);
 });
+
+test('unsupported sub-second local audition fails before mounting the region player',async()=>{
+ const {previewSelection}=await import('../lib/media/preview-selection.mjs');
+ const {readFileSync}=await import('node:fs');
+ const {file}=wav(192044);const result=await localWaveform(file);
+ assert.ok(result.envelope.duration_us<1000000);
+ assert.throws(()=>previewSelection(result.envelope.duration_us));
+ const ui=readFileSync(new URL('../components/audio/preliminary-waveform.tsx',import.meta.url),'utf8');
+ assert.match(ui,/previewSelection\(e.data.result.envelope.duration_us\);trace.mark/);
+ assert.match(ui,/catch\{fail\(\);\}/);
+});

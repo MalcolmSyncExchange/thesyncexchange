@@ -46,3 +46,38 @@ test('compatibility migration preserves old routine owners, ACLs, role gates, ro
  const s=await create(db);await assert.rejects(artist(db,'media_submission_save_draft',[s,{...complete(),moodSuggestions:['Calm',' calm ']},0,randomUUID()]),e=>e.code==='22023');
  }finally{await db.close();}
 });
+
+test('upload-first navigation groups every retained field into the correct four-step destination',()=>{
+ const ui=readFileSync(new URL('../components/artist/uploads/submission-workspace.tsx',import.meta.url),'utf8');
+ assert.match(ui,/const sections=\['Upload Music','Track Details','Rights & Ownership','Review & Submit'\]/);
+ assert.match(ui,/\[active,setActive\]=useState\(0\)/);
+ assert.match(ui,/setVisualFile\(file\);setActive\(0\);await flush\(\);setFirstFile\(file\)/);
+ assert.match(ui,/active===0\|\|active===3\?'':'hidden'/,'workbench remains mounted during background analysis and transfer');
+ assert.match(ui,/if\(!dirty\|\|loading\|\|conflict\|\|recovery\)return/,'draft autosave does not wait for file transfer');
+ const issues=submissionIssues({...blankSubmissionDraft(),contributors:[{name:'',role:'writer'}]});
+ assert.equal(issues.find(x=>x.field==='title').step,1);assert.equal(issues.find(x=>x.field==='contributors').step,1);assert.equal(issues.find(x=>x.field==='rightsDeclared').step,2);assert.equal(issues.find(x=>x.field==='licenseCategories').step,2);
+ assert.ok(!issues.some(x=>x.field==='bpm'),'unavailable BPM estimate is not a submission blocker');
+ for(const bpm of ['0','221','NaN','1.2'])assert.ok(submissionIssues({...complete(),bpm}).some(x=>x.field==='bpm'));
+});
+
+test('audio mood suggestions require measured evidence and never invent tonal or emotional certainty',async()=>{
+ const {suggestAudioMoods}=await import('../public/media/local-tempo.mjs');
+ assert.deepEqual(suggestAudioMoods(Array(2000).fill(0),{bpm:130,confidence:.9}),[]);
+ assert.deepEqual(suggestAudioMoods(Array(2000).fill(NaN),{bpm:130,confidence:.9}),[]);
+ assert.deepEqual(suggestAudioMoods(Array(2000).fill(.2),{bpm:130,confidence:.9}),['Driving','Energetic']);
+ assert.deepEqual(suggestAudioMoods(Array(2000).fill(.03),{bpm:80,confidence:.9}),['Calm']);
+ assert.deepEqual(suggestAudioMoods(Array(2000).fill(.2),{}),[]);
+ const r=await localTempo(virtualWav(45_500_000));assert.equal(r.sampleRate,44100);assert.equal(r.channels,2);assert.equal(r.bits,24);assert.ok(Math.abs(r.durationUs/1e6-(45_500_000-44)/6/44100)<.001);assert.ok(r.moods.every(m=>['Calm','Dramatic','Driving','Energetic'].includes(m)));
+ assert.equal(tempoSuggestion('',true,'120',140),null,'manual clearing is preserved');assert.equal(tempoSuggestion('130',true,'120',140),null,'manual correction is preserved');
+});
+
+test('unknown BPM reaches pending SEC review without publication; invalid non-null tempo still fails',()=>fresh(async db=>{
+ const s=await create(db),d={...complete(),bpm:''};await artist(db,'media_submission_save_draft',[s,d,0,randomUUID()]);await readyPackage(db,s);
+ const target="'public.media_upload_save_metadata(uuid,jsonb,bigint,uuid)'::regprocedure,'public.media_submission_prepare(uuid,bigint,uuid)'::regprocedure";
+ const before=(await db.query(`select oid::regprocedure::text identity,proowner,proacl,prosecdef,proconfig from pg_proc where oid in (${target}) order by 1`)).rows;
+ const migration=readFileSync(new URL('../supabase/migrations/20261119222415_upload_first_optional_tempo.sql',import.meta.url),'utf8');await db.exec(migration);await db.exec(migration);
+ assert.deepEqual((await db.query(`select oid::regprocedure::text identity,proowner,proacl,prosecdef,proconfig from pg_proc where oid in (${target}) order by 1`)).rows,before);
+ const p=await artist(db,'media_submission_prepare',[s,await revision(db,s),randomUUID()]);assert.equal((await db.query('select bpm from tracks where id=$1',[p.track_id])).rows[0].bpm,null);
+ const state=await artist(db,'media_upload_read',[s]);for(const bpm of ['120',0,221,120.5,{},true])await assert.rejects(artist(db,'media_upload_save_metadata',[s,{...state.metadata,bpm},await revision(db,s),randomUUID()]),e=>e.code==='22023');
+ await artist(db,'media_upload_submit',[s,await revision(db,s),randomUUID()]);assert.equal((await artist(db,'media_upload_read',[s])).review.state,'pending');assert.equal((await db.query('select status from tracks where id=$1',[p.track_id])).rows[0].status,'pending_review');
+}));

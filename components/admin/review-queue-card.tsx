@@ -45,7 +45,7 @@ export function ReviewQueueCard({
   const metadataBadges = [
     track.genre,
     track.subgenre,
-    `${track.bpm} BPM`,
+    track.bpm==null?'Tempo unspecified':`${track.bpm} BPM`,
     formatDuration(track.duration_seconds),
     track.explicit ? "Explicit" : "Clean"
   ];

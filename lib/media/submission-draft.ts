@@ -10,29 +10,29 @@ export const submissionDraftSchema=z.object({
 }).strict().refine(v=>new TextEncoder().encode(JSON.stringify(v)).length<=40000,'This draft exceeds the supported size.');
 export type SubmissionDraft=z.infer<typeof submissionDraftSchema>;
 export const blankSubmissionDraft=():SubmissionDraft=>({masterOwners:[],publishingOwners:[],authority:blankAuthority(),hasSamples:false,samples:[],hasClaims:false,claims:[],hasAgreements:false,agreements:[],title:'',primaryArtist:'',featuredArtists:'',description:'',genre:'',subgenre:'',bpm:'',key:'',moods:'',language:'',explicit:'unknown',vocal:'unknown',releaseTitle:'',releaseStatus:'unreleased',releaseDate:'',releaseYear:'',contributors:[],moodSuggestions:[],masterOwnership:'',publishingOwnership:'',licensingAuthority:'',rightsNotes:'',rightsDeclared:false,licenseCategories:[],permittedUses:'',restrictions:'',territories:'',licenseDuration:''});
-export function submissionMetadata(v:SubmissionDraft){return {title:v.title.trim(),description:v.description.trim(),genre:v.genre.trim(),subgenre:v.subgenre.trim(),moods:v.moods.trim(),bpm:Number(v.bpm),key:v.key.trim(),releaseYear:Number(v.releaseYear),instrumental:v.vocal==='instrumental',vocals:['vocal','mixed'].includes(v.vocal),explicit:v.explicit==='explicit'};}
+export function submissionMetadata(v:SubmissionDraft){return {title:v.title.trim(),description:v.description.trim(),genre:v.genre.trim(),subgenre:v.subgenre.trim(),moods:v.moods.trim(),bpm:v.bpm.trim()?Number(v.bpm):null,key:v.key.trim(),releaseYear:Number(v.releaseYear),instrumental:v.vocal==='instrumental',vocals:['vocal','mixed'].includes(v.vocal),explicit:v.explicit==='explicit'};}
 export type SubmissionIssue={field:string;step:number;message:string};
 export function submissionIssues(v:SubmissionDraft):SubmissionIssue[]{const out:SubmissionIssue[]=[];const add=(field:string,step:number,message:string)=>out.push({field,step,message});
- if(v.title.trim().length<2)add('title',0,'Track Title: enter at least 2 characters.');
- if(v.primaryArtist.trim().length<2)add('primaryArtist',0,'Primary Artist: enter at least 2 characters.');
- if(!v.genre.trim())add('genre',0,'Genre: choose a main genre. Subgenre is optional.');
- if(!/^\d+$/.test(v.bpm)||Number(v.bpm)<40||Number(v.bpm)>220)add('bpm',0,'BPM: enter a whole number between 40 and 220.');
- if(!/^([A-G](#|b)?(m| (major|minor))?|atonal|unknown)$/.test(v.key.trim()))add('key',0,'Musical key: use a note such as C, Am, F# minor, atonal or unknown.');
- if(!v.moods.trim())add('moods',0,'Moods: choose at least one mood.');
- if(!/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(v.language))add('language',0,'Language: choose a language or Instrumental / no lyrics.');
- if(v.explicit==='unknown')add('explicit',0,'Explicit content: choose Clean, Explicit or Censored.');
- if(v.vocal==='unknown')add('vocal',0,'Song Type: choose Vocal, Instrumental or Mixed.');
- if(!/^\d{4}$/.test(v.releaseYear)||Number(v.releaseYear)<1950||Number(v.releaseYear)>2030)add('releaseYear',0,'Release year: enter a year between 1950 and 2030.');
- if(v.releaseStatus==='released'&&(!/^\d{4}-\d{2}-\d{2}$/.test(v.releaseDate)||!Number.isFinite(Date.parse(v.releaseDate))||new Date(v.releaseDate).toISOString().slice(0,10)!==v.releaseDate||v.releaseDate.slice(0,4)!==v.releaseYear))add('releaseDate',0,'Release date: enter a valid date matching the release year.');
- v.contributors.forEach((c,i)=>{if(!c.name.trim())add('contributors',3,`Contributor ${i+1}: enter a credit name or remove the empty entry.`);});
- for(const pool of ['masterOwners','publishingOwners'] as const)v[pool].forEach((owner,i)=>{if(!owner.name.trim())add(`${pool}.${i}.name`,4,`${pool==='masterOwners'?'Master':'Publishing'} owner ${i+1}: enter the legal owner name.`);if(!owner.percentage.trim())add(`${pool}.${i}.percentage`,4,`Owner ${i+1}: enter the ownership percentage.`);});
- if(v.authority.mode==='unknown')add('authority.mode',4,'Licensing authority: choose Owners or Representative.');
- if(v.authority.mode==='representative')for(const [field,label] of Object.entries({legalName:'Legal name',capacity:'Representative capacity',email:'Contact email',jurisdiction:'Jurisdiction',address:'Address',representedOwners:'Represented owners',rights:'Authorized rights',uses:'Authorized uses',territories:'Authorized territories',validFrom:'Valid from',exclusivity:'Exclusivity',documentId:'Private authorization document'})){const val=v.authority[field as keyof typeof v.authority];if(!val.trim()||val==='unknown')add('authority.'+field,4,`Representative ${label}: required for this authority claim.`);}
- for(const message of structuredRightsMissing(v))add(message.startsWith('Master')?'masterOwners':message.startsWith('Publishing')?'publishingOwners':message.includes('authority')?'authority':message.includes('sample')?'samples':message.includes('claims')?'claims':'agreements',4,message);
- if(!v.rightsDeclared)add('rightsDeclared',4,'Rights declaration: confirm the ownership and authority disclosures.');
- if(!v.licenseCategories.length)add('licenseCategories',5,'License categories: choose at least one.');
- if(!v.permittedUses.trim())add('permittedUses',5,'Permitted uses: describe the uses offered for review.');
- if(!v.territories.trim())add('territories',5,'Territory: enter the permitted territories.');
+ if(v.title.trim().length<2)add('title',1,'Track Title: enter at least 2 characters.');
+ if(v.primaryArtist.trim().length<2)add('primaryArtist',1,'Primary Artist: enter at least 2 characters.');
+ if(!v.genre.trim())add('genre',1,'Genre: choose a main genre. Subgenre is optional.');
+ if(v.bpm.trim()&&(!/^\d+$/.test(v.bpm)||Number(v.bpm)<40||Number(v.bpm)>220))add('bpm',1,'BPM: enter a whole number between 40 and 220.');
+ if(!/^([A-G](#|b)?(m| (major|minor))?|atonal|unknown)$/.test(v.key.trim()))add('key',1,'Musical key: use a note such as C, Am, F# minor, atonal or unknown.');
+ if(!v.moods.trim())add('moods',1,'Moods: choose at least one mood.');
+ if(!/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(v.language))add('language',1,'Language: choose a language or Instrumental / no lyrics.');
+ if(v.explicit==='unknown')add('explicit',1,'Explicit content: choose Clean, Explicit or Censored.');
+ if(v.vocal==='unknown')add('vocal',1,'Song Type: choose Vocal, Instrumental or Mixed.');
+ if(!/^\d{4}$/.test(v.releaseYear)||Number(v.releaseYear)<1950||Number(v.releaseYear)>2030)add('releaseYear',1,'Release year: enter a year between 1950 and 2030.');
+ if(v.releaseStatus==='released'&&(!/^\d{4}-\d{2}-\d{2}$/.test(v.releaseDate)||!Number.isFinite(Date.parse(v.releaseDate))||new Date(v.releaseDate).toISOString().slice(0,10)!==v.releaseDate||v.releaseDate.slice(0,4)!==v.releaseYear))add('releaseDate',1,'Release date: enter a valid date matching the release year.');
+ v.contributors.forEach((c,i)=>{if(!c.name.trim())add('contributors',1,`Contributor ${i+1}: enter a credit name or remove the empty entry.`);});
+ for(const pool of ['masterOwners','publishingOwners'] as const)v[pool].forEach((owner,i)=>{if(!owner.name.trim())add(`${pool}.${i}.name`,2,`${pool==='masterOwners'?'Master':'Publishing'} owner ${i+1}: enter the legal owner name.`);if(!owner.percentage.trim())add(`${pool}.${i}.percentage`,2,`Owner ${i+1}: enter the ownership percentage.`);});
+ if(v.authority.mode==='unknown')add('authority.mode',2,'Licensing authority: choose Owners or Representative.');
+ if(v.authority.mode==='representative')for(const [field,label] of Object.entries({legalName:'Legal name',capacity:'Representative capacity',email:'Contact email',jurisdiction:'Jurisdiction',address:'Address',representedOwners:'Represented owners',rights:'Authorized rights',uses:'Authorized uses',territories:'Authorized territories',validFrom:'Valid from',exclusivity:'Exclusivity',documentId:'Private authorization document'})){const val=v.authority[field as keyof typeof v.authority];if(!val.trim()||val==='unknown')add('authority.'+field,2,`Representative ${label}: required for this authority claim.`);}
+ for(const message of structuredRightsMissing(v))add(message.startsWith('Master')?'masterOwners':message.startsWith('Publishing')?'publishingOwners':message.includes('authority')?'authority':message.includes('sample')?'samples':message.includes('claims')?'claims':'agreements',2,message);
+ if(!v.rightsDeclared)add('rightsDeclared',2,'Rights declaration: confirm the ownership and authority disclosures.');
+ if(!v.licenseCategories.length)add('licenseCategories',2,'License categories: choose at least one.');
+ if(!v.permittedUses.trim())add('permittedUses',2,'Permitted uses: describe the uses offered for review.');
+ if(!v.territories.trim())add('territories',2,'Territory: enter the permitted territories.');
  return out;
 }
 export function submissionMissing(v:SubmissionDraft){return submissionIssues(v).map(i=>i.message);}

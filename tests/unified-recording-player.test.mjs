@@ -72,7 +72,7 @@ test('full waveform seeks leave preview mode without changing selection',()=>{
 
 test('normal preview workflow autosaves and hides manual save/generate controls',()=>{const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');assert.doesNotMatch(ui,/Save preview selection|Generate AAC preview|onSave|onGenerate/);assert.match(ui,/pendingLocal.current/);assert.match(ui,/onRegionChange\?\.\(source.id,nextRegion.startMs,nextRegion.endMs\)/);assert.match(ui,/onRegionChange\?\.\(source.id,region.startMs,region.endMs\)/);});
 
-test('local and final waveforms reserve region dragging for handles; the playhead seeks above them',()=>{
+test('local and final waveforms separate region-body/handle gestures from the raised playhead',()=>{
  for(const file of ['recording-player.tsx','local-recording-audition.tsx']){
   const ui=readFileSync(new URL('../components/audio/'+file,import.meta.url),'utf8');
   assert.equal((ui.match(/data-preview-handle className/g)||[]).length,2);
@@ -81,7 +81,9 @@ test('local and final waveforms reserve region dragging for handles; the playhea
   for(const token of ['e.stopPropagation()','setPointerCapture','onLostPointerCapture','onPointerCancel','onKeyDown={regionKey}','onKeyDown={timelineKey}'])assert.ok(ui.includes(token),token);
  }
  const css=readFileSync(new URL('../components/audio/waveform-player.module.css',import.meta.url),'utf8');
- assert.match(css,/\.selectionOverlay \{pointer-events:none/);
+ assert.ok(css.lastIndexOf('.selectionOverlay {pointer-events:auto;touch-action:none;cursor:grab;}')>css.lastIndexOf('.selectionOverlay {pointer-events:none'));
+ assert.match(readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8'),/Math.abs\(e.clientX-d.x\)<5/);
+ assert.match(readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8'),/e.type==='pointerup'&&!d.moved&&!d.handle/);
  assert.match(css,/\.selectionHandle \{[^}]*pointer-events:auto;touch-action:none/);
  assert.match(css,/\.recordingPlayhead \{[^}]*pointer-events:auto;touch-action:none/);
  assert.match(css,/\.recordingPlayhead \{z-index:4/);

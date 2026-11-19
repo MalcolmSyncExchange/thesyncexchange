@@ -1,0 +1,2924 @@
+[
+ {
+  "id": "aa",
+  "label": "Afar",
+  "aliases": "Afar afar aar  ",
+  "native": "Afar"
+ },
+ {
+  "id": "ab",
+  "label": "Abkhazian",
+  "aliases": "Abkhazian abkhaze abk  ",
+  "native": "Abkhazian"
+ },
+ {
+  "id": "ace",
+  "label": "Achinese",
+  "aliases": "Achinese aceh ace  ",
+  "native": "Acehnese"
+ },
+ {
+  "id": "ach",
+  "label": "Acoli",
+  "aliases": "Acoli acoli ach  ",
+  "native": "Acoli"
+ },
+ {
+  "id": "ada",
+  "label": "Adangme",
+  "aliases": "Adangme adangme ada  ",
+  "native": "Adangme"
+ },
+ {
+  "id": "ady",
+  "label": "Adyghe",
+  "aliases": "Adyghe; Adygei adyghé ady  ",
+  "native": "Adyghe"
+ },
+ {
+  "id": "afa",
+  "label": "Afro-Asiatic languages",
+  "aliases": "Afro-Asiatic languages afro-asiatiques, langues afa  ",
+  "native": "afa"
+ },
+ {
+  "id": "afh",
+  "label": "Afrihili",
+  "aliases": "Afrihili afrihili afh  ",
+  "native": "Afrihili"
+ },
+ {
+  "id": "af",
+  "label": "Afrikaans",
+  "aliases": "Afrikaans afrikaans afr  ",
+  "native": "Afrikaans"
+ },
+ {
+  "id": "ain",
+  "label": "Ainu",
+  "aliases": "Ainu aïnou ain  ",
+  "native": "Ainu"
+ },
+ {
+  "id": "ak",
+  "label": "Akan",
+  "aliases": "Akan akan aka  ",
+  "native": "Akan"
+ },
+ {
+  "id": "akk",
+  "label": "Akkadian",
+  "aliases": "Akkadian akkadien akk  ",
+  "native": "Akkadian"
+ },
+ {
+  "id": "sq",
+  "label": "Albanian",
+  "aliases": "Albanian albanais alb sqi ",
+  "native": "shqip"
+ },
+ {
+  "id": "ale",
+  "label": "Aleut",
+  "aliases": "Aleut aléoute ale  ",
+  "native": "Aleut"
+ },
+ {
+  "id": "alg",
+  "label": "Algonquian languages",
+  "aliases": "Algonquian languages algonquines, langues alg  ",
+  "native": "alg"
+ },
+ {
+  "id": "alt",
+  "label": "Southern Altai",
+  "aliases": "Southern Altai altai du Sud alt  ",
+  "native": "Southern Altai"
+ },
+ {
+  "id": "am",
+  "label": "Amharic",
+  "aliases": "Amharic amharique amh  ",
+  "native": "አማርኛ"
+ },
+ {
+  "id": "ang",
+  "label": "English, Old (ca.450-1100)",
+  "aliases": "English, Old (ca.450-1100) anglo-saxon (ca.450-1100) ang  ",
+  "native": "Old English"
+ },
+ {
+  "id": "anp",
+  "label": "Angika",
+  "aliases": "Angika angika anp  ",
+  "native": "Angika"
+ },
+ {
+  "id": "apa",
+  "label": "Apache languages",
+  "aliases": "Apache languages apaches, langues apa  ",
+  "native": "apa"
+ },
+ {
+  "id": "ar",
+  "label": "Arabic",
+  "aliases": "Arabic arabe ara  ",
+  "native": "العربية"
+ },
+ {
+  "id": "arc",
+  "label": "Official Aramaic (700-300 BCE)",
+  "aliases": "Official Aramaic (700-300 BCE); Imperial Aramaic (700-300 BCE) araméen d'empire (700-300 BCE) arc  ",
+  "native": "Aramaic"
+ },
+ {
+  "id": "an",
+  "label": "Aragonese",
+  "aliases": "Aragonese aragonais arg  ",
+  "native": "Aragonese"
+ },
+ {
+  "id": "hy",
+  "label": "Armenian",
+  "aliases": "Armenian arménien arm hye ",
+  "native": "հայերեն"
+ },
+ {
+  "id": "arn",
+  "label": "Mapudungun",
+  "aliases": "Mapudungun; Mapuche mapudungun; mapuche; mapuce arn  ",
+  "native": "Mapuche"
+ },
+ {
+  "id": "arp",
+  "label": "Arapaho",
+  "aliases": "Arapaho arapaho arp  ",
+  "native": "Arapaho"
+ },
+ {
+  "id": "art",
+  "label": "Artificial languages",
+  "aliases": "Artificial languages artificielles, langues art  ",
+  "native": "art"
+ },
+ {
+  "id": "arw",
+  "label": "Arawak",
+  "aliases": "Arawak arawak arw  ",
+  "native": "Arawak"
+ },
+ {
+  "id": "as",
+  "label": "Assamese",
+  "aliases": "Assamese assamais asm  ",
+  "native": "অসমীয়া"
+ },
+ {
+  "id": "ast",
+  "label": "Asturian",
+  "aliases": "Asturian; Bable; Leonese; Asturleonese asturien; bable; léonais; asturoléonais ast  ",
+  "native": "asturianu"
+ },
+ {
+  "id": "ath",
+  "label": "Athapascan languages",
+  "aliases": "Athapascan languages athapascanes, langues ath  ",
+  "native": "ath"
+ },
+ {
+  "id": "aus",
+  "label": "Australian languages",
+  "aliases": "Australian languages australiennes, langues aus  ",
+  "native": "aus"
+ },
+ {
+  "id": "av",
+  "label": "Avaric",
+  "aliases": "Avaric avar ava  ",
+  "native": "Avaric"
+ },
+ {
+  "id": "ae",
+  "label": "Avestan",
+  "aliases": "Avestan avestique ave  ",
+  "native": "Avestan"
+ },
+ {
+  "id": "awa",
+  "label": "Awadhi",
+  "aliases": "Awadhi awadhi awa  ",
+  "native": "Awadhi"
+ },
+ {
+  "id": "ay",
+  "label": "Aymara",
+  "aliases": "Aymara aymara aym  ",
+  "native": "Aymara"
+ },
+ {
+  "id": "az",
+  "label": "Azerbaijani",
+  "aliases": "Azerbaijani azéri aze  ",
+  "native": "azərbaycan"
+ },
+ {
+  "id": "bad",
+  "label": "Banda languages",
+  "aliases": "Banda languages banda, langues bad  ",
+  "native": "bad"
+ },
+ {
+  "id": "bai",
+  "label": "Bamileke languages",
+  "aliases": "Bamileke languages bamiléké, langues bai  ",
+  "native": "bai"
+ },
+ {
+  "id": "ba",
+  "label": "Bashkir",
+  "aliases": "Bashkir bachkir bak  ",
+  "native": "башҡорт"
+ },
+ {
+  "id": "bal",
+  "label": "Baluchi",
+  "aliases": "Baluchi baloutchi bal  ",
+  "native": "Baluchi"
+ },
+ {
+  "id": "bm",
+  "label": "Bambara",
+  "aliases": "Bambara bambara bam  ",
+  "native": "bamanakan"
+ },
+ {
+  "id": "ban",
+  "label": "Balinese",
+  "aliases": "Balinese balinais ban  ",
+  "native": "Balinese"
+ },
+ {
+  "id": "eu",
+  "label": "Basque",
+  "aliases": "Basque basque baq eus ",
+  "native": "euskara"
+ },
+ {
+  "id": "bas",
+  "label": "Basa",
+  "aliases": "Basa basa bas  ",
+  "native": "Ɓàsàa"
+ },
+ {
+  "id": "bat",
+  "label": "Baltic languages",
+  "aliases": "Baltic languages baltes, langues bat  ",
+  "native": "bat"
+ },
+ {
+  "id": "bej",
+  "label": "Beja",
+  "aliases": "Beja; Bedawiyet bedja bej  ",
+  "native": "Beja"
+ },
+ {
+  "id": "be",
+  "label": "Belarusian",
+  "aliases": "Belarusian biélorusse bel  ",
+  "native": "беларуская"
+ },
+ {
+  "id": "bem",
+  "label": "Bemba",
+  "aliases": "Bemba bemba bem  ",
+  "native": "Ichibemba"
+ },
+ {
+  "id": "bn",
+  "label": "Bengali",
+  "aliases": "Bengali bengali ben  ",
+  "native": "বাংলা"
+ },
+ {
+  "id": "ber",
+  "label": "Berber languages",
+  "aliases": "Berber languages berbères, langues ber  ",
+  "native": "ber"
+ },
+ {
+  "id": "bho",
+  "label": "Bhojpuri",
+  "aliases": "Bhojpuri bhojpuri bho  ",
+  "native": "भोजपुरी"
+ },
+ {
+  "id": "bih",
+  "label": "Bihari languages",
+  "aliases": "Bihari languages langues biharis bih  ",
+  "native": "भोजपुरी"
+ },
+ {
+  "id": "bik",
+  "label": "Bikol",
+  "aliases": "Bikol bikol bik  ",
+  "native": "Bikol"
+ },
+ {
+  "id": "bin",
+  "label": "Bini",
+  "aliases": "Bini; Edo bini; edo bin  ",
+  "native": "Bini"
+ },
+ {
+  "id": "bi",
+  "label": "Bislama",
+  "aliases": "Bislama bichlamar bis  ",
+  "native": "Bislama"
+ },
+ {
+  "id": "bla",
+  "label": "Siksika",
+  "aliases": "Siksika blackfoot bla  ",
+  "native": "Siksiká"
+ },
+ {
+  "id": "bnt",
+  "label": "Bantu languages",
+  "aliases": "Bantu languages bantou, langues bnt  ",
+  "native": "bnt"
+ },
+ {
+  "id": "bs",
+  "label": "Bosnian",
+  "aliases": "Bosnian bosniaque bos  ",
+  "native": "bosanski"
+ },
+ {
+  "id": "bra",
+  "label": "Braj",
+  "aliases": "Braj braj bra  ",
+  "native": "Braj"
+ },
+ {
+  "id": "br",
+  "label": "Breton",
+  "aliases": "Breton breton bre  ",
+  "native": "brezhoneg"
+ },
+ {
+  "id": "btk",
+  "label": "Batak languages",
+  "aliases": "Batak languages batak, langues btk  ",
+  "native": "btk"
+ },
+ {
+  "id": "bua",
+  "label": "Buriat",
+  "aliases": "Buriat bouriate bua  ",
+  "native": "буряад"
+ },
+ {
+  "id": "bug",
+  "label": "Buginese",
+  "aliases": "Buginese bugi bug  ",
+  "native": "Buginese"
+ },
+ {
+  "id": "bg",
+  "label": "Bulgarian",
+  "aliases": "Bulgarian bulgare bul  ",
+  "native": "български"
+ },
+ {
+  "id": "my",
+  "label": "Burmese",
+  "aliases": "Burmese birman bur mya Myanmar",
+  "native": "မြန်မာ"
+ },
+ {
+  "id": "byn",
+  "label": "Blin",
+  "aliases": "Blin; Bilin blin; bilen byn  ",
+  "native": "Blin"
+ },
+ {
+  "id": "cad",
+  "label": "Caddo",
+  "aliases": "Caddo caddo cad  ",
+  "native": "Caddo"
+ },
+ {
+  "id": "cai",
+  "label": "Central American Indian languages",
+  "aliases": "Central American Indian languages amérindiennes de L'Amérique centrale, langues cai  ",
+  "native": "cai"
+ },
+ {
+  "id": "car",
+  "label": "Galibi Carib",
+  "aliases": "Galibi Carib karib; galibi; carib car  ",
+  "native": "Carib"
+ },
+ {
+  "id": "ca",
+  "label": "Catalan",
+  "aliases": "Catalan; Valencian catalan; valencien cat  ",
+  "native": "català"
+ },
+ {
+  "id": "cau",
+  "label": "Caucasian languages",
+  "aliases": "Caucasian languages caucasiennes, langues cau  ",
+  "native": "cau"
+ },
+ {
+  "id": "ceb",
+  "label": "Cebuano",
+  "aliases": "Cebuano cebuano ceb  ",
+  "native": "Cebuano"
+ },
+ {
+  "id": "cel",
+  "label": "Celtic languages",
+  "aliases": "Celtic languages celtiques, langues; celtes, langues cel  ",
+  "native": "cel"
+ },
+ {
+  "id": "ch",
+  "label": "Chamorro",
+  "aliases": "Chamorro chamorro cha  ",
+  "native": "Chamorro"
+ },
+ {
+  "id": "chb",
+  "label": "Chibcha",
+  "aliases": "Chibcha chibcha chb  ",
+  "native": "Chibcha"
+ },
+ {
+  "id": "ce",
+  "label": "Chechen",
+  "aliases": "Chechen tchétchène che  ",
+  "native": "нохчийн"
+ },
+ {
+  "id": "chg",
+  "label": "Chagatai",
+  "aliases": "Chagatai djaghataï chg  ",
+  "native": "Chagatai"
+ },
+ {
+  "id": "zh",
+  "label": "Chinese",
+  "aliases": "Chinese chinois chi zho Mandarin Chinese",
+  "native": "中文"
+ },
+ {
+  "id": "chk",
+  "label": "Chuukese",
+  "aliases": "Chuukese chuuk chk  ",
+  "native": "Chuukese"
+ },
+ {
+  "id": "chm",
+  "label": "Mari",
+  "aliases": "Mari mari chm  ",
+  "native": "Mari"
+ },
+ {
+  "id": "chn",
+  "label": "Chinook jargon",
+  "aliases": "Chinook jargon chinook, jargon chn  ",
+  "native": "Chinook Jargon"
+ },
+ {
+  "id": "cho",
+  "label": "Choctaw",
+  "aliases": "Choctaw choctaw cho  ",
+  "native": "Choctaw"
+ },
+ {
+  "id": "chp",
+  "label": "Chipewyan",
+  "aliases": "Chipewyan; Dene Suline chipewyan chp  ",
+  "native": "Chipewyan"
+ },
+ {
+  "id": "chr",
+  "label": "Cherokee",
+  "aliases": "Cherokee cherokee chr  ",
+  "native": "ᏣᎳᎩ"
+ },
+ {
+  "id": "cu",
+  "label": "Church Slavic",
+  "aliases": "Church Slavic; Old Slavonic; Church Slavonic; Old Bulgarian; Old Church Slavonic slavon d'église; vieux slave; slavon liturgique; vieux bulgare chu  ",
+  "native": "Church Slavic"
+ },
+ {
+  "id": "cv",
+  "label": "Chuvash",
+  "aliases": "Chuvash tchouvache chv  ",
+  "native": "чӑваш чӗлхи"
+ },
+ {
+  "id": "chy",
+  "label": "Cheyenne",
+  "aliases": "Cheyenne cheyenne chy  ",
+  "native": "Cheyenne"
+ },
+ {
+  "id": "cmc",
+  "label": "Chamic languages",
+  "aliases": "Chamic languages chames, langues cmc  ",
+  "native": "cmc"
+ },
+ {
+  "id": "cnr",
+  "label": "Montenegrin",
+  "aliases": "Montenegrin monténégrin cnr  ",
+  "native": "srpski (Crna Gora)"
+ },
+ {
+  "id": "cop",
+  "label": "Coptic",
+  "aliases": "Coptic copte cop  ",
+  "native": "Coptic"
+ },
+ {
+  "id": "kw",
+  "label": "Cornish",
+  "aliases": "Cornish cornique cor  ",
+  "native": "kernewek"
+ },
+ {
+  "id": "co",
+  "label": "Corsican",
+  "aliases": "Corsican corse cos  ",
+  "native": "Corsican"
+ },
+ {
+  "id": "cpe",
+  "label": "Creoles and pidgins, English based",
+  "aliases": "Creoles and pidgins, English based créoles et pidgins basés sur l'anglais cpe  ",
+  "native": "cpe"
+ },
+ {
+  "id": "cpf",
+  "label": "Creoles and pidgins, French-based",
+  "aliases": "Creoles and pidgins, French-based créoles et pidgins basés sur le français cpf  ",
+  "native": "cpf"
+ },
+ {
+  "id": "cpp",
+  "label": "Creoles and pidgins, Portuguese-based",
+  "aliases": "Creoles and pidgins, Portuguese-based créoles et pidgins basés sur le portugais cpp  ",
+  "native": "cpp"
+ },
+ {
+  "id": "cr",
+  "label": "Cree",
+  "aliases": "Cree cree cre  ",
+  "native": "Cree"
+ },
+ {
+  "id": "crh",
+  "label": "Crimean Tatar",
+  "aliases": "Crimean Tatar; Crimean Turkish tatar de Crimé crh  ",
+  "native": "Crimean Tatar"
+ },
+ {
+  "id": "crp",
+  "label": "Creoles and pidgins",
+  "aliases": "Creoles and pidgins créoles et pidgins crp  ",
+  "native": "crp"
+ },
+ {
+  "id": "csb",
+  "label": "Kashubian",
+  "aliases": "Kashubian kachoube csb  ",
+  "native": "Kashubian"
+ },
+ {
+  "id": "cus",
+  "label": "Cushitic languages",
+  "aliases": "Cushitic languages couchitiques, langues cus  ",
+  "native": "cus"
+ },
+ {
+  "id": "cs",
+  "label": "Czech",
+  "aliases": "Czech tchèque cze ces ",
+  "native": "čeština"
+ },
+ {
+  "id": "dak",
+  "label": "Dakota",
+  "aliases": "Dakota dakota dak  ",
+  "native": "Dakota"
+ },
+ {
+  "id": "da",
+  "label": "Danish",
+  "aliases": "Danish danois dan  ",
+  "native": "dansk"
+ },
+ {
+  "id": "dar",
+  "label": "Dargwa",
+  "aliases": "Dargwa dargwa dar  ",
+  "native": "Dargwa"
+ },
+ {
+  "id": "day",
+  "label": "Land Dayak languages",
+  "aliases": "Land Dayak languages dayak, langues day  ",
+  "native": "day"
+ },
+ {
+  "id": "del",
+  "label": "Delaware",
+  "aliases": "Delaware delaware del  ",
+  "native": "Delaware"
+ },
+ {
+  "id": "den",
+  "label": "Slave (Athapascan)",
+  "aliases": "Slave (Athapascan) esclave (athapascan) den  ",
+  "native": "Slave"
+ },
+ {
+  "id": "dgr",
+  "label": "Tlicho",
+  "aliases": "Tlicho; Dogrib tlicho; dogrib dgr  ",
+  "native": "Dogrib"
+ },
+ {
+  "id": "din",
+  "label": "Dinka",
+  "aliases": "Dinka dinka din  ",
+  "native": "Dinka"
+ },
+ {
+  "id": "dv",
+  "label": "Divehi",
+  "aliases": "Divehi; Dhivehi; Maldivian maldivien div  ",
+  "native": "Divehi"
+ },
+ {
+  "id": "doi",
+  "label": "Dogri",
+  "aliases": "Dogri dogri doi  ",
+  "native": "डोगरी"
+ },
+ {
+  "id": "dra",
+  "label": "Dravidian languages",
+  "aliases": "Dravidian languages dravidiennes, langues dra  ",
+  "native": "dra"
+ },
+ {
+  "id": "dsb",
+  "label": "Lower Sorbian",
+  "aliases": "Lower Sorbian bas-sorabe dsb  ",
+  "native": "dolnoserbšćina"
+ },
+ {
+  "id": "dua",
+  "label": "Duala",
+  "aliases": "Duala douala dua  ",
+  "native": "duálá"
+ },
+ {
+  "id": "dum",
+  "label": "Dutch, Middle (ca.1050-1350)",
+  "aliases": "Dutch, Middle (ca.1050-1350) néerlandais moyen (ca. 1050-1350) dum  ",
+  "native": "Middle Dutch"
+ },
+ {
+  "id": "nl",
+  "label": "Dutch",
+  "aliases": "Dutch; Flemish néerlandais; flamand dut nld ",
+  "native": "Nederlands"
+ },
+ {
+  "id": "dyu",
+  "label": "Dyula",
+  "aliases": "Dyula dioula dyu  ",
+  "native": "Dyula"
+ },
+ {
+  "id": "dz",
+  "label": "Dzongkha",
+  "aliases": "Dzongkha dzongkha dzo  ",
+  "native": "རྫོང་ཁ"
+ },
+ {
+  "id": "efi",
+  "label": "Efik",
+  "aliases": "Efik efik efi  ",
+  "native": "Efik"
+ },
+ {
+  "id": "egy",
+  "label": "Egyptian (Ancient)",
+  "aliases": "Egyptian (Ancient) égyptien egy  ",
+  "native": "Ancient Egyptian"
+ },
+ {
+  "id": "eka",
+  "label": "Ekajuk",
+  "aliases": "Ekajuk ekajuk eka  ",
+  "native": "Ekajuk"
+ },
+ {
+  "id": "elx",
+  "label": "Elamite",
+  "aliases": "Elamite élamite elx  ",
+  "native": "Elamite"
+ },
+ {
+  "id": "en",
+  "label": "English",
+  "aliases": "English anglais eng  American English British English",
+  "native": "English"
+ },
+ {
+  "id": "enm",
+  "label": "English, Middle (1100-1500)",
+  "aliases": "English, Middle (1100-1500) anglais moyen (1100-1500) enm  ",
+  "native": "Middle English"
+ },
+ {
+  "id": "eo",
+  "label": "Esperanto",
+  "aliases": "Esperanto espéranto epo  ",
+  "native": "Esperanto"
+ },
+ {
+  "id": "et",
+  "label": "Estonian",
+  "aliases": "Estonian estonien est  ",
+  "native": "eesti"
+ },
+ {
+  "id": "ee",
+  "label": "Ewe",
+  "aliases": "Ewe éwé ewe  ",
+  "native": "eʋegbe"
+ },
+ {
+  "id": "ewo",
+  "label": "Ewondo",
+  "aliases": "Ewondo éwondo ewo  ",
+  "native": "ewondo"
+ },
+ {
+  "id": "fan",
+  "label": "Fang",
+  "aliases": "Fang fang fan  ",
+  "native": "Fang"
+ },
+ {
+  "id": "fo",
+  "label": "Faroese",
+  "aliases": "Faroese féroïen fao  ",
+  "native": "føroyskt"
+ },
+ {
+  "id": "fat",
+  "label": "Fanti",
+  "aliases": "Fanti fanti fat  ",
+  "native": "Akan"
+ },
+ {
+  "id": "fj",
+  "label": "Fijian",
+  "aliases": "Fijian fidjien fij  ",
+  "native": "Fijian"
+ },
+ {
+  "id": "fil",
+  "label": "Filipino",
+  "aliases": "Filipino; Pilipino filipino; pilipino fil  ",
+  "native": "Filipino"
+ },
+ {
+  "id": "fi",
+  "label": "Finnish",
+  "aliases": "Finnish finnois fin  ",
+  "native": "suomi"
+ },
+ {
+  "id": "fiu",
+  "label": "Finno-Ugrian languages",
+  "aliases": "Finno-Ugrian languages finno-ougriennes, langues fiu  ",
+  "native": "fiu"
+ },
+ {
+  "id": "fon",
+  "label": "Fon",
+  "aliases": "Fon fon fon  ",
+  "native": "Fon"
+ },
+ {
+  "id": "fr",
+  "label": "French",
+  "aliases": "French français fre fra ",
+  "native": "français"
+ },
+ {
+  "id": "frm",
+  "label": "French, Middle (ca.1400-1600)",
+  "aliases": "French, Middle (ca.1400-1600) français moyen (1400-1600) frm  ",
+  "native": "Middle French"
+ },
+ {
+  "id": "fro",
+  "label": "French, Old (842-ca.1400)",
+  "aliases": "French, Old (842-ca.1400) français ancien (842-ca.1400) fro  ",
+  "native": "Old French"
+ },
+ {
+  "id": "frr",
+  "label": "Northern Frisian",
+  "aliases": "Northern Frisian frison septentrional frr  ",
+  "native": "Northern Frisian"
+ },
+ {
+  "id": "frs",
+  "label": "Eastern Frisian",
+  "aliases": "Eastern Frisian frison oriental frs  ",
+  "native": "Eastern Frisian"
+ },
+ {
+  "id": "fy",
+  "label": "Western Frisian",
+  "aliases": "Western Frisian frison occidental fry  ",
+  "native": "Frysk"
+ },
+ {
+  "id": "ff",
+  "label": "Fulah",
+  "aliases": "Fulah peul ful  ",
+  "native": "Pulaar"
+ },
+ {
+  "id": "fur",
+  "label": "Friulian",
+  "aliases": "Friulian frioulan fur  ",
+  "native": "furlan"
+ },
+ {
+  "id": "gaa",
+  "label": "Ga",
+  "aliases": "Ga ga gaa  ",
+  "native": "Gã"
+ },
+ {
+  "id": "gay",
+  "label": "Gayo",
+  "aliases": "Gayo gayo gay  ",
+  "native": "Gayo"
+ },
+ {
+  "id": "gba",
+  "label": "Gbaya",
+  "aliases": "Gbaya gbaya gba  ",
+  "native": "Gbaya"
+ },
+ {
+  "id": "gem",
+  "label": "Germanic languages",
+  "aliases": "Germanic languages germaniques, langues gem  ",
+  "native": "gem"
+ },
+ {
+  "id": "ka",
+  "label": "Georgian",
+  "aliases": "Georgian géorgien geo kat ",
+  "native": "ქართული"
+ },
+ {
+  "id": "de",
+  "label": "German",
+  "aliases": "German allemand ger deu ",
+  "native": "Deutsch"
+ },
+ {
+  "id": "gez",
+  "label": "Geez",
+  "aliases": "Geez guèze gez  ",
+  "native": "Geez"
+ },
+ {
+  "id": "gil",
+  "label": "Gilbertese",
+  "aliases": "Gilbertese kiribati gil  ",
+  "native": "Gilbertese"
+ },
+ {
+  "id": "gd",
+  "label": "Gaelic",
+  "aliases": "Gaelic; Scottish Gaelic gaélique; gaélique écossais gla  ",
+  "native": "Gàidhlig"
+ },
+ {
+  "id": "ga",
+  "label": "Irish",
+  "aliases": "Irish irlandais gle  ",
+  "native": "Gaeilge"
+ },
+ {
+  "id": "gl",
+  "label": "Galician",
+  "aliases": "Galician galicien glg  ",
+  "native": "galego"
+ },
+ {
+  "id": "gv",
+  "label": "Manx",
+  "aliases": "Manx manx; mannois glv  ",
+  "native": "Gaelg"
+ },
+ {
+  "id": "gmh",
+  "label": "German, Middle High (ca.1050-1500)",
+  "aliases": "German, Middle High (ca.1050-1500) allemand, moyen haut (ca. 1050-1500) gmh  ",
+  "native": "Middle High German"
+ },
+ {
+  "id": "goh",
+  "label": "German, Old High (ca.750-1050)",
+  "aliases": "German, Old High (ca.750-1050) allemand, vieux haut (ca. 750-1050) goh  ",
+  "native": "Old High German"
+ },
+ {
+  "id": "gon",
+  "label": "Gondi",
+  "aliases": "Gondi gond gon  ",
+  "native": "Gondi"
+ },
+ {
+  "id": "gor",
+  "label": "Gorontalo",
+  "aliases": "Gorontalo gorontalo gor  ",
+  "native": "Gorontalo"
+ },
+ {
+  "id": "got",
+  "label": "Gothic",
+  "aliases": "Gothic gothique got  ",
+  "native": "Gothic"
+ },
+ {
+  "id": "grb",
+  "label": "Grebo",
+  "aliases": "Grebo grebo grb  ",
+  "native": "Grebo"
+ },
+ {
+  "id": "grc",
+  "label": "Greek, Ancient (to 1453)",
+  "aliases": "Greek, Ancient (to 1453) grec ancien (jusqu'à 1453) grc  ",
+  "native": "Ancient Greek"
+ },
+ {
+  "id": "el",
+  "label": "Modern Greek (1453-)",
+  "aliases": "Modern Greek (1453-) grec moderne (1453-) gre ell ",
+  "native": "Ελληνικά"
+ },
+ {
+  "id": "gn",
+  "label": "Guarani",
+  "aliases": "Guarani guarani grn  ",
+  "native": "Guarani"
+ },
+ {
+  "id": "gsw",
+  "label": "Swiss German",
+  "aliases": "Swiss German; Alemannic; Alsatian suisse alémanique; alémanique; alsacien gsw  ",
+  "native": "Schwiizertüütsch"
+ },
+ {
+  "id": "gu",
+  "label": "Gujarati",
+  "aliases": "Gujarati goudjrati guj  ",
+  "native": "ગુજરાતી"
+ },
+ {
+  "id": "gwi",
+  "label": "Gwich'in",
+  "aliases": "Gwich'in gwich'in gwi  ",
+  "native": "Gwichʼin"
+ },
+ {
+  "id": "hai",
+  "label": "Haida",
+  "aliases": "Haida haida hai  ",
+  "native": "Haida"
+ },
+ {
+  "id": "ht",
+  "label": "Haitian",
+  "aliases": "Haitian; Haitian Creole haïtien; créole haïtien hat  ",
+  "native": "Haitian Creole"
+ },
+ {
+  "id": "ha",
+  "label": "Hausa",
+  "aliases": "Hausa haoussa hau  ",
+  "native": "Hausa"
+ },
+ {
+  "id": "haw",
+  "label": "Hawaiian",
+  "aliases": "Hawaiian hawaïen haw  ",
+  "native": "ʻŌlelo Hawaiʻi"
+ },
+ {
+  "id": "he",
+  "label": "Hebrew",
+  "aliases": "Hebrew hébreu heb  Ivrit",
+  "native": "עברית"
+ },
+ {
+  "id": "hz",
+  "label": "Herero",
+  "aliases": "Herero herero her  ",
+  "native": "Herero"
+ },
+ {
+  "id": "hil",
+  "label": "Hiligaynon",
+  "aliases": "Hiligaynon hiligaynon hil  ",
+  "native": "Hiligaynon"
+ },
+ {
+  "id": "him",
+  "label": "Himachali languages",
+  "aliases": "Himachali languages; Western Pahari languages langues himachalis; langues paharis occidentales him  ",
+  "native": "srx"
+ },
+ {
+  "id": "hi",
+  "label": "Hindi",
+  "aliases": "Hindi hindi hin  ",
+  "native": "हिन्दी"
+ },
+ {
+  "id": "hit",
+  "label": "Hittite",
+  "aliases": "Hittite hittite hit  ",
+  "native": "Hittite"
+ },
+ {
+  "id": "hmn",
+  "label": "Hmong",
+  "aliases": "Hmong; Mong hmong hmn  ",
+  "native": "Hmong"
+ },
+ {
+  "id": "ho",
+  "label": "Hiri Motu",
+  "aliases": "Hiri Motu hiri motu hmo  ",
+  "native": "Hiri Motu"
+ },
+ {
+  "id": "hr",
+  "label": "Croatian",
+  "aliases": "Croatian croate hrv  ",
+  "native": "hrvatski"
+ },
+ {
+  "id": "hsb",
+  "label": "Upper Sorbian",
+  "aliases": "Upper Sorbian haut-sorabe hsb  ",
+  "native": "hornjoserbšćina"
+ },
+ {
+  "id": "hu",
+  "label": "Hungarian",
+  "aliases": "Hungarian hongrois hun  ",
+  "native": "magyar"
+ },
+ {
+  "id": "hup",
+  "label": "Hupa",
+  "aliases": "Hupa hupa hup  ",
+  "native": "Hupa"
+ },
+ {
+  "id": "iba",
+  "label": "Iban",
+  "aliases": "Iban iban iba  ",
+  "native": "Iban"
+ },
+ {
+  "id": "ig",
+  "label": "Igbo",
+  "aliases": "Igbo igbo ibo  ",
+  "native": "Igbo"
+ },
+ {
+  "id": "is",
+  "label": "Icelandic",
+  "aliases": "Icelandic islandais ice isl ",
+  "native": "íslenska"
+ },
+ {
+  "id": "io",
+  "label": "Ido",
+  "aliases": "Ido ido ido  ",
+  "native": "Ido"
+ },
+ {
+  "id": "ii",
+  "label": "Sichuan Yi",
+  "aliases": "Sichuan Yi; Nuosu yi de Sichuan iii  ",
+  "native": "ꆈꌠꉙ"
+ },
+ {
+  "id": "ijo",
+  "label": "Ijo languages",
+  "aliases": "Ijo languages ijo, langues ijo  ",
+  "native": "ijo"
+ },
+ {
+  "id": "iu",
+  "label": "Inuktitut",
+  "aliases": "Inuktitut inuktitut iku  ",
+  "native": "Inuktitut"
+ },
+ {
+  "id": "ie",
+  "label": "Interlingue",
+  "aliases": "Interlingue; Occidental interlingue ile  ",
+  "native": "Interlingue"
+ },
+ {
+  "id": "ilo",
+  "label": "Iloko",
+  "aliases": "Iloko ilocano ilo  ",
+  "native": "Iloko"
+ },
+ {
+  "id": "ia",
+  "label": "Interlingua (International Auxiliary Language Association)",
+  "aliases": "Interlingua (International Auxiliary Language Association) interlingua (langue auxiliaire internationale) ina  ",
+  "native": "interlingua"
+ },
+ {
+  "id": "inc",
+  "label": "Indic languages",
+  "aliases": "Indic languages indo-aryennes, langues inc  ",
+  "native": "inc"
+ },
+ {
+  "id": "id",
+  "label": "Indonesian",
+  "aliases": "Indonesian indonésien ind  ",
+  "native": "Indonesia"
+ },
+ {
+  "id": "ine",
+  "label": "Indo-European languages",
+  "aliases": "Indo-European languages indo-européennes, langues ine  ",
+  "native": "ine"
+ },
+ {
+  "id": "inh",
+  "label": "Ingush",
+  "aliases": "Ingush ingouche inh  ",
+  "native": "Ingush"
+ },
+ {
+  "id": "ik",
+  "label": "Inupiaq",
+  "aliases": "Inupiaq inupiaq ipk  ",
+  "native": "Inupiaq"
+ },
+ {
+  "id": "ira",
+  "label": "Iranian languages",
+  "aliases": "Iranian languages iraniennes, langues ira  ",
+  "native": "ira"
+ },
+ {
+  "id": "iro",
+  "label": "Iroquoian languages",
+  "aliases": "Iroquoian languages iroquoises, langues iro  ",
+  "native": "iro"
+ },
+ {
+  "id": "it",
+  "label": "Italian",
+  "aliases": "Italian italien ita  ",
+  "native": "italiano"
+ },
+ {
+  "id": "jv",
+  "label": "Javanese",
+  "aliases": "Javanese javanais jav  ",
+  "native": "Jawa"
+ },
+ {
+  "id": "jbo",
+  "label": "Lojban",
+  "aliases": "Lojban lojban jbo  ",
+  "native": "Lojban"
+ },
+ {
+  "id": "ja",
+  "label": "Japanese",
+  "aliases": "Japanese japonais jpn  ",
+  "native": "日本語"
+ },
+ {
+  "id": "jpr",
+  "label": "Judeo-Persian",
+  "aliases": "Judeo-Persian judéo-persan jpr  ",
+  "native": "Judeo-Persian"
+ },
+ {
+  "id": "jrb",
+  "label": "Judeo-Arabic",
+  "aliases": "Judeo-Arabic judéo-arabe jrb  ",
+  "native": "Judeo-Arabic"
+ },
+ {
+  "id": "kaa",
+  "label": "Kara-Kalpak",
+  "aliases": "Kara-Kalpak karakalpak kaa  ",
+  "native": "Kara-Kalpak"
+ },
+ {
+  "id": "kab",
+  "label": "Kabyle",
+  "aliases": "Kabyle kabyle kab  ",
+  "native": "Taqbaylit"
+ },
+ {
+  "id": "kac",
+  "label": "Kachin",
+  "aliases": "Kachin; Jingpho kachin; jingpho kac  ",
+  "native": "Kachin"
+ },
+ {
+  "id": "kl",
+  "label": "Kalaallisut",
+  "aliases": "Kalaallisut; Greenlandic groenlandais kal  ",
+  "native": "kalaallisut"
+ },
+ {
+  "id": "kam",
+  "label": "Kamba",
+  "aliases": "Kamba kamba kam  ",
+  "native": "Kikamba"
+ },
+ {
+  "id": "kn",
+  "label": "Kannada",
+  "aliases": "Kannada kannada kan  ",
+  "native": "ಕನ್ನಡ"
+ },
+ {
+  "id": "kar",
+  "label": "Karen languages",
+  "aliases": "Karen languages karen, langues kar  ",
+  "native": "kar"
+ },
+ {
+  "id": "ks",
+  "label": "Kashmiri",
+  "aliases": "Kashmiri kashmiri kas  ",
+  "native": "کٲشُر"
+ },
+ {
+  "id": "kr",
+  "label": "Kanuri",
+  "aliases": "Kanuri kanouri kau  ",
+  "native": "Kanuri"
+ },
+ {
+  "id": "kaw",
+  "label": "Kawi",
+  "aliases": "Kawi kawi kaw  ",
+  "native": "Kawi"
+ },
+ {
+  "id": "kk",
+  "label": "Kazakh",
+  "aliases": "Kazakh kazakh kaz  ",
+  "native": "қазақ тілі"
+ },
+ {
+  "id": "kbd",
+  "label": "Kabardian",
+  "aliases": "Kabardian kabardien kbd  ",
+  "native": "Kabardian"
+ },
+ {
+  "id": "kha",
+  "label": "Khasi",
+  "aliases": "Khasi khasi kha  ",
+  "native": "Khasi"
+ },
+ {
+  "id": "khi",
+  "label": "Khoisan languages",
+  "aliases": "Khoisan languages khoïsan, langues khi  ",
+  "native": "khi"
+ },
+ {
+  "id": "km",
+  "label": "Central Khmer",
+  "aliases": "Central Khmer khmer central khm  ",
+  "native": "ខ្មែរ"
+ },
+ {
+  "id": "kho",
+  "label": "Khotanese",
+  "aliases": "Khotanese; Sakan khotanais; sakan kho  ",
+  "native": "Khotanese"
+ },
+ {
+  "id": "ki",
+  "label": "Kikuyu",
+  "aliases": "Kikuyu; Gikuyu kikuyu kik  ",
+  "native": "Gikuyu"
+ },
+ {
+  "id": "rw",
+  "label": "Kinyarwanda",
+  "aliases": "Kinyarwanda rwanda kin  ",
+  "native": "Ikinyarwanda"
+ },
+ {
+  "id": "ky",
+  "label": "Kirghiz",
+  "aliases": "Kirghiz; Kyrgyz kirghiz kir  ",
+  "native": "кыргызча"
+ },
+ {
+  "id": "kmb",
+  "label": "Kimbundu",
+  "aliases": "Kimbundu kimbundu kmb  ",
+  "native": "Kimbundu"
+ },
+ {
+  "id": "kok",
+  "label": "Konkani",
+  "aliases": "Konkani konkani kok  ",
+  "native": "कोंकणी"
+ },
+ {
+  "id": "kv",
+  "label": "Komi",
+  "aliases": "Komi kom kom  ",
+  "native": "Komi"
+ },
+ {
+  "id": "kg",
+  "label": "Kongo",
+  "aliases": "Kongo kongo kon  ",
+  "native": "Kongo"
+ },
+ {
+  "id": "ko",
+  "label": "Korean",
+  "aliases": "Korean coréen kor  ",
+  "native": "한국어"
+ },
+ {
+  "id": "kos",
+  "label": "Kosraean",
+  "aliases": "Kosraean kosrae kos  ",
+  "native": "Kosraean"
+ },
+ {
+  "id": "kpe",
+  "label": "Kpelle",
+  "aliases": "Kpelle kpellé kpe  ",
+  "native": "Kpelle"
+ },
+ {
+  "id": "krc",
+  "label": "Karachay-Balkar",
+  "aliases": "Karachay-Balkar karatchai balkar krc  ",
+  "native": "Karachay-Balkar"
+ },
+ {
+  "id": "krl",
+  "label": "Karelian",
+  "aliases": "Karelian carélien krl  ",
+  "native": "Karelian"
+ },
+ {
+  "id": "kro",
+  "label": "Kru languages",
+  "aliases": "Kru languages krou, langues kro  ",
+  "native": "kro"
+ },
+ {
+  "id": "kru",
+  "label": "Kurukh",
+  "aliases": "Kurukh kurukh kru  ",
+  "native": "Kurukh"
+ },
+ {
+  "id": "kj",
+  "label": "Kuanyama",
+  "aliases": "Kuanyama; Kwanyama kuanyama; kwanyama kua  ",
+  "native": "Kuanyama"
+ },
+ {
+  "id": "kum",
+  "label": "Kumyk",
+  "aliases": "Kumyk koumyk kum  ",
+  "native": "Kumyk"
+ },
+ {
+  "id": "ku",
+  "label": "Kurdish",
+  "aliases": "Kurdish kurde kur  ",
+  "native": "kurdî (kurmancî)"
+ },
+ {
+  "id": "kut",
+  "label": "Kutenai",
+  "aliases": "Kutenai kutenai kut  ",
+  "native": "Kutenai"
+ },
+ {
+  "id": "lad",
+  "label": "Ladino",
+  "aliases": "Ladino judéo-espagnol lad  ",
+  "native": "Ladino"
+ },
+ {
+  "id": "lah",
+  "label": "Lahnda",
+  "aliases": "Lahnda lahnda lah  ",
+  "native": "Western Panjabi"
+ },
+ {
+  "id": "lam",
+  "label": "Lamba",
+  "aliases": "Lamba lamba lam  ",
+  "native": "Lamba"
+ },
+ {
+  "id": "lo",
+  "label": "Lao",
+  "aliases": "Lao lao lao  ",
+  "native": "ລາວ"
+ },
+ {
+  "id": "la",
+  "label": "Latin",
+  "aliases": "Latin latin lat  ",
+  "native": "Latin"
+ },
+ {
+  "id": "lv",
+  "label": "Latvian",
+  "aliases": "Latvian letton lav  ",
+  "native": "latviešu"
+ },
+ {
+  "id": "lez",
+  "label": "Lezghian",
+  "aliases": "Lezghian lezghien lez  ",
+  "native": "Lezghian"
+ },
+ {
+  "id": "li",
+  "label": "Limburgan",
+  "aliases": "Limburgan; Limburger; Limburgish limbourgeois lim  ",
+  "native": "Limburgish"
+ },
+ {
+  "id": "ln",
+  "label": "Lingala",
+  "aliases": "Lingala lingala lin  ",
+  "native": "lingála"
+ },
+ {
+  "id": "lt",
+  "label": "Lithuanian",
+  "aliases": "Lithuanian lituanien lit  ",
+  "native": "lietuvių"
+ },
+ {
+  "id": "lol",
+  "label": "Mongo",
+  "aliases": "Mongo mongo lol  ",
+  "native": "Mongo"
+ },
+ {
+  "id": "loz",
+  "label": "Lozi",
+  "aliases": "Lozi lozi loz  ",
+  "native": "Lozi"
+ },
+ {
+  "id": "lb",
+  "label": "Luxembourgish",
+  "aliases": "Luxembourgish; Letzeburgesch luxembourgeois ltz  ",
+  "native": "Lëtzebuergesch"
+ },
+ {
+  "id": "lua",
+  "label": "Luba-Lulua",
+  "aliases": "Luba-Lulua luba-lulua lua  ",
+  "native": "Luba-Lulua"
+ },
+ {
+  "id": "lu",
+  "label": "Luba-Katanga",
+  "aliases": "Luba-Katanga luba-katanga lub  ",
+  "native": "Tshiluba"
+ },
+ {
+  "id": "lg",
+  "label": "Ganda",
+  "aliases": "Ganda ganda lug  ",
+  "native": "Luganda"
+ },
+ {
+  "id": "lui",
+  "label": "Luiseno",
+  "aliases": "Luiseno luiseno lui  ",
+  "native": "Luiseno"
+ },
+ {
+  "id": "lun",
+  "label": "Lunda",
+  "aliases": "Lunda lunda lun  ",
+  "native": "Lunda"
+ },
+ {
+  "id": "luo",
+  "label": "Luo (Kenya and Tanzania)",
+  "aliases": "Luo (Kenya and Tanzania) luo (Kenya et Tanzanie) luo  ",
+  "native": "Dholuo"
+ },
+ {
+  "id": "lus",
+  "label": "Lushai",
+  "aliases": "Lushai lushai lus  ",
+  "native": "Mizo"
+ },
+ {
+  "id": "mk",
+  "label": "Macedonian",
+  "aliases": "Macedonian macédonien mac mkd ",
+  "native": "македонски"
+ },
+ {
+  "id": "mad",
+  "label": "Madurese",
+  "aliases": "Madurese madourais mad  ",
+  "native": "Madurese"
+ },
+ {
+  "id": "mag",
+  "label": "Magahi",
+  "aliases": "Magahi magahi mag  ",
+  "native": "Magahi"
+ },
+ {
+  "id": "mh",
+  "label": "Marshallese",
+  "aliases": "Marshallese marshall mah  ",
+  "native": "Marshallese"
+ },
+ {
+  "id": "mai",
+  "label": "Maithili",
+  "aliases": "Maithili maithili mai  ",
+  "native": "मैथिली"
+ },
+ {
+  "id": "mak",
+  "label": "Makasar",
+  "aliases": "Makasar makassar mak  ",
+  "native": "Makasar"
+ },
+ {
+  "id": "ml",
+  "label": "Malayalam",
+  "aliases": "Malayalam malayalam mal  ",
+  "native": "മലയാളം"
+ },
+ {
+  "id": "man",
+  "label": "Mandingo",
+  "aliases": "Mandingo mandingue man  ",
+  "native": "Mandingo"
+ },
+ {
+  "id": "mi",
+  "label": "Maori",
+  "aliases": "Maori maori mao mri ",
+  "native": "Māori"
+ },
+ {
+  "id": "map",
+  "label": "Austronesian languages",
+  "aliases": "Austronesian languages austronésiennes, langues map  ",
+  "native": "map"
+ },
+ {
+  "id": "mr",
+  "label": "Marathi",
+  "aliases": "Marathi marathe mar  ",
+  "native": "मराठी"
+ },
+ {
+  "id": "mas",
+  "label": "Masai",
+  "aliases": "Masai massaï mas  ",
+  "native": "Maa"
+ },
+ {
+  "id": "ms",
+  "label": "Malay",
+  "aliases": "Malay malais may msa ",
+  "native": "Melayu"
+ },
+ {
+  "id": "mdf",
+  "label": "Moksha",
+  "aliases": "Moksha moksa mdf  ",
+  "native": "Moksha"
+ },
+ {
+  "id": "mdr",
+  "label": "Mandar",
+  "aliases": "Mandar mandar mdr  ",
+  "native": "Mandar"
+ },
+ {
+  "id": "men",
+  "label": "Mende",
+  "aliases": "Mende mendé men  ",
+  "native": "Mende"
+ },
+ {
+  "id": "mga",
+  "label": "Irish, Middle (900-1200)",
+  "aliases": "Irish, Middle (900-1200) irlandais moyen (900-1200) mga  ",
+  "native": "Middle Irish"
+ },
+ {
+  "id": "mic",
+  "label": "Mi'kmaq",
+  "aliases": "Mi'kmaq; Micmac mi'kmaq; micmac mic  ",
+  "native": "Mi'kmaw"
+ },
+ {
+  "id": "min",
+  "label": "Minangkabau",
+  "aliases": "Minangkabau minangkabau min  ",
+  "native": "Minangkabau"
+ },
+ {
+  "id": "mis",
+  "label": "Uncoded languages",
+  "aliases": "Uncoded languages langues non codées mis  ",
+  "native": "mis"
+ },
+ {
+  "id": "mkh",
+  "label": "Mon-Khmer languages",
+  "aliases": "Mon-Khmer languages môn-khmer, langues mkh  ",
+  "native": "mkh"
+ },
+ {
+  "id": "mg",
+  "label": "Malagasy",
+  "aliases": "Malagasy malgache mlg  ",
+  "native": "Malagasy"
+ },
+ {
+  "id": "mt",
+  "label": "Maltese",
+  "aliases": "Maltese maltais mlt  ",
+  "native": "Malti"
+ },
+ {
+  "id": "mnc",
+  "label": "Manchu",
+  "aliases": "Manchu mandchou mnc  ",
+  "native": "Manchu"
+ },
+ {
+  "id": "mni",
+  "label": "Manipuri",
+  "aliases": "Manipuri manipuri mni  ",
+  "native": "মৈতৈলোন্"
+ },
+ {
+  "id": "mno",
+  "label": "Manobo languages",
+  "aliases": "Manobo languages manobo, langues mno  ",
+  "native": "mno"
+ },
+ {
+  "id": "moh",
+  "label": "Mohawk",
+  "aliases": "Mohawk mohawk moh  ",
+  "native": "Mohawk"
+ },
+ {
+  "id": "mn",
+  "label": "Mongolian",
+  "aliases": "Mongolian mongol mon  ",
+  "native": "монгол"
+ },
+ {
+  "id": "mos",
+  "label": "Mossi",
+  "aliases": "Mossi moré mos  ",
+  "native": "Mossi"
+ },
+ {
+  "id": "mul",
+  "label": "Multiple languages",
+  "aliases": "Multiple languages multilingue mul  ",
+  "native": "Multiple languages"
+ },
+ {
+  "id": "mun",
+  "label": "Munda languages",
+  "aliases": "Munda languages mounda, langues mun  ",
+  "native": "mun"
+ },
+ {
+  "id": "mus",
+  "label": "Creek",
+  "aliases": "Creek muskogee mus  ",
+  "native": "Muscogee"
+ },
+ {
+  "id": "mwl",
+  "label": "Mirandese",
+  "aliases": "Mirandese mirandais mwl  ",
+  "native": "Mirandese"
+ },
+ {
+  "id": "mwr",
+  "label": "Marwari",
+  "aliases": "Marwari marvari mwr  ",
+  "native": "Marwari"
+ },
+ {
+  "id": "myn",
+  "label": "Mayan languages",
+  "aliases": "Mayan languages maya, langues myn  ",
+  "native": "myn"
+ },
+ {
+  "id": "myv",
+  "label": "Erzya",
+  "aliases": "Erzya erza myv  ",
+  "native": "Erzya"
+ },
+ {
+  "id": "nah",
+  "label": "Nahuatl languages",
+  "aliases": "Nahuatl languages nahuatl, langues nah  ",
+  "native": "nah"
+ },
+ {
+  "id": "nai",
+  "label": "North American Indian languages",
+  "aliases": "North American Indian languages nord-amérindiennes, langues nai  ",
+  "native": "nai"
+ },
+ {
+  "id": "nap",
+  "label": "Neapolitan",
+  "aliases": "Neapolitan napolitain nap  ",
+  "native": "Neapolitan"
+ },
+ {
+  "id": "na",
+  "label": "Nauru",
+  "aliases": "Nauru nauruan nau  ",
+  "native": "Nauru"
+ },
+ {
+  "id": "nv",
+  "label": "Navajo",
+  "aliases": "Navajo; Navaho navaho nav  ",
+  "native": "Navajo"
+ },
+ {
+  "id": "nr",
+  "label": "South Ndebele",
+  "aliases": "South Ndebele ndébélé du Sud nbl  ",
+  "native": "South Ndebele"
+ },
+ {
+  "id": "nd",
+  "label": "North Ndebele",
+  "aliases": "North Ndebele ndébélé du Nord nde  ",
+  "native": "isiNdebele"
+ },
+ {
+  "id": "ng",
+  "label": "Ndonga",
+  "aliases": "Ndonga ndonga ndo  ",
+  "native": "Ndonga"
+ },
+ {
+  "id": "nds",
+  "label": "Low German",
+  "aliases": "Low German; Low Saxon; German, Low; Saxon, Low bas allemand; bas saxon; allemand, bas; saxon, bas nds  ",
+  "native": "Neddersass’sch"
+ },
+ {
+  "id": "ne",
+  "label": "Nepali",
+  "aliases": "Nepali népalais nep  ",
+  "native": "नेपाली"
+ },
+ {
+  "id": "new",
+  "label": "Nepal Bhasa",
+  "aliases": "Nepal Bhasa; Newar; Newari nepal bhasa; néwar; newari new  ",
+  "native": "Newari"
+ },
+ {
+  "id": "nia",
+  "label": "Nias",
+  "aliases": "Nias nias nia  ",
+  "native": "Nias"
+ },
+ {
+  "id": "nic",
+  "label": "Niger-Kordofanian languages",
+  "aliases": "Niger-Kordofanian languages nigéro-kordofaniennes, langues nic  ",
+  "native": "nic"
+ },
+ {
+  "id": "niu",
+  "label": "Niuean",
+  "aliases": "Niuean niué niu  ",
+  "native": "Niuean"
+ },
+ {
+  "id": "nn",
+  "label": "Norwegian Nynorsk",
+  "aliases": "Norwegian Nynorsk norvégien nynorsk nno  ",
+  "native": "norsk nynorsk"
+ },
+ {
+  "id": "nb",
+  "label": "Norwegian Bokmål",
+  "aliases": "Norwegian Bokmål norvégien bokmål nob  ",
+  "native": "norsk bokmål"
+ },
+ {
+  "id": "nog",
+  "label": "Nogai",
+  "aliases": "Nogai nogaï; nogay nog  ",
+  "native": "Nogai"
+ },
+ {
+  "id": "non",
+  "label": "Norse, Old",
+  "aliases": "Norse, Old norrois, vieux non  ",
+  "native": "Old Norse"
+ },
+ {
+  "id": "no",
+  "label": "Norwegian",
+  "aliases": "Norwegian norvégien nor  ",
+  "native": "norsk"
+ },
+ {
+  "id": "nqo",
+  "label": "N'Ko",
+  "aliases": "N'Ko n'ko nqo  ",
+  "native": "ߒߞߏ"
+ },
+ {
+  "id": "nso",
+  "label": "Pedi",
+  "aliases": "Pedi; Sepedi; Northern Sotho pedi; sepedi; sotho du Nord nso  ",
+  "native": "Sesotho sa Leboa"
+ },
+ {
+  "id": "nub",
+  "label": "Nubian languages",
+  "aliases": "Nubian languages nubiennes, langues nub  ",
+  "native": "nub"
+ },
+ {
+  "id": "nwc",
+  "label": "Classical Newari",
+  "aliases": "Classical Newari; Old Newari; Classical Nepal Bhasa newari classique nwc  ",
+  "native": "Classical Newari"
+ },
+ {
+  "id": "ny",
+  "label": "Chichewa",
+  "aliases": "Chichewa; Chewa; Nyanja chichewa; chewa; nyanja nya  ",
+  "native": "Nyanja"
+ },
+ {
+  "id": "nym",
+  "label": "Nyamwezi",
+  "aliases": "Nyamwezi nyamwezi nym  ",
+  "native": "Nyamwezi"
+ },
+ {
+  "id": "nyn",
+  "label": "Nyankole",
+  "aliases": "Nyankole nyankolé nyn  ",
+  "native": "Runyankore"
+ },
+ {
+  "id": "nyo",
+  "label": "Nyoro",
+  "aliases": "Nyoro nyoro nyo  ",
+  "native": "Nyoro"
+ },
+ {
+  "id": "nzi",
+  "label": "Nzima",
+  "aliases": "Nzima nzema nzi  ",
+  "native": "Nzima"
+ },
+ {
+  "id": "oc",
+  "label": "Occitan (post 1500)",
+  "aliases": "Occitan (post 1500) occitan (après 1500) oci  ",
+  "native": "occitan"
+ },
+ {
+  "id": "oj",
+  "label": "Ojibwa",
+  "aliases": "Ojibwa ojibwa oji  ",
+  "native": "Ojibwa"
+ },
+ {
+  "id": "or",
+  "label": "Oriya",
+  "aliases": "Oriya oriya ori  ",
+  "native": "ଓଡ଼ିଆ"
+ },
+ {
+  "id": "om",
+  "label": "Oromo",
+  "aliases": "Oromo galla orm  ",
+  "native": "Oromoo"
+ },
+ {
+  "id": "osa",
+  "label": "Osage",
+  "aliases": "Osage osage osa  ",
+  "native": "Osage"
+ },
+ {
+  "id": "os",
+  "label": "Ossetian",
+  "aliases": "Ossetian; Ossetic ossète oss  ",
+  "native": "ирон"
+ },
+ {
+  "id": "ota",
+  "label": "Turkish, Ottoman (1500-1928)",
+  "aliases": "Turkish, Ottoman (1500-1928) turc ottoman (1500-1928) ota  ",
+  "native": "Ottoman Turkish"
+ },
+ {
+  "id": "oto",
+  "label": "Otomian languages",
+  "aliases": "Otomian languages otomi, langues oto  ",
+  "native": "oto"
+ },
+ {
+  "id": "paa",
+  "label": "Papuan languages",
+  "aliases": "Papuan languages papoues, langues paa  ",
+  "native": "paa"
+ },
+ {
+  "id": "pag",
+  "label": "Pangasinan",
+  "aliases": "Pangasinan pangasinan pag  ",
+  "native": "Pangasinan"
+ },
+ {
+  "id": "pal",
+  "label": "Pahlavi",
+  "aliases": "Pahlavi pahlavi pal  ",
+  "native": "Pahlavi"
+ },
+ {
+  "id": "pam",
+  "label": "Pampanga",
+  "aliases": "Pampanga; Kapampangan pampangan pam  ",
+  "native": "Pampanga"
+ },
+ {
+  "id": "pa",
+  "label": "Panjabi",
+  "aliases": "Panjabi; Punjabi pendjabi pan  Punjabi",
+  "native": "ਪੰਜਾਬੀ"
+ },
+ {
+  "id": "pap",
+  "label": "Papiamento",
+  "aliases": "Papiamento papiamento pap  ",
+  "native": "Papiamento"
+ },
+ {
+  "id": "pau",
+  "label": "Palauan",
+  "aliases": "Palauan palau pau  ",
+  "native": "Palauan"
+ },
+ {
+  "id": "peo",
+  "label": "Persian, Old (ca.600-400 B.C.)",
+  "aliases": "Persian, Old (ca.600-400 B.C.) perse, vieux (ca. 600-400 av. J.-C.) peo  ",
+  "native": "Old Persian"
+ },
+ {
+  "id": "fa",
+  "label": "Persian",
+  "aliases": "Persian persan per fas Farsi",
+  "native": "فارسی"
+ },
+ {
+  "id": "phi",
+  "label": "Philippine languages",
+  "aliases": "Philippine languages philippines, langues phi  ",
+  "native": "phi"
+ },
+ {
+  "id": "phn",
+  "label": "Phoenician",
+  "aliases": "Phoenician phénicien phn  ",
+  "native": "Phoenician"
+ },
+ {
+  "id": "pi",
+  "label": "Pali",
+  "aliases": "Pali pali pli  ",
+  "native": "Pali"
+ },
+ {
+  "id": "pl",
+  "label": "Polish",
+  "aliases": "Polish polonais pol  ",
+  "native": "polski"
+ },
+ {
+  "id": "pon",
+  "label": "Pohnpeian",
+  "aliases": "Pohnpeian pohnpei pon  ",
+  "native": "Pohnpeian"
+ },
+ {
+  "id": "pt",
+  "label": "Portuguese",
+  "aliases": "Portuguese portugais por  ",
+  "native": "português"
+ },
+ {
+  "id": "pra",
+  "label": "Prakrit languages",
+  "aliases": "Prakrit languages prâkrit, langues pra  ",
+  "native": "pra"
+ },
+ {
+  "id": "pro",
+  "label": "Provençal, Old (to 1500)",
+  "aliases": "Provençal, Old (to 1500); Occitan, Old (to 1500) provençal ancien (jusqu'à 1500); occitan ancien (jusqu'à 1500) pro  ",
+  "native": "Old Provençal"
+ },
+ {
+  "id": "ps",
+  "label": "Pushto",
+  "aliases": "Pushto; Pashto pachto pus  ",
+  "native": "پښتو"
+ },
+ {
+  "id": "qaa-qtz",
+  "label": "Reserved for local use",
+  "aliases": "Reserved for local use réservée à l'usage local qaa-qtz  ",
+  "native": ""
+ },
+ {
+  "id": "qu",
+  "label": "Quechua",
+  "aliases": "Quechua quechua que  ",
+  "native": "Runasimi"
+ },
+ {
+  "id": "raj",
+  "label": "Rajasthani",
+  "aliases": "Rajasthani rajasthani raj  ",
+  "native": "राजस्थानी"
+ },
+ {
+  "id": "rap",
+  "label": "Rapanui",
+  "aliases": "Rapanui rapanui rap  ",
+  "native": "Rapanui"
+ },
+ {
+  "id": "rar",
+  "label": "Rarotongan",
+  "aliases": "Rarotongan; Cook Islands Maori rarotonga; maori des îles Cook rar  ",
+  "native": "Rarotongan"
+ },
+ {
+  "id": "roa",
+  "label": "Romance languages",
+  "aliases": "Romance languages romanes, langues roa  ",
+  "native": "roa"
+ },
+ {
+  "id": "rm",
+  "label": "Romansh",
+  "aliases": "Romansh romanche roh  ",
+  "native": "rumantsch"
+ },
+ {
+  "id": "rom",
+  "label": "Romany",
+  "aliases": "Romany tsigane rom  ",
+  "native": "Romany"
+ },
+ {
+  "id": "ro",
+  "label": "Romanian",
+  "aliases": "Romanian; Moldavian; Moldovan roumain; moldave rum ron ",
+  "native": "română"
+ },
+ {
+  "id": "rn",
+  "label": "Rundi",
+  "aliases": "Rundi rundi run  ",
+  "native": "Ikirundi"
+ },
+ {
+  "id": "rup",
+  "label": "Aromanian",
+  "aliases": "Aromanian; Arumanian; Macedo-Romanian aroumain; macédo-roumain rup  ",
+  "native": "Aromanian"
+ },
+ {
+  "id": "ru",
+  "label": "Russian",
+  "aliases": "Russian russe rus  ",
+  "native": "русский"
+ },
+ {
+  "id": "sad",
+  "label": "Sandawe",
+  "aliases": "Sandawe sandawe sad  ",
+  "native": "Sandawe"
+ },
+ {
+  "id": "sg",
+  "label": "Sango",
+  "aliases": "Sango sango sag  ",
+  "native": "Sängö"
+ },
+ {
+  "id": "sah",
+  "label": "Yakut",
+  "aliases": "Yakut iakoute sah  ",
+  "native": "саха тыла"
+ },
+ {
+  "id": "sai",
+  "label": "South American Indian languages",
+  "aliases": "South American Indian languages sud-amérindiennes, langues sai  ",
+  "native": "sai"
+ },
+ {
+  "id": "sal",
+  "label": "Salishan languages",
+  "aliases": "Salishan languages salishennes, langues sal  ",
+  "native": "sal"
+ },
+ {
+  "id": "sam",
+  "label": "Samaritan Aramaic",
+  "aliases": "Samaritan Aramaic samaritain sam  ",
+  "native": "Samaritan Aramaic"
+ },
+ {
+  "id": "sa",
+  "label": "Sanskrit",
+  "aliases": "Sanskrit sanskrit san  ",
+  "native": "संस्कृत भाषा"
+ },
+ {
+  "id": "sas",
+  "label": "Sasak",
+  "aliases": "Sasak sasak sas  ",
+  "native": "Sasak"
+ },
+ {
+  "id": "sat",
+  "label": "Santali",
+  "aliases": "Santali santal sat  ",
+  "native": "ᱥᱟᱱᱛᱟᱲᱤ"
+ },
+ {
+  "id": "scn",
+  "label": "Sicilian",
+  "aliases": "Sicilian sicilien scn  ",
+  "native": "sicilianu"
+ },
+ {
+  "id": "sco",
+  "label": "Scots",
+  "aliases": "Scots écossais sco  ",
+  "native": "Scots"
+ },
+ {
+  "id": "sel",
+  "label": "Selkup",
+  "aliases": "Selkup selkoupe sel  ",
+  "native": "Selkup"
+ },
+ {
+  "id": "sem",
+  "label": "Semitic languages",
+  "aliases": "Semitic languages sémitiques, langues sem  ",
+  "native": "sem"
+ },
+ {
+  "id": "sga",
+  "label": "Irish, Old (to 900)",
+  "aliases": "Irish, Old (to 900) irlandais ancien (jusqu'à 900) sga  ",
+  "native": "Old Irish"
+ },
+ {
+  "id": "sgn",
+  "label": "Sign Languages",
+  "aliases": "Sign Languages langues des signes sgn  ",
+  "native": "sgn"
+ },
+ {
+  "id": "shn",
+  "label": "Shan",
+  "aliases": "Shan chan shn  ",
+  "native": "တႆး"
+ },
+ {
+  "id": "sid",
+  "label": "Sidamo",
+  "aliases": "Sidamo sidamo sid  ",
+  "native": "Sidamo"
+ },
+ {
+  "id": "si",
+  "label": "Sinhala",
+  "aliases": "Sinhala; Sinhalese singhalais sin  ",
+  "native": "සිංහල"
+ },
+ {
+  "id": "sio",
+  "label": "Siouan languages",
+  "aliases": "Siouan languages sioux, langues sio  ",
+  "native": "sio"
+ },
+ {
+  "id": "sit",
+  "label": "Sino-Tibetan languages",
+  "aliases": "Sino-Tibetan languages sino-tibétaines, langues sit  ",
+  "native": "sit"
+ },
+ {
+  "id": "sla",
+  "label": "Slavic languages",
+  "aliases": "Slavic languages slaves, langues sla  ",
+  "native": "sla"
+ },
+ {
+  "id": "sk",
+  "label": "Slovak",
+  "aliases": "Slovak slovaque slo slk ",
+  "native": "slovenčina"
+ },
+ {
+  "id": "sl",
+  "label": "Slovenian",
+  "aliases": "Slovenian slovène slv  ",
+  "native": "slovenščina"
+ },
+ {
+  "id": "sma",
+  "label": "Southern Sami",
+  "aliases": "Southern Sami sami du Sud sma  ",
+  "native": "Southern Sami"
+ },
+ {
+  "id": "se",
+  "label": "Northern Sami",
+  "aliases": "Northern Sami sami du Nord sme  ",
+  "native": "davvisámegiella"
+ },
+ {
+  "id": "smi",
+  "label": "Sami languages",
+  "aliases": "Sami languages sames, langues smi  ",
+  "native": "smi"
+ },
+ {
+  "id": "smj",
+  "label": "Lule Sami",
+  "aliases": "Lule Sami sami de Lule smj  ",
+  "native": "Lule Sami"
+ },
+ {
+  "id": "smn",
+  "label": "Inari Sami",
+  "aliases": "Inari Sami sami d'Inari smn  ",
+  "native": "anarâškielâ"
+ },
+ {
+  "id": "sm",
+  "label": "Samoan",
+  "aliases": "Samoan samoan smo  ",
+  "native": "Samoan"
+ },
+ {
+  "id": "sms",
+  "label": "Skolt Sami",
+  "aliases": "Skolt Sami sami skolt sms  ",
+  "native": "Skolt Sami"
+ },
+ {
+  "id": "sn",
+  "label": "Shona",
+  "aliases": "Shona shona sna  ",
+  "native": "chiShona"
+ },
+ {
+  "id": "sd",
+  "label": "Sindhi",
+  "aliases": "Sindhi sindhi snd  ",
+  "native": "سنڌي"
+ },
+ {
+  "id": "snk",
+  "label": "Soninke",
+  "aliases": "Soninke soninké snk  ",
+  "native": "Soninke"
+ },
+ {
+  "id": "sog",
+  "label": "Sogdian",
+  "aliases": "Sogdian sogdien sog  ",
+  "native": "Sogdien"
+ },
+ {
+  "id": "so",
+  "label": "Somali",
+  "aliases": "Somali somali som  ",
+  "native": "Soomaali"
+ },
+ {
+  "id": "son",
+  "label": "Songhai languages",
+  "aliases": "Songhai languages songhai, langues son  ",
+  "native": "son"
+ },
+ {
+  "id": "st",
+  "label": "Sotho, Southern",
+  "aliases": "Sotho, Southern sotho du Sud sot  ",
+  "native": "Sesotho"
+ },
+ {
+  "id": "es",
+  "label": "Spanish",
+  "aliases": "Spanish; Castilian espagnol; castillan spa  Castilian Espanol",
+  "native": "español"
+ },
+ {
+  "id": "sc",
+  "label": "Sardinian",
+  "aliases": "Sardinian sarde srd  ",
+  "native": "sardu"
+ },
+ {
+  "id": "srn",
+  "label": "Sranan Tongo",
+  "aliases": "Sranan Tongo sranan tongo srn  ",
+  "native": "Sranan Tongo"
+ },
+ {
+  "id": "sr",
+  "label": "Serbian",
+  "aliases": "Serbian serbe srp  ",
+  "native": "српски"
+ },
+ {
+  "id": "srr",
+  "label": "Serer",
+  "aliases": "Serer sérère srr  ",
+  "native": "Serer"
+ },
+ {
+  "id": "ssa",
+  "label": "Nilo-Saharan languages",
+  "aliases": "Nilo-Saharan languages nilo-sahariennes, langues ssa  ",
+  "native": "ssa"
+ },
+ {
+  "id": "ss",
+  "label": "Swati",
+  "aliases": "Swati swati ssw  ",
+  "native": "Swati"
+ },
+ {
+  "id": "suk",
+  "label": "Sukuma",
+  "aliases": "Sukuma sukuma suk  ",
+  "native": "Sukuma"
+ },
+ {
+  "id": "su",
+  "label": "Sundanese",
+  "aliases": "Sundanese soundanais sun  ",
+  "native": "Basa Sunda"
+ },
+ {
+  "id": "sus",
+  "label": "Susu",
+  "aliases": "Susu soussou sus  ",
+  "native": "Susu"
+ },
+ {
+  "id": "sux",
+  "label": "Sumerian",
+  "aliases": "Sumerian sumérien sux  ",
+  "native": "Sumerian"
+ },
+ {
+  "id": "sw",
+  "label": "Swahili",
+  "aliases": "Swahili swahili swa  ",
+  "native": "Kiswahili"
+ },
+ {
+  "id": "sv",
+  "label": "Swedish",
+  "aliases": "Swedish suédois swe  ",
+  "native": "svenska"
+ },
+ {
+  "id": "syc",
+  "label": "Classical Syriac",
+  "aliases": "Classical Syriac syriaque classique syc  ",
+  "native": "Classical Syriac"
+ },
+ {
+  "id": "syr",
+  "label": "Syriac",
+  "aliases": "Syriac syriaque syr  ",
+  "native": "ܣܘܪܝܝܐ"
+ },
+ {
+  "id": "ty",
+  "label": "Tahitian",
+  "aliases": "Tahitian tahitien tah  ",
+  "native": "Tahitian"
+ },
+ {
+  "id": "tai",
+  "label": "Tai languages",
+  "aliases": "Tai languages tai, langues tai  ",
+  "native": "tai"
+ },
+ {
+  "id": "ta",
+  "label": "Tamil",
+  "aliases": "Tamil tamoul tam  ",
+  "native": "தமிழ்"
+ },
+ {
+  "id": "tt",
+  "label": "Tatar",
+  "aliases": "Tatar tatar tat  ",
+  "native": "татар"
+ },
+ {
+  "id": "te",
+  "label": "Telugu",
+  "aliases": "Telugu télougou tel  ",
+  "native": "తెలుగు"
+ },
+ {
+  "id": "tem",
+  "label": "Timne",
+  "aliases": "Timne temne tem  ",
+  "native": "Timne"
+ },
+ {
+  "id": "ter",
+  "label": "Tereno",
+  "aliases": "Tereno tereno ter  ",
+  "native": "Tereno"
+ },
+ {
+  "id": "tet",
+  "label": "Tetum",
+  "aliases": "Tetum tetum tet  ",
+  "native": "Tetum"
+ },
+ {
+  "id": "tg",
+  "label": "Tajik",
+  "aliases": "Tajik tadjik tgk  ",
+  "native": "тоҷикӣ"
+ },
+ {
+  "id": "tl",
+  "label": "Tagalog",
+  "aliases": "Tagalog tagalog tgl  ",
+  "native": "Filipino"
+ },
+ {
+  "id": "th",
+  "label": "Thai",
+  "aliases": "Thai thaï tha  ",
+  "native": "ไทย"
+ },
+ {
+  "id": "bo",
+  "label": "Tibetan",
+  "aliases": "Tibetan tibétain tib bod ",
+  "native": "བོད་སྐད་"
+ },
+ {
+  "id": "tig",
+  "label": "Tigre",
+  "aliases": "Tigre tigré tig  ",
+  "native": "Tigre"
+ },
+ {
+  "id": "ti",
+  "label": "Tigrinya",
+  "aliases": "Tigrinya tigrigna tir  ",
+  "native": "ትግርኛ"
+ },
+ {
+  "id": "tiv",
+  "label": "Tiv",
+  "aliases": "Tiv tiv tiv  ",
+  "native": "Tiv"
+ },
+ {
+  "id": "tkl",
+  "label": "Tokelau",
+  "aliases": "Tokelau tokelau tkl  ",
+  "native": "Tokelauan"
+ },
+ {
+  "id": "tlh",
+  "label": "Klingon",
+  "aliases": "Klingon; tlhIngan-Hol klingon tlh  ",
+  "native": "Klingon"
+ },
+ {
+  "id": "tli",
+  "label": "Tlingit",
+  "aliases": "Tlingit tlingit tli  ",
+  "native": "Tlingit"
+ },
+ {
+  "id": "tmh",
+  "label": "Tamashek",
+  "aliases": "Tamashek tamacheq tmh  ",
+  "native": "Tamashek"
+ },
+ {
+  "id": "tog",
+  "label": "Tonga (Nyasa)",
+  "aliases": "Tonga (Nyasa) tonga (Nyasa) tog  ",
+  "native": "Nyasa Tonga"
+ },
+ {
+  "id": "to",
+  "label": "Tonga (Tonga Islands)",
+  "aliases": "Tonga (Tonga Islands) tongan (Îles Tonga) ton  ",
+  "native": "lea fakatonga"
+ },
+ {
+  "id": "tpi",
+  "label": "Tok Pisin",
+  "aliases": "Tok Pisin tok pisin tpi  ",
+  "native": "Tok Pisin"
+ },
+ {
+  "id": "tsi",
+  "label": "Tsimshian",
+  "aliases": "Tsimshian tsimshian tsi  ",
+  "native": "Tsimshian"
+ },
+ {
+  "id": "tn",
+  "label": "Tswana",
+  "aliases": "Tswana tswana tsn  ",
+  "native": "Setswana"
+ },
+ {
+  "id": "ts",
+  "label": "Tsonga",
+  "aliases": "Tsonga tsonga tso  ",
+  "native": "Tsonga"
+ },
+ {
+  "id": "tk",
+  "label": "Turkmen",
+  "aliases": "Turkmen turkmène tuk  ",
+  "native": "türkmen dili"
+ },
+ {
+  "id": "tum",
+  "label": "Tumbuka",
+  "aliases": "Tumbuka tumbuka tum  ",
+  "native": "Tumbuka"
+ },
+ {
+  "id": "tup",
+  "label": "Tupi languages",
+  "aliases": "Tupi languages tupi, langues tup  ",
+  "native": "tup"
+ },
+ {
+  "id": "tr",
+  "label": "Turkish",
+  "aliases": "Turkish turc tur  ",
+  "native": "Türkçe"
+ },
+ {
+  "id": "tut",
+  "label": "Altaic languages",
+  "aliases": "Altaic languages altaïques, langues tut  ",
+  "native": "tut"
+ },
+ {
+  "id": "tvl",
+  "label": "Tuvalu",
+  "aliases": "Tuvalu tuvalu tvl  ",
+  "native": "Tuvalu"
+ },
+ {
+  "id": "tw",
+  "label": "Twi",
+  "aliases": "Twi twi twi  ",
+  "native": "Akan"
+ },
+ {
+  "id": "tyv",
+  "label": "Tuvinian",
+  "aliases": "Tuvinian touva tyv  ",
+  "native": "Тыва"
+ },
+ {
+  "id": "udm",
+  "label": "Udmurt",
+  "aliases": "Udmurt oudmourte udm  ",
+  "native": "Udmurt"
+ },
+ {
+  "id": "uga",
+  "label": "Ugaritic",
+  "aliases": "Ugaritic ougaritique uga  ",
+  "native": "Ugaritic"
+ },
+ {
+  "id": "ug",
+  "label": "Uighur",
+  "aliases": "Uighur; Uyghur ouïgour uig  ",
+  "native": "ئۇيغۇرچە"
+ },
+ {
+  "id": "uk",
+  "label": "Ukrainian",
+  "aliases": "Ukrainian ukrainien ukr  ",
+  "native": "українська"
+ },
+ {
+  "id": "umb",
+  "label": "Umbundu",
+  "aliases": "Umbundu umbundu umb  ",
+  "native": "Umbundu"
+ },
+ {
+  "id": "und",
+  "label": "Undetermined",
+  "aliases": "Undetermined indéterminée und  ",
+  "native": "root"
+ },
+ {
+  "id": "ur",
+  "label": "Urdu",
+  "aliases": "Urdu ourdou urd  ",
+  "native": "اردو"
+ },
+ {
+  "id": "uz",
+  "label": "Uzbek",
+  "aliases": "Uzbek ouszbek uzb  ",
+  "native": "o‘zbek"
+ },
+ {
+  "id": "vai",
+  "label": "Vai",
+  "aliases": "Vai vaï vai  ",
+  "native": "ꕙꔤ"
+ },
+ {
+  "id": "ve",
+  "label": "Venda",
+  "aliases": "Venda venda ven  ",
+  "native": "Venda"
+ },
+ {
+  "id": "vi",
+  "label": "Vietnamese",
+  "aliases": "Vietnamese vietnamien vie  ",
+  "native": "Tiếng Việt"
+ },
+ {
+  "id": "vo",
+  "label": "Volapük",
+  "aliases": "Volapük volapük vol  ",
+  "native": "Volapük"
+ },
+ {
+  "id": "vot",
+  "label": "Votic",
+  "aliases": "Votic vote vot  ",
+  "native": "Votic"
+ },
+ {
+  "id": "wak",
+  "label": "Wakashan languages",
+  "aliases": "Wakashan languages wakashanes, langues wak  ",
+  "native": "wak"
+ },
+ {
+  "id": "wal",
+  "label": "Wolaitta",
+  "aliases": "Wolaitta; Wolaytta wolaitta; wolaytta wal  ",
+  "native": "Wolaytta"
+ },
+ {
+  "id": "war",
+  "label": "Waray",
+  "aliases": "Waray waray war  ",
+  "native": "Waray"
+ },
+ {
+  "id": "was",
+  "label": "Washo",
+  "aliases": "Washo washo was  ",
+  "native": "Washo"
+ },
+ {
+  "id": "cy",
+  "label": "Welsh",
+  "aliases": "Welsh gallois wel cym ",
+  "native": "Cymraeg"
+ },
+ {
+  "id": "wen",
+  "label": "Sorbian languages",
+  "aliases": "Sorbian languages sorabes, langues wen  ",
+  "native": "wen"
+ },
+ {
+  "id": "wa",
+  "label": "Walloon",
+  "aliases": "Walloon wallon wln  ",
+  "native": "Walloon"
+ },
+ {
+  "id": "wo",
+  "label": "Wolof",
+  "aliases": "Wolof wolof wol  ",
+  "native": "Wolof"
+ },
+ {
+  "id": "xal",
+  "label": "Kalmyk",
+  "aliases": "Kalmyk; Oirat kalmouk; oïrat xal  ",
+  "native": "Kalmyk"
+ },
+ {
+  "id": "xh",
+  "label": "Xhosa",
+  "aliases": "Xhosa xhosa xho  ",
+  "native": "IsiXhosa"
+ },
+ {
+  "id": "yao",
+  "label": "Yao",
+  "aliases": "Yao yao yao  ",
+  "native": "Yao"
+ },
+ {
+  "id": "yap",
+  "label": "Yapese",
+  "aliases": "Yapese yapois yap  ",
+  "native": "Yapese"
+ },
+ {
+  "id": "yi",
+  "label": "Yiddish",
+  "aliases": "Yiddish yiddish yid  ",
+  "native": "ייִדיש"
+ },
+ {
+  "id": "yo",
+  "label": "Yoruba",
+  "aliases": "Yoruba yoruba yor  ",
+  "native": "Èdè Yorùbá"
+ },
+ {
+  "id": "ypk",
+  "label": "Yupik languages",
+  "aliases": "Yupik languages yupik, langues ypk  ",
+  "native": "ypk"
+ },
+ {
+  "id": "zap",
+  "label": "Zapotec",
+  "aliases": "Zapotec zapotèque zap  ",
+  "native": "Zapotec"
+ },
+ {
+  "id": "zbl",
+  "label": "Blissymbols",
+  "aliases": "Blissymbols; Blissymbolics; Bliss symboles Bliss; Bliss zbl  ",
+  "native": "Blissymbols"
+ },
+ {
+  "id": "zen",
+  "label": "Zenaga",
+  "aliases": "Zenaga zenaga zen  ",
+  "native": "Zenaga"
+ },
+ {
+  "id": "zgh",
+  "label": "Standard Moroccan Tamazight",
+  "aliases": "Standard Moroccan Tamazight amazighe standard marocain zgh  ",
+  "native": "ⵜⴰⵎⴰⵣⵉⵖⵜ"
+ },
+ {
+  "id": "za",
+  "label": "Zhuang",
+  "aliases": "Zhuang; Chuang zhuang; chuang zha  ",
+  "native": "Vahcuengh"
+ },
+ {
+  "id": "znd",
+  "label": "Zande languages",
+  "aliases": "Zande languages zandé, langues znd  ",
+  "native": "znd"
+ },
+ {
+  "id": "zu",
+  "label": "Zulu",
+  "aliases": "Zulu zoulou zul  ",
+  "native": "isiZulu"
+ },
+ {
+  "id": "zun",
+  "label": "Zuni",
+  "aliases": "Zuni zuni zun  ",
+  "native": "Zuni"
+ },
+ {
+  "id": "zxx",
+  "label": "No linguistic content",
+  "aliases": "No linguistic content; Not applicable pas de contenu linguistique; non applicable zxx  Instrumental no lyrics wordless",
+  "native": "No linguistic content"
+ },
+ {
+  "id": "zza",
+  "label": "Zaza",
+  "aliases": "Zaza; Dimili; Dimli; Kirdki; Kirmanjki; Zazaki zaza; dimili; dimli; kirdki; kirmanjki; zazaki zza  ",
+  "native": "Zaza"
+ }
+]

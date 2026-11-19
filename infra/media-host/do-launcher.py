@@ -152,6 +152,15 @@ class Engine:
         self.execute(['start',name])
         return self.status(context['run_id'])
 
+    def stop_all(self):
+        # Reconcile immutable history once. Only live runs need the existing
+        # fresh per-run kill/confirmation path; never reuse pre-kill state.
+        snapshot=self.snapshot()
+        for path in self.root.glob('*.json'):
+            if self.status(path.stem,snapshot=snapshot)['state']=='RUNNING':
+                if self.stop(path.stem)['state']!='EXITED':
+                    raise ValueError('STOP_NOT_CONFIRMED')
+
     def stop(self, run):
         _,name=self.identity(run)
         if self.status(run)['state']=='RUNNING': self.execute(['kill',name])
@@ -211,5 +220,5 @@ if __name__=='__main__':
         try:server.serve_forever(poll_interval=.5)
         finally:
             try:
-                for path in ROOT.glob('*.json'):engine.stop(path.stem)
+                engine.stop_all()
             finally:pathlib.Path(SOCKET).unlink(missing_ok=True)

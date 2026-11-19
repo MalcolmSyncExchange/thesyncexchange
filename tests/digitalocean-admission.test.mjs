@@ -26,7 +26,7 @@ test('fresh DO admission excludes historical jobs and preserves their attempt ze
 test('wrong boot, image, stale accounting, absent reconciliation and expired scope fail closed',()=>fresh(async db=>{
  await enabled(db);await job(db);
  for(const args of [[randomUUID(),randomUUID(),digest],[randomUUID(),boot,'sha256:'+'a'.repeat(64)]])await assert.rejects(rpc(db,'do_admit',args));
- for(const mutation of ["observed_at=clock_timestamp()-interval '91 seconds'","expires_at=clock_timestamp()-interval '1 second'","month='2000-01'"]){await db.exec('update submission_media.do_control set '+mutation);await assert.rejects(rpc(db,'do_admit',[randomUUID(),boot,digest]));await db.exec("update submission_media.do_control set observed_at=clock_timestamp(),expires_at=clock_timestamp()+interval '1 hour',month=to_char(clock_timestamp() at time zone 'UTC','YYYY-MM')");}
+ for(const mutation of ["observed_at=clock_timestamp()-interval '91 seconds'","expires_at=clock_timestamp()-interval '1 second'","month='2000-01',monthly_ceiling_usd=15"]){await db.exec('update submission_media.do_control set '+mutation);await assert.rejects(rpc(db,'do_admit',[randomUUID(),boot,digest]));await db.exec("update submission_media.do_control set observed_at=clock_timestamp(),expires_at=clock_timestamp()+interval '1 hour',month=to_char(clock_timestamp() at time zone 'UTC','YYYY-MM'),monthly_ceiling_usd=20");}
  await db.exec('update submission_media.do_control set enabled=false,accounting_reconciled=false');await assert.rejects(rpc(db,'do_admit',[randomUUID(),boot,digest]));
 }));
 test('global live permit and one issued DO run prevent duplicate processing and fenced leases reject impostors',()=>fresh(async db=>{
@@ -46,7 +46,7 @@ test('consumed transfer claims reject replay, wrong tuple and arbitrary transfer
 test('budget reserves full liabilities after settlement; rollback keeps history and disables future admission',()=>fresh(async db=>{
  await enabled(db);await job(db);const run=await admitted(db);await rpc(db,'do_claim',[run.run_id,boot]);await rpc(db,'do_settle',[run.run_id,boot]);
  const first=(await db.query('select state,reserved_usd from submission_media.do_runs')).rows[0];assert.equal(first.state,'failed');assert.equal(Number(first.reserved_usd),.10);
- await db.exec('update submission_media.do_control set carry_forward_usd=2.99');assert.equal((await rpc(db,'do_admit',[randomUUID(),boot,digest])).state,'budget_limit');
+ await db.exec('update submission_media.do_control set carry_forward_usd=7.99');assert.equal((await rpc(db,'do_admit',[randomUUID(),boot,digest])).state,'budget_limit');
  await db.exec('update submission_media.do_control set enabled=false');await assert.rejects(rpc(db,'do_admit',[randomUUID(),boot,digest]));
  assert.equal((await db.query('select count(*)::int n from submission_media.do_runs')).rows[0].n,1);
  await assert.rejects(db.exec('delete from submission_media.do_runs'));await assert.rejects(db.exec('delete from submission_media.do_audit'));
@@ -75,3 +75,14 @@ test('revoked live permit closes dispatcher authority immediately without droppi
 }));
 
 test('retired master validation cannot block or consume admission for its replacement',()=>fresh(async db=>{await enabled(db);const old=await job(db);const replacement=await reserve(db,old.s,'master',{bytes:100000000,replaces:old.asset});await observed(db,old.s,replacement.asset_id,{bytes:100000000});const run=await admitted(db);assert.equal((await db.query('select asset_id from submission_media.jobs where id=$1',[run.job_id])).rows[0].asset_id,replacement.asset_id);const stale=(await db.query('select state,attempt from submission_media.jobs where asset_id=$1',[old.asset])).rows[0];assert.deepEqual(stale,{state:'queued',attempt:0});}));
+
+test('November approval changes only the ceiling, preserves settled liabilities, and cannot authorize a higher or future ceiling',()=>fresh(async db=>{
+ await enabled(db);await job(db);const run=await admitted(db);await rpc(db,'do_claim',[run.run_id,boot]);await rpc(db,'do_settle',[run.run_id,boot]);
+ await db.exec('update submission_media.do_control set monthly_ceiling_usd=15,enabled=false');
+ const before=(await db.query('select * from submission_media.do_control')).rows[0],ledger=(await db.query('select * from submission_media.do_runs order by id')).rows;
+ await db.exec(await readFile(new URL('../supabase/migrations/20261119004313_digitalocean_november_20usd_ceiling.sql',import.meta.url),'utf8'));
+ const after=(await db.query('select * from submission_media.do_control')).rows[0];assert.equal(Number(after.monthly_ceiling_usd),20);
+ delete before.monthly_ceiling_usd;delete after.monthly_ceiling_usd;assert.deepEqual(after,before);
+ assert.deepEqual((await db.query('select * from submission_media.do_runs order by id')).rows,ledger);
+ for(const update of ['monthly_ceiling_usd=20.01',"month='2026-12'"])await assert.rejects(db.exec('update submission_media.do_control set '+update),e=>e.code==='23514');
+}));

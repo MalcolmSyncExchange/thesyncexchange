@@ -8,13 +8,19 @@ const migration=await readFile(new URL('../supabase/migrations/20261118022453_au
 const rollback=await readFile(new URL('../docs/audio-reconstruction/production-rollback.sql',import.meta.url),'utf8');
 const original=target.functions.find(f=>f.schema==='public'&&f.name==='media_request_preview');
 
-test('captured production target has every candidate media table column and required procedure',async()=>{
- const db=await uploadsFixture();try{
+test('captured production baseline matches before the additive draft migration and the exact migration preserves records',async()=>{
+ const db=await uploadsFixture({throughMigration:'20261119004313_digitalocean_november_20usd_ceiling.sql'});try{
   const local=(await db.query("select table_schema,table_name,column_name,udt_name from information_schema.columns where table_schema='submission_media' and table_name in ('submissions','assets','jobs','operations','capabilities','master_reviews')")).rows;
   for(const c of local){const actual=target.columns.find(t=>t.schema===c.table_schema&&t.table===c.table_name&&t.name===c.column_name);assert.ok(actual,`${c.table_name}.${c.column_name} missing`);assert.equal(actual.type,c.udt_name);}
   for(const name of ['lock_owned','begin_operation','finish_operation','bump','require_capability','require_actor','check_region','append_event','complete_job','claim_job'])assert.ok(target.functions.some(f=>f.schema==='submission_media'&&f.name===name),name);
   assert.equal(target.functions.some(f=>f.name==='marketplace_waveform_locator'||f.name==='queue_default_preview'),false);
   assert.equal(original.owner,'postgres');
+  const before=(await db.query('select to_jsonb(s) v from submission_media.submissions s order by id')).rows;
+  await db.exec(await readFile(new URL('../supabase/migrations/20261119005330_recoverable_artist_draft_deletion.sql',import.meta.url),'utf8'));
+  const added=(await db.query("select udt_name,is_nullable from information_schema.columns where table_schema='submission_media' and table_name='submissions' and column_name='deleted_at'")).rows[0];
+  assert.deepEqual(added,{udt_name:'timestamptz',is_nullable:'YES'});
+  assert.deepEqual((await db.query("select to_jsonb(s)-'deleted_at' v from submission_media.submissions s order by id")).rows,before);
+  for(const role of ['anon','service_role','media_broker_do_login'])assert.equal((await db.query("select has_function_privilege($1,'public.media_submission_delete(uuid,bigint)','EXECUTE') v",[role])).rows[0].v,false);
  }finally{await db.close();}
 });
 

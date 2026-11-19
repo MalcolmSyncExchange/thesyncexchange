@@ -60,3 +60,34 @@ test('artist crop binds generated revision and exactly matches worker frame roun
  const short=artistPreviewRegion({sourceId:'source',startMs:0,endMs:2000,durationUs:2000063},{id:'source',sampleRate:16000,durationUs:2000063});
  assert.equal(short.endSample,32001);
 });
+
+test('shared bar geometry reserves eight percent above and below every normalized peak',async()=>{
+ const {waveformBarGeometry}=await import('../lib/media/waveform.mjs');
+ for(const height of [130,152,160,320])for(const amplitudes of [[32768,32768,32768],[1,2,4],[0,20,400,32000],[0,0,0]]){
+  const bars=waveformBars(env(amplitudes.map(a=>[-a,Math.min(32767,a)])));
+  for(const [i,level] of bars.heights.entries()){
+   const g=waveformBarGeometry(level,height);
+   assert.ok(g.y>=height*.08-1e-9);assert.ok(g.y+g.height<=height*.92+1e-9);
+   assert.ok(Math.abs(g.y+g.height/2-height/2)<1e-9);
+   assert.ok(Math.abs(g.height/height-level*.84)<1e-9);
+   if(amplitudes[i]===0)assert.equal(g.height,0);
+  }
+ }
+ for(const n of [NaN,Infinity,-1,1.01])assert.throws(()=>waveformBarGeometry(n));
+});
+test('preliminary and final rendering share exact bounds without altering timeline or audio data',()=>{
+ for(const file of ['validated-waveform.tsx','local-recording-audition.tsx']){
+  const source=fs.readFileSync(new URL('../components/audio/'+file,import.meta.url),'utf8');
+  assert.match(source,/waveformBarGeometry\(/);assert.match(source,/viewBox="0 0 1000 160"/);
+  assert.doesNotMatch(source,/height=\{(?:h|height)\*140\}/);
+ }
+ const ui=fs.readFileSync(new URL('../components/artist/uploads/upload-workbench.tsx',import.meta.url),'utf8');
+ assert.equal((ui.match(/aria-label="Recording studio"/g)||[]).length,1);
+ assert.ok(ui.indexOf('aria-label="Waveform and preview"')<ui.indexOf('aria-label="Audio transfer"'));
+ assert.ok(ui.indexOf('aria-label="Audio transfer"')<ui.indexOf('aria-label="Recording processing"'));
+ assert.doesNotMatch(ui,/Waveform & Preview|<ol className="hidden gap-2/);
+ assert.match(ui,/initialStartMs=\{localSelection\?\.file===selectedFile&&selectedAsset===media.source.id\?localSelection.start:undefined\}/);
+ assert.match(ui,/role="status" aria-live="polite" aria-atomic="true"/);
+ const css=fs.readFileSync(new URL('../components/audio/waveform-player.module.css',import.meta.url),'utf8');
+ assert.match(css,/prefers-reduced-motion:reduce/);assert.match(css,/overflow:hidden/);
+});

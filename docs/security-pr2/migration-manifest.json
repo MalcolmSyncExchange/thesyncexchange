@@ -325,6 +325,10 @@
     {
       "file": "20261119005330_recoverable_artist_draft_deletion.sql",
       "sha256": "b7f2fbcc27ab6bf14ae2e46206b48fde256be1f34d3026331b516e4a453a97cb"
+    },
+    {
+      "file": "20261119064613_continuous_audio_health.sql",
+      "sha256": "896a17ea24037e39786374ae46caba4992b8c371734126a6333b4219c1c53fc9"
     }
   ],
   "storageBuckets": {

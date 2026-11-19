@@ -1,0 +1,11 @@
+[Unit]
+Description=Independent finite November processing authorization deadline
+
+[Timer]
+OnCalendar=2026-12-01 00:00:00 UTC
+Persistent=true
+AccuracySec=1s
+Unit=tse-do-policy-stop.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "implementation_commit": "7ab43fe2078a72281c601373a8ae0930ef22cfcc",
+  "base_digest": "sha256:f654923c3b73d6e9d506be36e868a9c33b116872212070a8a98db56d9dc35b15",
+  "source_context_sha256": "6fd90628dae102f56d1f0e7f6eb32dd197f84fc388af9b2954c157a976e22deb",
+  "archive": {
+    "sha256": "e371c8d1b134ae94f1f57793dcadd2df7173eaf717fc2babbd220ecb05e6e854",
+    "bytes": 53745664
+  },
+  "image": {
+    "digest": "sha256:648c94c3d3950e7547fd0fe63cacd21592f2c64c47ef9d4cb35865a741b98e51",
+    "config_digest": "sha256:8189498f6eba922acd41828a95bf96b458385b946b860b321352730be4156863",
+    "rootfs_diff_ids": [
+      "sha256:30d42639883b0c8fd21d05fde24d7c7e12f17a6b2b23a263ee06bb518f6ecaf8",
+      "sha256:285b96c96993f0d9de847afaf143e9eafcf46c1905ece04b4249e954ea1f23fa",
+      "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+      "sha256:c49b5661fd11f778a5c5be11055134f1c46a3f546c97654115cf7a860a13fd09",
+      "sha256:3f449a952dfe0859e0997ffac0ebf7ecaa90f796dc305f19c9022b680324b075",
+      "sha256:18fb154e2204dfea643d16b3551d41550509d6ec8faa5f4031eb2ae856b1e0d5",
+      "sha256:6809c5bf801677c9d0ddcbeb76d43aad1037a9a74b39fb0b1d9cf9c8f4be76b9",
+      "sha256:09d1dd661a263d6c04f02a417878a27981b8f6ef347031580cec8b5d4ffb706a",
+      "sha256:f3455a0bcc1401ccab351d39ce765625fbddc1af373ddd6042259ebb5193c9a3",
+      "sha256:211f6040d18fbb38bf89157a574c5692f668206c1b9063f44896cdbb83578a3e",
+      "sha256:3d8bd97f3227598026fc0a1ffeb61979f5938a5b1a579a4818359df9524eae2b",
+      "sha256:9508148d95b84f637b7a59e8296836530c71edfcd8a0100997c6ef3c3073aaab"
+    ]
+  },
+  "verification": {
+    "format": "OCI layout",
+    "archive_sha256": "e371c8d1b134ae94f1f57793dcadd2df7173eaf717fc2babbd220ecb05e6e854",
+    "manifest_digest": "sha256:648c94c3d3950e7547fd0fe63cacd21592f2c64c47ef9d4cb35865a741b98e51",
+    "config_digest": "sha256:8189498f6eba922acd41828a95bf96b458385b946b860b321352730be4156863",
+    "platform": "linux/amd64",
+    "verified_blobs": 14,
+    "verified_layers": 12
+  },
+  "native_host_acceptance": "NOT_RUN",
+  "production_activation": false
+}

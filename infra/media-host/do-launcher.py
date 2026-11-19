@@ -18,10 +18,38 @@ import socketserver
 import subprocess
 import time
 import uuid
+import socket
+import stat
+import errno
 
 ROOT = pathlib.Path('/var/lib/tse-audio/launcher')
 CONFIG = pathlib.Path('/etc/tse-audio/launcher.json')
 SOCKET = '/run/tse-audio/control/launcher.sock'
+
+
+def prepare_control_socket(engine,path=SOCKET,owner=0):
+    """Called with the exclusive server lock held. Never replace a live peer."""
+    path=pathlib.Path(path)
+    if not path.exists() and not path.is_symlink():return
+    before=path.lstat()
+    if not stat.S_ISSOCK(before.st_mode) or before.st_uid!=owner:
+        raise ValueError('UNTRUSTED_CONTROL_SOCKET')
+    with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as probe:
+        probe.settimeout(1)
+        try:probe.connect(str(path))
+        except OSError as error:
+            if error.errno!=errno.ECONNREFUSED:raise ValueError('CONTROL_SOCKET_UNCERTAIN') from error
+        else:raise ValueError('LIVE_CONTROL_SOCKET')
+    # A dead listener does not prove that its parser containers are dead.
+    snapshot=engine.snapshot()
+    for record in engine.root.glob('*.json'):
+        if engine.status(record.stem,snapshot=snapshot)['state'] not in ('EXITED','NONE'):
+            raise ValueError('RUNNING_PROCESS_REQUIRES_RECONCILIATION')
+    after=path.lstat()
+    if (before.st_dev,before.st_ino)!=(after.st_dev,after.st_ino):raise ValueError('CONTROL_SOCKET_CHANGED')
+    archive=engine.root/'stale-sockets';archive.mkdir(mode=0o700,exist_ok=True)
+    if len(list(archive.iterdir()))>=10:raise ValueError('SOCKET_ARCHIVE_REVIEW_REQUIRED')
+    path.rename(archive/(str(uuid.uuid4())+'.sock'))
 
 
 def atomic(path, value):
@@ -211,7 +239,9 @@ if __name__=='__main__':
     actual_boot=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     if actual_root!=config['root_uuid'] or actual_boot!=config.get('boot_id'):raise SystemExit('LIVE_DO_IDENTITY_MISMATCH')
     engine=Engine(config)
-    if pathlib.Path(SOCKET).exists():raise SystemExit('EXISTING_CONTROL_SOCKET')
+    server_lock=(ROOT/'server.lock').open('a')
+    fcntl.flock(server_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    prepare_control_socket(engine)
     with Server(SOCKET,Handler) as server:
         os.chown(SOCKET,0,20000);os.chmod(SOCKET,0o660)
         def shutdown(*_):

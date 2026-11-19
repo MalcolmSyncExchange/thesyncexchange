@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh finite TSE identity lease without changing job admission
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=5min
+AccuracySec=5s
+Unit=tse-do-availability.service
+
+[Install]
+WantedBy=timers.target

@@ -38,7 +38,7 @@ test('one-shot dispatch and interrupted-controller recovery never repeat an issu
  const revoked=dispatcher({revoked:true});await revoked.runner.once();assert.equal(revoked.counts().starts,0);
 });
 test('root accounting evidence rejects stale samples, guest mismatches and counter ambiguity',async()=>{
- const sample={provider:'digitalocean',host_id:'620470021',boot_id:boot,traffic_bytes:100,log_bytes:10,sampled_at:100000};let writes=0;const db={rpc:async(name,args)=>{assert.equal(name,'do_observe');assert.deepEqual(args,[100,10]);return {enabled:true,paused:false,projected_usd:13,month:'2026-11'};}};
+ const sample={provider:'digitalocean',host_id:'620470021',boot_id:boot,traffic_bytes:100,log_bytes:10,sampled_at:100000};let writes=0;const db={rpc:async(name,args)=>{if(name==='do_health')return{queue_depth:0,oldest_queued_seconds:0,running:0,completed_24h:0,failed_24h:0};assert.equal(name,'do_observe');assert.deepEqual(args,[100,10]);return {enabled:true,paused:false,projected_usd:13,month:'2026-11'};}};
  await doUsage(db,boot,{load:async()=>sample,now:()=>100001,save:async()=>{writes++;}});assert.equal(writes,1);
  for(const patch of [{sampled_at:1},{sampled_at:100002},{host_id:'8797328859122759463'},{boot_id:randomUUID()},{traffic_bytes:-1}])await assert.rejects(doUsage(db,boot,{load:async()=>({...sample,...patch}),now:()=>100001,save:async()=>{throw Error('must not write');}}));
 });

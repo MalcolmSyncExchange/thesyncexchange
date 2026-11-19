@@ -1,6 +1,29 @@
 import importlib.util,json,pathlib,tempfile,unittest,uuid
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('do_launcher',pathlib.Path(__file__).resolve().parents[1]/'infra/media-host/do-launcher.py');l=importlib.util.module_from_spec(spec);spec.loader.exec_module(l)
+class SocketRecovery(unittest.TestCase):
+ def test_dead_socket_requires_verified_stopped_records(self):
+  import socket,os
+  from types import SimpleNamespace
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);path=root/'control.sock';records=root/'records';records.mkdir();(records/(str(uuid.uuid4())+'.json')).write_text('{}')
+   sock=socket.socket(socket.AF_UNIX);sock.bind(str(path));sock.close()
+   engine=SimpleNamespace(root=records,snapshot=lambda:{},status=lambda *a,**k:{'state':'RUNNING'})
+   with self.assertRaises(ValueError):l.prepare_control_socket(engine,path,os.getuid())
+   self.assertTrue(path.exists())
+   engine.status=lambda *a,**k:{'state':'EXITED'}
+   l.prepare_control_socket(engine,path,os.getuid());self.assertFalse(path.exists());self.assertEqual(len(list((records/'stale-sockets').iterdir())),1)
+ def test_live_listener_and_untrusted_file_are_never_replaced(self):
+  import socket,os
+  from types import SimpleNamespace
+  with tempfile.TemporaryDirectory() as d:
+   root=pathlib.Path(d);path=root/'control.sock';engine=SimpleNamespace(root=root,snapshot=lambda:(_ for _ in ()).throw(Exception('must not inspect')))
+   with socket.socket(socket.AF_UNIX) as sock:
+    sock.bind(str(path));sock.listen(1)
+    with self.assertRaisesRegex(ValueError,'LIVE_CONTROL_SOCKET'):l.prepare_control_socket(engine,path,os.getuid())
+   path.unlink();path.write_text('unexpected')
+   with self.assertRaisesRegex(ValueError,'UNTRUSTED'):l.prepare_control_socket(engine,path,os.getuid())
+
 class Launcher(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.root=pathlib.Path(self.tmp.name);self.calls=[];self.container=None;self.fail=None

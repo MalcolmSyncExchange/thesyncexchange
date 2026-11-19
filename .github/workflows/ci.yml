@@ -43,6 +43,14 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      - name: Audio identity and launcher recovery tests
+        run: |
+          python3 -m venv /tmp/tse-audio-qa
+          /tmp/tse-audio-qa/bin/pip install -r requirements.audio-qa.txt
+          /tmp/tse-audio-qa/bin/python tests/digitalocean-availability.test.py
+          /tmp/tse-audio-qa/bin/python tests/digitalocean-launcher.test.py
+          /tmp/tse-audio-qa/bin/python tests/digitalocean-accounting.test.py
+
       - name: Structured rights and DO admission regression
         run: npm run test:audio-production-integration
 

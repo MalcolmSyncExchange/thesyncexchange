@@ -1,0 +1,15 @@
+[Unit]
+Description=TSE finite operator policy identity renewal
+Requires=tse-do-accounting.service
+After=tse-do-accounting.service
+Before=tse-do-broker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/tse-audio/release/do-availability.py
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/run/tse-audio
+PrivateNetwork=yes
+PrivateTmp=yes
+TimeoutStartSec=10

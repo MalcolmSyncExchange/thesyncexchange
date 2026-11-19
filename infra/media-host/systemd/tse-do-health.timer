@@ -1,0 +1,11 @@
+[Unit]
+Description=Report bounded TSE operational alerts to the existing journal
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=tse-do-health.service
+
+[Install]
+WantedBy=timers.target

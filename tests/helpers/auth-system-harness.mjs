@@ -1,3 +1,4 @@
+import * as uploadProgress from '../../lib/media/upload-progress.mjs';
 import * as artistAccountContract from '../../lib/artist/account-contract.ts';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -21,7 +22,7 @@ export class TestResponse extends Response {
 export function loadAuthModule(path,modules,extra={}){
  const source=ts.transpileModule(readFileSync(new URL('../../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const loaded={exports:{}};
- vm.runInNewContext(source,{module:loaded,exports:loaded.exports,Request,Response,Headers,URL,URLSearchParams,FormData,TextEncoder,TextDecoder,AbortSignal,Buffer,crypto:webcrypto,process:{env:{}},console,setTimeout,clearTimeout,...extra,require(name){if(!(name in modules))throw Error('Unexpected Auth harness import '+name);return modules[name];}},{filename:path});
+ vm.runInNewContext(source,{module:loaded,exports:loaded.exports,Request,Response,Headers,URL,URLSearchParams,FormData,TextEncoder,TextDecoder,AbortSignal,Buffer,crypto:webcrypto,process:{env:{}},console,setTimeout,clearTimeout,...extra,require(name){if(!(name in modules)){if(name==='./upload-progress.mjs')return uploadProgress;throw Error('Unexpected Auth harness import '+name);}return modules[name];}},{filename:path});
  return loaded.exports;
 }
 export function authHarness(options={}){

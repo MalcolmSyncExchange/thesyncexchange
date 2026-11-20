@@ -20,3 +20,12 @@ test('older completed-command replay does not rewrite a newer server selection',
 test('returning to the previously saved position while a save is in flight still wins',async()=>{let release;const h=harness();const original=h.config.save;let count=0;h.config.save=async p=>{if(++count===1)await new Promise(r=>release=r);return original(p);};const q=previewAutosave(h.config);q.update(region(1000));const f=q.flush();await new Promise(setImmediate);q.update(region(0));release();await f;assert.deepEqual(h.state.selection,{start_ms:0,end_ms:30000});});
 
 test('a revision conflict requires explicit retry before taking a fresh revision',async()=>{let conflict=true;const h=harness();const original=h.config.save;h.config.save=async p=>{if(conflict)throw Object.assign(Error('newer revision'),{status:409});return original(p);};const q=previewAutosave(h.config);q.update(region(3000));await assert.rejects(q.flush(),/newer revision/);const old=h.record.pending.key;h.state.revision=4;h.state.selection={start_ms:1000,end_ms:31000};conflict=false;await assert.rejects(q.flush(),/newer revision/);assert.equal(h.saves.length,0);await q.retry();assert.notEqual(h.saves[0].key,old);assert.equal(h.saves[0].revision,4);assert.equal(h.state.selection.start_ms,3000);});
+
+test('Continue finishes after a durable queue request, not background AAC completion; restored selection and repeated Continue reuse the job',async()=>{
+ let queued=null,completed=false,calls=0;
+ const h=harness({generate:async state=>{calls++;queued??={source:state.source.id,...state.selection,state:'queued'};}});
+ h.q.update(region(8300));await h.q.flush();assert.equal(queued,null,'dragging saves only selection');
+ await h.q.flush({preview:true});assert.equal(completed,false);assert.equal(queued.start_ms,8300);assert.equal(h.record,null);
+ await h.restart().flush({preview:true});assert.equal(queued.start_ms,h.state.selection.start_ms);assert.equal(calls,2,'generation adapter checks existing server state on each progression');
+ completed=true;queued.state='ready';assert.equal(queued.state,'ready');assert.equal(h.state.selection.end_ms,38300);
+});

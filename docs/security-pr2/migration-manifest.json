@@ -345,6 +345,10 @@
     {
       "file": "20261120043522_personal_artist_mood_library.sql",
       "sha256": "95f5350b278b084ad90ccb5384df1f6b20184feb8c372dd2c1942dca9cef01a3"
+    },
+    {
+      "file": "20261120055242_automatic_public_preview_submission.sql",
+      "sha256": "7e26b9c27ef023546040c202618c4236dc2efd550adcf8fa1405a531f4d5fbdc"
     }
   ],
   "storageBuckets": {

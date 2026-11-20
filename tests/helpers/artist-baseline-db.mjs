@@ -69,6 +69,7 @@ export async function database(target='repository', {seed=true,throughMigration=
    await db.exec(targetSchema.functions.find(f=>f.schema==='submission_media'&&f.name==='vm_audit_immutable').definition);
    for(const name of ['20261029023407_artist_master_ownership_rows.sql','20261029032813_artist_structured_rights_and_agreements.sql'])await db.exec(source('tests/fixtures/production-rights/'+name));
    if(throughMigration===null||throughMigration>='20261119193818_submission_workflow_repair.sql')await db.exec(source('supabase/migrations/20261119193818_submission_workflow_repair.sql'));
+   if(throughMigration===null||throughMigration>='20261120055242_automatic_public_preview_submission.sql')await db.exec(source('supabase/migrations/20261120055242_automatic_public_preview_submission.sql'));
   }
   if(['production','staging'].includes(target)) await applyCapturedAuthorization(db,snapshot(target));
   if(seed) await seedDatabase(db);

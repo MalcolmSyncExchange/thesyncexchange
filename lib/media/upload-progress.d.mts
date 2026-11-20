@@ -12,3 +12,5 @@ export function processingPollDelay(state:import('./upload-contract').UploadStat
 export function previewGenerationNeeded(state:UploadState):boolean;
 
 export function uploadDisplay(state:UploadState|null,options?:{hasLocal?:boolean;selectedAsset?:string|null;busy?:boolean;transferring?:boolean;paused?:boolean;transferIsMaster?:boolean}):{stored:boolean;localPending:boolean;selectionOnly:boolean;transferVisible:boolean;preliminary:boolean;unboundLocal:boolean};
+
+export function publicPreviewMessage(state:import('./upload-contract').UploadState):string;

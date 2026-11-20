@@ -3,7 +3,7 @@ import {serialDraftFlush} from '../lib/media/draft-save-queue.mjs';
 import {blankSubmissionDraft,submissionIssues,submissionDraftSchema} from '../lib/media/submission-draft.ts';
 import {canonicalMood,genres,durationLabel,audioVersions,tempoSuggestion} from '../lib/media/discovery-options.ts';
 import {estimatePulse,localTempo} from '../public/media/local-tempo.mjs';
-import {uploadsFixture,create,artist,revision,readyPackage,asActor,invoke,ids} from './helpers/music-uploads-fixture.mjs';
+import {uploadsFixture,create,artist,revision,readyPackage,reserve,observed,completeNext,asActor,invoke,ids} from './helpers/music-uploads-fixture.mjs';
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 test('slow background saves never block edits; rapid requests coalesce and flush includes newer edits',async()=>{
  let version=0,persisted=0,value='',saved='',calls=0;const gate=deferred();
@@ -80,4 +80,33 @@ test('unknown BPM reaches pending SEC review without publication; invalid non-nu
  const p=await artist(db,'media_submission_prepare',[s,await revision(db,s),randomUUID()]);assert.equal((await db.query('select bpm from tracks where id=$1',[p.track_id])).rows[0].bpm,null);
  const state=await artist(db,'media_upload_read',[s]);for(const bpm of ['120',0,221,120.5,{},true])await assert.rejects(artist(db,'media_upload_save_metadata',[s,{...state.metadata,bpm},await revision(db,s),randomUUID()]),e=>e.code==='22023');
  await artist(db,'media_upload_submit',[s,await revision(db,s),randomUUID()]);assert.equal((await artist(db,'media_upload_read',[s])).review.state,'pending');assert.equal((await db.query('select status from tracks where id=$1',[p.track_id])).rows[0].status,'pending_review');
+}));
+
+
+test('final SEC submission confirms only the exact ready private preview without a manual acceptance step',()=>fresh(async db=>{
+ const s=await create(db);await artist(db,'media_submission_save_draft',[s,complete(),0,randomUUID()]);
+ const m=await reserve(db,s);await observed(db,s,m.asset_id);await completeNext(db);await completeNext(db);
+ const pending=await artist(db,'media_upload_read',[s]);assert.equal(pending.waveform.state,'ready');assert.equal(pending.preview,null);
+ await assert.rejects(artist(db,'media_submission_prepare',[s,await revision(db,s),randomUUID()]),/PREVIEW_PREPARING/);
+ await completeNext(db);const generated=await artist(db,'media_upload_read',[s]);assert.equal(generated.preview,null,'no false manual listen or acceptance recorded');
+ const preview=generated.derivatives.find(a=>a.kind==='buyer_preview'&&a.state==='ready');assert.ok(preview);
+ const before=(await db.query('select count(*)::int n from submission_media.jobs where submission_id=$1',[s])).rows[0].n;
+ for(let i=0;i<3;i++)await artist(db,'media_request_preview',[s,await revision(db,s),randomUUID()]);
+ assert.equal((await db.query('select count(*)::int n from submission_media.jobs where submission_id=$1',[s])).rows[0].n,before,'unchanged region reuses its existing asset/job');
+ const prepared=await artist(db,'media_submission_prepare',[s,await revision(db,s),randomUUID()]);
+ const selected=(await db.query('select accepted_preview_id,current_preview_id from submission_media.submissions where id=$1',[s])).rows[0];assert.equal(selected.accepted_preview_id,preview.id);assert.equal(selected.current_preview_id,null,'final confirmation never activates a public asset');
+ const key=randomUUID(),rev=await revision(db,s);const result=await artist(db,'media_upload_submit',[s,rev,key]);assert.ok(result.review_id);assert.deepEqual(await artist(db,'media_upload_submit',[s,rev,key]),result,'exact submission retry is idempotent');
+ assert.equal((await artist(db,'media_upload_read',[s])).review.state,'pending');assert.equal((await db.query('select status from tracks where id=$1',[prepared.track_id])).rows[0].status,'pending_review');
+}));
+
+test('changing the saved region rejects a previously accepted preview until the new matching job completes',()=>fresh(async db=>{
+ const s=await create(db);await artist(db,'media_submission_save_draft',[s,complete(),0,randomUUID()]);await readyPackage(db,s,{seconds:60});
+ const source=(await artist(db,'media_upload_read',[s])).source;
+ await artist(db,'media_select_preview_region',[s,source.id,1000,31000,await revision(db,s),randomUUID()]);
+ await assert.rejects(artist(db,'media_submission_prepare',[s,await revision(db,s),randomUUID()]),/PREVIEW_PREPARING/);
+ const queued=await artist(db,'media_request_preview',[s,await revision(db,s),randomUUID()]);await assert.rejects(artist(db,'media_submission_prepare',[s,await revision(db,s),randomUUID()]),/PREVIEW_PREPARING/);
+ await completeNext(db);await artist(db,'media_submission_prepare',[s,await revision(db,s),randomUUID()]);
+ assert.equal((await artist(db,'media_upload_read',[s])).preview.id,queued.asset_id);
+ const rev=await revision(db,s);await asActor(db,ids.b,()=>assert.rejects(invoke(db,'media_upload_submit',[s,rev,randomUUID()])));
+ for(const role of ['anon','authenticated','service_role']){const grant=(await db.query("select has_function_privilege($1,'submission_media.confirm_selected_preview(uuid)','EXECUTE') allowed",[role])).rows[0].allowed;assert.equal(grant,false);}
 }));

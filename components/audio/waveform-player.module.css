@@ -87,14 +87,14 @@
 .selectionHandle:last-child {right:0;}
 .selectionHandle::after {content:"";position:absolute;top:calc(50% - 15px);left:10px;width:3px;height:30px;border-radius:3px;background:hsl(var(--accent));}
 .recordingPlayhead {z-index:4;}
-.stageTimeline {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;font-size:11px;}
+.stageTimeline {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;font-size:11px;}
 .stageTimeline li {display:flex;gap:6px;align-items:flex-start;color:hsl(var(--muted-foreground));padding:8px 4px;border-top:2px solid hsl(var(--border));}
 .stageTimeline small {display:block;font-size:10px;margin-top:3px;}
 .stageTimeline li[data-state=completed],.stageTimeline li[data-state=active] {border-color:hsl(var(--accent));color:hsl(var(--foreground));}
 .stageTimeline li[data-state=active] {background:hsl(var(--accent) / .09);border-radius:0 0 6px 6px;font-weight:600;}
 .stageTimeline li[data-state=failed] {border-color:hsl(var(--destructive));color:hsl(var(--destructive));}
 .stageTimeline li[data-state=paused] {border-style:dashed;}
-@media(max-width:540px){.stageTimeline{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.stageTimeline li{font-size:10px;min-width:0;}}
+@media(max-width:540px){.stageTimeline{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.stageTimeline li{font-size:10px;min-width:0;}}
 
 /* A forgiving playhead hit target sits above even the region handles. */
 .recordingPlayhead {width:18px;transform:translateX(-9px);background:transparent;box-shadow:none;pointer-events:auto;touch-action:none;cursor:ew-resize;}

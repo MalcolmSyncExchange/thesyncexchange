@@ -11,10 +11,10 @@ import type {PreviewSaveStatus} from '@/lib/media/preview-autosave.mjs';
 import styles from './waveform-player.module.css';
 
 type Mode='full'|'selection'|'generated';
-type Props={submission:string;source:ArtistMediaAsset;waveformUrl:string;fallbackEnvelope?:Envelope;selection:{start_ms:number|null;end_ms:number|null};preview?:ArtistMediaAsset;readOnly?:boolean;disabled?:boolean;processingPaused?:boolean;initialStartMs?:number;onSelectionDirty?:(dirty:boolean)=>void;onRegionChange?:(source:string,start:number,end:number)=>void;saveStatus?:PreviewSaveStatus;onRetrySave?:()=>void;initialPosition?:number;onAccept:(asset:string)=>void};
+type Props={submission:string;source:ArtistMediaAsset;waveformUrl:string;fallbackEnvelope?:Envelope;selection:{start_ms:number|null;end_ms:number|null};preview?:ArtistMediaAsset;readOnly?:boolean;disabled?:boolean;processingPaused?:boolean;initialStartMs?:number;onSelectionDirty?:(dirty:boolean)=>void;onRegionChange?:(source:string,start:number,end:number)=>void;saveStatus?:PreviewSaveStatus;onRetrySave?:()=>void;initialPosition?:number};
 const stamp=(seconds:number,precise=false)=>{const n=Number.isFinite(seconds)?Math.max(0,seconds):0;return `${Math.floor(n/60)}:${(precise?(n%60).toFixed(3):String(Math.floor(n%60))).padStart(precise?6:2,'0')}`;};
 
-export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,selection,preview,readOnly=false,disabled=false,processingPaused=false,initialStartMs,onSelectionDirty,onRegionChange,saveStatus,onRetrySave,initialPosition=0,onAccept}:Props){
+export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,selection,preview,readOnly=false,disabled=false,processingPaused=false,initialStartMs,onSelectionDirty,onRegionChange,saveStatus,onRetrySave,initialPosition=0}:Props){
  const durationUs=source.duration_us!,duration=durationUs/1e6;
  const [start,setStart]=useState(()=>previewSelection(durationUs,initialStartMs??selection.start_ms??0).startMs);
  const [retainSaved,setRetainSaved]=useState(initialStartMs===undefined);
@@ -27,7 +27,7 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
  const serverCompatible=durationUs<15_000_000||region.endMs%100===0;
  const currentPreview=preview?.state==='ready'&&matchesSelection(preview,source.id,region)&&!dirty?preview:null;
  const audio=useRef<HTMLAudioElement>(null),modeRef=useRef<Mode>('full'),boundsRef=useRef(playbackBounds('full',durationUs,region));
- const [mode,setMode]=useState<Mode>('full'),[playing,setPlaying]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState(()=>Math.max(0,Math.min(duration,initialPosition))),[volume,setVolume]=useState(.72),[muted,setMuted]=useState(false),[heard,setHeard]=useState<string|null>(null);
+ const [mode,setMode]=useState<Mode>('full'),[playing,setPlaying]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(''),[position,setPosition]=useState(()=>Math.max(0,Math.min(duration,initialPosition))),[volume,setVolume]=useState(.72),[muted,setMuted]=useState(false);
  const session=useMemo(()=>privatePlaybackSession(submission,source.id),[submission,source.id]);
  const request=useRef(0),endTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
  const drag=useRef<{pointer:number;x:number;start:number;width:number;moved:boolean;handle:boolean}|null>(null),wave=useRef<HTMLDivElement>(null);
@@ -39,7 +39,7 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
  const update=useCallback(()=>{const a=audio.current;if(!a)return;const b=boundsRef.current;if(a.currentTime>=b.end){a.pause();if(a.currentTime>b.end)a.currentTime=b.end;}positionRef.current=Math.max(0,Math.min(duration,a.currentTime+b.offset));setPosition(positionRef.current);},[duration]);
  function scheduleEnd(){if(endTimer.current)clearTimeout(endTimer.current);const a=audio.current;if(a&&!a.paused)endTimer.current=setTimeout(()=>{if(audio.current){audio.current.pause();audio.current.currentTime=boundsRef.current.end;update();}},Math.max(0,(boundsRef.current.end-a.currentTime)*1000));}
  useEffect(()=>{if(pendingLocal.current){if(pendingLocal.current.start!==selection.start_ms||pendingLocal.current.end!==selection.end_ms)return;pendingLocal.current=null;}if(localOverride.current&&localOverride.current.start===selection.start_ms&&localOverride.current.end===selection.end_ms)return;localOverride.current=null;stop();playbackKey.current='';setRetainSaved(true);setStart(previewSelection(durationUs,selection.start_ms??0).startMs);},[durationUs,selection.start_ms,selection.end_ms]);
- useEffect(()=>{stop();playbackKey.current='';setHeard(null);},[preview?.id]);
+ useEffect(()=>{stop();playbackKey.current='';},[preview?.id]);
  useEffect(()=>{session.activate();const element=audio.current,generation=request,deadline=endTimer,capability=session;return()=>{++generation.current;element?.pause();element?.removeAttribute('src');element?.load();capability.dispose();if(deadline.current)clearTimeout(deadline.current);};},[session]);
  useEffect(()=>{const target=wave.current;if(!target||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(entries=>{if(document.visibilityState==='visible'&&entries.some(entry=>entry.isIntersecting)){session.warm();observer.disconnect();}},{threshold:.1});observer.observe(target);return()=>observer.disconnect();},[session]);
  useEffect(()=>{const hidden=()=>{if(document.hidden)stop();};document.addEventListener('visibilitychange',hidden);return()=>document.removeEventListener('visibilitychange',hidden);},[]);
@@ -67,7 +67,7 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
    if(a.getAttribute('src')!==url){a.src=url;a.load();}
    a.currentTime=seekTo===undefined&&at>=b.end?b.start:at;positionRef.current=a.currentTime+b.offset;setPosition(positionRef.current);
    if(!continuePlaying||seekTo!==undefined&&at>=b.end){setPlaying(false);setLoading(false);return;}
-   await a.play();if(token!==request.current)return;if(nextMode==='generated'&&currentPreview)setHeard(currentPreview.id);
+   await a.play();if(token!==request.current)return;
    scheduleEnd();
   }catch{if(token===request.current){a.pause();setPlaying(false);setLoading(false);session.clear();setError('Playback unavailable. Your browser may not support this original format, or access expired. Try again; generated AAC remains separate.');}}
  }
@@ -118,11 +118,12 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
   {error?<p role="alert" className={styles.status}>{error}</p>:null}
   <div className={styles.previewFooter}>
    <p className={styles.status}>Public Preview · {stamp(region.startMs/1000,true)}–{stamp(fullShort?duration:region.endMs/1000,true)} · {readOnly?'Saved region':saveStatus?.error?'Not saved':dirty||saveStatus?.dirty||saveStatus?.saving?'Saving position…':'Position saved'}</p>
+   {!readOnly?<p className={styles.status}>Choose the 30 seconds you want people to hear. Your selection saves automatically.</p>:null}
    {!readOnly&&saveStatus?.error?<div role="alert" className={styles.status}><p>{saveStatus.error} Your latest position is retained on this device.</p><button type="button" className={styles.modeButton} onClick={onRetrySave}>Retry saving position</button></div>:null}
    {!serverCompatible?<p role="status" className={styles.status}>Full-track playback is available. This short recording needs an exact-length preview update before it can be submitted.</p>:null}
    {currentPreview?<div className={styles.generated}>
     <button type="button" className={styles.modeButton} disabled={loading&&!active('generated')} aria-pressed={active('generated')} onClick={()=>void play('generated')}>{active('generated')?'Pause Public Preview':'Listen to Public Preview'}</button>
-    {currentPreview.accepted?<span className={styles.status}>Public Preview accepted</span>:!readOnly&&heard===currentPreview.id?<button type="button" className={styles.modeButton} disabled={disabled} onClick={()=>{stop();onAccept(currentPreview.id);}}>Accept Public Preview</button>:!readOnly?<span className={styles.status}>Listen before accepting</span>:null}
+
    </div>:!readOnly?<p role="status" className={styles.status}>{processingPaused?'Your recording is safe. Public Preview processing is waiting for available capacity.':dirty||saveStatus?.dirty?'Saving your position before preparing the Public Preview.':'Your Public Preview will be prepared automatically when you continue.'}</p>:null}
   </div>
  </section>;

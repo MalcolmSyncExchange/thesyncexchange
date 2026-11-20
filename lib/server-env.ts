@@ -298,7 +298,7 @@ export function assertStripeServerConfiguration(
 // This projection contains no keys; execution still uses the strict validator below.
 export function getPaymentDisplayConfiguration() {
   const diagnostics = getServerEnvironmentDiagnostics();
-  const checkoutAvailable = diagnostics.errors.length === 0 &&
+  const checkoutAvailable = (diagnostics.deploymentTarget !== "production" || process.env.SYNC_EXCHANGE_MARKETPLACE_CHECKOUT_ENABLED === "true") && diagnostics.errors.length === 0 &&
     (diagnostics.paymentMode === "test" || diagnostics.paymentMode === "live");
   return {
     paymentMode: diagnostics.paymentMode,

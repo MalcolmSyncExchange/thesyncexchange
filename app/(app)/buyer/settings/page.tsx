@@ -47,7 +47,8 @@ export default async function BuyerSettingsPage() {
       billingPortalEnabled={billingPortalEnabled}
       initialNotificationPreferences={notificationPreferences}
       initialTeamInvites={teamInvites}
-      invoices={invoices}
+      invoices={invoices.invoices}
+      invoiceStatus={invoices.status}
       legalOrders={mapLegalOrdersForSettings(orders)}
     />
   );

@@ -18,7 +18,7 @@ function compile(path) {
   }).outputText;
 }
 
-function loadGateServer({rpcHandler,stripeCreate,storage,receiptRenderer,runtime,appUrl='https://example.invalid'}={}) {
+function loadGateServer({rpcHandler,stripeCreate,storage,receiptRenderer,runtime,checkoutReleased=true,appUrl='https://example.invalid'}={}) {
   const loadedModule={exports:{}};
   const stripeCalls=[];
   const admin={
@@ -51,7 +51,7 @@ function loadGateServer({rpcHandler,stripeCreate,storage,receiptRenderer,runtime
     '@/services/supabase/admin':{createAdminSupabaseClient:()=>admin}
   };
   vm.runInNewContext(compile('../services/gate-d/server.ts'),{
-    module:loadedModule,exports:loadedModule.exports,Buffer,URL,console,require:name=>{
+    module:loadedModule,exports:loadedModule.exports,Buffer,URL,console,process:{env:{SYNC_EXCHANGE_MARKETPLACE_CHECKOUT_ENABLED:checkoutReleased?"true":"false"}},require:name=>{
       assert.ok(Object.hasOwn(stubs,name),`Unmocked dependency: ${name}`);return stubs[name];
     }
   });
@@ -364,3 +364,5 @@ test('receipt identity and MIME conflicts hold while readback transport remains 
   assert.equal(transient.calls.some(([name,args])=>name==='gate_d_finish_job' && args.p_error_code==='receipt_readback_retryable'),true);
   assert.equal(transient.calls.some(([name])=>name==='gate_d_apply_security_hold'),false);
 });
+
+test('Gate D provider creation also respects the closed production marketplace release gate',async()=>{const api=loadGateServer({checkoutReleased:false});await assert.rejects(api.createGateDStripeCheckout({}),/release checks/);assert.equal(api.stripeCalls.length,0);});

@@ -76,3 +76,8 @@ test('production TEST build validation refuses live keys and malformed opt-in be
     const result=validate(patch);assert.equal(result.status,1);assert.match(result.stderr,/Production testing requires/);
   }
 });
+test('production Checkout display gate defaults closed and accepts only explicit true without disabling webhook runtime',()=>{
+ for(const value of [undefined,'false','TRUE',' true ','yes']){const h=harness({SYNC_EXCHANGE_MARKETPLACE_CHECKOUT_ENABLED:value});assert.equal(h.server.getPaymentDisplayConfiguration().checkoutAvailable,false);assert.equal(h.server.getPaymentRuntimeConfiguration().paymentMode,'test');}
+ assert.equal(harness({SYNC_EXCHANGE_MARKETPLACE_CHECKOUT_ENABLED:'true'}).server.getPaymentDisplayConfiguration().checkoutAvailable,true);
+ assert.equal(harness({},'preview').server.getPaymentDisplayConfiguration().checkoutAvailable,true);
+});

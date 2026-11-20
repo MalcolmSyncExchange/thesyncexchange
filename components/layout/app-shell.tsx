@@ -19,7 +19,8 @@ const navByRole: Record<UserRole, Array<{ href: string; label: string }>> = {
     { href: "/artist/submit", label: "Submit Music" },
     { href: "/artist/catalog", label: "My Catalog" },
     { href: "/artist/rights-holders", label: "Rights" },
-    { href: "/artist/payout-settings", label: "Payouts" },
+    { href: "/artist/earnings", label: "Finances" },
+    { href: "/artist/payout-settings", label: "Payout Settings" },
     { href: "/account/security", label: "Account Security" },
     { href: "/artist/profile", label: "Profile" }
   ],
@@ -28,6 +29,7 @@ const navByRole: Record<UserRole, Array<{ href: string; label: string }>> = {
     { href: "/buyer/catalog", label: "Catalog" },
     { href: "/buyer/favorites", label: "Favorites" },
     { href: "/buyer/orders", label: "Orders" },
+    { href: "/buyer/billing", label: "Billing" },
     { href: "/buyer/settings", label: "Settings" },
     { href: "/account/security", label: "Account Security" }
   ],
@@ -37,6 +39,7 @@ const navByRole: Record<UserRole, Array<{ href: string; label: string }>> = {
     { href: "/admin/users", label: "Users" },
     { href: "/admin/tracks", label: "Tracks" },
     { href: "/admin/orders", label: "Orders" },
+    { href: "/admin/accounting", label: "Finances" },
     { href: "/admin/compliance", label: "Compliance" },
     { href: "/admin/analytics", label: "SEC Intelligence" }
   ]

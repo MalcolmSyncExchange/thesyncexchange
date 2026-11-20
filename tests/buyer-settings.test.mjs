@@ -200,7 +200,7 @@ test("Stripe invoice mapping keeps receipt data server-safe and user-readable", 
       amount_paid: 12900,
       currency: "usd",
       status: "paid",
-      hosted_invoice_url: "https://invoice.stripe.test/in_123"
+      hosted_invoice_url: "https://invoice.stripe.com/in_123"
     }),
     {
       id: "in_123",
@@ -208,7 +208,7 @@ test("Stripe invoice mapping keeps receipt data server-safe and user-readable", 
       amountCents: 12900,
       currency: "USD",
       status: "paid",
-      url: "https://invoice.stripe.test/in_123"
+      url: "https://invoice.stripe.com/in_123"
     }
   );
 });
@@ -287,4 +287,9 @@ test("legal settings only surface completed orders with agreement links", () => 
       }
     ]
   );
+});
+
+test("invoice links and amounts fail closed without executable or untrusted URLs",()=>{
+ for(const url of ['javascript:alert(1)','https://invoice.stripe.com.evil.invalid/receipt','https://user:secret@invoice.stripe.com/receipt','http://invoice.stripe.com/receipt']) assert.equal(mapStripeInvoice({id:'in_fixture',created:1777584000,amount_paid:100,currency:'usd',hosted_invoice_url:url}).url,null);
+ for(const amount of [NaN,Infinity,-1,0.5,9007199254740992]) assert.throws(()=>mapStripeInvoice({id:'in_fixture',created:1777584000,amount_paid:amount,currency:'usd'}));
 });

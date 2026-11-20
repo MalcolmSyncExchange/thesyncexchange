@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     if (scope.data.status !== "pending") throw new PaymentError(409, "CHECK_PURCHASE_STATUS");
     try { assertStripeServerConfiguration("Stripe checkout API", { requireWebhook: true }); } catch { throw new PaymentError(503,"CHECKOUT_UNAVAILABLE"); }
     const paymentRuntime = getPaymentRuntimeConfiguration();
+    if (paymentRuntime.deploymentTarget === "production" && process.env.SYNC_EXCHANGE_MARKETPLACE_CHECKOUT_ENABLED !== "true") throw new PaymentError(503, "CHECKOUT_RELEASE_GATE_CLOSED");
     const stripe_checkout_session_id = scope.data.stripe_checkout_session_id;
     const storedSessionMode = stripe_checkout_session_id ? getStripeCheckoutSessionMode(stripe_checkout_session_id) : null;
     if (stripe_checkout_session_id && storedSessionMode !== paymentRuntime.paymentMode) throw new PaymentError(409, "PAYMENT_ENVIRONMENT_MISMATCH");

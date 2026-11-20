@@ -305,13 +305,20 @@ export function mapStripeInvoice(invoice: {
   hosted_invoice_url?: string | null;
   invoice_pdf?: string | null;
 }) {
+  const amount = invoice.amount_paid ?? invoice.amount_due ?? 0;
+  if (!Number.isSafeInteger(amount) || amount < 0 || !Number.isSafeInteger(invoice.created) || !/^[a-zA-Z]{3}$/.test(invoice.currency || "")) throw new Error("Invalid invoice evidence.");
+  const candidateUrl = invoice.hosted_invoice_url || invoice.invoice_pdf;
+  let safeUrl: string | null = null;
+  if (candidateUrl) {
+    try { const parsed = new URL(candidateUrl); if (parsed.protocol === "https:" && !parsed.username && !parsed.password && ["invoice.stripe.com", "pay.stripe.com", "payments.stripe.com", "files.stripe.com"].includes(parsed.hostname)) safeUrl = candidateUrl; } catch { /* Invalid provider link is not rendered. */ }
+  }
   return {
     id: invoice.id,
     date: new Date(invoice.created * 1000).toISOString(),
-    amountCents: Number(invoice.amount_paid ?? invoice.amount_due ?? 0),
+    amountCents: amount,
     currency: String(invoice.currency || "usd").toUpperCase(),
     status: invoice.status || "unknown",
-    url: invoice.hosted_invoice_url || invoice.invoice_pdf || null
+    url: safeUrl
   };
 }
 

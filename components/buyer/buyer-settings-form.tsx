@@ -2,6 +2,7 @@
 
 import { isValidNewPassword, PASSWORD_REQUIREMENTS_MESSAGE } from "@/services/auth/security";
 import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
+import { formatMinor } from "@/lib/finance/accounting.mjs";
 import Link from "next/link";
 import surface from "@/components/layout/sync-surface.module.css";
 import { FormEvent, useMemo, useState } from "react";
@@ -33,6 +34,7 @@ type BuyerSettingsFormProps = {
   initialNotificationPreferences?: BuyerNotificationPreferences;
   initialTeamInvites?: TeamInvite[];
   invoices?: InvoiceSummary[];
+  invoiceStatus?: "available" | "unavailable";
   legalOrders?: LegalOrder[];
 };
 
@@ -69,6 +71,7 @@ export function BuyerSettingsForm({
   initialNotificationPreferences = defaultBuyerNotificationPreferences,
   initialTeamInvites = [],
   invoices = [],
+  invoiceStatus = "available",
   legalOrders = []
 }: BuyerSettingsFormProps) {
   const [profileBaseline, setProfileBaseline] = useState(() =>
@@ -442,7 +445,7 @@ export function BuyerSettingsForm({
               <p className="text-sm font-medium">Invoices And Receipts</p>
               <p className="mt-1 text-sm text-muted-foreground">Recent Stripe invoices and receipts for this buyer account.</p>
             </div>
-            {invoices.length > 0 ? (
+            {invoiceStatus === "unavailable" ? <p role="status" className="rounded-lg border border-border p-4">Invoice history is temporarily unavailable. Your other settings remain available. Try again later.</p> : invoices.length > 0 ? (
               <div className="divide-y divide-border rounded-lg border border-border">
                 {invoices.map((invoice) => (
                   <div key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
@@ -678,10 +681,7 @@ export function BuyerSettingsForm({
 }
 
 function formatMoney(amountCents: number, currency: string) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: currency || "USD"
-  }).format(amountCents / 100);
+  return formatMinor(String(amountCents), currency);
 }
 
 function formatDate(value: string) {

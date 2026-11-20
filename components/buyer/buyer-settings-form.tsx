@@ -2,7 +2,7 @@
 
 import { isValidNewPassword, PASSWORD_REQUIREMENTS_MESSAGE } from "@/services/auth/security";
 import { AgreementDownloadForm } from "@/components/orders/agreement-download-form";
-import { formatMinor } from "@/lib/finance/accounting.mjs";
+import { formatStripeInvoiceMinor } from "@/lib/finance/stripe-money";
 import Link from "next/link";
 import surface from "@/components/layout/sync-surface.module.css";
 import { FormEvent, useMemo, useState } from "react";
@@ -681,7 +681,7 @@ export function BuyerSettingsForm({
 }
 
 function formatMoney(amountCents: number, currency: string) {
-  return formatMinor(String(amountCents), currency);
+  return formatStripeInvoiceMinor(amountCents, currency);
 }
 
 function formatDate(value: string) {

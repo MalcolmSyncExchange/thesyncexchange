@@ -1,3 +1,4 @@
+import { formatStripeInvoiceMinor } from "../lib/finance/stripe-money.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -43,3 +44,5 @@ test('actual report service checks role before RPC and never converts permission
 test('subscription screen has no activation or misleading verified-subscription state',()=>{
  const source=readFileSync(new URL('../components/finance/subscription-status.tsx',import.meta.url),'utf8');assert.match(source,/USD 19.99/);assert.match(source,/USD 49.99/);assert.match(source,/Recurring billing is unavailable/);assert.doesNotMatch(source,/<form|<button|checkout\.sessions|subscriptions\.create/);
 });
+
+test('Stripe invoice currency exceptions do not inherit the wrong ISO exponent',()=>{for(const [currency,amount,expected] of [['JPY',1200,'JPY 1,200'],['USD',1200,'USD 12.00'],['KWD',1200,'KWD 1.200'],['ISK',500,'ISK 5'],['UGX',500,'UGX 5']]) assert.equal(formatStripeInvoiceMinor(amount,currency),expected);for(const currency of ['ISK','UGX'])assert.throws(()=>formatStripeInvoiceMinor(501,currency));});

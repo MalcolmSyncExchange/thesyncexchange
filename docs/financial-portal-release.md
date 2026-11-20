@@ -31,7 +31,7 @@ recurring prices (complete list, `has_more=false`). Live Stripe was not queried.
   billing details, and displays invoices separately. Provider outages are visible
   and never rendered as empty invoice history. Unexpected authentication, database,
   session, ownership, and mapping errors remain failures with safe diagnostics.
-- Invoice money respects currency exponents and safe integer amounts. Receipt
+- Invoice money respects currency exponents, Stripe ISK/UGX API exceptions, and safe integer amounts. Receipt
   links require HTTPS and an allowlisted Stripe hostname without URL credentials.
 - THE SEC accounting links to failures, disputes, financial discrepancies,
   subscription oversight, transaction journals, and retained audit history.

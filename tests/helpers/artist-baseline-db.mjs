@@ -52,11 +52,13 @@ export async function database(target='repository', {seed=true,throughMigration=
  if (!['repository','pr27','historical-repository','production','staging'].includes(target)) throw Error('Unknown captured baseline');
  const availableMigrations=readdirSync(new URL('supabase/migrations/',root)).filter(x=>x.endsWith('.sql'));
  if(throughMigration!==null&&!availableMigrations.includes(throughMigration))throw Error('Unknown migration cutoff');
- const db=new PGlite();
+ const db=new PGlite();let rightsRestored=false;
+ async function restoreRetainedRights(){if(rightsRestored)return;const targetSchema=JSON.parse(source('docs/audio-reconstruction/production-schema-evidence.json'));await db.exec('create role media_broker_production_login nologin');await db.exec(targetSchema.functions.find(f=>f.schema==='submission_media'&&f.name==='vm_audit_immutable').definition);for(const name of ['20261029023407_artist_master_ownership_rows.sql','20261029032813_artist_structured_rights_and_agreements.sql'])await db.exec(source('tests/fixtures/production-rights/'+name));rightsRestored=true;}
  try {
   await db.exec(`${fixtureBootstrapSql}\n${pgliteDigestFixtureSql}`);
   for(const file of availableMigrations.filter(x=>(throughMigration===null||x<=throughMigration) &&
    (target==='repository' || (target==='pr27' && x<'20261002045900_purchase_completion_foundation.sql') || /^00/.test(x))).sort()) {
+   if(target==='repository'&&file==='20261120185517_guided_rights_submission_confirmation.sql')await restoreRetainedRights();
    // Only extension installation is omitted; function names/bodies are unchanged.
    const sql=adaptMigrationForPGlite(source(`supabase/migrations/${file}`));
    try { await db.exec(sql); } catch(error) { throw Error(`Repository migration ${file}: ${error.message}`,{cause:error}); }
@@ -64,12 +66,11 @@ export async function database(target='repository', {seed=true,throughMigration=
   if(target==='repository') {
    // Restore the already-installed production rights contract only in the local
    // database fixture. These historical DDL files are not pending migrations.
-   const targetSchema=JSON.parse(source('docs/audio-reconstruction/production-schema-evidence.json'));
-   await db.exec('create role media_broker_production_login nologin');
-   await db.exec(targetSchema.functions.find(f=>f.schema==='submission_media'&&f.name==='vm_audit_immutable').definition);
-   for(const name of ['20261029023407_artist_master_ownership_rows.sql','20261029032813_artist_structured_rights_and_agreements.sql'])await db.exec(source('tests/fixtures/production-rights/'+name));
+   await restoreRetainedRights();
    if(throughMigration===null||throughMigration>='20261119193818_submission_workflow_repair.sql')await db.exec(source('supabase/migrations/20261119193818_submission_workflow_repair.sql'));
+   if(throughMigration===null||throughMigration>='20261119222415_upload_first_optional_tempo.sql')await db.exec(source('supabase/migrations/20261119222415_upload_first_optional_tempo.sql'));
    if(throughMigration===null||throughMigration>='20261120055242_automatic_public_preview_submission.sql')await db.exec(source('supabase/migrations/20261120055242_automatic_public_preview_submission.sql'));
+   if(throughMigration===null||throughMigration>='20261120185517_guided_rights_submission_confirmation.sql')await db.exec(source('supabase/migrations/20261120185517_guided_rights_submission_confirmation.sql'));
   }
   if(['production','staging'].includes(target)) await applyCapturedAuthorization(db,snapshot(target));
   if(seed) await seedDatabase(db);

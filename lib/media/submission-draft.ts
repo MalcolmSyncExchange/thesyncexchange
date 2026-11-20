@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { structuredRightsShape, structuredRightsMissing, blankAuthority } from './submission-rights.ts';
+import { structuredRightsShape, structuredRightsIssues, blankAuthority } from './submission-rights.ts';
 const text = (max=200) => z.string().max(max).refine(v=>!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v),'Use readable text.');
 export const submissionDraftSchema=z.object({
  ...structuredRightsShape,
@@ -25,10 +25,7 @@ export function submissionIssues(v:SubmissionDraft):SubmissionIssue[]{const out:
  if(!/^\d{4}$/.test(v.releaseYear)||Number(v.releaseYear)<1950||Number(v.releaseYear)>2030)add('releaseYear',1,'Release year: enter a year between 1950 and 2030.');
  if(v.releaseStatus==='released'&&(!/^\d{4}-\d{2}-\d{2}$/.test(v.releaseDate)||!Number.isFinite(Date.parse(v.releaseDate))||new Date(v.releaseDate).toISOString().slice(0,10)!==v.releaseDate||v.releaseDate.slice(0,4)!==v.releaseYear))add('releaseDate',1,'Release date: enter a valid date matching the release year.');
  v.contributors.forEach((c,i)=>{if(!c.name.trim())add('contributors',1,`Contributor ${i+1}: enter a credit name or remove the empty entry.`);});
- for(const pool of ['masterOwners','publishingOwners'] as const)v[pool].forEach((owner,i)=>{if(!owner.name.trim())add(`${pool}.${i}.name`,2,`${pool==='masterOwners'?'Master':'Publishing'} owner ${i+1}: enter the legal owner name.`);if(!owner.percentage.trim())add(`${pool}.${i}.percentage`,2,`Owner ${i+1}: enter the ownership percentage.`);});
- if(v.authority.mode==='unknown')add('authority.mode',2,'Licensing authority: choose Owners or Representative.');
- if(v.authority.mode==='representative')for(const [field,label] of Object.entries({legalName:'Legal name',capacity:'Representative capacity',email:'Contact email',jurisdiction:'Jurisdiction',address:'Address',representedOwners:'Represented owners',rights:'Authorized rights',uses:'Authorized uses',territories:'Authorized territories',validFrom:'Valid from',exclusivity:'Exclusivity',documentId:'Private authorization document'})){const val=v.authority[field as keyof typeof v.authority];if(!val.trim()||val==='unknown')add('authority.'+field,2,`Representative ${label}: required for this authority claim.`);}
- for(const message of structuredRightsMissing(v))add(message.startsWith('Master')?'masterOwners':message.startsWith('Publishing')?'publishingOwners':message.includes('authority')?'authority':message.includes('sample')?'samples':message.includes('claims')?'claims':'agreements',2,message);
+ for(const issue of structuredRightsIssues(v))add(issue.field,2,issue.message);
  if(!v.rightsDeclared)add('rightsDeclared',2,'Rights declaration: confirm the ownership and authority disclosures.');
  if(!v.licenseCategories.length)add('licenseCategories',2,'License categories: choose at least one.');
  if(!v.permittedUses.trim())add('permittedUses',2,'Permitted uses: describe the uses offered for review.');

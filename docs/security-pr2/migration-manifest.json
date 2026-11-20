@@ -349,6 +349,10 @@
     {
       "file": "20261120055242_automatic_public_preview_submission.sql",
       "sha256": "7e26b9c27ef023546040c202618c4236dc2efd550adcf8fa1405a531f4d5fbdc"
+    },
+    {
+      "file": "20261120185517_guided_rights_submission_confirmation.sql",
+      "sha256": "136d481525d5f5006139bb9f5e346795649e843fcae0fed17f9508398f5917d4"
     }
   ],
   "storageBuckets": {

@@ -23,6 +23,7 @@ const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("read"),submission:base.submission,admin:z.boolean().optional()}).strict(),
  z.object({action:z.literal("documents"),submission:base.submission,admin:z.boolean().optional()}).strict(),
  z.object({action:z.literal("reserve_document"),submission:base.submission,kind:z.enum(['authority','sample','agreement']),filename:z.string().min(5).max(255).regex(/^[^/\\\x00-\x1f\x7f]+[.]pdf$/i),bytes:z.number().int().min(16).max(3_000_000),key:base.key}).strict(),
+ z.object({action:z.literal("personal_moods"),operation:z.enum(["list","save","remove"]),label:z.string().min(1).max(80).optional()}).strict(),
  z.object({action:z.literal("list")}).strict(),
  z.object({action:z.literal("list_deleted")}).strict(),
  z.object({action:z.literal("delete_draft"),submission:base.submission,revision:base.revision}).strict(),
@@ -43,6 +44,7 @@ const schema=z.discriminatedUnion("action",[
  z.object({action:z.literal("submit"),...base}).strict()
 ]);
 export async function performMediaRequest(input:unknown){const p=schema.parse(input);const {client,user}=await mediaActor((p.action==="read"||p.action==="documents")&&p.admin===true);if(p.action==="reserve"){const admission=await consumeRateLimit("upload",user.id);if(admission.status!=="allowed")throw new UploadError(429,"UPLOAD_RATE_LIMIT");}
+ if(p.action==='personal_moods')return mediaRpc<string[]>(client,'media_personal_moods',{p_action:p.operation,p_label:p.label||null});
  if(p.action==='delete_draft')return mediaRpc(client,'media_submission_delete',{p_submission:p.submission,p_revision:p.revision});
  if(p.action==='restore_draft')return mediaRpc(client,'media_submission_restore',{p_submission:p.submission});
  if(p.action==='list'||p.action==='list_deleted'){const rows=await mediaRpc<{deleted?:boolean}[]>(client,p.action==='list_deleted'?'media_deleted_draft_list':'media_upload_list');return rows.filter(row=>Boolean(row.deleted)===(p.action==='list_deleted'));}

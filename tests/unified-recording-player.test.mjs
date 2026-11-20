@@ -43,7 +43,8 @@ test('existing accepted regions survive load/reset; a deliberate edit switches t
 test('one full waveform and native audio engine preserve security, cancellation and keyboard controls',()=>{
  const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
  assert.equal((ui.match(/<ValidatedWaveform /g)||[]).length,1);assert.equal((ui.match(/<audio /g)||[]).length,1);
- for(const text of ['Play Full Track','Play Public Preview','Listen to Public Preview','Accept Public Preview','Preview region start','Waveform timeline','onKeyDown={timelineKey}','onKeyDown={regionKey}','Recording playback position','onPointerCancel','onLostPointerCapture','setPointerCapture','clearTimeout(endTimer.current)','prefers-reduced-motion','heard===currentPreview.id','!dirty','onSelectionDirty','onRegionChange'])assert.ok(ui.includes(text),text);
+ for(const text of ['Play Full Track','Play Public Preview','Listen to Public Preview','Preview region start','Waveform timeline','onKeyDown={timelineKey}','onKeyDown={regionKey}','Recording playback position','onPointerCancel','onLostPointerCapture','setPointerCapture','clearTimeout(endTimer.current)','prefers-reduced-motion','!dirty','onSelectionDirty','onRegionChange'])assert.ok(ui.includes(text),text);
+ assert.doesNotMatch(ui,/>Accept Public Preview</);assert.match(ui,/Your selection saves automatically/);
  assert.match(ui,/new IntersectionObserver/);assert.match(ui,/observer.disconnect/);assert.match(ui,/document.visibilityState==='visible'/);
  assert.match(ui,/onPointerEnter=\{session.warm\}/);assert.match(ui,/url=await session.get\(\)/);
  // Signed Storage ranges may use application/octet-stream; CORS media loading

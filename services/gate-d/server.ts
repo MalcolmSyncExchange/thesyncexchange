@@ -236,6 +236,7 @@ export async function prepareGateDCheckout(reservation: GateDReservation) {
 }
 
 export async function createGateDStripeCheckout(prepared: GateDPreparedCheckout) {
+  if (getDeploymentTarget() === "production" && process.env.SYNC_EXCHANGE_MARKETPLACE_CHECKOUT_ENABLED !== "true") throw new Error("Marketplace Checkout is unavailable until its release checks are approved.");
   requireGateDRuntime();
   const request = verifyCheckoutSpecification(prepared);
   const stripe = getStripeServerClient();

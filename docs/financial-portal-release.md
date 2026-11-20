@@ -43,7 +43,8 @@ recurring prices (complete list, `has_more=false`). Live Stripe was not queried.
 
 ## Execution gates
 
-Production Checkout creation and its UI default closed unless the server-only
+Production Checkout creation (API, shared legacy creator and Gate D acceptance)
+and its UI default closed unless the server-only
 `SYNC_EXCHANGE_MARKETPLACE_CHECKOUT_ENABLED` is exactly `true`. This flag is an
 additional gate, not evidence that other release checks have passed. Do not set it
 without separate payment release approval. Existing verified webhook delivery and

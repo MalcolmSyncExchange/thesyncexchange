@@ -87,13 +87,13 @@ export async function createStripeCheckoutSession({
   trackId?: string;
   licenseTypeId?: string;
 }) {
+  const payment = getPaymentRuntimeConfiguration();
+  if (payment.deploymentTarget === "production" && process.env.SYNC_EXCHANGE_MARKETPLACE_CHECKOUT_ENABLED !== "true") throw new Error("Marketplace Checkout is unavailable until its release checks are approved.");
   assertStripeServerConfiguration("Stripe checkout", { requireWebhook: true });
   const stripe = getStripeServerClient();
   if (!stripe) {
     throw new Error("Stripe secret key is not configured.");
   }
-
-  const payment = getPaymentRuntimeConfiguration();
   const paymentMetadata = {
     paymentMode: payment.paymentMode,
     releaseMode: payment.releaseMode,

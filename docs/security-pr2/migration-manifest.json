@@ -341,6 +341,10 @@
     {
       "file": "20261119222415_upload_first_optional_tempo.sql",
       "sha256": "7430a1119d0fd740c92feeadaf17d1ff2e09b8fbe4e4a34371b7db6331034b86"
+    },
+    {
+      "file": "20261120043522_personal_artist_mood_library.sql",
+      "sha256": "95f5350b278b084ad90ccb5384df1f6b20184feb8c372dd2c1942dca9cef01a3"
     }
   ],
   "storageBuckets": {

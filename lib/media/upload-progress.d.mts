@@ -10,3 +10,5 @@ export function readinessActions(state:UploadState):string[];
 export function processingPollDelay(state:import('./upload-contract').UploadState|null,failures?:number):number;
 
 export function previewGenerationNeeded(state:UploadState):boolean;
+
+export function uploadDisplay(state:UploadState|null,options?:{hasLocal?:boolean;selectedAsset?:string|null;busy?:boolean;transferring?:boolean;paused?:boolean;transferIsMaster?:boolean}):{stored:boolean;localPending:boolean;selectionOnly:boolean;transferVisible:boolean;preliminary:boolean;unboundLocal:boolean};

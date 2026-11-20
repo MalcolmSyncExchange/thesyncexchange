@@ -10,4 +10,4 @@ export const audioVersions=[['master','Main Recording'],['instrumental','Instrum
 
 export function tempoSuggestion(current:string,manual:boolean,lastAuto:string|null,bpm?:number){return !manual&&(!current||current===lastAuto)&&typeof bpm==='number'&&Number.isInteger(bpm)&&bpm>=40&&bpm<=220?String(bpm):null;}
 
-export type AudioAnalysis={bpm?:number;alternatives?:number[];reason?:string;durationUs?:number;sampleRate?:number;channels?:number;bits?:number;moods?:string[]};
+export type AudioAnalysis={confidenceLabel?:string;confidence?:number;bpm?:number;alternatives?:number[];reason?:string;durationUs?:number;sampleRate?:number;channels?:number;bits?:number;moods?:string[]};

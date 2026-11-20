@@ -1,7 +1,7 @@
 import { z } from 'zod';
 const text=(max:number)=>z.string().max(max).refine(v=>!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v),'Use readable text.');
 const documentId=z.union([z.literal(''),z.string().uuid()]);
-export const ownerSchema=z.object({name:text(200),percentage:text(6)}).strict();
+export const ownerSchema=z.object({name:text(200),percentage:text(6),email:text(254).optional()}).strict();
 export const authoritySchema=z.object({mode:z.enum(['unknown','owners','representative']),legalName:text(200),company:text(200),capacity:text(100),email:text(254),jurisdiction:text(100),address:text(500),representedOwners:text(1000),rights:z.enum(['unknown','master','publishing','both']),uses:text(1000),territories:text(500),validFrom:text(10),validUntil:text(10),exclusivity:z.enum(['unknown','nonexclusive','exclusive','both']),restrictions:text(2000),documentId}).strict();
 export const sampleSchema=z.object({title:text(200),artist:text(200),identifier:text(100),use:z.enum(['unknown','recording','interpolation']),masterOwner:text(200),publisher:text(200),sourceStart:text(10),sourceEnd:text(10),trackStart:text(10),trackEnd:text(10),description:text(1000),clearance:z.enum(['unknown','pending','claimed_cleared']),documentId}).strict();
 export const claimSchema=z.object({claimant:text(200),kind:z.enum(['unknown','ownership','copyright','exclusivity','other']),reference:text(200),details:text(2000),status:z.enum(['unknown','open','claimed_resolved']),resolution:text(1000)}).strict();

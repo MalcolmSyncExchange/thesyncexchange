@@ -9,13 +9,14 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import {catalogMetadataSchema,catalogMissing,catalogStates,creditRoles,blockerLabels,type CatalogMetadata,type CatalogState,type CatalogQueue,type CatalogDecision,type CatalogVersion,type CatalogEvent} from '@/lib/catalog/contract';
 type Pending={key:string;action:string};
 const friendly=(code:string)=>code==='DUPLICATE_RECORDING'?'This recording already has a catalog record. Reuse the existing record or ask THE SEC to investigate its identity.':code==='STALE_REVISION'?'This catalog changed in another session. Reload the saved metadata before retrying.':code==='ACCESS_DENIED'?'This action is unavailable. Check current rights, approved media, publication state and your access.':code==='CHECK_REQUIRED_FIELDS'?'Check the metadata, review explanation and required fields. Recording identity corrections require artist resubmission.':code==='UPLOAD_LIMIT'?'The operation limit has been reached. Try again later.':'Catalog service unavailable. Recover the interrupted operation before retrying.';
-export function CatalogWorkbench({ track, admin = false, initialFilter = '', queueContext, onQueueChange, returnHref }: {
+export function CatalogWorkbench({ track, admin = false, initialFilter = '', queueContext, onQueueChange, returnHref, returnLabel = 'Back to Catalog Reviews' }: {
  track?: string;
  admin?: boolean;
  initialFilter?: '' | 'submitted';
  queueContext?: CatalogQueueContext;
  onQueueChange?: (context: CatalogQueueContext) => void;
  returnHref?: string;
+ returnLabel?: string;
 }) {
  const [state,setState]=useState<CatalogState|null>(null),[localFilter,setFilter]=useState<string>(initialFilter),[localPage,setPage]=useState(1),[draft,setDraft]=useState<CatalogMetadata|null>(null),[note,setNote]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState(''),[pending,setPending]=useState<Pending|null>(null);
  const [queueResult,setQueueResult]=useState<{key:string;data:CatalogQueue|null;status:'loading'|'success'|'error'|'denied'}>({key:'',data:null,status:'loading'});
@@ -112,7 +113,7 @@ export function CatalogWorkbench({ track, admin = false, initialFilter = '', que
 
  const readOnlyMetadata = admin && state && state.state !== 'submitted';
  return <div className={admin && track ? 'mx-auto w-full min-w-0 max-w-[1400px] space-y-6' : 'space-y-6 min-w-0'}>
-  {returnHref && <Button asChild variant="outline" size="lg"><Link href={returnHref}>Back to Catalog Reviews</Link></Button>}
+  {returnHref && <Button asChild variant="outline" size="lg"><Link href={returnHref}>{returnLabel}</Link></Button>}
   <div><h1 className="break-words text-3xl font-semibold">{admin?(state?.title || 'Catalog review & publication'):'Catalog metadata & publication'}</h1><p className="mt-2 text-muted-foreground">Rights review, media approval and catalog publication are separate decisions. Historical licenses keep their original evidence.</p></div>
   {error?<p role="alert" className="rounded-md border border-destructive p-3 text-destructive break-words">{error}</p>:null}<p role="status" aria-live="polite">{!track?(queueBusy?(queue?'Refreshing catalog results…':'Loading catalog…'):queueStatus==='success'?`${queue?.total||0} catalog record${queue?.total===1?'':'s'} loaded.`:''):busy?'Loading catalog…':message}</p>
   {admin && track && reloadFailed && <Button type="button" variant="outline" size="lg" disabled={busy} onClick={reloadDetail}>Retry loading metadata</Button>}

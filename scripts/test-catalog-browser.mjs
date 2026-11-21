@@ -1,5 +1,5 @@
 // Real production Next + Supabase SDK, synthetic loopback Auth/Storage and actual migration SQL/RLS and native worker.
-import {verifyCatalogQueue,verifyDetailReload,verifyTrackQueueOutage} from '../tests/helpers/catalog-queue-browser.mjs';
+import {verifyCatalogQueue,verifyDetailReload,verifyTrackQueueOutage,verifyTrackDecision} from '../tests/helpers/catalog-queue-browser.mjs';
 import {startCatalogFixture,anonKey,serviceKey} from '../tests/helpers/catalog-provider-fixture.mjs';
 import {chromium,firefox,webkit,expect} from '@playwright/test';
 
@@ -71,6 +71,9 @@ try{
   await check(name+': rights revocation removes published search immediately and preserves complete metadata review history',async()=>{await fixture.revokeRights();const r=await page.request.post(origin+'/api/catalog',{headers:{origin},data:{action:'search',filters:{}}});assert.equal((await r.json()).total,0);assert.equal((await state()).state,'published');assert.equal((await fixture.query('select count(*)::int n from catalog_private.versions')).rows[0].n,2);await login(page,'artist@fixture.invalid');await page.waitForURL(/\/artist\//);await page.goto(artistUrl);await expect(page.getByText('Current verified master and publishing authority is required.',{exact:true})).toBeVisible();});
   await check(name+': Artist catalog queue filters publication state and has an honest empty state',async()=>{await page.goto(origin+'/artist/catalog/manage');await page.getByLabel('Review status',{exact:true}).selectOption('submitted');await expect(page.getByText('No catalog records match this status.',{exact:true})).toBeVisible();await page.getByLabel('Review status',{exact:true}).selectOption('published');await expect(page.getByRole('link',{name:'Synthetic Catalog Recording',exact:true})).toBeVisible();await page.getByRole('link',{name:'Synthetic Catalog Recording',exact:true}).click();await expect(page.getByLabel('Track title',{exact:true})).toHaveValue('Synthetic Catalog Recording');});
   await check(name+': responsive catalog forms have associated labels and keyboard focus without horizontal overflow',async()=>{await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);for(const control of await page.getByRole('form',{name:'Artist catalog metadata'}).locator('input,select,textarea').all()){assert.ok(await control.evaluate(e=>!!e.closest('label')||!!document.querySelector('label[for="'+e.id+'"]')));}await page.getByLabel('Track title',{exact:true}).focus();await expect(page.getByLabel('Track title',{exact:true})).toBeFocused();await page.keyboard.press('Tab');await page.screenshot({path:path.join(output,name+'-artist-catalog-mobile.png'),fullPage:true});await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:path.join(output,name+'-artist-catalog-desktop.png'),fullPage:true});});
+  await check(name+': track decision feedback, real ownership guard and expired sessions',async()=>{
+   await login(page,'admin@fixture.invalid');await mfa();await verifyTrackDecision({page,origin,output,name,fixture});
+  });
   await context.close();await browser.close();browser=null;result.browsers.push({name,status:'PASS'});
  }
  assert.ok(result.browsers.some(x=>x.status==='PASS'));assert.deepEqual(result.errors,[]);result.status='PASS';

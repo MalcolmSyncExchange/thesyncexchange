@@ -4,8 +4,10 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, ShieldAlert, SlidersHorizontal, UserCheck } from "lucide-react";
 
 import { RetryTrackSubmissions } from "@/components/admin/retry-track-submissions";
+import { ReviewQueuePosition } from "@/components/admin/review-queue-position";
 import { ReviewQueueCard } from "@/components/admin/review-queue-card";
 import { AdminCatalogReviewQueue, ReviewQueueNavigation } from "@/components/admin/review-queue-navigation";
+import { TrackQueueDecisionFeedback } from "@/components/admin/track-review-actions";
 import styles from "@/components/admin-v2/operations.module.css";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +27,7 @@ export default async function ReviewQueuePage({
       <header className={styles.pageHeader}>
         <div>
           <p className={styles.kicker}>Admin Operations</p>
-          <h1>Review Queue</h1>
+          <h1 id="review-queue-heading" tabIndex={-1}>Review Queue</h1>
           <p>Review incoming track submissions and submitted catalog metadata.</p>
         </div>
       </header>
@@ -40,6 +42,7 @@ async function TrackSubmissions({ context }: { context: CatalogQueueContext }) {
   if (result.status === "unavailable") {
     return (
       <Card className="min-w-0">
+        <ReviewQueuePosition canCheckRecord={false} />
         <CardHeader>
           <div className="flex items-start gap-3" role="alert">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />
@@ -58,55 +61,24 @@ async function TrackSubmissions({ context }: { context: CatalogQueueContext }) {
 
   const tracks = result.items;
   const flaggedCount = tracks.filter((track) => track.open_flag_count > 0).length;
-  const splitGapCount = tracks.filter((track) => Math.round(track.rights_split_total) !== 100).length;
+  const splitGapCount = tracks.filter((track) => Math.round(track.rights_split_total * 100) !== 10_000).length;
   const verificationGapCount = tracks.filter((track) => track.verification_status !== "verified").length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-          These tracks are awaiting submission moderation. Check rights coverage, open flags, and artist verification
-          before making a decision.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="lg"><Link href="/admin/compliance">Open Compliance</Link></Button>
-          <Button asChild variant="outline" size="lg">
-            <Link href="/admin/tracks">Open All Tracks <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <QueueSummaryCard
-          icon={<ShieldAlert className="h-4 w-4" />}
-          label="Flagged submissions"
-          value={String(flaggedCount)}
-          detail={flaggedCount ? "Tracks with open compliance issues are grouped first." : "No pending submissions currently carry open flags."}
-        />
-        <QueueSummaryCard
-          icon={<SlidersHorizontal className="h-4 w-4" />}
-          label="Split coverage gaps"
-          value={String(splitGapCount)}
-          detail={splitGapCount ? "Ownership totals should be resolved before approval." : "All pending submissions currently declare full ownership splits."}
-        />
-        <QueueSummaryCard
-          icon={<UserCheck className="h-4 w-4" />}
-          label="Verification gaps"
-          value={String(verificationGapCount)}
-          detail={
-            verificationGapCount
-              ? "Some artist profiles still need verification follow-up alongside the track review."
-              : "All pending submissions come from verified artists."
-          }
-        />
+    <div className="space-y-4">
+      <ReviewQueuePosition />
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <QueueSummaryCard icon={<ShieldAlert className="h-4 w-4" />} label="Flagged submissions" value={flaggedCount} />
+        <QueueSummaryCard icon={<SlidersHorizontal className="h-4 w-4" />} label="Ownership gaps" value={splitGapCount} />
+        <QueueSummaryCard icon={<UserCheck className="h-4 w-4" />} label="Verification gaps" value={verificationGapCount} />
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <CardHeader className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-6">
           <div>
             <CardTitle>Pending submissions</CardTitle>
             <CardDescription>
-              Ordered by moderation risk so tracks with compliance pressure and incomplete rights data rise first.
+              Review ownership, open flags, and artist verification.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -114,51 +86,46 @@ async function TrackSubmissions({ context }: { context: CatalogQueueContext }) {
             <Badge variant="outline">{flaggedCount} with active flags</Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {tracks.length ? (
-            tracks.map((track) => <ReviewQueueCard key={track.id} track={track} reviewQueueContext={context} />)
-          ) : (
-            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-8">
-              <p className="text-base font-semibold text-foreground">The submission queue is clear.</p>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Tracks will appear here when artists submit them for track review.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Button asChild variant="outline">
-                  <Link href="/admin/compliance">Review Compliance</Link>
-                </Button>
-                <Button asChild variant="ghost">
-                  <Link href="/admin/dashboard">Back to Dashboard</Link>
-                </Button>
+        <CardContent className="space-y-3 px-4 sm:px-6">
+          <TrackQueueDecisionFeedback>
+            {tracks.length ? (
+              tracks.map((track) => <ReviewQueueCard key={track.id} track={track} reviewQueueContext={context} />)
+            ) : (
+              <div className="rounded-lg border border-dashed border-border bg-muted/20 p-5 sm:p-8">
+                <p className="text-base font-semibold text-foreground">The submission queue is clear.</p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Tracks will appear here when artists submit them for track review.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <Button asChild variant="outline">
+                    <Link href="/admin/compliance">Review Compliance</Link>
+                  </Button>
+                  <Button asChild variant="ghost">
+                    <Link href="/admin/dashboard">Back to Dashboard</Link>
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </TrackQueueDecisionFeedback>
         </CardContent>
       </Card>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="ghost"><Link href="/admin/compliance">Open Compliance</Link></Button>
+        <Button asChild variant="ghost">
+          <Link href="/admin/tracks">Open All Tracks <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+        </Button>
+      </div>
     </div>
   );
 }
 
-function QueueSummaryCard({
-  icon,
-  label,
-  value,
-  detail
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  detail: string;
-}) {
+function QueueSummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          {icon}
-          {label}
-        </div>
-        <p className="mt-4 text-3xl font-semibold text-foreground">{value}</p>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">{detail}</p>
+    <Card className="min-w-0">
+      <CardContent className="flex min-w-0 flex-col gap-1 p-2.5 sm:flex-row sm:items-center sm:gap-3 sm:p-4">
+        <span aria-hidden="true" className="hidden text-muted-foreground sm:block">{icon}</span>
+        <span className="text-lg font-semibold leading-tight">{value}</span>
+        <span className="min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere] sm:text-sm">{label}</span>
       </CardContent>
     </Card>
   );

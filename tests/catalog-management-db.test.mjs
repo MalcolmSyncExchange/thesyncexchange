@@ -39,3 +39,21 @@ test('identical approved audio cannot create a second catalog recording under di
 test('paged metadata, reviewer and audit history remains complete and owner scoped beyond the first page',()=>fresh(async db=>{const x=await submitted(db);for(let i=0;i<21;i++){await review(db,'changes_requested',x.p,'Synthetic metadata correction '+i);await save(db,{...x.p,description:'Revision '+i});await artist(db,'catalog_submit',[ids.live,await revision(db),randomUUID()]);}const s=await read(db);assert.equal(s.versions.length,20);assert.equal(s.decisions.length,20);assert.equal(s.events.length,50);const v=await artist(db,'catalog_history',[ids.live,'versions',s.versions.at(-1).id,false]);assert.equal(v.items.length,2);assert.equal(v.items.at(-1).id,x.version);const d=await artist(db,'catalog_history',[ids.live,'decisions',s.decisions.at(-1).id,false]);assert.equal(d.items.length,1);const e=await artist(db,'catalog_history',[ids.live,'events',String(s.events.at(-1).id),false]);assert.ok(e.items.length>0);await asActor(db,ids.b,()=>assert.rejects(call(db,'catalog_history',[ids.live,'versions',x.version,false]),err=>err.code==='42501'));}));
 test('direct Data API prices and licensing choices expose only currently reviewed license types',()=>fresh(async db=>{await published(db);const other=(await db.query('select id from license_types where id<>$1 and active limit 1',[ids.license])).rows[0].id;await db.query('insert into track_license_options(track_id,license_type_id,price_cents,active) values($1,$2,1234,true)',[ids.live,other]);await asActor(db,ids.buyer,async()=>{const rows=(await db.query('select license_type_id from track_license_options where track_id=$1',[ids.live])).rows;assert.deepEqual(rows.map(r=>r.license_type_id),[ids.license]);assert.equal((await call(db,'read_licensing_choices',[ids.live])).length,1);});assert.equal((await search(db,{license:other})).total,0);await transition(db,'unpublished');await asActor(db,ids.buyer,async()=>assert.equal((await db.query('select count(*)::int n from track_license_options where track_id=$1',[ids.live])).rows[0].n,0));}));
 test('a changed legacy owner cannot read the former owner’s private catalog history; managed transfers remain blocked',()=>fresh(async db=>{const x=await metadata(db);await assert.rejects(db.query('update tracks set artist_user_id=$1 where id=$2',[ids.b,ids.live]),/Managed media must use foundation operations/);const p={...x.p,title:'Synthetic legacy recording',recordingIdentifier:'LEGACY-RECORDING',workIdentifier:'LEGACY-WORK'};await save(db,p,ids.draft);await artist(db,'catalog_submit',[ids.draft,await revision(db,ids.draft),randomUUID()]);const version=(await read(db,ids.draft)).submitted_version;await db.query('update tracks set artist_user_id=$1 where id=$2',[ids.b,ids.draft]);for(const id of [ids.a,ids.b])await asActor(db,id,async()=>{await assert.rejects(call(db,'catalog_read',[ids.draft,false]),e=>e.code==='42501');await assert.rejects(call(db,'catalog_history',[ids.draft,'versions',version,false]),e=>e.code==='42501');});assert.equal((await search(db)).total,0);assert.ok((await admin(db,'catalog_read',[ids.draft,true])).versions.length>0);}));
+
+test('submitted admin queue follows the artist correction cycle and retains decision history', () => fresh(async db => {
+  const queue = () => admin(db, 'catalog_list', [true, 'submitted', 1]);
+  assert.equal((await queue()).items.some(item => item.id === ids.live), false);
+
+  const { p } = await submitted(db);
+  assert.equal((await queue()).items.some(item => item.id === ids.live && !item.visible), true);
+  await assert.rejects(artist(db, 'catalog_list', [true, 'submitted', 1]), e => e.code === '42501');
+
+  await review(db, 'changes_requested', p);
+  assert.equal((await queue()).items.some(item => item.id === ids.live), false);
+  await save(db, p);
+  await artist(db, 'catalog_submit', [ids.live, await revision(db), randomUUID()]);
+  assert.equal((await queue()).items.some(item => item.id === ids.live), true);
+  const record = await read(db);
+  assert.equal(record.state, 'submitted');
+  assert.equal(record.decisions[0].state, 'changes_requested');
+}));

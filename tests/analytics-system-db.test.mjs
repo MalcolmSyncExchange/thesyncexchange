@@ -1,6 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {fixture,enable,enqueue,collect,claim,ids,asActor,call,admin,customer,command,randomUUID,financial,booked} from './helpers/analytics-system-fixture.mjs';
-import {setup,payment,balanced} from './helpers/accounting-fixture.mjs';
+import {setup as setupAccounting,payment,balanced} from './helpers/accounting-fixture.mjs';
+// Recovery assertions need source evidence within the unchanged 30-day privacy
+// retention window. Historical ledger tests keep their original default dates.
+const setup=(db,options={})=>setupAccounting(db,{...options,paymentCreatedAt:new Date(Date.now()-60000).toISOString()});
 import {filterProperties} from '../lib/analytics/schema.ts';
 import {buildFinancialReport} from '../lib/analytics/financial/report.ts';
 const request=()=>({range:{startInclusive:'2026-10-21T00:00:00Z',endExclusive:new Date(Date.now()+86400000).toISOString()},mode:'test',granularity:'day',comparePrevious:false});

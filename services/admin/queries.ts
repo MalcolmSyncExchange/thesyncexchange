@@ -168,7 +168,8 @@ function withCompleteQueueRanges(fetcher: typeof fetch): typeof fetch {
       return response;
     }
 
-    await response.body?.cancel();
+    // Next.js retains a sibling tee branch, so one branch's cancellation can stay pending.
+    void response.body?.cancel().catch(() => {});
     return new Response(null, { status: 502 });
   };
 }

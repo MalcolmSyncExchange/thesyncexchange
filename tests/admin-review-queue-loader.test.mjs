@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createClient } from "@supabase/supabase-js";
+import nextResponseCloning from "next/dist/server/lib/clone-response.js";
 import { loadAuthModule } from "./helpers/auth-system-harness.mjs";
 
 const tables = ["tracks", "rights_holders", "admin_flags", "review_notes", "artist_profiles"];
@@ -8,7 +9,7 @@ const unavailable = { status: "unavailable", code: "TRACK_SUBMISSIONS_UNAVAILABL
 const privateDiagnostic = "synthetic private diagnostic";
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
-function fixture() {
+function fixture({ cloneResponse = (response) => response } = {}) {
   const records = Object.fromEntries(tables.map((table) => [table, []]));
   const failures = new Map();
   const requests = [];
@@ -33,7 +34,7 @@ function fixture() {
     const rows = records[table];
     const defaultRange = rows?.length ? `0-${rows.length - 1}/${rows.length}` : "*/0";
     const { status = 200, range = defaultRange } = responses.get(table) ?? {};
-    return Response.json(rows, { status, headers: range === null ? {} : { "Content-Range": range } });
+    return cloneResponse(Response.json(rows, { status, headers: range === null ? {} : { "Content-Range": range } }), table);
   };
   const service = loadAuthModule("services/admin/queries.ts", {
     "@/services/auth/authorization": {
@@ -201,4 +202,34 @@ test("missing, unknown, malformed and contradictory ranges fail closed", async (
   }
   f.responses.set("tracks", { status: 206 });
   assert.equal((await f.getAdminReviewQueueResult()).status, "ok");
+});
+
+test("an incomplete Next.js response settles while the retained tee branch is unread", async () => {
+  let retained;
+  let deadline;
+  const f = fixture({
+    cloneResponse(response, table) {
+      if (table !== "rights_holders") return response;
+      const [returned, sibling] = nextResponseCloning.cloneResponse(response);
+      retained = sibling;
+      return returned;
+    }
+  });
+  f.records.tracks = [pending("track", "2026-11-21")];
+  f.records.rights_holders = [{ track_id: "track", ownership_percent: 60 }];
+  f.responses.set("rights_holders", { status: 206, range: "0-0/2" });
+
+  try {
+    const result = await Promise.race([
+      f.getAdminReviewQueueResult(),
+      new Promise((_, reject) => {
+        deadline = setTimeout(() => reject(new Error("Queue waited for the unread tee branch")), 1000);
+      })
+    ]);
+    assert.deepEqual(plain(result), unavailable);
+    assert.equal(retained.bodyUsed, false);
+  } finally {
+    clearTimeout(deadline);
+    void retained?.body?.cancel().catch(() => {});
+  }
 });

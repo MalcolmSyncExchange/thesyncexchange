@@ -1,3 +1,4 @@
+import { getAdminTrackReviewMedia } from "@/services/media/admin-track-review";
 import { findTrackUpload } from "@/services/media/uploads";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,9 +10,9 @@ import { ComplianceFlagForm } from "@/components/admin/compliance-flag-form";
 import { ReviewNoteForm } from "@/components/admin/review-note-form";
 import { FlagSeverityBadge, FlagStatusBadge } from "@/components/shared/state-badges";
 import { TrackReviewActions } from "@/components/admin/track-review-actions";
-import { AudioPlayer } from "@/components/audio/audio-player";
+import { RecordingPlayer } from "@/components/audio/recording-player";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { catalogQueueContext, catalogReviewHref, reviewQueueHref } from "@/lib/admin/review-queue-navigation";
 import { formatCurrency, formatDateTime, formatDuration, formatEnumLabel } from "@/lib/utils";
 import { getAdminTrackById } from "@/services/admin/queries";
@@ -26,7 +27,8 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
   if (!data) notFound();
 
   const { track, flags, reviewNotes, auditLog } = data;
-  const mediaSubmission = await findTrackUpload(track.id);
+  const reviewMedia = await getAdminTrackReviewMedia(track.id);
+  const mediaSubmission = reviewMedia.status === "ready" ? reviewMedia.submission : await findTrackUpload(track.id);
   const totalOwnership = track.rights_holders.reduce((sum, holder) => sum + Math.round(Number(holder.ownership_percent || 0) * 100), 0) / 100;
   const hasCompleteOwnership = totalOwnership === 100;
   const activeLicenseOptions = track.license_options.filter((option) => option.active !== false);
@@ -76,7 +78,23 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
         </div>
       </div>
 
-      <AudioPlayer title={track.title} artist={track.artist_name} src={track.audio_file_url} />
+      {reviewMedia.status === "ready" ? (
+        <RecordingPlayer
+          key={reviewMedia.source.id}
+          submission={reviewMedia.submission}
+          source={reviewMedia.source}
+          waveformUrl={reviewMedia.waveformUrl}
+          selection={reviewMedia.selection}
+          readOnly
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <h2 className="text-base font-semibold">Review media unavailable</h2>
+            <CardDescription>The current working master and its matching waveform must both be ready for playback here.</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
         <div className="space-y-6">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createContext, useActionState, useContext, useState, type ReactNode } from "react";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { toggleTrackFeaturedAction, updateTrackStatusWithResultAction, type TrackStatusUpdateResult } from "@/services/admin/actions";
 
 type ReviewFeedback = { result: TrackStatusUpdateResult | { status: "unconfirmed" }; approval: boolean };
@@ -43,11 +44,12 @@ function feedbackMessage({ result, approval }: ReviewFeedback) {
   }
 }
 
-export function TrackReviewActions({ trackId, status, featured, ownershipTotal }: {
+export function TrackReviewActions({ trackId, status, featured, ownershipTotal, className }: {
   trackId: string;
   status: string;
   featured?: boolean;
   ownershipTotal?: number;
+  className?: string;
 }) {
   const announceDecision = useContext(QueueDecisionNotice);
   const [feedback, submit, pending] = useActionState(async (_: ReviewFeedback | null, formData: FormData) => {
@@ -60,10 +62,10 @@ export function TrackReviewActions({ trackId, status, featured, ownershipTotal }
   const rightsHref = "/admin/rights?track=" + encodeURIComponent(trackId);
 
   return (
-    <div className="min-w-0 space-y-2">
+    <div className={cn("min-w-0 space-y-2", className)}>
       {status === "pending_review" && ownershipBlocked && (
         <p className="text-sm text-amber-800 dark:text-amber-300">
-          Declared ownership shown here is {ownershipTotal}%. Check the rights record before approving.{" "}
+          Declared ownership shown here is {ownershipTotal}%. Approval requires 100%.{" "}
           <Link href={rightsHref} className="underline">Review rights</Link>
         </p>
       )}

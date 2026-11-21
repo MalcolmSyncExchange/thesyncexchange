@@ -66,8 +66,8 @@ export async function verifyAdminTrackMedia({ page, origin, output, name, assets
   await controls(page).getByRole('button', { name: 'Unmute recording' }).click();
   await expect(controls(page).getByRole('alert')).toHaveCount(0);
 
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+  for (const [width, height] of [[1440, 1000], [820, 1024], [390, 844]]) {
+    await page.setViewportSize({ width, height });
     await play.focus();
     await expect(play).toBeFocused();
     const size = await controls(page).evaluate(player => {
@@ -82,6 +82,8 @@ export async function verifyAdminTrackMedia({ page, origin, output, name, assets
     });
     assert.ok(size.visible && size.overflow <= 1 && size.width <= size.available, JSON.stringify(size));
     assert.deepEqual(size.clipped, []);
+    const playBottom = await play.evaluate(button => button.getBoundingClientRect().bottom + scrollY);
+    assert.ok(playBottom <= height, `Full-track playback requires scrolling at ${width}px`);
     await controls(page).scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(output, `${name}-admin-track-waveform-${width}.png`) });
   }
@@ -95,7 +97,7 @@ export async function verifyAdminTrackMedia({ page, origin, output, name, assets
   await page.getByRole('link', { name: 'Back to Track Submissions' }).click();
   await expect(record).toBeFocused();
   await record.click();
-  await page.getByRole('link', { name: 'Inspect private assets, processing and integrity' }).click();
+  await page.getByRole('link', { name: 'Inspect media in Media Operations' }).click();
   await expect(page).toHaveURL(`${origin}/admin/media?draft=${assets.submission}`);
   await expect(page.getByRole('region', { name: 'Recording studio' })).toBeVisible();
   await expect(image(page)).toBeVisible();
@@ -126,7 +128,7 @@ export async function verifyUnavailableTrackMedia({ page, origin, fixture, media
       await expect(empty).toBeVisible();
       await expect(page.locator('audio')).toHaveCount(0);
       await expect(image(page)).toHaveCount(0);
-      await expect(page.getByRole('link', { name: 'Inspect private assets, processing and integrity' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Inspect media in Media Operations' })).toBeVisible();
     }
     assert.deepEqual(hits, []);
   } finally {

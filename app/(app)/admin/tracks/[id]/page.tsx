@@ -3,12 +3,12 @@ import { findTrackUpload } from "@/services/media/uploads";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Music4 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Music4 } from "lucide-react";
 
 import { ComplianceFlagActions } from "@/components/admin/compliance-flag-actions";
 import { ComplianceFlagForm } from "@/components/admin/compliance-flag-form";
 import { ReviewNoteForm } from "@/components/admin/review-note-form";
-import { FlagSeverityBadge, FlagStatusBadge } from "@/components/shared/state-badges";
+import { FlagSeverityBadge, FlagStatusBadge, TrackStatusBadge } from "@/components/shared/state-badges";
 import { TrackReviewActions } from "@/components/admin/track-review-actions";
 import { RecordingPlayer } from "@/components/audio/recording-player";
 import { Badge } from "@/components/ui/badge";
@@ -39,44 +39,45 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
       : null,
     activeLicenseOptions.length === 0 ? "No active license options are configured for buyer checkout." : null
   ].filter((warning): warning is string => Boolean(warning));
+  const evidenceLink = "inline-flex min-h-11 items-center rounded-sm text-sm text-foreground underline decoration-muted-foreground/60 underline-offset-4 hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9";
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-6 lg:grid-cols-[220px,1fr]">
-        <CoverArtwork coverArtUrl={track.cover_art_url} title={track.title} />
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Link href={backHref} className="text-sm text-muted-foreground hover:text-foreground">
-              {fromReviewQueue ? "Back to Track Submissions" : "Back to Track Management"}
-            </Link>
-            <h1 className="mt-3 text-3xl font-semibold">{track.title}</h1>
-            <Link className="mr-4 inline-block underline" href={"/admin/rights?track="+track.id}>Review master and publishing rights</Link><Link className="mr-4 inline-block underline" href={fromReviewQueue ? catalogReviewHref(track.id, queueContext, true) : "/admin/catalog?track="+track.id}>Manage catalog metadata and publication</Link>
-            {mediaSubmission ? <Link className="mt-3 inline-block underline" href={"/admin/media?draft="+mediaSubmission}>Inspect private assets, processing and integrity</Link> : null}
-            <p className="mt-2 text-muted-foreground">
-              {track.artist_name} • {track.genre} • {track.subgenre}
-            </p>
-            {reviewWarnings.length ? (
-              <div className="mt-4 space-y-2">
-                {reviewWarnings.map((warning) => (
-                  <div key={warning} className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{warning}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-4 flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Rights ownership and active license options are ready for review.</span>
-              </div>
-            )}
-          </div>
-          <div className="flex min-w-0 flex-wrap items-start gap-3">
-            <Badge variant="secondary">{track.status}</Badge>
-            <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={totalOwnership} />
+    <div className="mx-auto min-w-0 max-w-[1400px] space-y-4 sm:space-y-5">
+      <header className="min-w-0 space-y-2">
+        <Link href={backHref} className="inline-flex min-h-11 items-center gap-1.5 rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9">
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          {fromReviewQueue ? "Back to Track Submissions" : "Back to Track Management"}
+        </Link>
+        <div className="flex min-w-0 items-center gap-3">
+          <CoverArtwork coverArtUrl={track.cover_art_url} title={track.title} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="min-w-0 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{track.title}</h1>
+              <TrackStatusBadge status={track.status} />
+            </div>
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{track.artist_name} • {track.genre} • {track.subgenre}</p>
           </div>
         </div>
-      </div>
+        <nav aria-label="Track evidence" className="flex flex-wrap gap-x-4">
+          <Link className={evidenceLink} href={"/admin/rights?track=" + track.id} aria-label="Rights evidence for master and publishing">Rights evidence</Link>
+          <Link className={evidenceLink} href={fromReviewQueue ? catalogReviewHref(track.id, queueContext, true) : "/admin/catalog?track=" + track.id} aria-label="Catalog review and publication">Catalog review</Link>
+          {mediaSubmission && <Link className={evidenceLink} href={"/admin/media?draft=" + mediaSubmission} aria-label="Inspect media in Media Operations">Inspect media</Link>}
+        </nav>
+        <div className="flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2">
+          {reviewWarnings.length > 0 && (
+            <ul className="min-w-0 space-y-1 rounded-md border border-destructive/25 bg-destructive/10 px-2.5 py-2 text-sm text-destructive">
+              {reviewWarnings.map((warning) => (
+                <li key={warning} className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <span>{warning}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={totalOwnership}
+            className="space-y-1.5 [&_button]:min-h-11 sm:[&_button]:min-h-9" />
+        </div>
+      </header>
 
       {reviewMedia.status === "ready" ? (
         <RecordingPlayer
@@ -89,37 +90,39 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
         />
       ) : (
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4">
             <h2 className="text-base font-semibold">Review media unavailable</h2>
             <CardDescription>The current working master and its matching waveform must both be ready for playback here.</CardDescription>
           </CardHeader>
         </Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
-        <div className="space-y-6">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div className="min-w-0 space-y-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="px-4 pb-3 pt-4">
               <CardTitle>Track metadata</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              {[
-                ["BPM", `${track.bpm}`],
-                ["Key", track.key],
-                ["Duration", formatDuration(track.duration_seconds)],
-                ["Release year", String(track.release_year)],
-                ["Primary price", formatCurrency(track.license_options[0]?.price_override || track.license_options[0]?.base_price || 0)],
-                ["Explicit", track.explicit ? "Yes" : "No"]
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-md border border-border p-4">
-                  <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="mt-1 font-medium">{value}</p>
+            <CardContent className="px-4 pb-4">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                {[
+                  ["BPM", `${track.bpm}`],
+                  ["Key", track.key],
+                  ["Duration", formatDuration(track.duration_seconds)],
+                  ["Release year", String(track.release_year)],
+                  ["Primary price", formatCurrency(track.license_options[0]?.price_override || track.license_options[0]?.base_price || 0)],
+                  ["Explicit", track.explicit ? "Yes" : "No"]
+                ].map(([label, value]) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="text-xs text-muted-foreground">{label}</dt>
+                    <dd className="text-sm font-medium">{value}</dd>
+                  </div>
+                ))}
+                <div className="col-span-full border-t border-border pt-2">
+                  <dt className="text-xs text-muted-foreground">Description</dt>
+                  <dd className="text-sm [overflow-wrap:anywhere]">{track.description}</dd>
                 </div>
-              ))}
-              <div className="rounded-md border border-border p-4 md:col-span-2">
-                <p className="text-sm text-muted-foreground">Description</p>
-                <p className="mt-1">{track.description}</p>
-              </div>
+              </dl>
             </CardContent>
           </Card>
 
@@ -219,7 +222,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Compliance flags</CardTitle>
@@ -279,12 +282,12 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
 
 function CoverArtwork({ coverArtUrl, title }: { coverArtUrl?: string | null; title: string }) {
   return (
-    <div className="relative aspect-square overflow-hidden rounded-md border border-border bg-muted">
+    <div className="relative aspect-square size-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted sm:size-16 lg:size-20">
       {coverArtUrl ? (
-        <Image src={coverArtUrl} alt={`${title} cover artwork`} fill sizes="(min-width: 1024px) 220px, 100vw" className="object-cover" priority />
+        <Image src={coverArtUrl} alt={`${title} cover artwork`} fill sizes="(min-width: 1024px) 80px, (min-width: 640px) 64px, 56px" className="object-cover" priority />
       ) : (
         <div className="flex h-full items-center justify-center">
-          <Music4 className="h-12 w-12 text-muted-foreground" />
+          <Music4 className="size-6 text-muted-foreground" aria-hidden="true" />
         </div>
       )}
     </div>

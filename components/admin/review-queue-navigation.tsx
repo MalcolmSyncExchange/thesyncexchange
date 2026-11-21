@@ -14,10 +14,10 @@ export function ReviewQueueNavigation({ active }: { active: "track" | "catalog" 
   const context = useQueueContext();
 
   return (
-    <nav aria-label="Review queue views" className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1 sm:w-fit">
+    <nav aria-label="Review queue views" className="flex w-full flex-wrap gap-1 rounded-lg border border-border bg-card p-0.5 sm:w-fit">
       {(["track", "catalog"] as const).map(tab => (
         <Link key={tab} href={reviewQueueHref(tab, context)} aria-current={active === tab ? "page" : undefined}
-          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md px-3 py-2 text-center text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-accent/15 aria-[current=page]:text-foreground sm:flex-none sm:px-5">
+          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md px-3 text-center text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-accent/15 aria-[current=page]:text-foreground sm:min-h-9 sm:flex-none sm:px-4">
           {tab === "track" ? "Track Submissions" : "Catalog Reviews"}
         </Link>
       ))}

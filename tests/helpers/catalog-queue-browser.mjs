@@ -100,16 +100,16 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
   await page.getByLabel('Review status').selectOption('');
   await expect(page).toHaveURL(/status=all/);
   await expect(record).toBeVisible();
-  const otherRows=Array.from({length:8},(_,index)=>({
+  const otherRows=Array.from({length:16},(_,index)=>({
    ...data.items[0],id:`77777777-7777-4777-8777-${String(index).padStart(12,'0')}`,
    title:'Synthetic catalog filler '+index
   }));
-  response={status:200,body:{...data,items:[...otherRows,...data.items],total:21,page_count:2}};
+  response={status:200,body:{...data,items:[...otherRows,...data.items],total:37,page_count:2}};
   await page.getByRole('button',{name:'Refresh catalog results'}).click();
   await page.getByRole('button',{name:'Next',exact:true}).click();
   await expect(page).toHaveURL(/page=2/);
   await page.setViewportSize({width:390,height:844});
-  await expect(page.getByText("Page 2 of 2 · 21 records")).toBeVisible();
+  await expect(page.getByText("Page 2 of 2 · 37 records")).toBeVisible();
   await expect(record).toBeVisible();
   await record.scrollIntoViewIfNeeded();
   assert.ok(await page.evaluate(()=>scrollY>300));
@@ -130,11 +130,11 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
   await page.reload();
   await expectRestored(page,record);
   await page.screenshot({path:`${output}/${name}-catalog-return-390.png`});
-  response={status:200,body:{...data,items:otherRows,total:20,page_count:2}};
+  response={status:200,body:{...data,items:otherRows,total:36,page_count:2}};
   await page.reload();
   await expect(page.getByRole('status').filter({hasText:'That record is no longer listed in this view.'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Review Queue',exact:true})).toBeFocused();
-  response={status:200,body:{...data,items:[...otherRows,...data.items],total:21,page_count:2}};
+  response={status:200,body:{...data,items:[...otherRows,...data.items],total:37,page_count:2}};
   await page.setViewportSize({width:1440,height:1000});
   const tracks=page.getByRole('link',{name:'Track Submissions',exact:true});
   await tracks.focus();
@@ -167,7 +167,7 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
    label.getBoundingClientRect().right<=label.closest('.rounded-md').getBoundingClientRect().right));
   await page.getByText('Review evidence',{exact:true}).click();
   await trackTitle.click();
-  await expect(page.getByRole('link',{name:'Review master and publishing rights'})).toBeVisible();
+  await expect(page.getByRole('link',{name:'Rights evidence for master and publishing'})).toBeVisible();
   await page.goBack();
   await expectRestored(page,trackTitle);
   await page.reload();
@@ -176,21 +176,21 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
   await page.getByRole('link',{name:'Back to Track Submissions'}).click();
   await expectRestored(page,trackTitle);
   await trackTitle.click();
-  await page.getByRole('link',{name:'Manage catalog metadata and publication'}).click();
+  await page.getByRole('link',{name:'Catalog review and publication'}).click();
   await expect(page).toHaveURL(/status=all.*page=2.*from=track-queue/);
   await page.getByRole('link',{name:'Back to Track Submissions'}).click();
   await expectRestored(page,trackTitle);
   // Switching views also retains the catalog URL when returning via the tabs.
   await page.getByRole('link',{name:'Catalog Reviews',exact:true}).click();
-  await expect(page.getByText('Page 2 of 2 · 21 records')).toBeVisible();
+  await expect(page.getByText('Page 2 of 2 · 37 records')).toBeVisible();
   assert.ok(requests.some(r=>r.state===''&&r.page===2));
  } finally {for(const resolve of pending)resolve();page.off('console',onConsole);await page.unroute('**/api/catalog',handler);}
 }
 
 
 async function captureQueue(page,output,name,state) {
- for(const width of [1440,390]){
-  await page.setViewportSize({width,height:width===390?844:1000});
+ for(const [width,height] of [[1440,1000],[820,1024],[390,844]]){
+  await page.setViewportSize({width,height});
   const dimensions=await page.evaluate(()=>{
    const main=document.querySelector('#admin-main');
    const queue=main.firstElementChild;
@@ -207,7 +207,9 @@ async function captureQueue(page,output,name,state) {
    const clipped=[...queue.querySelectorAll('*')].filter(element=>
     element instanceof HTMLElement && element.offsetWidth>1 && getComputedStyle(element).visibility==='visible'
    ).map(describe).filter(box=>box.left<left-1||box.right>right+1);
+   const action=queue.querySelector('a[id^="review-queue-record-"]')?.getBoundingClientRect();
    return {viewport:innerWidth,documentWidth:document.documentElement.scrollWidth,main:describe(main),
+    firstAction:action&&{top:action.top+scrollY,height:action.height},
     availableWidth:right-left,gridColumns:getComputedStyle(queue).gridTemplateColumns,queue:describe(queue),children,clipped};
   });
   const basename=`${output}/${name}-${state}-${width}`;
@@ -219,6 +221,10 @@ async function captureQueue(page,output,name,state) {
   assert.ok(dimensions.queue.scrollWidth<=dimensions.queue.clientWidth+1,
    `${state} inner queue is ${dimensions.queue.scrollWidth}px wide in a ${dimensions.availableWidth}px content area at ${width}px`);
   assert.deepEqual(dimensions.clipped,[],`${state} has clipped content at ${width}px`);
+  if(width===390&&['tracks-populated','catalog-populated'].includes(state)){
+   assert.ok(dimensions.firstAction.top+dimensions.firstAction.height<=height/2,`${state} hides its first action below the upper half at 390px`);
+   assert.ok(dimensions.firstAction.height>=44,`${state} first action needs a 44px touch target`);
+  }
  }
  await page.setViewportSize({width:1440,height:1000});
 }

@@ -23,6 +23,7 @@ function requestFor(response){
  const jsx={jsx:()=>null,jsxs:()=>null};
  const {CatalogWorkbench}=loadAuthModule('components/artist/catalog/catalog-workbench.tsx',{
   react,'react/jsx-runtime':jsx,'next/link':{default:()=>null},
+  '@/components/admin/catalog-review-panel':{},'@/components/ui/button':{},'@/components/ui/card':{},'@/lib/utils':{},
   '@/lib/catalog/contract':{catalogStates:[],creditRoles:[]}
  },{fetch:async()=>response});
  CatalogWorkbench({admin:true,initialFilter:'submitted'});

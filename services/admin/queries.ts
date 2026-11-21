@@ -1,6 +1,7 @@
 import { requireAccountScope } from "@/services/auth/authorization";
 import { adminFlags as demoFlags, demoUsers, licenseTypes as demoLicenseTypes, orders as demoOrders, tracks as demoTracks } from "@/lib/demo-data";
 import { env, hasSupabaseEnv, shouldUseDemoData } from "@/lib/env";
+import { reportOperationalError } from "@/lib/monitoring";
 import { hasAgreementBeenGenerated } from "@/lib/orders";
 import { getPublicStorageUrl, storageBuckets } from "@/lib/storage";
 import { listGeneratedLicensesByOrderIds } from "@/services/generated-licenses/server";
@@ -138,32 +139,91 @@ export async function getAdminDashboardData() {
   };
 }
 
-export async function getAdminReviewQueue() {
+export type AdminReviewQueueResult =
+  | { status: "ok"; items: AdminReviewQueueItem[] }
+  | { status: "unavailable"; code: "TRACK_SUBMISSIONS_UNAVAILABLE" };
+
+// Preserve the array contract for the existing page until it handles unavailable results.
+export async function getAdminReviewQueue(): Promise<AdminReviewQueueItem[]> {
+  const result = await getAdminReviewQueueResult();
+  if (result.status === "unavailable") {
+    throw new Error("Track submissions are temporarily unavailable.");
+  }
+  return result.items;
+}
+
+// The SDK exposes the total but drops the range bounds and loosely parses the total.
+function withCompleteQueueRanges(fetcher: typeof fetch): typeof fetch {
+  return async (input, init) => {
+    const response = await fetcher(input, init);
+    const url = new URL(input instanceof Request ? input.url : input);
+    if (!response.ok || !url.pathname.startsWith("/rest/v1/")) return response;
+
+    const range = response.headers.get("Content-Range");
+    const fullRange = /^0-([0-9]+)\/([0-9]+)$/.exec(range ?? "");
+    if ((response.status === 200 || response.status === 206) &&
+      (range === "*/0" || (fullRange &&
+        Number.isSafeInteger(Number(fullRange[2])) &&
+        Number(fullRange[1]) + 1 === Number(fullRange[2])))) {
+      return response;
+    }
+
+    // Next.js retains a sibling tee branch, so one branch's cancellation can stay pending.
+    void response.body?.cancel().catch(() => {});
+    return new Response(null, { status: 502 });
+  };
+}
+
+export async function getAdminReviewQueueResult(): Promise<AdminReviewQueueResult> {
   if (shouldUseDemoData()) {
-    return buildDemoReviewQueue();
+    return { status: "ok", items: buildDemoReviewQueue() };
   }
 
   await requireAccountScope("admin");
-  const supabase = await createPrivilegedSupabaseClient();
 
-  const [tracksResult, rightsResult, flagsResult, reviewNotesResult, profilesResult] = await Promise.all([
-    supabase
-      .from("tracks")
-      .select("id, title, artist_user_id, genre, subgenre, moods, bpm, duration_seconds, explicit, status, featured, created_at, cover_art_path")
-      .eq("status", "pending_review"),
-    supabase.from("rights_holders").select("track_id, ownership_percent"),
-    supabase.from("admin_flags").select("id, track_id, status, severity, flag_type, created_at"),
-    supabase.from("review_notes").select("id, track_id"),
-    supabase.from("artist_profiles").select("user_id, artist_name, verification_status")
-  ]);
+  const unavailable = (dependencies: string[]): AdminReviewQueueResult => {
+    reportOperationalError("admin_review_queue_read_failed", "Track submissions are unavailable.", { dependencies });
+    return { status: "unavailable", code: "TRACK_SUBMISSIONS_UNAVAILABLE" };
+  };
 
-  return buildReviewQueueItems({
-    tracks: tracksResult.data || [],
-    rightsHolders: rightsResult.data || [],
-    flags: flagsResult.data || [],
-    reviewNotes: reviewNotesResult.data || [],
-    profiles: profilesResult.data || []
-  });
+  try {
+    const supabase = await createPrivilegedSupabaseClient(withCompleteQueueRanges);
+    const [tracks, rightsHolders, flags, reviewNotes, profiles] = await Promise.all([
+      supabase
+        .from("tracks")
+        .select("id, title, artist_user_id, genre, subgenre, moods, bpm, duration_seconds, explicit, status, featured, created_at, cover_art_path", { count: "exact" })
+        .eq("status", "pending_review"),
+      supabase.from("rights_holders").select("track_id, ownership_percent", { count: "exact" }),
+      supabase.from("admin_flags").select("id, track_id, status, severity, flag_type, created_at", { count: "exact" }),
+      supabase.from("review_notes").select("id, track_id", { count: "exact" }),
+      supabase.from("artist_profiles").select("user_id, artist_name, verification_status", { count: "exact" })
+    ]);
+
+    const reads = [
+      ["tracks", tracks],
+      ["rights_holders", rightsHolders],
+      ["admin_flags", flags],
+      ["review_notes", reviewNotes],
+      ["artist_profiles", profiles]
+    ] as const;
+    const failed = reads.filter(([, result]) => result.error || !Array.isArray(result.data) || result.count !== result.data.length);
+    if (failed.length) {
+      return unavailable(failed.map(([table]) => table));
+    }
+
+    return {
+      status: "ok",
+      items: buildReviewQueueItems({
+        tracks: tracks.data!,
+        rightsHolders: rightsHolders.data!,
+        flags: flags.data!,
+        reviewNotes: reviewNotes.data!,
+        profiles: profiles.data!
+      })
+    };
+  } catch {
+    return unavailable(["queue"]);
+  }
 }
 
 export async function getAdminTracks() {

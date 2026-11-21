@@ -13,12 +13,12 @@ type SupabaseCookieWrite = {
   options: CookieOptions;
 };
 
-export async function createServerSupabaseClient(): Promise<AppSupabaseClient> {
+export async function createServerSupabaseClient(fetcher: typeof fetch = authFetch): Promise<AppSupabaseClient> {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(env.supabaseUrl || "https://demo.supabase.co", env.supabaseAnonKey || "demo-anon-key", {
     cookieOptions: { path: "/", sameSite: "lax", secure: getDeploymentTarget() !== "local" },
-    global: { fetch: authFetch },
+    global: { fetch: fetcher },
     cookies: {
       getAll() {
         return cookieStore.getAll();

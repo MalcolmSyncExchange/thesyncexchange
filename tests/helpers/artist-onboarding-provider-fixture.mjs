@@ -53,7 +53,11 @@ export async function startArtistFixture(options={}) {
       return (await db.query('update public.user_profiles t set '+keys.map((k,i)=>'"'+k+'"=$'+(i+1)).join(',')+(shifted.length?' where '+shifted.join(' and '):'')+' returning '+projection+' value',[...values,...params])).rows.map(r=>r.value);
      }
      if(req.method!=='GET')throw Object.assign(Error('Unsupported fixture mutation'),{code:'42501'});
-     return (await db.query('select '+projection+' value from public.'+name+' t'+(filters.length?' where '+filters.join(' and '):'')+' limit 100',params)).rows.map(r=>r.value);
+     const exactCount=String(req.headers.prefer||'').split(',').some(value=>value.trim()==='count=exact');
+     const countProjection=exactCount?', count(*) over() as total':'';
+     const {rows}=await db.query('select '+projection+' value'+countProjection+' from public.'+name+' t'+(filters.length?' where '+filters.join(' and '):'')+' limit 100',params);
+     if(exactCount)res.setHeader('Content-Range',rows.length?'0-'+(rows.length-1)+'/'+rows[0].total:'*/0');
+     return rows.map(r=>r.value);
     });
     const single=String(req.headers.accept||'').includes('object');json(res,single&&Array.isArray(value)?value[0]||null:value,req.method==='POST'?201:200);return true;
    }catch(e){console.error('Synthetic Artist fixture SQL:',e.code,e.message);json(res,{code:e.code||'fixture_failure',message:e.code==='PT409'?'Synthetic version conflict':'Synthetic data request failed'},e.code==='PT409'?409:e.code==='42501'?403:400);return true;}});

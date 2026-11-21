@@ -152,6 +152,27 @@ export async function getAdminReviewQueue(): Promise<AdminReviewQueueItem[]> {
   return result.items;
 }
 
+// The SDK exposes the total but drops the range bounds and loosely parses the total.
+function withCompleteQueueRanges(fetcher: typeof fetch): typeof fetch {
+  return async (input, init) => {
+    const response = await fetcher(input, init);
+    const url = new URL(input instanceof Request ? input.url : input);
+    if (!response.ok || !url.pathname.startsWith("/rest/v1/")) return response;
+
+    const range = response.headers.get("Content-Range");
+    const fullRange = /^0-([0-9]+)\/([0-9]+)$/.exec(range ?? "");
+    if ((response.status === 200 || response.status === 206) &&
+      (range === "*/0" || (fullRange &&
+        Number.isSafeInteger(Number(fullRange[2])) &&
+        Number(fullRange[1]) + 1 === Number(fullRange[2])))) {
+      return response;
+    }
+
+    await response.body?.cancel();
+    return new Response(null, { status: 502 });
+  };
+}
+
 export async function getAdminReviewQueueResult(): Promise<AdminReviewQueueResult> {
   if (shouldUseDemoData()) {
     return { status: "ok", items: buildDemoReviewQueue() };
@@ -165,16 +186,16 @@ export async function getAdminReviewQueueResult(): Promise<AdminReviewQueueResul
   };
 
   try {
-    const supabase = await createPrivilegedSupabaseClient();
+    const supabase = await createPrivilegedSupabaseClient(withCompleteQueueRanges);
     const [tracks, rightsHolders, flags, reviewNotes, profiles] = await Promise.all([
       supabase
         .from("tracks")
-        .select("id, title, artist_user_id, genre, subgenre, moods, bpm, duration_seconds, explicit, status, featured, created_at, cover_art_path")
+        .select("id, title, artist_user_id, genre, subgenre, moods, bpm, duration_seconds, explicit, status, featured, created_at, cover_art_path", { count: "exact" })
         .eq("status", "pending_review"),
-      supabase.from("rights_holders").select("track_id, ownership_percent"),
-      supabase.from("admin_flags").select("id, track_id, status, severity, flag_type, created_at"),
-      supabase.from("review_notes").select("id, track_id"),
-      supabase.from("artist_profiles").select("user_id, artist_name, verification_status")
+      supabase.from("rights_holders").select("track_id, ownership_percent", { count: "exact" }),
+      supabase.from("admin_flags").select("id, track_id, status, severity, flag_type, created_at", { count: "exact" }),
+      supabase.from("review_notes").select("id, track_id", { count: "exact" }),
+      supabase.from("artist_profiles").select("user_id, artist_name, verification_status", { count: "exact" })
     ]);
 
     const reads = [
@@ -184,7 +205,7 @@ export async function getAdminReviewQueueResult(): Promise<AdminReviewQueueResul
       ["review_notes", reviewNotes],
       ["artist_profiles", profiles]
     ] as const;
-    const failed = reads.filter(([, result]) => result.error || !Array.isArray(result.data));
+    const failed = reads.filter(([, result]) => result.error || !Array.isArray(result.data) || result.count !== result.data.length);
     if (failed.length) {
       return unavailable(failed.map(([table]) => table));
     }

@@ -12,28 +12,29 @@ function fixture() {
   const records = Object.fromEntries(tables.map((table) => [table, []]));
   const failures = new Map();
   const requests = [];
+  const responses = new Map();
+  const preferences = [];
   const diagnostics = [];
   const guardCalls = [];
   let guardError;
   let clientError;
   let rejectedTable;
   let clientCreations = 0;
-  const client = createClient("https://queue.invalid", "fixture-key", {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: {
-      fetch: async (input) => {
-        const url = new URL(input);
-        const table = url.pathname.split("/").at(-1);
-        requests.push(url);
-        const failure = failures.get(table);
-        if (failure === "transport") throw new TypeError(privateDiagnostic);
-        if (failure) {
-          return Response.json({ code: "SYNTHETIC", message: privateDiagnostic }, { status: failure });
-        }
-        return Response.json(records[table]);
-      }
+  const fetchFixture = async (input, init) => {
+    const url = new URL(input);
+    const table = url.pathname.split("/").at(-1);
+    requests.push(url);
+    preferences.push(new Headers(init.headers).get("Prefer"));
+    const failure = failures.get(table);
+    if (failure === "transport") throw new TypeError(privateDiagnostic);
+    if (failure) {
+      return Response.json({ code: "SYNTHETIC", message: privateDiagnostic }, { status: failure });
     }
-  });
+    const rows = records[table];
+    const defaultRange = rows?.length ? `0-${rows.length - 1}/${rows.length}` : "*/0";
+    const { status = 200, range = defaultRange } = responses.get(table) ?? {};
+    return Response.json(rows, { status, headers: range === null ? {} : { "Content-Range": range } });
+  };
   const service = loadAuthModule("services/admin/queries.ts", {
     "@/services/auth/authorization": {
       requireAccountScope: async (role) => {
@@ -42,14 +43,18 @@ function fixture() {
       }
     },
     "@/services/supabase/privileged": {
-      createPrivilegedSupabaseClient: async () => {
+      createPrivilegedSupabaseClient: async (wrapFetch) => {
         clientCreations++;
         if (clientError) throw clientError;
+        const client = createClient("https://queue.invalid", "fixture-key", {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+          global: { fetch: wrapFetch(fetchFixture) }
+        });
         return {
           from: (table) => ({
-            select: (columns) => {
+            select: (columns, options) => {
               if (table === rejectedTable) return Promise.reject(new Error(privateDiagnostic));
-              return client.from(table).select(columns).retry(false);
+              return client.from(table).select(columns, options).retry(false);
             }
           })
         };
@@ -67,7 +72,7 @@ function fixture() {
   });
 
   return {
-    records, failures, requests, diagnostics, guardCalls, ...service,
+    records, failures, responses, preferences, requests, diagnostics, guardCalls, ...service,
     deny: (error) => { guardError = error; },
     failClient: () => { clientError = new Error(privateDiagnostic); },
     rejectRead: (table) => { rejectedTable = table; },
@@ -159,4 +164,41 @@ test("Admin guard errors propagate before privileged client creation or reads", 
   assert.equal(f.clientCreations(), 0);
   assert.equal(f.requests.length, 0);
   assert.equal(f.diagnostics.length, 0);
+});
+
+test("a 206 with one of two rights holders cannot report a 40 percent gap", async () => {
+  const f = fixture();
+  f.records.tracks = [pending("track", "2026-11-21")];
+  f.records.rights_holders = [{ track_id: "track", ownership_percent: 60 }];
+  f.responses.set("rights_holders", { status: 206, range: "0-0/2" });
+  assert.deepEqual(plain(await f.getAdminReviewQueueResult()), unavailable);
+
+  f.records.rights_holders.push({ track_id: "track", ownership_percent: 40 });
+  f.responses.set("rights_holders", { status: 206, range: "0-1/2" });
+  const complete = await f.getAdminReviewQueueResult();
+  assert.equal(complete.status, "ok");
+  assert.equal(complete.items[0].rights_split_total, 100);
+  assert.ok(f.preferences.every((prefer) => prefer?.includes("count=exact")));
+});
+
+for (const table of tables) {
+  test(`${table} row cap makes the queue unavailable even with HTTP 200`, async () => {
+    const f = fixture();
+    f.records.tracks = [pending("track", "2026-11-21")];
+    f.records[table] = [{ id: "track", status: "pending_review" }];
+    f.responses.set(table, { status: 200, range: "0-0/1001" });
+    assert.deepEqual(plain(await f.getAdminReviewQueueResult()), unavailable);
+    assert.deepEqual(plain(f.diagnostics[0][2]), { dependencies: [table] });
+  });
+}
+
+test("missing, unknown, malformed and contradictory ranges fail closed", async () => {
+  const f = fixture();
+  f.records.tracks = [pending("track", "2026-11-21")];
+  for (const range of [null, "0-0/*", "0-0/1junk", "0-0/1/2", "1-1/1", "0-1/1", "*/0", "0-1/2"]) {
+    f.responses.set("tracks", { range });
+    assert.deepEqual(plain(await f.getAdminReviewQueueResult()), unavailable, String(range));
+  }
+  f.responses.set("tracks", { status: 206 });
+  assert.equal((await f.getAdminReviewQueueResult()).status, "ok");
 });

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
 import Link from "next/link";
-import { ArrowRight, ShieldAlert, SlidersHorizontal, UserCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, ShieldAlert, SlidersHorizontal, UserCheck } from "lucide-react";
 
+import { RetryTrackSubmissions } from "@/components/admin/retry-track-submissions";
 import { ReviewQueueCard } from "@/components/admin/review-queue-card";
 import { AdminCatalogReviewQueue, ReviewQueueNavigation } from "@/components/admin/review-queue-navigation";
 import styles from "@/components/admin-v2/operations.module.css";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { catalogQueueContext, type CatalogQueueContext } from "@/lib/admin/review-queue-navigation";
-import { getAdminReviewQueue } from "@/services/admin/queries";
+import { getAdminReviewQueueResult } from "@/services/admin/queries";
 
 export default async function ReviewQueuePage({
   searchParams
@@ -35,7 +36,27 @@ export default async function ReviewQueuePage({
 }
 
 async function TrackSubmissions({ context }: { context: CatalogQueueContext }) {
-  const tracks = await getAdminReviewQueue();
+  const result = await getAdminReviewQueueResult();
+  if (result.status === "unavailable") {
+    return (
+      <Card className="min-w-0">
+        <CardHeader>
+          <div className="flex items-start gap-3" role="alert">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+            <div className="min-w-0">
+              <CardTitle>Track submissions unavailable</CardTitle>
+              <CardDescription className="mt-1">Track submissions could not be loaded. Try again to check the queue.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <RetryTrackSubmissions />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const tracks = result.items;
   const flaggedCount = tracks.filter((track) => track.open_flag_count > 0).length;
   const splitGapCount = tracks.filter((track) => Math.round(track.rights_split_total) !== 100).length;
   const verificationGapCount = tracks.filter((track) => track.verification_status !== "verified").length;

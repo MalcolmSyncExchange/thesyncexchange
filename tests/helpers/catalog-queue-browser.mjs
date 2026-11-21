@@ -203,3 +203,83 @@ export async function verifyDetailReload({page,adminUrl,fixture}) {
  await expect(page.getByRole('status')).toContainText('Saved metadata reloaded.');
  await expect(page.getByRole('alert').filter({hasText:'Saved metadata could not be loaded'})).toHaveCount(0);
 }
+
+
+export async function verifyTrackQueueOutage({page,origin,output,name,fixture}) {
+ const queueUrl=origin+'/admin/review-queue';
+ const unavailable=page.getByRole('heading',{name:'Track submissions unavailable',exact:true});
+ const empty=page.getByText('The submission queue is clear.',{exact:true});
+ const count=page.getByText(/^\d+ awaiting review$/);
+ const pendingTrack=page.getByRole('link',{name:'Synthetic pending track',exact:true});
+ const retry=page.getByRole('button',{name:'Try Again',exact:true});
+ const retryStatus=page.getByRole('status').filter({hasText:'Trying again…'});
+
+ async function expectUnavailable() {
+  await expect(unavailable).toBeVisible({timeout:15000});
+  await expect(empty).toHaveCount(0);
+  await expect(count).toHaveCount(0);
+  await expect(pendingTrack).toHaveCount(0);
+  await expect(page.getByText('Rights holders',{exact:true})).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('PRIVATE_QUEUE_DIAGNOSTIC');
+ }
+
+ fixture.setTrackQueueFailure('tracks');
+ try {
+  await page.goto(queueUrl);
+  // Capture the prior false empty state as well when running against the mobile-only baseline.
+  await expect(unavailable.or(empty)).toBeVisible({timeout:15000});
+  await captureQueue(page,output,name,'tracks-outage');
+  await expectUnavailable();
+
+  const failed=fixture.pauseNextTrackQueueRead();
+  try {
+   await retry.focus();
+   await page.keyboard.press('Enter');
+   await expect(retryStatus).toBeVisible();
+   await expect(retry).toHaveAttribute('aria-disabled','true');
+   await expect.poll(()=>failed.started).toBe(true);
+   await expectUnavailable();
+  } finally {
+   failed.release();
+  }
+  await expect(retryStatus).toHaveCount(0,{timeout:15000});
+  await expectUnavailable();
+
+  await page.getByRole('link',{name:'Catalog Reviews',exact:true}).click();
+  await expect(page.getByRole('link',{name:'Open review for live',exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'Track Submissions',exact:true}).click();
+  await expectUnavailable();
+
+  fixture.setTrackQueueFailure('rights_holders',403);
+  const deniedRead=fixture.pauseNextTrackQueueRead();
+  try {
+   await retry.click();
+   await expect(retryStatus).toBeVisible();
+   await expect.poll(()=>deniedRead.started).toBe(true);
+   await expectUnavailable();
+  } finally {
+   deniedRead.release();
+  }
+  await expect(retryStatus).toHaveCount(0,{timeout:15000});
+  await expectUnavailable();
+
+  fixture.setTrackQueueFailure();
+  const recovery=fixture.pauseNextTrackQueueRead();
+  try {
+   await retry.click();
+   await expect(retryStatus).toBeVisible();
+   await expect.poll(()=>recovery.started).toBe(true);
+   await expectUnavailable();
+  } finally {
+   recovery.release();
+  }
+  await expect(pendingTrack).toBeVisible({timeout:15000});
+  await expect(page.getByText('1 awaiting review',{exact:true})).toBeVisible();
+  await expect(page.getByText('100% declared',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Approve',exact:true})).toBeVisible();
+  await expect(unavailable).toHaveCount(0);
+  await captureQueue(page,output,name,'tracks-recovered');
+ } finally {
+  fixture.setTrackQueueFailure();
+ }
+}

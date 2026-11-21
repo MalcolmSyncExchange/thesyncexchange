@@ -26,7 +26,7 @@ export async function deliveryAsset(db,kind='master',suffix=kind) {
  await db.exec(`insert into commerce_private.qa_fixture_designations(asset_version_id,buyer_user_id,approval_reference) values('${id}','${ids.buyer}','SYNTHETIC ONLY PK08')`);
  return id;
 }
-export async function seedDelivery(db,{paid=true,activate=true,review:reviewOverride=null,beforeQuote=null,agreementArtifact=null}={}) {
+export async function seedDelivery(db,{paid=true,activate=true,review:reviewOverride=null,beforeQuote=null,agreementArtifact=null,paymentCreatedAt='2026-10-22T00:00:00Z'}={}) {
  await db.exec("insert into storage.buckets(id,name,public) values('track-audio','track-audio',false) on conflict(id) do nothing");
  await db.exec(`update commerce_private.capabilities set foundation_enabled=true,asset_preparation_enabled=true,payment_adapter_enabled=true,
  receipt_generation_enabled=true,entitlement_activation_enabled=true,transaction_projection_enabled=true,delivery_enabled=true`);
@@ -40,7 +40,7 @@ export async function seedDelivery(db,{paid=true,activate=true,review:reviewOver
  const ctx={db,order:accepted.id,contract:result.contract_id,master,instrumental,excluded,review,quote:q,session};
  if(paid) {
   const path=await claimFixtureAgreement(db,ctx.order);
-  await call(db,'record_purchase_completion_event',[ctx.order,'acct_fixture','evt_deliverypaid','cs_test_fixture','pi_fixture','checkout.session.completed','PAID',5000,0,'USD','a'.repeat(64),'2026-10-22T00:00:00Z']);
+  await call(db,'record_purchase_completion_event',[ctx.order,'acct_fixture','evt_deliverypaid','cs_test_fixture','pi_fixture','checkout.session.completed','PAID',5000,0,'USD','a'.repeat(64),paymentCreatedAt]);
   let snapshot=await incorporatePurchase(db,ctx.order,{payment:{paymentMode:'test',commercialRightsGranted:false},license:{pricePaidCents:5000,currency:'USD'},pdfSha256:deliveryHash});
   const artifact=agreementArtifact?await agreementArtifact({ctx,snapshot,path}):null;
   if(artifact)snapshot=artifact.snapshot;

@@ -1,3 +1,4 @@
+import { getAdminTrackReviewMedia } from "@/services/media/admin-track-review";
 import { findTrackUpload } from "@/services/media/uploads";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,10 +10,10 @@ import { ComplianceFlagForm } from "@/components/admin/compliance-flag-form";
 import { ReviewNoteForm } from "@/components/admin/review-note-form";
 import { FlagSeverityBadge, FlagStatusBadge } from "@/components/shared/state-badges";
 import { TrackReviewActions } from "@/components/admin/track-review-actions";
-import { AudioPlayer } from "@/components/audio/audio-player";
+import { RecordingPlayer } from "@/components/audio/recording-player";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { catalogQueueContext, reviewQueueHref } from "@/lib/admin/review-queue-navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { catalogQueueContext, catalogReviewHref, reviewQueueHref } from "@/lib/admin/review-queue-navigation";
 import { formatCurrency, formatDateTime, formatDuration, formatEnumLabel } from "@/lib/utils";
 import { getAdminTrackById } from "@/services/admin/queries";
 
@@ -20,14 +21,16 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
   const params = await props.params;
   const { from, status, page } = await props.searchParams;
   const fromReviewQueue = from === "review-queue";
-  const backHref = fromReviewQueue ? reviewQueueHref("track", catalogQueueContext(status, page)) : "/admin/tracks";
+  const queueContext = catalogQueueContext(status, page);
+  const backHref = fromReviewQueue ? reviewQueueHref("track", queueContext, params.id) : "/admin/tracks";
   const data = await getAdminTrackById(params.id);
   if (!data) notFound();
 
   const { track, flags, reviewNotes, auditLog } = data;
-  const mediaSubmission = await findTrackUpload(track.id);
-  const totalOwnership = track.rights_holders.reduce((sum, holder) => sum + Number(holder.ownership_percent || 0), 0);
-  const hasCompleteOwnership = Math.abs(totalOwnership - 100) < 0.01;
+  const reviewMedia = await getAdminTrackReviewMedia(track.id);
+  const mediaSubmission = reviewMedia.status === "ready" ? reviewMedia.submission : await findTrackUpload(track.id);
+  const totalOwnership = track.rights_holders.reduce((sum, holder) => sum + Math.round(Number(holder.ownership_percent || 0) * 100), 0) / 100;
+  const hasCompleteOwnership = totalOwnership === 100;
   const activeLicenseOptions = track.license_options.filter((option) => option.active !== false);
   const reviewWarnings = [
     track.rights_holders.length === 0 ? "No rights holders have been added to this submission." : null,
@@ -47,7 +50,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
               {fromReviewQueue ? "Back to Track Submissions" : "Back to Track Management"}
             </Link>
             <h1 className="mt-3 text-3xl font-semibold">{track.title}</h1>
-            <Link className="mr-4 inline-block underline" href={"/admin/rights?track="+track.id}>Review master and publishing rights</Link><Link className="mr-4 inline-block underline" href={"/admin/catalog?track="+track.id}>Manage catalog metadata and publication</Link>
+            <Link className="mr-4 inline-block underline" href={"/admin/rights?track="+track.id}>Review master and publishing rights</Link><Link className="mr-4 inline-block underline" href={fromReviewQueue ? catalogReviewHref(track.id, queueContext, true) : "/admin/catalog?track="+track.id}>Manage catalog metadata and publication</Link>
             {mediaSubmission ? <Link className="mt-3 inline-block underline" href={"/admin/media?draft="+mediaSubmission}>Inspect private assets, processing and integrity</Link> : null}
             <p className="mt-2 text-muted-foreground">
               {track.artist_name} • {track.genre} • {track.subgenre}
@@ -68,14 +71,30 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-start gap-3">
             <Badge variant="secondary">{track.status}</Badge>
-            <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} />
+            <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={totalOwnership} />
           </div>
         </div>
       </div>
 
-      <AudioPlayer title={track.title} artist={track.artist_name} src={track.audio_file_url} />
+      {reviewMedia.status === "ready" ? (
+        <RecordingPlayer
+          key={reviewMedia.source.id}
+          submission={reviewMedia.submission}
+          source={reviewMedia.source}
+          waveformUrl={reviewMedia.waveformUrl}
+          selection={reviewMedia.selection}
+          readOnly
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <h2 className="text-base font-semibold">Review media unavailable</h2>
+            <CardDescription>The current working master and its matching waveform must both be ready for playback here.</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
         <div className="space-y-6">

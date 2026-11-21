@@ -1,6 +1,8 @@
 // Real production Next + Supabase SDK, synthetic loopback Auth/Storage and actual migration SQL/RLS and native worker.
-import {verifyCatalogQueue,verifyDetailReload,verifyTrackQueueOutage} from '../tests/helpers/catalog-queue-browser.mjs';
+import {verifyCatalogQueue,verifyDetailReload,verifyTrackQueueOutage,verifyTrackDecision} from '../tests/helpers/catalog-queue-browser.mjs';
 import {startCatalogFixture,anonKey,serviceKey} from '../tests/helpers/catalog-provider-fixture.mjs';
+import {adminTrackMediaFixture,startLocalMediaTls} from '../tests/helpers/admin-track-media-fixture.mjs';
+import {verifyAdminTrackMedia,verifyUnavailableTrackMedia,verifyAdminMediaDenials} from '../tests/helpers/admin-track-media-browser.mjs';
 import {chromium,firefox,webkit,expect} from '@playwright/test';
 
 import {spawn} from 'node:child_process';
@@ -10,8 +12,9 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 const output=path.resolve(process.env.TSE_CATALOG_TEST_OUTPUT_DIR||'/private/tmp/tse-system05-catalog-browser');await fs.mkdir(output,{recursive:true,mode:0o700});
 const probe=net.createServer();await new Promise(r=>probe.listen(0,'127.0.0.1',r));const port=probe.address().port;await new Promise(r=>probe.close(r));
-const fixture=await startCatalogFixture(),origin=`http://127.0.0.1:${port}`;
-const env={...Object.fromEntries(['PATH','HOME','TMPDIR','LANG','SHELL','USER'].filter(k=>process.env[k]).map(k=>[k,process.env[k]])),NODE_ENV:'production',NEXT_TELEMETRY_DISABLED:'1',NEXT_PUBLIC_APP_URL:origin,NEXT_PUBLIC_SUPABASE_URL:fixture.url,NEXT_PUBLIC_SUPABASE_ANON_KEY:anonKey,SUPABASE_SERVICE_ROLE_KEY:serviceKey,SYNC_EXCHANGE_PAYMENT_MODE:'disabled',SYNC_EXCHANGE_DEMO_MODE:'false',TSE_BUILD_DEPLOYMENT_TARGET:'local'};
+const media=adminTrackMediaFixture(),fixture=await startCatalogFixture({media}),origin=`http://127.0.0.1:${port}`;
+const tls=await startLocalMediaTls(fixture.url,output).catch(async error=>{await fixture.close();throw error;});
+const env={...Object.fromEntries(['PATH','HOME','TMPDIR','LANG','SHELL','USER'].filter(k=>process.env[k]).map(k=>[k,process.env[k]])),NODE_ENV:'production',NEXT_TELEMETRY_DISABLED:'1',NEXT_PUBLIC_APP_URL:origin,NEXT_PUBLIC_SUPABASE_URL:tls.url,NODE_EXTRA_CA_CERTS:tls.cert,NEXT_PUBLIC_SUPABASE_ANON_KEY:anonKey,SUPABASE_SERVICE_ROLE_KEY:serviceKey,SYNC_EXCHANGE_PAYMENT_MODE:'disabled',SYNC_EXCHANGE_DEMO_MODE:'false',TSE_BUILD_DEPLOYMENT_TARGET:'local'};
 const result={scope:'Local production browser + synthetic loopback provider + real SQL/RLS. No hosted or formal acceptance.',browsers:[],assertions:[],errors:[],hostedMutations:0};let app,browser,lastPage,serverHandle;
 async function command(args,log){const f=await fs.open(path.join(output,log),'w');const child=spawn(process.execPath,args,{cwd:process.cwd(),env,stdio:['ignore',f.fd,f.fd]});const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',resolve);});await f.close();if(code!==0)throw Error(`Local command failed (${log}): ${code}`);}
 async function check(name,fn){await fn();result.assertions.push(name);console.log('PASS '+name);}
@@ -23,7 +26,7 @@ try{
  await command(['node_modules/next/dist/bin/next','build'],'build.log');result.build='PASS';serverHandle=await fs.open(path.join(output,'server.log'),'w');app=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port',String(port)],{cwd:process.cwd(),env,stdio:['ignore',serverHandle.fd,serverHandle.fd]});await waitApp();
  for(const [name,type]of [['chromium',chromium],['firefox',firefox],['webkit',webkit]]){
   try{await fs.access(type.executablePath());}catch{result.browsers.push({name,status:'NOT AVAILABLE locally'});continue;}
-  browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();lastPage=page;await context.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)||['data:','blob:'].includes(u.protocol)?route.continue():route.abort();});page.on('pageerror',e=>result.errors.push(e.message));
+  browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:1440,height:1000},ignoreHTTPSErrors:true});const page=await context.newPage();lastPage=page;await context.route('**/*',route=>{const u=new URL(route.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)||['data:','blob:'].includes(u.protocol)?route.continue():route.abort();});page.on('pageerror',e=>result.errors.push(e.message));
   const track=fixture.track,artistUrl=origin+'/artist/catalog/manage?track='+track,adminUrl=origin+'/admin/catalog?track='+track;
   const state=()=>fixture.withDatabase(async db=>(await db.query('select to_jsonb(c) v from catalog_private.cases c where track_id=$1',[track])).rows[0]?.v);
   const feedback=()=>page.getByRole('status');
@@ -71,7 +74,23 @@ try{
   await check(name+': rights revocation removes published search immediately and preserves complete metadata review history',async()=>{await fixture.revokeRights();const r=await page.request.post(origin+'/api/catalog',{headers:{origin},data:{action:'search',filters:{}}});assert.equal((await r.json()).total,0);assert.equal((await state()).state,'published');assert.equal((await fixture.query('select count(*)::int n from catalog_private.versions')).rows[0].n,2);await login(page,'artist@fixture.invalid');await page.waitForURL(/\/artist\//);await page.goto(artistUrl);await expect(page.getByText('Current verified master and publishing authority is required.',{exact:true})).toBeVisible();});
   await check(name+': Artist catalog queue filters publication state and has an honest empty state',async()=>{await page.goto(origin+'/artist/catalog/manage');await page.getByLabel('Review status',{exact:true}).selectOption('submitted');await expect(page.getByText('No catalog records match this status.',{exact:true})).toBeVisible();await page.getByLabel('Review status',{exact:true}).selectOption('published');await expect(page.getByRole('link',{name:'Synthetic Catalog Recording',exact:true})).toBeVisible();await page.getByRole('link',{name:'Synthetic Catalog Recording',exact:true}).click();await expect(page.getByLabel('Track title',{exact:true})).toHaveValue('Synthetic Catalog Recording');});
   await check(name+': responsive catalog forms have associated labels and keyboard focus without horizontal overflow',async()=>{await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);for(const control of await page.getByRole('form',{name:'Artist catalog metadata'}).locator('input,select,textarea').all()){assert.ok(await control.evaluate(e=>!!e.closest('label')||!!document.querySelector('label[for="'+e.id+'"]')));}await page.getByLabel('Track title',{exact:true}).focus();await expect(page.getByLabel('Track title',{exact:true})).toBeFocused();await page.keyboard.press('Tab');await page.screenshot({path:path.join(output,name+'-artist-catalog-mobile.png'),fullPage:true});await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:path.join(output,name+'-artist-catalog-desktop.png'),fullPage:true});});
+  await check(name+': track decision feedback, real ownership guard and expired sessions',async()=>{
+   await login(page,'admin@fixture.invalid');await mfa();await verifyTrackDecision({page,origin,output,name,fixture});
+  });
+  const assets=await media.seed(fixture);
+  await login(page,'admin@fixture.invalid');await mfa();
+  await check(name+': Admin Track Detail binds read-only waveform and signed playback to the same master',async()=>{
+   const consoleErrors=[];
+   const record=message=>{if(message.type()==='error')consoleErrors.push(message.text());};
+   page.on('console',record);
+   try {
+    await verifyAdminTrackMedia({page,origin,output,name,assets,providerUrl:tls.url});
+    assert.deepEqual(consoleErrors,[]);
+   } finally { page.off('console',record); }
+  });
+  await check(name+': unavailable, retired and mismatched Admin media render safely without a legacy player',()=>verifyUnavailableTrackMedia({page,origin,fixture,media}));
+  await check(name+': unsigned, anonymous, non-MFA, non-owner, Buyer and expired-session media access are denied',()=>verifyAdminMediaDenials({page,origin,fixture,assets,providerUrl:tls.url,login}));
   await context.close();await browser.close();browser=null;result.browsers.push({name,status:'PASS'});
  }
  assert.ok(result.browsers.some(x=>x.status==='PASS'));assert.deepEqual(result.errors,[]);result.status='PASS';
-}catch(e){result.status='FAIL';result.failure=e.message;process.exitCode=1;if(lastPage){result.lastPath=new URL(lastPage.url()).pathname;result.lastText=(await lastPage.locator('body').innerText().catch(()=>'' )).slice(-5000);await lastPage.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}result.calls=fixture.calls.slice(-20);console.error(e.stack);console.error(JSON.stringify({path:result.lastPath,text:result.lastText,calls:result.calls}));}finally{await browser?.close();if(app){app.kill('SIGTERM');await new Promise(r=>{if(app.exitCode!==null)return r();app.once('exit',r);setTimeout(r,5000);});}await serverHandle?.close();await fixture.close();await fs.writeFile(path.join(output,'results.json'),JSON.stringify(result,null,2)+'\n');}
+}catch(e){result.status='FAIL';result.failure=e.message;process.exitCode=1;if(lastPage){result.lastPath=new URL(lastPage.url()).pathname;result.lastText=(await lastPage.locator('body').innerText().catch(()=>'' )).slice(-5000);await lastPage.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}result.calls=fixture.calls.slice(-20);console.error(e.stack);console.error(JSON.stringify({path:result.lastPath,text:result.lastText,calls:result.calls}));}finally{await browser?.close();if(app){app.kill('SIGTERM');await new Promise(r=>{if(app.exitCode!==null)return r();app.once('exit',r);setTimeout(r,5000);});}await serverHandle?.close();await tls.close();await fixture.close();await fs.writeFile(path.join(output,'results.json'),JSON.stringify(result,null,2)+'\n');}

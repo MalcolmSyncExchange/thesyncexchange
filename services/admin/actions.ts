@@ -18,34 +18,68 @@ import { createServerSupabaseClient } from "@/services/supabase/server";
 import type { AppSupabaseClient } from "@/services/supabase/types";
 import type { Database, Json } from "@/types/database";
 
-export async function updateTrackStatusAction(formData: FormData) {
+export type TrackStatusUpdateResult =
+  | { status: "ok" }
+  | { status: "rejected"; code: "OWNERSHIP_TOTAL_INVALID" | "RIGHTS_REVIEW_REQUIRED" }
+  | { status: "unavailable"; code: "TRACK_STATUS_UPDATE_FAILED" }
+  | { status: "invalid_request"; code: "TRACK_STATUS_REQUEST_INVALID" }
+  | { status: "not_updated"; code: "TRACK_NOT_UPDATED" };
+
+export async function updateTrackStatusAction(formData: FormData): Promise<void> {
+  const result = await updateTrackStatusWithResultAction(formData);
+  if (result.status === "unavailable" || result.status === "not_updated") {
+    throw new Error("Track status could not be updated.");
+  }
+}
+
+export async function updateTrackStatusWithResultAction(formData: FormData): Promise<TrackStatusUpdateResult> {
   const trackId = String(formData.get("trackId") || "");
   const status = String(formData.get("status") || "");
 
   if (!trackId || !status || !hasSupabaseEnv || env.demoMode) {
-    return;
+    return { status: "invalid_request", code: "TRACK_STATUS_REQUEST_INVALID" };
   }
 
   const actorId = await requireAdminActorId();
-  const supabase = await createServerSupabaseClient();
-  const { data: trackContext } = await supabase.from("tracks").select("id, slug").eq("id", trackId).maybeSingle();
 
-  const updateResult = await supabase
-    .from("tracks")
-    .update({
-      status: status as Database["public"]["Enums"]["track_status"],
-      approved_at: status === "approved" ? new Date().toISOString() : null,
-      approved_by: status === "approved" ? actorId : null
-    })
-    .eq("id", trackId);
+  const unavailable = (): TrackStatusUpdateResult => {
+    reportOperationalError("admin_track_status_update_failed", "Track status write failed.");
+    return { status: "unavailable", code: "TRACK_STATUS_UPDATE_FAILED" };
+  };
 
-  if (updateResult.error) {
-    reportOperationalError("admin_track_status_update_failed", updateResult.error, {
-      trackId,
-      status,
-      actorId: actorId || null
-    });
-    throw new Error(updateResult.error.message);
+  let supabase: AppSupabaseClient;
+  let slug: string | null;
+  try {
+    supabase = await createServerSupabaseClient();
+    const updateResult = await supabase
+      .from("tracks")
+      .update({
+        status: status as Database["public"]["Enums"]["track_status"],
+        approved_at: status === "approved" ? new Date().toISOString() : null,
+        approved_by: status === "approved" ? actorId : null
+      })
+      .eq("id", trackId)
+      .select("slug")
+      .maybeSingle();
+
+    if (updateResult.error) {
+      const { code, message } = updateResult.error;
+      // The current trigger uses a shared SQLSTATE, so classify only its exact ownership error.
+      if (status === "approved" && code === "P0001" &&
+        message === "Approved tracks must have rights holder ownership totals equal to 100%.") {
+        return { status: "rejected", code: "OWNERSHIP_TOTAL_INVALID" };
+      }
+      if (status === "approved" && code === "42501" &&
+        (message === "Current verified rights review required" || message === "Reviewed documentation revoked or expired")) {
+        return { status: "rejected", code: "RIGHTS_REVIEW_REQUIRED" };
+      }
+      return unavailable();
+    }
+
+    if (!updateResult.data) return { status: "not_updated", code: "TRACK_NOT_UPDATED" };
+    slug = updateResult.data.slug;
+  } catch {
+    return unavailable();
   }
 
   await appendTrackAuditLog(supabase, trackId, "track_status_updated", { status });
@@ -55,11 +89,12 @@ export async function updateTrackStatusAction(formData: FormData) {
   revalidatePath("/admin/tracks");
   revalidatePath("/admin/compliance");
   revalidatePath("/buyer/catalog");
-  revalidatePath(`/artist/tracks/${trackContext?.slug || trackId}`);
-  if (trackContext?.slug) {
-    revalidatePath(`/buyer/catalog/${trackContext.slug}`);
-    revalidatePath(`/buyer/checkout/${trackContext.slug}`);
+  revalidatePath(`/artist/tracks/${slug || trackId}`);
+  if (slug) {
+    revalidatePath(`/buyer/catalog/${slug}`);
+    revalidatePath(`/buyer/checkout/${slug}`);
   }
+  return { status: "ok" };
 }
 
 export async function toggleTrackFeaturedAction(formData: FormData) {

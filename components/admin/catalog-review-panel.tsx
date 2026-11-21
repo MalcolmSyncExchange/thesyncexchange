@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ReviewQueuePosition, ReviewQueueRecordLink } from "@/components/admin/review-queue-position";
 import { ArrowRight, ClipboardCheck, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,9 +31,10 @@ export function CatalogReviewPanel({ context, queue, status, onChange, onRefresh
           Review catalog metadata before publication. Catalog drafts await a separate artist submission.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5 p-4 sm:p-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <label className="grid min-w-0 grow gap-1.5 text-sm font-medium sm:max-w-56">
+      <CardContent className="space-y-4 p-4 sm:p-6">
+        <ReviewQueuePosition ready={!busy} canCheckRecord={status === "success"} />
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="grid min-w-0 gap-1.5 text-sm font-medium sm:max-w-56">
             Review status
             <select className="h-11 min-w-0 rounded-md border border-border bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={filter} onChange={event => onChange({ filter: event.target.value, page: 1 })}>
@@ -83,10 +85,10 @@ export function CatalogReviewPanel({ context, queue, status, onChange, onRefresh
                 </details>}
               </div>
               <Button asChild size="lg" variant={record.state === "submitted" ? "default" : "outline"}>
-                <Link href={catalogReviewHref(record.id, context)} aria-label={`Open ${record.state === "submitted" ? "review" : "record"} for ${record.title}`}>
+                <ReviewQueueRecordLink href={catalogReviewHref(record.id, context)} record={record.id} tab="catalog" context={context} aria-label={`Open ${record.state === "submitted" ? "review" : "record"} for ${record.title}`}>
                   {record.state === "submitted" ? "Open review" : "Open record"}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
+                </ReviewQueueRecordLink>
               </Button>
             </li>
           ))}

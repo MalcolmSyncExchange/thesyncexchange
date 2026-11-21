@@ -100,29 +100,48 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
   await page.getByLabel('Review status').selectOption('');
   await expect(page).toHaveURL(/status=all/);
   await expect(record).toBeVisible();
-  response={status:200,body:{...data,total:21,page_count:2}};
+  const otherRows=Array.from({length:8},(_,index)=>({
+   ...data.items[0],id:`77777777-7777-4777-8777-${String(index).padStart(12,'0')}`,
+   title:'Synthetic catalog filler '+index
+  }));
+  response={status:200,body:{...data,items:[...otherRows,...data.items],total:21,page_count:2}};
   await page.getByRole('button',{name:'Refresh catalog results'}).click();
   await page.getByRole('button',{name:'Next',exact:true}).click();
   await expect(page).toHaveURL(/page=2/);
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.getByText("Page 2 of 2 · 21 records")).toBeVisible();
   await expect(record).toBeVisible();
-  await record.click();
+  await record.scrollIntoViewIfNeeded();
+  assert.ok(await page.evaluate(()=>scrollY>300));
+  await record.press('Enter');
   await expect(page).toHaveURL(new RegExp('/admin/catalog\\?.*track='+track));
   const back=page.getByRole('link',{name:'Back to Catalog Reviews'});
-  const returnPath=await back.getAttribute('href');
-  assert.equal(new URL(returnPath,origin).searchParams.get('page'),'2');
-  assert.equal(new URL(returnPath,origin).searchParams.get('status'),'all');
+  const returnPath=new URL(await back.getAttribute('href'),origin);
+  assert.equal(returnPath.searchParams.get('page'),'2');
+  assert.equal(returnPath.searchParams.get('status'),'all');
+  assert.equal(returnPath.searchParams.get('record'),track);
   await page.goBack();
   await expect(page.getByLabel('Review status')).toHaveValue('');
-  await expect(page.getByText('Page 2 of 2 · 21 records')).toBeVisible();
-  await record.click();
+  await expectRestored(page,record);
+  await page.goForward();
+  await expect(back).toBeVisible();
   await back.click();
-  await expect(page.getByText('Page 2 of 2 · 21 records')).toBeVisible();
+  await expectRestored(page,record);
+  await page.reload();
+  await expectRestored(page,record);
+  await page.screenshot({path:`${output}/${name}-catalog-return-390.png`});
+  response={status:200,body:{...data,items:otherRows,total:20,page_count:2}};
+  await page.reload();
+  await expect(page.getByRole('status').filter({hasText:'That record is no longer listed in this view.'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Review Queue',exact:true})).toBeFocused();
+  response={status:200,body:{...data,items:[...otherRows,...data.items],total:21,page_count:2}};
+  await page.setViewportSize({width:1440,height:1000});
   const tracks=page.getByRole('link',{name:'Track Submissions',exact:true});
   await tracks.focus();
   await expect(tracks).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(tracks).toHaveAttribute('aria-current','page');
-  const trackTitle=page.getByRole('link',{name:'Synthetic pending track',exact:true});
+  const trackTitle=page.getByRole('link',{name:'Open record for Synthetic pending track',exact:true});
   await expect(trackTitle).toBeVisible();
   await expect(page.getByRole('button',{name:'Approve',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Reject',exact:true})).toBeVisible();
@@ -142,10 +161,25 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
   await expect(tracks).toBeFocused();
   assert.ok(await tracks.evaluate(link=>link.matches(':focus-visible')&&getComputedStyle(link).boxShadow!=='none'));
   await captureQueue(page,output,name,'tracks-populated');
+  await page.getByText('Review evidence',{exact:true}).click();
+  const verification=page.getByText('Verification',{exact:true});
+  assert.ok(await verification.evaluate(label=>label.scrollWidth<=label.clientWidth+1&&
+   label.getBoundingClientRect().right<=label.closest('.rounded-md').getBoundingClientRect().right));
+  await page.getByText('Review evidence',{exact:true}).click();
   await trackTitle.click();
   await expect(page.getByRole('link',{name:'Review master and publishing rights'})).toBeVisible();
+  await page.goBack();
+  await expectRestored(page,trackTitle);
+  await page.reload();
+  await expectRestored(page,trackTitle);
+  await page.goForward();
   await page.getByRole('link',{name:'Back to Track Submissions'}).click();
-  await expect(trackTitle).toBeVisible();
+  await expectRestored(page,trackTitle);
+  await trackTitle.click();
+  await page.getByRole('link',{name:'Manage catalog metadata and publication'}).click();
+  await expect(page).toHaveURL(/status=all.*page=2.*from=track-queue/);
+  await page.getByRole('link',{name:'Back to Track Submissions'}).click();
+  await expectRestored(page,trackTitle);
   // Switching views also retains the catalog URL when returning via the tabs.
   await page.getByRole('link',{name:'Catalog Reviews',exact:true}).click();
   await expect(page.getByText('Page 2 of 2 · 21 records')).toBeVisible();
@@ -210,7 +244,7 @@ export async function verifyTrackQueueOutage({page,origin,output,name,fixture}) 
  const unavailable=page.getByRole('heading',{name:'Track submissions unavailable',exact:true});
  const empty=page.getByText('The submission queue is clear.',{exact:true});
  const count=page.getByText(/^\d+ awaiting review$/);
- const pendingTrack=page.getByRole('link',{name:'Synthetic pending track',exact:true});
+ const pendingTrack=page.getByRole('link',{name:'Open record for Synthetic pending track',exact:true});
  const retry=page.getByRole('button',{name:'Try Again',exact:true});
  const retryStatus=page.getByRole('status').filter({hasText:'Trying again…'});
 
@@ -275,11 +309,98 @@ export async function verifyTrackQueueOutage({page,origin,output,name,fixture}) 
   }
   await expect(pendingTrack).toBeVisible({timeout:15000});
   await expect(page.getByText('1 awaiting review',{exact:true})).toBeVisible();
+  await page.getByText('Review evidence',{exact:true}).click();
   await expect(page.getByText('100% declared',{exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Approve',exact:true})).toBeVisible();
   await expect(unavailable).toHaveCount(0);
   await captureQueue(page,output,name,'tracks-recovered');
  } finally {
   fixture.setTrackQueueFailure();
+ }
+}
+
+
+async function expectRestored(page, record) {
+ await expect(record).toBeFocused();
+ await expect(record).toBeInViewport({ratio:1});
+}
+
+export async function verifyTrackDecision({page,origin,output,name,fixture}) {
+ const id=fixture.draftTrack;
+ const approve=page.getByTestId(`approve-track-${id}`);
+ const alert=page.getByRole('alert').filter({hasText:/ownership must equal|current rights review|could not be confirmed|request is invalid|was not updated/});
+ const status=()=>fixture.query('select status from tracks where id=$1',[id]).then(result=>result.rows[0].status);
+ const totals=async total=>fixture.withDatabase(async db=>{
+  await db.query('delete from rights_holders where track_id=$1',[id]);
+  const shares=total===100?[64.04,0.01,35.95]:total===110?[60,50]:total?[total]:[];
+  for(const share of shares){
+   await db.query("insert into rights_holders(track_id,name,role_type,ownership_percent,email) values($1,'Fixture rightsholder','owner',$2,$3)",[id,share,`fixture-${share}@fixture.invalid`]);
+  }
+ });
+ try {
+  for(const total of [0,60,110]){
+   await totals(total);
+   await page.goto(origin+'/admin/review-queue');
+   await expect(page.getByText(`Declared ownership shown here is ${total}%.`,{exact:false})).toBeVisible();
+   await expect(page.getByText('Ready for review',{exact:true})).toHaveCount(0);
+   await approve.click();
+   await expect(alert).toContainText('Declared ownership must equal 100%');
+   await expect(page.getByRole('status').filter({hasText:'Track approved.'})).toHaveCount(0);
+   assert.equal(await status(),'pending_review');
+   if(total===0) await captureQueue(page,output,name,'approval-blocked');
+   if(total===60){
+    await page.goto(origin+'/admin/tracks');
+    await approve.click();
+    await expect(alert).toContainText('Declared ownership must equal 100%');
+    assert.equal(await status(),'pending_review');
+   }
+  }
+  await totals(100);
+  await page.setViewportSize({width:390,height:844});
+  await page.goto(origin+'/admin/tracks/'+id+'?from=review-queue');
+  await expect(page.getByText('Declared ownership shown here',{exact:false})).toHaveCount(0);
+  fixture.failNextTrackDecision('rights');
+  await approve.click();
+  await expect(alert).toContainText('A current rights review is required');
+  await expect(alert.getByRole('link',{name:'Review rights'})).toHaveAttribute('href','/admin/rights?track='+id);
+  assert.ok(await alert.evaluate(message=>{
+   const bounds=message.getBoundingClientRect();
+   return bounds.left>=0&&bounds.right<=window.innerWidth&&message.scrollWidth<=message.clientWidth+1;
+  }));
+  await page.screenshot({path:`${output}/${name}-approval-rights-390.png`});
+  await page.setViewportSize({width:1440,height:1000});
+
+  fixture.failNextTrackDecision('no-row');
+  await approve.click();await expect(alert).toContainText('The track was not updated');
+  await approve.locator('..').locator('input[name=trackId]').evaluate(input=>input.value='');
+  await approve.click();await expect(alert).toContainText('This decision request is invalid');
+  await page.reload();
+  fixture.failNextTrackDecision('unavailable');
+  await approve.click();await expect(alert).toContainText('The decision could not be confirmed');
+  await expect(page.locator('body')).not.toContainText('PRIVATE_DECISION_DIAGNOSTIC');
+  assert.equal(await status(),'pending_review');
+  await approve.click();
+  await expect(page.getByRole('status').filter({hasText:'Track approved.'})).toBeVisible();
+  assert.equal(await status(),'approved');
+  await page.screenshot({path:`${output}/${name}-approval-success-1440.png`});
+
+  await fixture.query("update tracks set status='pending_review' where id=$1",[id]);
+  await page.goto(origin+'/admin/review-queue');
+  await approve.click();
+  await expect(approve).toHaveCount(0);
+  await expect(page.getByRole('status').filter({hasText:'Track approved.'})).toBeVisible();
+  assert.equal(await status(),'approved');
+  await page.screenshot({path:`${output}/${name}-queue-approval-success-1440.png`});
+
+  await fixture.query("update tracks set status='pending_review' where id=$1",[id]);
+  await page.goto(origin+'/admin/review-queue');
+  await expect(approve).toBeVisible();
+  fixture.invalidate(fixture.admin.id);
+  await approve.click();
+  await expect(alert).toContainText('Check your Admin session and account security');
+  assert.equal(await status(),'pending_review');
+ } finally {
+  await totals(100);
+  await fixture.query("update tracks set status='pending_review' where id=$1",[id]);
  }
 }

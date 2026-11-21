@@ -4,14 +4,39 @@ import {seedDatabase,ids} from './artist-baseline-db.mjs';
 import {approved} from './rights-verification-fixture.mjs';
 import {readyLicenses} from './catalog-management-fixture.mjs';
 export {anonKey,serviceKey};
-export async function startCatalogFixture(){let rights;
- let queueFailure, holdNextQueueRead;
+export async function startCatalogFixture({media}={}){let rights;
+ let queueFailure, holdNextQueueRead, trackDecisionFailure;
  const queueDependencies=new Set(['tracks','rights_holders','admin_flags','review_notes','artist_profiles']);
 
  const f=await startArtistFixture({
   tables:['tracks','rights_holders','admin_flags','review_notes','track_audit_log'],
   async rest(req,res,ctx,{db,execute,json}){
    const table=ctx.url.pathname.slice('/rest/v1/'.length);
+   if(req.method==='PATCH'&&table==='tracks'){
+    if(trackDecisionFailure){
+     const failure=trackDecisionFailure;trackDecisionFailure=undefined;
+     if(failure==='no-row')json(res,null);
+     else if(failure==='rights')json(res,{code:'42501',message:'Current verified rights review required'},403);
+     else json(res,{code:'08006',message:'PRIVATE_DECISION_DIAGNOSTIC'},500);
+     return true;
+    }
+    const id=ctx.url.searchParams.get('id')?.slice(3);
+    const {status,approved_at,approved_by}=ctx.body;
+    try {
+     const result=await execute(ctx,()=>db.query(
+      'update tracks set status=$1,approved_at=$2,approved_by=$3 where id=$4 returning slug',
+      [status,approved_at,approved_by,id]));
+     json(res,String(req.headers.accept||'').includes('object') ? result.rows[0]??null : result.rows);
+    }catch(error){json(res,{code:error.code,message:error.message},error.code==='42501'?403:400);}
+    return true;
+   }
+   if(req.method==='POST'&&table==='track_audit_log'){
+    const {track_id,actor_id,action,metadata}=ctx.body;
+    await execute(ctx,()=>db.query('insert into track_audit_log(track_id,actor_id,action,metadata) values($1,$2,$3,$4)',
+     [track_id,actor_id,action,JSON.stringify(metadata)]));
+    json(res,null,201);
+    return true;
+   }
    const pendingTracks=table==='tracks'&&ctx.url.searchParams.get('status')==='eq.pending_review'&&
     ctx.url.searchParams.get('select')?.includes('cover_art_path');
    if(req.method==='GET'&&ctx.service&&queueDependencies.has(table)&&(table!=='tracks'||pendingTracks)){
@@ -40,8 +65,10 @@ export async function startCatalogFixture(){let rights;
    for(const [key,actor]of [['a',auth.artist],['buyer',auth.buyer],['admin',auth.admin]]){const old=actor.id,p=auth.profiles.get(old);auth.profiles.delete(old);actor.id=ids[key];auth.profiles.set(actor.id,{...p,id:actor.id,onboarding_step:'complete',onboarding_completed_at:new Date().toISOString()});await db.query("update user_profiles set onboarding_step='complete',onboarding_completed_at=clock_timestamp() where id=$1",[actor.id]);}
    rights=await approved(db);
   },
-  async rpc(name,args,{db}){const allowed=new Set(['catalog_save','catalog_submit','catalog_review','catalog_transition','catalog_reopen','catalog_read','catalog_list','catalog_recover','catalog_history','catalog_search','catalog_available_licenses']);if(!allowed.has(name))return null;const definition=(await db.query("select proargnames from pg_proc where proname=$1 and pronamespace='public'::regnamespace",[name])).rows[0];const params=definition.proargnames.map(k=>args[k]??null);return {value:(await db.query('select public.'+name+'('+params.map((_,i)=>'$'+(i+1)).join(',')+') value',params)).rows[0].value};}
+  storage: media?.storage,
+  async rpc(name,args,{db}){const allowed=new Set(['catalog_save','catalog_submit','catalog_review','catalog_transition','catalog_reopen','catalog_read','catalog_list','catalog_recover','catalog_history','catalog_search','catalog_available_licenses']);if(!allowed.has(name))return media?.rpc(name,args,db);const definition=(await db.query("select proargnames from pg_proc where proname=$1 and pronamespace='public'::regnamespace",[name])).rows[0];const params=definition.proargnames.map(k=>args[k]??null);return {value:(await db.query('select public.'+name+'('+params.map((_,i)=>'$'+(i+1)).join(',')+') value',params)).rows[0].value};}
  });return {...f,track:ids.live,draftTrack:ids.draft,
+  failNextTrackDecision:failure=>{trackDecisionFailure=failure;},
   setTrackQueueFailure:(table,status=503)=>{queueFailure=table?{table,status}:undefined;},
   pauseNextTrackQueueRead:()=>{
    let started=false,release;

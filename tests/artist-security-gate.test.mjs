@@ -19,7 +19,7 @@ test('RELEASE GATE: general profile grant does not include finance contact',()=>
  assert.ok(rows.every(r=>!r.payout_email),'Profile and finance permissions remain coupled');
 })));
 test('RELEASE GATE: admin action authorizes before privileged resource access',()=>{
- const s=source('services/admin/actions.ts').split('export async function updateTrackStatusAction')[1].split('export async function')[0];
+ const s=source('services/admin/actions.ts').split('export async function updateTrackStatusWithResultAction')[1].split('export async function')[0];
  const authorize=s.indexOf('await requireAdminActorId()'),client=s.indexOf('await createServerSupabaseClient()'),mutation=s.indexOf('.from("tracks")');
  assert.ok(authorize>=0&&client>authorize&&mutation>client,'Admin authorization must precede the authenticated mutation client and track access');
  assert.doesNotMatch(s,/createPrivilegedSupabaseClient|createAdminSupabaseClient/,'The legacy action must retain the verified SSR actor and RLS');

@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as zod from 'zod';
+import * as uploadProgress from '../lib/media/upload-progress.mjs';
 import {readFile} from 'node:fs/promises';
 import {loadAuthModule,authHarness,userId} from './helpers/auth-system-harness.mjs';
-import {uploadsFixture,create,reserve,observed,completeNext,artist,asActor,ids,invoke} from './helpers/music-uploads-fixture.mjs';
+import {uploadsFixture,create,reserve,observed,completeNext,artist,asActor,ids,invoke,readyPackage,metadata,revision} from './helpers/music-uploads-fixture.mjs';
 const submission='22222222-2222-4222-8222-222222222222',asset='33333333-3333-4333-8333-333333333333';
 class UploadError extends Error{constructor(status,code){super(code);this.status=status;this.code=code;}}
 function fixture(options={}){
@@ -58,4 +59,136 @@ test('SQL ownership, live session, MFA, retirement, Storage drift and grants are
   await db.exec(await readFile(new URL('../docs/audio-reconstruction/unified-player-rollback.sql',import.meta.url),'utf8'));
   assert.deepEqual((await db.query('select id,technical_state from submission_media.assets order by id')).rows,before);
  }finally{await db.close();}
+});
+
+const waveformId = '44444444-4444-4444-8444-444444444444';
+const reviewId = '55555555-5555-4555-8555-555555555555';
+const reviewSource = { id: asset, kind: 'source_master', state: 'ready', duration_us: 30_000_000, accepted: false };
+const reviewWaveform = { id: waveformId, kind: 'waveform', state: 'ready', source_id: asset };
+const unavailableReview = { status: 'unavailable' };
+const plain = value => JSON.parse(JSON.stringify(value));
+
+function adminReviewFixture(options = {}, rpcOverride) {
+  const h = authHarness({ role: 'admin', aal: 'aal2', factors: [{ status: 'verified' }], ...options });
+  const state = {
+    submission_id: submission,
+    track_id: ids.draft,
+    source: { ...reviewSource, filename: 'private.wav', object_path: 'PRIVATE_STORAGE_PATH' },
+    current_source: { ...reviewSource, id: ids.live },
+    files: [{ asset: reviewSource, role: 'master', retired: false }],
+    waveform: reviewWaveform,
+    selection: { start_ms: 0, end_ms: 30_000 },
+    review: { id: reviewId },
+    revision: 5,
+    derivatives: [{ id: ids.live, kind: 'buyer_preview', source_id: asset }],
+    ...options.state
+  };
+  const review = {
+    review_id: reviewId, submission_id: submission, track_id: ids.draft,
+    revision: 5, candidate_master: reviewSource, ...options.review
+  };
+  const calls = [];
+  const authRpc = h.client.rpc;
+  h.client.rpc = async (name, args) => {
+    if (name === 'auth_session_is_active') return authRpc(name, args);
+    calls.push([name, args]);
+    if (rpcOverride) return rpcOverride(name, args);
+    const records = { media_upload_find: submission, media_upload_admin_read: state, media_admin_review_state: review };
+    return {
+      data: name === options.denied ? false : Object.hasOwn(records, name) ? records[name] : true,
+      error: null
+    };
+  };
+  const modules = {
+    ...h.modules, zod,
+    '@/lib/maintenance-mode.mjs': { resolveMaintenanceMode: () => ({ blocksApplication: false }) },
+    '@/lib/media/upload-contract': loadAuthModule('lib/media/upload-contract.ts', { zod, './upload-progress.mjs': uploadProgress }),
+    '@/lib/media/upload-progress.mjs': uploadProgress,
+    '@/services/security/rate-limit': {}
+  };
+  const uploads = loadAuthModule('services/media/uploads.ts', modules);
+  const resolver = loadAuthModule('services/media/admin-track-review.ts', { ...modules, './uploads': uploads });
+  return { ...resolver, calls, uploads };
+}
+
+test('Admin Track Detail returns only the active master and its authorized waveform from the shared media read', async () => {
+  const f = adminReviewFixture();
+  assert.deepEqual(plain(await f.getAdminTrackReviewMedia(ids.draft)), {
+    status: 'ready', submission, source: reviewSource,
+    waveformUrl: `/api/media/${submission}/${waveformId}`,
+    originalAuthorizationPath: `/api/media/${submission}/${asset}/original`,
+    selection: { start_ms: 0, end_ms: 30_000 }
+  });
+  assert.deepEqual(plain(f.calls), [
+    ['media_upload_find', { p_track: ids.draft }],
+    ['media_upload_admin_read', { p_submission: submission }],
+    ['media_admin_review_state', { p_review: reviewId }],
+    ['media_master_can_play', { p_submission: submission, p_asset: asset }],
+    ['media_upload_can_play', { p_submission: submission, p_asset: waveformId }]
+  ]);
+  assert.equal((await f.uploads.readUploads(submission, true)).source.id, asset);
+});
+
+test('Admin review descriptor denies missing sessions, expired sessions, Artists, Buyers and AAL1 before reads', async () => {
+  for (const options of [{ user: null }, { expired: true }, { revoked: true }, { role: 'artist' },
+    { role: 'buyer', metadataRole: 'admin' }, { aal: 'aal1' }]) {
+    const f = adminReviewFixture(options);
+    assert.deepEqual(plain(await f.getAdminTrackReviewMedia(ids.draft)), unavailableReview);
+    assert.equal(f.calls.length, 0);
+  }
+});
+
+test('Admin review descriptor fails closed on unlinked, mismatched, superseded or unauthorized media', async () => {
+  const unlinked = adminReviewFixture({}, async () => ({ data: null, error: null }));
+  assert.deepEqual(plain(await unlinked.getAdminTrackReviewMedia(ids.draft)), unavailableReview);
+  assert.equal(unlinked.calls.length, 1);
+  for (const options of [
+    { state: { track_id: ids.live } },
+    { state: { submission_id: ids.live } },
+    { state: { source: null } },
+    { state: { waveform: null } },
+    { state: { files: [{ asset: reviewSource, role: 'master', retired: true }] } },
+    { state: { waveform: { ...reviewWaveform, source_id: ids.live } } },
+    { state: { waveform: { ...reviewWaveform, state: 'failed' } } },
+    { review: { candidate_master: { ...reviewSource, id: ids.live } } },
+    { review: { revision: 6 } },
+    { denied: 'media_master_can_play' },
+    { denied: 'media_upload_can_play' }
+  ]) {
+    const f = adminReviewFixture(options);
+    assert.deepEqual(plain(await f.getAdminTrackReviewMedia(ids.draft)), unavailableReview);
+  }
+});
+
+test('SQL-backed descriptor matches the submitted master and fails closed after private waveform storage drift', async () => {
+  const db = await uploadsFixture();
+  try {
+    const id = await create(db, ids.draft);
+    const media = await readyPackage(db, id);
+    await artist(db, 'media_upload_save_metadata', [id, metadata, await revision(db, id), crypto.randomUUID()]);
+    const submitted = await artist(db, 'media_upload_submit', [id, await revision(db, id), crypto.randomUUID()]);
+    const f = adminReviewFixture({}, async (name, args) => {
+      try {
+        return { data: await asActor(db, ids.admin, () => invoke(db, name, Object.values(args))), error: null };
+      } catch ({ code, message }) {
+        return { data: null, error: { code, message } };
+      }
+    });
+    const state = await f.uploads.readUploads(id, true);
+    const result = await f.getAdminTrackReviewMedia(ids.draft);
+    assert.equal(result.status, 'ready');
+    assert.equal(result.source.id, media.master);
+    assert.equal(result.source.duration_us, state.source.duration_us);
+    assert.equal(result.waveformUrl, `/api/media/${id}/${state.waveform.id}`);
+    assert.equal(state.waveform.source_id, media.master);
+    assert.ok(f.calls.some(([name, args]) => name === 'media_admin_review_state' && args.p_review === submitted.review_id));
+    assert.match((await db.query('select audio_file_path from tracks where id=$1', [ids.draft])).rows[0].audio_file_path, /uploads\/audio\/draft[.]wav$/);
+
+    await db.exec('alter table storage.objects disable trigger user');
+    await db.query("update storage.objects set version='drift' where id=(select storage_object_id from submission_media.assets where id=$1)", [state.waveform.id]);
+    await db.exec('alter table storage.objects enable trigger user');
+    assert.deepEqual(plain(await f.getAdminTrackReviewMedia(ids.draft)), unavailableReview);
+  } finally {
+    await db.close();
+  }
 });

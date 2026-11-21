@@ -19,6 +19,7 @@ const groups: Array<{ label: string; destinations: Destination[] }> = [
     label: "Operate",
     destinations: [
       { label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
+      { label: "Financial Dashboard", href: "/admin/accounting", icon: FileText },
       { label: "Action Center", href: "/admin/action-center", icon: Activity },
       { label: "Review Queue", href: "/admin/review-queue", icon: ClipboardList },
       { label: "Catalog & Tracks", href: "/admin/tracks", icon: AudioLines },
@@ -35,7 +36,6 @@ const groups: Array<{ label: string; destinations: Destination[] }> = [
       { label: "Admin Access", href: "/admin/command/permissions", icon: ShieldCheck },
       { label: "Orders & Licenses", href: "/admin/orders", icon: BookOpenCheck },
       { label: "License oversight", href: "/admin/licenses", icon: BookOpenCheck },
-      { label: "Financial accounting", href: "/admin/accounting", icon: FileText },
       { label: "Refunds", href: "/admin/payments", icon: ArrowRight },
       { label: "Deals & Requests", href: "/admin/command/deals", icon: FileText },
       { label: "Conversations", href: "/admin/command/deals", icon: FileText },
@@ -61,8 +61,8 @@ function isCurrent(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminShell({ user, children, capabilities=[],founder=false }: { user: SessionUser; children: ReactNode; capabilities?:string[];founder?:boolean }) {
-  const allowed=(href?:string)=>href==="/admin/dashboard"||capabilities.includes("full_admin")||(href?.startsWith("/admin/command/")&&(href.endsWith("/permissions")?founder:capabilities.includes(href.split("/").at(-1)||"")));
+export function AdminShell({ user, children, capabilities=[],founder=false,financialAccess=false }: { user: SessionUser; children: ReactNode; capabilities?:string[];founder?:boolean;financialAccess?:boolean }) {
+  const allowed=(href?:string)=>href==="/admin/accounting"?financialAccess:href==="/admin/dashboard"||capabilities.includes("full_admin")||(href?.startsWith("/admin/command/")&&(href.endsWith("/permissions")?founder:capabilities.includes(href.split("/").at(-1)||"")));
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);

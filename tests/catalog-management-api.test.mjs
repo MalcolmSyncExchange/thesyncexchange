@@ -15,3 +15,33 @@ test('duplicate recordings produce a precise safe conflict without exposing anot
 test('legacy media approval cannot hide current catalog drafts, submitted reviews or correction states from Artist filters',()=>{const {catalogReviewPhase}=fixture().contract;assert.equal(catalogReviewPhase('approved',{state:'draft'}),'draft');assert.equal(catalogReviewPhase('approved',{state:'submitted'}),'in_review');for(const state of ['changes_requested','rejected','suspended','unpublished','not_started'])assert.equal(catalogReviewPhase('approved',{state}),'needs_attention');assert.equal(catalogReviewPhase('pending_review'),'in_review');assert.equal(catalogReviewPhase('draft'),'draft');assert.equal(catalogReviewPhase('approved',{state:'published'}),'other');});
 
 test('existing Artist cards do not label a catalog draft as discoverable merely because media was approved',()=>{const catalogModule=loadAuthModule('services/artist/catalog-contract.ts',{'@/lib/buyer-catalog-eligibility':{getBuyerCatalogEligibility}});const recording={id:track,slug:'synthetic',title:'Synthetic',artist_name:'Synthetic Artist',genre:'Electronic',subgenre:'Ambient',duration_seconds:120,status:'approved',updated_at:'2026-10-23',audio_file_url:'http://127.0.0.1/synthetic-preview',rights_holders:[],license_options:[{active:true}],catalog_publication:{state:'draft',visible:false,blockers:[],licenseCount:1}};const result=catalogModule.toArtistCatalogTrack(recording);assert.equal(result.statusLabel,'draft');assert.equal(result.buyerVisibility.eligible,false);assert.equal(result.buyerVisibility.label,'Not discoverable');});
+
+// MKT009-01: exercise the actual client request boundary with synthetic responses.
+function requestFor(response){
+ const callbacks=[];
+ const react={useCallback:fn=>(callbacks.push(fn),fn),useEffect:()=>{},useRef:value=>({current:value}),useState:value=>[value,()=>{}]};
+ const jsx={jsx:()=>null,jsxs:()=>null};
+ const {CatalogWorkbench}=loadAuthModule('components/artist/catalog/catalog-workbench.tsx',{
+  react,'react/jsx-runtime':jsx,'next/link':{default:()=>null},
+  '@/lib/catalog/contract':{catalogStates:[],creditRoles:[]}
+ },{fetch:async()=>response});
+ CatalogWorkbench({admin:true,initialFilter:'submitted'});
+ return ()=>callbacks[0]({action:'list',admin:true,state:'submitted',page:1});
+}
+
+for(const status of [401,403])test(`HTTP ${status} denies before reading any response body`,async()=>{
+ let reads=0;
+ const request=requestFor({status,ok:false,json:()=>{reads++;throw Error('PRIVATE body must not be read');}});
+ await assert.rejects(request,error=>error.status===status&&!error.message.includes('PRIVATE'));
+ assert.equal(reads,0);
+});
+for(const status of [200,503])for(const raw of ['null','[]','','{','PRIVATE non-JSON','{"error":"PRIVATE diagnostic"}']){
+ test(`${status} safely handles ${JSON.stringify(raw)} without leaking response text`,async()=>{
+  const request=requestFor(new Response(raw,{status}));
+  await assert.rejects(request,error=>!error.message.includes('PRIVATE')&&error.status===(status===200?undefined:status));
+ });
+}
+test('a successful queue preserves its record payload',async()=>{
+ const data={items:[{id:'synthetic',title:'Synthetic'}],total:1,page_count:1};
+ assert.deepEqual(await requestFor(Response.json(data))(),data);
+});

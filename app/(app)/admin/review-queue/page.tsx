@@ -4,12 +4,28 @@ import Link from "next/link";
 import { ArrowRight, ShieldAlert, SlidersHorizontal, UserCheck } from "lucide-react";
 
 import { ReviewQueueCard } from "@/components/admin/review-queue-card";
+import { CatalogWorkbench } from "@/components/artist/catalog/catalog-workbench";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAdminReviewQueue } from "@/services/admin/queries";
 
-export default async function ReviewQueuePage() {
+export default async function ReviewQueuePage({
+  searchParams
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
+  if ((await searchParams).view === "catalog") {
+    return (
+      <div className="space-y-6">
+        <Button asChild variant="outline">
+          <Link href="/admin/review-queue">Legacy submission queue</Link>
+        </Button>
+        <CatalogWorkbench admin initialFilter="submitted" />
+      </div>
+    );
+  }
+
   const tracks = await getAdminReviewQueue();
   const flaggedCount = tracks.filter((track) => track.open_flag_count > 0).length;
   const splitGapCount = tracks.filter((track) => Math.round(track.rights_split_total) !== 100).length;
@@ -31,6 +47,9 @@ export default async function ReviewQueuePage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <Button asChild variant="outline">
+              <Link href="/admin/review-queue?view=catalog">Catalog review queue</Link>
+            </Button>
             <Button asChild variant="outline">
               <Link href="/admin/compliance">
                 Open Compliance

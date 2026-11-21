@@ -7,6 +7,7 @@ import { AlertCircle, FileAudio2, FileText, ShieldCheck } from "lucide-react";
 import { TrackReviewActions } from "@/components/admin/track-review-actions";
 import { FlagSeverityBadge, TrackStatusBadge, VerificationStatusBadge } from "@/components/shared/state-badges";
 import { Badge } from "@/components/ui/badge";
+import { trackReviewHref, type CatalogQueueContext } from "@/lib/admin/review-queue-navigation";
 import { formatDateTime, formatDuration } from "@/lib/utils";
 import type { AdminFlagSeverity, TrackStatus, VerificationStatus } from "@/types/models";
 
@@ -35,12 +36,14 @@ export interface ReviewQueueTrackCardData {
 
 export function ReviewQueueCard({
   track,
-  compact = false
+  compact = false,
+  reviewQueueContext
 }: {
   track: ReviewQueueTrackCardData;
   compact?: boolean;
+  reviewQueueContext?: CatalogQueueContext;
 }) {
-  const detailHref = `/admin/tracks/${track.id}`;
+  const detailHref = reviewQueueContext ? trackReviewHref(track.id, reviewQueueContext) : `/admin/tracks/${track.id}`;
   const hasFlags = track.open_flag_count > 0;
   const metadataBadges = [
     track.genre,

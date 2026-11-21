@@ -12,11 +12,15 @@ import { TrackReviewActions } from "@/components/admin/track-review-actions";
 import { AudioPlayer } from "@/components/audio/audio-player";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { catalogQueueContext, reviewQueueHref } from "@/lib/admin/review-queue-navigation";
 import { formatCurrency, formatDateTime, formatDuration, formatEnumLabel } from "@/lib/utils";
 import { getAdminTrackById } from "@/services/admin/queries";
 
-export default async function AdminTrackDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function AdminTrackDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string; status?: string; page?: string }> }) {
   const params = await props.params;
+  const { from, status, page } = await props.searchParams;
+  const fromReviewQueue = from === "review-queue";
+  const backHref = fromReviewQueue ? reviewQueueHref("track", catalogQueueContext(status, page)) : "/admin/tracks";
   const data = await getAdminTrackById(params.id);
   if (!data) notFound();
 
@@ -39,8 +43,8 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
         <CoverArtwork coverArtUrl={track.cover_art_url} title={track.title} />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Link href="/admin/tracks" className="text-sm text-muted-foreground hover:text-foreground">
-              Back to Track Management
+            <Link href={backHref} className="text-sm text-muted-foreground hover:text-foreground">
+              {fromReviewQueue ? "Back to Track Submissions" : "Back to Track Management"}
             </Link>
             <h1 className="mt-3 text-3xl font-semibold">{track.title}</h1>
             <Link className="mr-4 inline-block underline" href={"/admin/rights?track="+track.id}>Review master and publishing rights</Link><Link className="mr-4 inline-block underline" href={"/admin/catalog?track="+track.id}>Manage catalog metadata and publication</Link>

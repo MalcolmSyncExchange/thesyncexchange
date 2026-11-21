@@ -15,7 +15,18 @@ export function CatalogWorkbench({track,admin=false,initialFilter=''}:{track?:st
  const [versions,setVersions]=useState<CatalogVersion[]>([]),[decisions,setDecisions]=useState<CatalogDecision[]>([]),[events,setEvents]=useState<CatalogEvent[]>([]);
  const [tagInputs,setTagInputs]=useState({moods:'',keywords:''});
  const formRevision=useRef<number|null>(null);const storageKey='tse-catalog-operation:'+String(track)+':'+admin;
- const request=useCallback(async(body:Record<string,unknown>)=>{const r=await fetch('/api/catalog',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store'});const data=await r.json().catch(()=>{throw Object.assign(new Error('Catalog service unavailable.'),{status:r.ok?undefined:r.status});});if(!r.ok)throw Object.assign(new Error(friendly(data.error)),{status:r.status});return data;},[]);
+ const request=useCallback(async(body:Record<string,unknown>)=>{
+  const r=await fetch('/api/catalog',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+  // Authorization comes from HTTP status, even when the body is null or unreadable.
+  if(r.status===401||r.status===403)throw Object.assign(new Error(friendly('ACCESS_DENIED')),{status:r.status});
+  const unavailable=()=>Object.assign(new Error('Catalog service unavailable.'),{status:r.ok?undefined:r.status});
+  const data=await r.json().catch(()=>{throw unavailable();});
+  const object=data!==null&&typeof data==='object'&&!Array.isArray(data)?data as Record<string,unknown>:null;
+  if(!r.ok)throw Object.assign(new Error(friendly(typeof object?.error==='string'?object.error:'')),{status:r.status});
+  if(!object)throw unavailable();
+  if(body.action==='list'&&(!Array.isArray(object.items)||typeof object.total!=='number'||typeof object.page_count!=='number'))throw unavailable();
+  return data;
+ },[]);
  const load=useCallback(async(reset=false)=>{if(!track)return;const next:CatalogState=await request({action:'read',track,admin});setState(next);setVersions(next.versions);setDecisions(next.decisions);setEvents(next.events);if(reset||formRevision.current===null){setDraft(next.draft);setTagInputs({moods:next.draft.moods.join(', '),keywords:next.draft.keywords.join(', ')});formRevision.current=next.revision;}},[request,track,admin]);
  useEffect(()=>{if(!track)return;let active=true;setBusy(true);load().catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setBusy(false);});try{const stored=sessionStorage.getItem(storageKey);if(stored){const p=JSON.parse(stored);if(typeof p.key==='string'&&typeof p.action==='string')setPending({key:p.key,action:p.action});}}catch{}return()=>{active=false;};},[load,storageKey,track]);
  // Only retain results for the same role, filter and page. Ignore obsolete responses.

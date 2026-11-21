@@ -10,12 +10,19 @@ export async function verifyCatalogQueue({page,origin,track,output,name}) {
  let response={status:200,body:data},release;
  let hold=true;
  const requests=[];
+ const pending=[];
+ const sensitive='PRIVATE_RESPONSE_SENTINEL';
+ const consoleMessages=[];
+ const onConsole=message=>consoleMessages.push(message.text());
+ page.on('console',onConsole);
  const handler=async route=>{
   const body=route.request().postDataJSON();
   if(body.action!=='list')return route.fallback();
   requests.push(body);
-  if(hold)await new Promise(resolve=>{release=resolve;});
-  await route.fulfill(response.raw?{status:response.status,contentType:'text/plain',body:response.raw}:{status:response.status,json:response.body});
+  const selected=response;
+  if(hold)await new Promise(resolve=>{release=resolve;pending.push(resolve);});
+  const reply=selected.delayed?selected:response;
+  await route.fulfill('raw' in reply?{status:reply.status,contentType:'text/plain',body:reply.raw}:{status:reply.status,json:reply.body});
  };
  await page.route('**/api/catalog',handler);
  try {
@@ -48,12 +55,46 @@ export async function verifyCatalogQueue({page,origin,track,output,name}) {
   response={status:503,body:{error:'CATALOG_UNAVAILABLE'}};await page.getByRole('button',{name:'Check catalog access again',exact:true}).click();
   await expect(page.locator('p[role=alert]')).toContainText('could not be loaded');await expect(empty).toHaveCount(0);await expect(record).toHaveCount(0);
   response={status:200,body:data};await page.getByRole('button',{name:'Retry catalog request',exact:true}).click();await expect(record).toBeVisible();
+  // Each null denial starts with populated records; a failed access check must never restore them.
+  for(const status of [401,403]){
+   response={status,body:null};await page.getByRole('button',{name:'Refresh catalog results',exact:true}).click();
+   await expect(page.locator('p[role=alert]')).toContainText('Catalog access denied');await expect(record).toHaveCount(0);await expect(empty).toHaveCount(0);
+   response={status:503,body:{error:sensitive}};await page.getByRole('button',{name:'Check catalog access again',exact:true}).click();
+   await expect(page.locator('p[role=alert]')).toContainText('could not be loaded');await expect(record).toHaveCount(0);await expect(empty).toHaveCount(0);
+   response={status:200,body:data};await page.getByRole('button',{name:'Retry catalog request',exact:true}).click();await expect(record).toBeVisible();
+  }
+  // Null, arrays, empty, malformed and non-JSON bodies cannot turn an HTTP denial into an error.
+  for(const body of [{body:[]},{raw:''},{raw:'{'},{raw:sensitive}]){
+   response={status:403,...body};await page.getByRole('button',{name:'Refresh catalog results',exact:true}).click();
+   await expect(page.locator('p[role=alert]')).toContainText('Catalog access denied');await expect(record).toHaveCount(0);
+   response={status:200,body:data};await page.getByRole('button',{name:'Check catalog access again',exact:true}).click();await expect(record).toBeVisible();
+  }
+  for(const body of [{body:null},{body:[]},{raw:''},{raw:'{'},{raw:sensitive}]){
+   response={status:503,...body};await page.getByRole('button',{name:'Refresh catalog results',exact:true}).click();
+   await expect(page.locator('p[role=alert]')).toContainText('could not be loaded');await expect(empty).toHaveCount(0);
+   response={status:200,body:data};await page.getByRole('button',{name:'Retry catalog request',exact:true}).click();await expect(record).toBeVisible();
+  }
+  // Obsolete successful requests must not restore records after denial, even for the same filter.
+  hold=true;release=undefined;response={status:200,body:data,delayed:true};
+  await page.getByRole('button',{name:'Refresh catalog results',exact:true}).click();
+  await expect.poll(()=>typeof release).toBe('function');const obsolete=release;hold=false;
+  response={status:403,body:null};await page.getByLabel('Review status').selectOption('approved');
+  await expect(page.locator('p[role=alert]')).toContainText('Catalog access denied');
+  await page.getByLabel('Review status').selectOption('submitted');await expect(page.locator('p[role=alert]')).toContainText('Catalog access denied');
+  const delayedResponse=page.waitForResponse(r=>r.url().endsWith('/api/catalog')&&r.status()===200);obsolete();const completed=await delayedResponse;await completed.finished();
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await expect(page.locator('p[role=alert]')).toContainText('Catalog access denied');await expect(record).toHaveCount(0);
+  // A completed retry gives React a further render after the obsolete response arrives.
+  response={status:503,body:null};await page.getByRole('button',{name:'Check catalog access again',exact:true}).click();
+  await expect(page.locator('p[role=alert]')).toContainText('could not be loaded');await expect(record).toHaveCount(0);await expect(empty).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText(sensitive);assert.ok(consoleMessages.every(message=>!message.includes(sensitive)));
+  response={status:200,body:data};await page.getByRole('button',{name:'Retry catalog request',exact:true}).click();await expect(record).toBeVisible();
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:output+'/'+name+'-queue-mobile.png',fullPage:true});
   await record.click();await expect(page).toHaveURL(origin+'/admin/catalog?track='+track);
   await page.goBack();await expect(page.getByLabel('Review status')).toHaveValue('submitted');await expect(record).toBeVisible();
   await page.getByRole('link',{name:'Legacy submission queue',exact:true}).click();await expect(page).toHaveURL(origin+'/admin/review-queue');
-  assert.ok(requests.length>=8);assert.ok(requests.every(r=>r.admin===true&&r.state==='submitted'&&r.page===1));
+  assert.ok(requests.length>=8);assert.ok(requests.every(r=>r.admin===true&&['submitted','approved'].includes(r.state)&&r.page===1));
   await page.setViewportSize({width:1440,height:1000});
- } finally {release?.();await page.unroute('**/api/catalog',handler);}
+ } finally {for(const resolve of pending)resolve();page.off('console',onConsole);await page.unroute('**/api/catalog',handler);}
 }

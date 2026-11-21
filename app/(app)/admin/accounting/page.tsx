@@ -1,22 +1,46 @@
+import { FinancialCommandCenter } from "@/components/finance/command-center/dashboard";
+import { financeFilters } from "@/lib/finance/command-center";
+import { getFinancialCommandCenter } from "@/services/finance/command-center";
+import { requireSession } from "@/services/auth/session";
 import Link from "next/link";
-import {getAccountingReport} from "@/services/finance/reports";
-import {formatMinor} from "@/lib/finance/accounting.mjs";
-import {AccountingAction} from "@/components/finance/accounting-action";
-export const dynamic="force-dynamic";
-const review=[{name:"reason",label:"Review reason"},{name:"reference",label:"Approval / evidence reference"}];
-export default async function AccountingPage({searchParams}:{searchParams:Promise<{page?:string}>}){
- const p=(await searchParams).page,page=p&&/^[1-9][0-9]{0,3}$/.test(p)?Number(p):1,report=await getAccountingReport("admin",page);
- return <div className="space-y-6"><h1 className="text-3xl font-semibold">THE SEC financial dashboard</h1><p>Immutable transaction accounting, contributor obligations and payout preparation. Test evidence only; real disbursements are disabled.</p><Link href="/admin/finance" className="inline-flex min-h-11 items-center underline">Provider processing, reconciliation and independent corrections</Link>
- <section className="rounded-xl border bg-card p-6 space-y-3"><h2 className="text-xl font-semibold">Financial reporting</h2><div className="flex flex-wrap gap-6"><Link className="underline min-h-11 inline-flex items-center" href="/admin/analytics/financial">Payment failures, refunds, disputes and volume trends</Link><Link className="underline min-h-11 inline-flex items-center" href="/admin/subscriptions">Subscription oversight and audit history</Link></div><p>Subscription revenue: unavailable. Recurring billing has not been verified. Gross marketplace sales are posted historical payment volume before refunds. Net marketplace revenue is unavailable until processor fees, dispute losses and reconciliation are complete; commission revenue below is not net profit.</p></section>
- <section><h2 className="text-xl font-semibold">Currency-separated totals</h2><p>Unbooked orders: {report.summary?.unbookedOrders}. Provider statement mismatches remain open for review.</p><div className="overflow-x-auto"><table className="w-full text-left"><caption>Amounts are never combined across currencies or provider accounts.</caption><thead><tr>{["Account / mode / currency","Gross posted sales before refunds","Commission after reversals","Refunds","Disputes pending","Outstanding obligations","Recovery","Unreconciled orders"].map(x=><th className="p-2" key={x} scope="col">{x}</th>)}</tr></thead><tbody>{report.summary?.partitions.map((p,i)=><tr key={i}><th className="p-2" scope="row">{p.provider_account} / {p.payment_mode} / {p.currency}</th>{["gross_minor","platform_revenue_minor","refunded_minor","pending_dispute_minor","outstanding_obligations_minor","party_recovery_minor"].map(k=><td className="p-2" key={k}>{formatMinor(String(p[k]),String(p.currency))}</td>)}<td className="p-2">{p.unreconciled_orders}</td></tr>)}</tbody></table></div></section>
- {report.orders.map(o=><article key={o.orderId} className="space-y-3 rounded border p-4"><h2 className="text-xl font-semibold">{o.trackTitle}</h2><p className="break-all">Order {o.orderId} · Policy {o.policyVersion}</p><p>Gross {formatMinor(o.grossMinor,o.currency)} · Commission after reversals {formatMinor(o.platformFeeMinor,o.currency)} · Provider fees {formatMinor(o.processorFeeMinor,o.currency)}</p><p>Reconciliation: {o.accounting?.matched?"Matched recorded evidence":o.accounting?.issues.join(", ")||"Review required"}</p>
- <details><summary>Freeze explicit synthetic maturity and reserve policy</summary><p>Use the accepted financial policy version and approved test parameters. This does not change the commission or enable real payouts. A frozen policy cannot be edited.</p><AccountingAction label="Freeze payout preparation policy" input={{action:"maturity",order:o.orderId}} fields={[{name:"policy",label:"Synthetic maturity and reserve policy JSON",kind:"json"}]}/></details>
- {o.allocations.map(a=><details key={a.partyId} className="rounded border p-3"><summary>{a.legalName} ({a.partyId}) · Owed {formatMinor(a.owedMinor,o.currency)} · {a.hold||"Simulation eligible"}</summary><p className="break-all">Bound account: {a.artistId||"Not reviewed"}. Reservation {formatMinor(a.reservedMinor,o.currency)}; recovery {formatMinor(a.recoveryMinor,o.currency)}.</p>
- <AccountingAction label="Record payee identity review" input={{action:"bind",order:o.orderId,party:a.partyId,expected:a.bindingId}} fields={[{name:"artist",label:"Verified Artist account ID (blank revokes binding)",kind:"nullableUuid"},...review]}/>
- {a.artistId?<AccountingAction label="Prepare monthly payout obligation" input={{action:"prepare",order:o.orderId,party:a.partyId}} fields={[{name:"amount",label:"Amount in minor currency units"},{name:"scheduled",label:"Reviewed monthly payout date",kind:"date"},{name:"reference",label:"Payout approval reference"}]}/>:null}</details>)}
- {o.payouts.map(p=><details key={p.id} className="rounded border p-3"><summary>{p.legalName} · {p.state} · {formatMinor(p.amountMinor,p.currency)}</summary><p>Scheduled {p.scheduledFor}. Restriction: {p.hold||"None recorded"}. Actual paid: 0.</p><ol>{p.history.map(h=><li key={h.id}>{h.at}: {h.state} · {h.reason} · {h.reference}</li>)}</ol>{!["canceled","reversed"].includes(p.state)?<AccountingAction label="Record payout action" input={{action:"payout",payout:p.id,revision:p.revision}} fields={[{name:"command",label:"Reviewed payout action",choices:p.state==="simulated_completed"?["reverse"]:p.state==="scheduled"?["hold","fail","simulate_complete","cancel"]:["schedule","hold","fail","cancel"]},...review]}/>:null}</details>)}
- <details><summary>Retained journal and accepted policy evidence</summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify({accounting:o.accounting,policy:o.policy},null,2)}</pre></details></article>)}
- <details><summary>Configure a reviewed commission and allocation policy</summary><p>Requires the current offer ID and a new version. Supply an approved or explicitly synthetic policy, seller tier, gross-basis commission, fee override decision, and contributor basis points totaling 10000. A new offer requires fresh catalog and deliverable approval before purchase. No commercial rates are prefilled.</p><AccountingAction label="Create reviewed policy version" input={{action:"policy"}} fields={[{name:"track",label:"Track ID",kind:"uuid"},{name:"license",label:"License type ID",kind:"uuid"},{name:"expected",label:"Current offer ID",kind:"uuid"},{name:"policy",label:"Reviewed policy JSON",kind:"json"},{name:"reference",label:"Policy approval reference"}]}/></details>
- <details><summary>Identity and financial-policy audit history (latest 100)</summary><pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify({bindings:report.bindingHistory,policies:report.policyHistory},null,2)}</pre></details>
- <nav aria-label="Accounting pages" className="flex gap-6">{page>1?<Link className="min-h-11 underline" href={`?page=${page-1}`}>Previous page</Link>:null}{page*report.size<report.total?<Link className="min-h-11 underline" href={`?page=${page+1}`}>Next page</Link>:null}<span>{report.total} orders · page {page}</span></nav></div>;
+export const dynamic = "force-dynamic";
+export default async function AccountingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  await requireSession("admin");
+  let filters;
+  try {
+    filters = financeFilters(await searchParams);
+  } catch {
+    return (
+      <section
+        role="alert"
+        className="rounded-xl border border-amber-500/40 bg-card p-8"
+      >
+        <h1 className="text-2xl font-semibold">
+          Choose valid financial filters
+        </h1>
+        <p className="my-4 text-muted-foreground">
+          Use a date range of up to 366 days and select one value for each
+          reporting filter.
+        </p>
+        <Link
+          className="inline-flex min-h-11 items-center underline"
+          href="/admin/accounting"
+        >
+          Reset financial filters
+        </Link>
+      </section>
+    );
+  }
+  const data = await getFinancialCommandCenter(filters);
+  return (
+    <FinancialCommandCenter
+      key={JSON.stringify(filters)}
+      data={data}
+      filters={filters}
+    />
+  );
 }

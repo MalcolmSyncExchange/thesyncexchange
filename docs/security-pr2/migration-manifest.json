@@ -353,6 +353,10 @@
     {
       "file": "20261120185517_guided_rights_submission_confirmation.sql",
       "sha256": "136d481525d5f5006139bb9f5e346795649e843fcae0fed17f9508398f5917d4"
+    },
+    {
+      "file": "20261121020629_sec_financial_command_center_read_model.sql",
+      "sha256": "2b11bc43dd145a56d10d5268674abc2ef1b01044427fba60015f0b5cad9c9d4d"
     }
   ],
   "storageBuckets": {

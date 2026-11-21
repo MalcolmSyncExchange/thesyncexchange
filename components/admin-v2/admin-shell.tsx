@@ -41,7 +41,7 @@ const groups: Array<{ label: string; destinations: Destination[] }> = [
       { label: "Conversations", href: "/admin/command/deals", icon: FileText },
       { label: "Integrity", href: "/admin/command/integrity", icon: Flag },
       { label: "Suspensions", href: "/admin/command/users", icon: ShieldCheck },
-      { label: "Financial Overrides", href: "/admin/accounting", icon: FileText }
+      { label: "Financial Overrides", href: "/admin/accounting/controls", icon: FileText }
     ]
   },
   {
@@ -62,7 +62,7 @@ function isCurrent(pathname: string, href: string) {
 }
 
 export function AdminShell({ user, children, capabilities=[],founder=false,financialAccess=false }: { user: SessionUser; children: ReactNode; capabilities?:string[];founder?:boolean;financialAccess?:boolean }) {
-  const allowed=(href?:string)=>href==="/admin/accounting"?financialAccess:href==="/admin/dashboard"||capabilities.includes("full_admin")||(href?.startsWith("/admin/command/")&&(href.endsWith("/permissions")?founder:capabilities.includes(href.split("/").at(-1)||"")));
+  const allowed=(href?:string)=>(href==="/admin/accounting"||href?.startsWith("/admin/accounting/"))?financialAccess:href==="/admin/dashboard"||capabilities.includes("full_admin")||(href?.startsWith("/admin/command/")&&(href.endsWith("/permissions")?founder:capabilities.includes(href.split("/").at(-1)||"")));
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);

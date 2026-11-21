@@ -62,13 +62,13 @@ export function ReviewQueueCard({
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Link href={detailHref} className="truncate text-lg font-semibold text-foreground hover:underline">
+                  <Link href={detailHref} className="min-w-0 text-lg font-semibold text-foreground [overflow-wrap:anywhere] hover:underline lg:truncate">
                     {track.title}
                   </Link>
                   <TrackStatusBadge status={track.status} />
                   {track.featured ? <Badge variant="outline" className="border-accent/20 bg-accent/10 text-accent">Featured</Badge> : null}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{track.artist_name}</p>
+                <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">{track.artist_name}</p>
                 <p className="mt-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
                   Submitted {formatDateTime(track.created_at)}
                 </p>

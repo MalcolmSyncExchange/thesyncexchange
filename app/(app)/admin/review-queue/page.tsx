@@ -20,7 +20,7 @@ export default async function ReviewQueuePage({
   const { view, status, page } = await searchParams;
   const active = view === "catalog" ? "catalog" : "track";
   return (
-    <div className={`${styles.page} mx-auto w-full max-w-[1400px]`}>
+    <div className={`${styles.page} mx-auto w-full max-w-[1400px] grid-cols-1`}>
       <header className={styles.pageHeader}>
         <div>
           <p className={styles.kicker}>Admin Operations</p>

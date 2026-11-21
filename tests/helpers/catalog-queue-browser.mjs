@@ -1,8 +1,9 @@
 import {expect} from '@playwright/test';
 import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
 
 // Intercept only list reads. Authentication, navigation and later workflows use the local fixture.
-export async function verifyCatalogQueue({page,origin,track,output,name}) {
+export async function verifyCatalogQueue({page,origin,track,output,name,fixture}) {
  const url=origin+'/admin/review-queue?view=catalog';
  const empty=page.getByRole('heading',{name:'No catalog submissions awaiting review',exact:true});
  const record=page.getByRole('link',{name:'Open review for Queue state regression recording',exact:true});
@@ -50,7 +51,7 @@ export async function verifyCatalogQueue({page,origin,track,output,name}) {
   const retry=page.getByRole('button',{name:'Retry catalog request',exact:true});
   await retry.focus();await expect(retry).toBeFocused();await page.keyboard.press('Enter');
   await expect(empty).toBeVisible();await expect(record).toHaveCount(0);await expect(page.locator('p[role=alert]')).toHaveCount(0);
-  await captureQueue(page,output,name,'after-empty');
+  await captureQueue(page,output,name,'catalog-empty');
   response={status:200,body:data};await page.getByRole('button',{name:'Refresh catalog results',exact:true}).click();await expect(record).toBeVisible();
   response={status:403,body:{error:'ACCESS_DENIED'}};await page.getByRole('button',{name:'Refresh catalog results',exact:true}).click();
   await expect(page.locator('p[role=alert]')).toContainText('Catalog access denied');await expect(record).toHaveCount(0);await expect(empty).toHaveCount(0);
@@ -93,7 +94,7 @@ export async function verifyCatalogQueue({page,origin,track,output,name}) {
   await expect(page.locator('p[role=alert]')).toContainText('could not be loaded');await expect(record).toHaveCount(0);await expect(empty).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(sensitive);assert.ok(consoleMessages.every(message=>!message.includes(sensitive)));
   response={status:200,body:data};await page.getByRole('button',{name:'Retry catalog request',exact:true}).click();await expect(record).toBeVisible();
-  await captureQueue(page,output,name,'after-populated');
+  await captureQueue(page,output,name,'catalog-populated');
   assert.ok(requests.length>=8);
   assert.ok(requests.every(r=>r.admin===true&&['submitted','approved'].includes(r.state)&&r.page===1));
   await page.getByLabel('Review status').selectOption('');
@@ -125,7 +126,22 @@ export async function verifyCatalogQueue({page,origin,track,output,name}) {
   await expect(trackTitle).toBeVisible();
   await expect(page.getByRole('button',{name:'Approve',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Reject',exact:true})).toBeVisible();
-  await captureQueue(page,output,name,'after-tracks');
+  // Empty the disposable track queue through the loopback fixture, then restore it.
+  await fixture.withDatabase(db=>db.query("update tracks set status='draft' where id=$1",[fixture.draftTrack]));
+  try {
+   await page.reload();
+   await expect(page.getByText('The submission queue is clear.',{exact:true})).toBeVisible();
+   await expect(page.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0);
+   await captureQueue(page,output,name,'tracks-empty');
+  } finally {
+   await fixture.withDatabase(db=>db.query("update tracks set status='pending_review' where id=$1",[fixture.draftTrack]));
+  }
+  await page.reload();
+  await expect(trackTitle).toBeVisible();
+  await tracks.focus();
+  await expect(tracks).toBeFocused();
+  assert.ok(await tracks.evaluate(link=>link.matches(':focus-visible')&&getComputedStyle(link).boxShadow!=='none'));
+  await captureQueue(page,output,name,'tracks-populated');
   await trackTitle.click();
   await expect(page.getByRole('link',{name:'Review master and publishing rights'})).toBeVisible();
   await page.getByRole('link',{name:'Back to Track Submissions'}).click();
@@ -141,10 +157,34 @@ export async function verifyCatalogQueue({page,origin,track,output,name}) {
 async function captureQueue(page,output,name,state) {
  for(const width of [1440,390]){
   await page.setViewportSize({width,height:width===390?844:1000});
-  const dimensions=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
-  assert.equal(dimensions.width,width);
-  assert.ok(dimensions.scroll<=width,`${state} overflows at ${width}px`);
-  await page.screenshot({path:`${output}/${name}-${state}-${width}.png`,fullPage:width===390});
+  const dimensions=await page.evaluate(()=>{
+   const main=document.querySelector('#admin-main');
+   const queue=main.firstElementChild;
+   const mainBox=main.getBoundingClientRect();
+   const mainStyle=getComputedStyle(main);
+   const left=mainBox.left+parseFloat(mainStyle.paddingLeft);
+   const right=mainBox.right-parseFloat(mainStyle.paddingRight);
+   const describe=element=>{
+    const box=element.getBoundingClientRect();
+    return {tag:element.tagName,label:element.textContent.trim().slice(0,72),
+     left:box.left,right:box.right,width:box.width,clientWidth:element.clientWidth,scrollWidth:element.scrollWidth};
+   };
+   const children=[...queue.children].map(describe);
+   const clipped=[...queue.querySelectorAll('*')].filter(element=>
+    element instanceof HTMLElement && element.offsetWidth>1 && getComputedStyle(element).visibility==='visible'
+   ).map(describe).filter(box=>box.left<left-1||box.right>right+1);
+   return {viewport:innerWidth,documentWidth:document.documentElement.scrollWidth,main:describe(main),
+    availableWidth:right-left,gridColumns:getComputedStyle(queue).gridTemplateColumns,queue:describe(queue),children,clipped};
+  });
+  const basename=`${output}/${name}-${state}-${width}`;
+  await writeFile(basename+'.json',JSON.stringify(dimensions,null,2)+'\n');
+  // Capture only the viewport width so a PNG cannot hide an out-of-bounds child.
+  await page.screenshot({path:basename+'.png',fullPage:true,clip:{x:0,y:0,width,height:await page.evaluate(()=>document.documentElement.scrollHeight)}});
+  assert.equal(dimensions.viewport,width);
+  assert.ok(dimensions.documentWidth<=width,`${state} document overflows at ${width}px`);
+  assert.ok(dimensions.queue.scrollWidth<=dimensions.queue.clientWidth+1,
+   `${state} inner queue is ${dimensions.queue.scrollWidth}px wide in a ${dimensions.availableWidth}px content area at ${width}px`);
+  assert.deepEqual(dimensions.clipped,[],`${state} has clipped content at ${width}px`);
  }
  await page.setViewportSize({width:1440,height:1000});
 }

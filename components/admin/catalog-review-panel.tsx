@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { useId, useState } from "react";
 import { ReviewQueuePosition, ReviewQueueRecordLink } from "@/components/admin/review-queue-position";
-import { ArrowRight, ClipboardCheck, RefreshCw } from "lucide-react";
+import { ArrowRight, ChevronDown, ClipboardCheck, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { catalogReviewHref, type CatalogQueueContext } from "@/lib/admin/review-queue-navigation";
@@ -52,30 +53,7 @@ export function CatalogReviewPanel({ context, queue, status, onChange, onRefresh
       {busy && !hasRecords && <div aria-hidden="true" className="h-28 rounded-lg border border-border bg-muted/50 motion-safe:animate-pulse" />}
 
       {hasRecords && queue && <ul aria-label="Catalog records" className="divide-y divide-border rounded-lg border border-border bg-card">
-        {queue.items.map(record => (
-          <li key={record.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 px-2.5 py-2 sm:gap-x-4 sm:px-4 md:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_auto]">
-            <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 self-center">
-              <h3 className="min-w-0 font-semibold leading-snug [overflow-wrap:anywhere]">{record.title}</h3>
-              {record.state === "published" && !record.visible ? (
-                <Badge variant="outline" className="whitespace-normal border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300">Published · Unavailable to buyers</Badge>
-              ) : <CatalogStatusBadge state={record.state} />}
-            </div>
-            <Button asChild size="sm" className="col-start-2 row-start-1 min-h-11 sm:min-h-10 md:col-start-3" variant={record.state === "submitted" ? "default" : "outline"}>
-              <ReviewQueueRecordLink href={catalogReviewHref(record.id, context)} record={record.id} tab="catalog" context={context} aria-label={`Open ${record.state === "submitted" ? "review" : "record"} for ${record.title}`}>
-                {record.state === "submitted" ? "Open review" : "Open record"}
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </ReviewQueueRecordLink>
-            </Button>
-            {record.blockers.length > 0 && <details className="col-span-full min-w-0 self-center text-sm md:col-span-1 md:col-start-2 md:row-start-1">
-              <summary className="min-h-11 cursor-pointer rounded-sm py-3 text-xs font-semibold text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-300 sm:min-h-9 sm:py-2">
-                {record.blockers.length} publication {record.blockers.length === 1 ? "blocker" : "blockers"}
-              </summary>
-              <ul className="list-disc space-y-1 pb-1 pl-5 text-muted-foreground [overflow-wrap:anywhere]">
-                {record.blockers.map(blocker => <li key={blocker}>{blockerLabels[blocker] || formatEnumLabel(blocker)}</li>)}
-              </ul>
-            </details>}
-          </li>
-        ))}
+        {queue.items.map(record => <CatalogReviewRow key={record.id} record={record} context={context} />)}
       </ul>}
 
       {status === "success" && !hasRecords && <div className="rounded-lg border border-dashed border-border bg-muted/25 p-4">
@@ -113,6 +91,43 @@ export function CatalogReviewPanel({ context, queue, status, onChange, onRefresh
         </Button>
       </div>
     </section>
+  );
+}
+
+function CatalogReviewRow({ record, context }: { record: CatalogQueue["items"][number]; context: CatalogQueueContext }) {
+  const blockersId = useId();
+  const [expanded, setExpanded] = useState(false);
+  const review = record.state === "submitted";
+
+  return (
+    <li className="min-w-0 px-2.5 py-1.5 sm:px-4 sm:py-2">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-x-3 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,0.45fr)_auto]">
+        <div className="col-span-full flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:col-span-1">
+          <h3 className="min-w-0 font-semibold leading-snug [overflow-wrap:anywhere]">{record.title}</h3>
+          {record.state === "published" && !record.visible ? (
+            <Badge variant="outline" className="whitespace-normal border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300">Published · Unavailable to buyers</Badge>
+          ) : <CatalogStatusBadge state={record.state} />}
+        </div>
+        {record.blockers.length > 0 && <button type="button"
+          className="col-start-1 row-start-2 inline-flex min-h-11 min-w-0 items-center justify-self-start gap-1 rounded-sm px-1 text-left text-xs font-semibold text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:col-start-2 sm:row-start-1 sm:min-h-9 dark:text-amber-300"
+          aria-expanded={expanded} aria-controls={blockersId} onClick={() => setExpanded(value => !value)}>
+          <ChevronDown className={`size-3.5 shrink-0 ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+          <span className="[overflow-wrap:anywhere]">{record.blockers.length} publication {record.blockers.length === 1 ? "blocker" : "blockers"}</span>
+        </button>}
+        <Button asChild size="sm" className="col-start-2 row-start-2 min-h-11 sm:col-start-3 sm:row-start-1 sm:min-h-10" variant={review ? "default" : "outline"}>
+          <ReviewQueueRecordLink href={catalogReviewHref(record.id, context)} record={record.id} tab="catalog" context={context}
+            aria-label={`Open ${review ? "review" : "record"} for ${record.title}`}>
+            {review ? "Open review" : "Open record"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </ReviewQueueRecordLink>
+        </Button>
+      </div>
+      {record.blockers.length > 0 && <div id={blockersId} hidden={!expanded} className="mt-2 min-w-0 border-t border-border pt-2">
+        <ul className="max-w-[72ch] list-disc space-y-1 pb-1 pl-5 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+          {record.blockers.map(blocker => <li key={blocker}>{blockerLabels[blocker] || formatEnumLabel(blocker)}</li>)}
+        </ul>
+      </div>}
+    </li>
   );
 }
 

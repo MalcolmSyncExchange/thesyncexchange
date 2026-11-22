@@ -2,6 +2,34 @@ import {expect} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
 
+async function verifyAdminHeader(page, origin) {
+ const header=page.locator('header').filter({has:page.getByRole('link',{name:'Account security',exact:true})});
+ const account=header.getByRole('link',{name:'Account security',exact:true});
+ const home=header.getByRole('link',{name:'The Sync Exchange home',exact:true});
+ for(const [width,height] of [[320,844],[390,844],[820,1024],[1024,900],[1440,1000]]){
+  await page.setViewportSize({width,height});
+  await expect(account).toBeVisible();
+  if(width<=820){
+   const logoBox=await home.boundingBox();
+   const accountBox=await account.boundingBox();
+   assert.ok(logoBox&&accountBox&&logoBox.x+logoBox.width<=accountBox.x,
+    `${width}px Admin home and account hit areas overlap`);
+  }
+ }
+ await page.setViewportSize({width:320,height:844});
+ await home.press('Tab');
+ await expect(account).toBeFocused();
+ await account.press('Enter');
+ await expect(page).toHaveURL(origin+'/account/security');
+ await page.goBack();
+ const menu=page.getByRole('button',{name:'Open Admin navigation',exact:true});
+ await menu.press('Space');
+ await expect(page.getByRole('dialog',{name:'Admin navigation'})).toBeVisible();
+ await page.keyboard.press('Escape');
+ await expect(menu).toBeFocused();
+ await page.setViewportSize({width:1440,height:1000});
+}
+
 // Intercept only list reads. Authentication, navigation and later workflows use the local fixture.
 export async function verifyCatalogQueue({page,origin,track,output,name,fixture}) {
  const url=origin+'/admin/review-queue?view=catalog';
@@ -28,6 +56,7 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
  // Establish that the actual SQL-backed request returns the fixture's submitted record.
  await page.goto(url);
  await expect(page.getByRole('link',{name:'Open review for live',exact:true})).toBeVisible();
+ await verifyAdminHeader(page,origin);
  await page.route('**/api/catalog',handler);
  try {
   await page.reload();
@@ -102,6 +131,23 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
   await page.getByRole('button',{name:'Refresh catalog results'}).click();
   await expect(page.getByText('Published · Unavailable to buyers',{exact:true})).toBeVisible();
   await expect(page.getByText('Unavailable to new buyers',{exact:true})).toHaveCount(0);
+  const blockedRow=page.getByRole('listitem').filter({has:page.getByRole('heading',{name:'Published with a rights blocker'})});
+  const blockerToggle=blockedRow.getByRole('button',{name:'1 publication blocker',exact:true});
+  const blockerPanel=blockedRow.locator('[id="'+await blockerToggle.getAttribute('aria-controls')+'"]');
+  await expect(blockerPanel).toBeHidden();
+  await blockerToggle.press('Space');
+  await expect(blockerToggle).toHaveAttribute('aria-expanded','true');
+  await expect(blockerPanel).toContainText('Current verified master and publishing authority is required.');
+  assert.ok(await blockerPanel.evaluate(panel=>{
+   const row=panel.closest('li');
+   const header=row.firstElementChild.getBoundingClientRect();
+   const bounds=panel.getBoundingClientRect();
+   return bounds.top>=header.bottom&&Math.abs(header.width-bounds.width)<=1&&panel.scrollWidth<=panel.clientWidth+1;
+  }));
+  await blockerToggle.press('Tab');
+  await expect(blockedRow.getByRole('link',{name:'Open record for Published with a rights blocker'})).toBeFocused();
+  await blockerToggle.press('Enter');
+  await expect(blockerPanel).toBeHidden();
   response={status:200,body:data};
   assert.ok(requests.length>=8);
   assert.ok(requests.every(r=>r.admin===true&&['submitted','approved'].includes(r.state)&&r.page===1));
@@ -169,11 +215,20 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
   await expect(tracks).toBeFocused();
   assert.ok(await tracks.evaluate(link=>link.matches(':focus-visible')&&getComputedStyle(link).boxShadow!=='none'));
   await captureQueue(page,output,name,'tracks-populated');
-  await page.getByText('Review evidence',{exact:true}).click();
-  const verification=page.getByText('Verification',{exact:true});
+  const evidence=page.getByRole('button',{name:'Review evidence',exact:true});
+  await expect(evidence).toHaveAttribute('aria-expanded','false');
+  const evidenceId=await evidence.getAttribute('aria-controls');
+  const evidencePanel=page.locator('[id="'+evidenceId+'"]');
+  await expect(evidencePanel).toBeHidden();
+  await evidence.press('Enter');
+  await expect(evidencePanel).toBeVisible();
+  await expect(evidence).toBeFocused();
+  assert.ok(await evidence.evaluate(button=>button.matches(':focus-visible')&&getComputedStyle(button).boxShadow!=='none'));
+  const verification=evidencePanel.getByText('Verification',{exact:true});
   assert.ok(await verification.evaluate(label=>label.scrollWidth<=label.clientWidth+1&&
    label.getBoundingClientRect().right<=label.closest('.rounded-md').getBoundingClientRect().right));
-  await page.getByText('Review evidence',{exact:true}).click();
+  await evidence.press('Space');
+  await expect(evidencePanel).toBeHidden();
   await trackTitle.click();
   await expect(page.getByRole('link',{name:'Rights evidence for master and publishing'})).toBeVisible();
   await page.goBack();
@@ -323,7 +378,7 @@ export async function verifyTrackQueueOutage({page,origin,output,name,fixture}) 
   }
   await expect(pendingTrack).toBeVisible({timeout:15000});
   await expect(page.getByText('1 awaiting review',{exact:true})).toBeVisible();
-  await page.getByText('Review evidence',{exact:true}).click();
+  await page.getByRole('button',{name:'Review evidence',exact:true}).click();
   await expect(page.getByText('100% declared',{exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Approve',exact:true})).toBeVisible();
   await expect(unavailable).toHaveCount(0);
@@ -363,7 +418,37 @@ export async function verifyTrackDecision({page,origin,output,name,fixture}) {
    await expect(page.getByRole('button',{name:'Feature',exact:true})).toBeEnabled();
    await expect(page.getByRole('status').filter({hasText:'Track approved.'})).toHaveCount(0);
    assert.equal(await status(),'pending_review');
-   if(total===0) await captureQueue(page,output,name,'approval-blocked');
+   if(total===0){
+    const card=page.locator('article').filter({has:approve});
+    const actionsHeading=page.getByText('Actions',{exact:true});
+    const statusHeading=page.getByText('Status and rights',{exact:true});
+    const openRecord=card.getByRole('link',{name:/Open record for/});
+    const warning=card.getByText('Approval blocked · 0% ownership declared',{exact:true});
+    await expect(actionsHeading).toBeVisible();
+    await expect(statusHeading).toBeVisible();
+    const [recordBounds,actionBounds,openBounds,statusBounds,warningBounds]=await Promise.all(
+     [card,actionsHeading,openRecord,statusHeading,warning].map(locator=>locator.boundingBox()));
+    assert.ok(recordBounds.height>=80&&recordBounds.height<=105,'ordinary desktop Track row height');
+    assert.ok(Math.abs(openBounds.x-actionBounds.x)<=1,'Open Record aligns with Actions');
+    assert.ok(Math.abs(warningBounds.x-statusBounds.x)<=1,'warning aligns with Status and rights');
+    await captureQueue(page,output,name,'approval-blocked');
+    const rights=page.getByRole('link',{name:'Review rights',exact:true});
+    await page.getByRole('link',{name:/Open record for/}).press('Tab');
+    await expect(rights).toBeFocused();
+    await rights.press('Tab');
+    await expect(page.getByTestId(`reject-track-${id}`)).toBeFocused();
+    await expect(rights).toHaveAttribute('href','/admin/rights?track='+id);
+    await rights.press('Enter');
+    await expect(page).toHaveURL(origin+'/admin/rights?track='+id);
+    await page.goBack();
+    const featured=()=>fixture.query('select featured from tracks where id=$1',[id]).then(result=>result.rows[0].featured);
+    await page.getByRole('button',{name:'Feature',exact:true}).press('Space');
+    await expect.poll(featured).toBe(true);
+    await page.reload();
+    await page.getByRole('button',{name:'Unfeature',exact:true}).press('Enter');
+    await expect.poll(featured).toBe(false);
+    assert.equal(await status(),'pending_review');
+   }
    if(total===60){
     await page.goto(origin+'/admin/tracks');
     await expect(approve).toBeDisabled();
@@ -432,6 +517,22 @@ export async function verifyTrackDecision({page,origin,output,name,fixture}) {
 
   await fixture.query("update tracks set status='pending_review' where id=$1",[id]);
   await page.goto(origin+'/admin/review-queue');
+  fixture.failNextTrackDecision('rights');
+  await approve.click();
+  await expect(alert).toContainText('A current rights review is required');
+  const recheck=alert.getByRole('button',{name:'Recheck approval'});
+  const evidence=page.getByRole('button',{name:'Review evidence',exact:true});
+  await recheck.press('Tab');
+  await expect(evidence).toBeFocused();
+  assert.ok((await evidence.boundingBox()).y>=(await recheck.boundingBox()).y);
+  await Promise.all([page.waitForEvent('load'),recheck.click()]);
+  await expect(page.getByRole('button',{name:'Toggle color theme'})).toHaveAttribute('title',/^Switch to (dark|light) mode$/);
+  await expect(approve).toBeEnabled();
+  await page.getByTestId(`reject-track-${id}`).press('Enter');
+  await expect(page.getByRole('status').filter({hasText:'Track rejected.'})).toBeVisible();
+  assert.equal(await status(),'rejected');
+  await fixture.query("update tracks set status='pending_review' where id=$1",[id]);
+  await page.reload();
   await expect(approve).toBeEnabled();
   fixture.invalidate(fixture.admin.id);
   await approve.click();
@@ -439,6 +540,6 @@ export async function verifyTrackDecision({page,origin,output,name,fixture}) {
   assert.equal(await status(),'pending_review');
  } finally {
   await totals(100);
-  await fixture.query("update tracks set status='pending_review' where id=$1",[id]);
+  await fixture.query("update tracks set status='pending_review',featured=false where id=$1",[id]);
  }
 }

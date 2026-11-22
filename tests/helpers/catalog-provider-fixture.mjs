@@ -21,11 +21,12 @@ export async function startCatalogFixture({media}={}){let rights;
      return true;
     }
     const id=ctx.url.searchParams.get('id')?.slice(3);
-    const {status,approved_at,approved_by}=ctx.body;
+    const {status,approved_at,approved_by,featured}=ctx.body;
     try {
-     const result=await execute(ctx,()=>db.query(
-      'update tracks set status=$1,approved_at=$2,approved_by=$3 where id=$4 returning slug',
-      [status,approved_at,approved_by,id]));
+     const result=await execute(ctx,()=>typeof featured==='boolean'
+       ? db.query('update tracks set featured=$1 where id=$2 returning slug',[featured,id])
+       : db.query('update tracks set status=$1,approved_at=$2,approved_by=$3 where id=$4 returning slug',
+        [status,approved_at,approved_by,id]));
      json(res,String(req.headers.accept||'').includes('object') ? result.rows[0]??null : result.rows);
     }catch(error){json(res,{code:error.code,message:error.message},error.code==='42501'?403:400);}
     return true;

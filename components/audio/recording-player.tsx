@@ -11,10 +11,10 @@ import type {PreviewSaveStatus} from '@/lib/media/preview-autosave.mjs';
 import styles from './waveform-player.module.css';
 
 type Mode='full'|'selection'|'generated';
-type Props={submission:string;source:ArtistMediaAsset;waveformUrl:string;fallbackEnvelope?:Envelope;selection:{start_ms:number|null;end_ms:number|null};preview?:ArtistMediaAsset;readOnly?:boolean;disabled?:boolean;processingPaused?:boolean;initialStartMs?:number;onSelectionDirty?:(dirty:boolean)=>void;onRegionChange?:(source:string,start:number,end:number)=>void;saveStatus?:PreviewSaveStatus;onRetrySave?:()=>void;initialPosition?:number;presentation?:'admin-review'};
+type Props={submission:string;source:ArtistMediaAsset;waveformUrl:string;fallbackEnvelope?:Envelope;selection:{start_ms:number|null;end_ms:number|null};preview?:ArtistMediaAsset;readOnly?:boolean;disabled?:boolean;processingPaused?:boolean;initialStartMs?:number;onSelectionDirty?:(dirty:boolean)=>void;onRegionChange?:(source:string,start:number,end:number)=>void;saveStatus?:PreviewSaveStatus;onRetrySave?:()=>void;initialPosition?:number;presentation?:'admin-review';preauthorize?:boolean};
 const stamp=(seconds:number,precise=false)=>{const n=Number.isFinite(seconds)?Math.max(0,seconds):0;return `${Math.floor(n/60)}:${(precise?(n%60).toFixed(3):String(Math.floor(n%60))).padStart(precise?6:2,'0')}`;};
 
-export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,selection,preview,readOnly=false,disabled=false,processingPaused=false,initialStartMs,onSelectionDirty,onRegionChange,saveStatus,onRetrySave,initialPosition=0,presentation}:Props){
+export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,selection,preview,readOnly=false,disabled=false,processingPaused=false,initialStartMs,onSelectionDirty,onRegionChange,saveStatus,onRetrySave,initialPosition=0,presentation,preauthorize=true}:Props){
  const durationUs=source.duration_us!,duration=durationUs/1e6;
  const [start,setStart]=useState(()=>previewSelection(durationUs,initialStartMs??selection.start_ms??0).startMs);
  const [retainSaved,setRetainSaved]=useState(initialStartMs===undefined);
@@ -41,7 +41,7 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
  useEffect(()=>{if(pendingLocal.current){if(pendingLocal.current.start!==selection.start_ms||pendingLocal.current.end!==selection.end_ms)return;pendingLocal.current=null;}if(localOverride.current&&localOverride.current.start===selection.start_ms&&localOverride.current.end===selection.end_ms)return;localOverride.current=null;stop();playbackKey.current='';setRetainSaved(true);setStart(previewSelection(durationUs,selection.start_ms??0).startMs);},[durationUs,selection.start_ms,selection.end_ms]);
  useEffect(()=>{stop();playbackKey.current='';},[preview?.id]);
  useEffect(()=>{session.activate();const element=audio.current,generation=request,deadline=endTimer,capability=session;return()=>{++generation.current;element?.pause();element?.removeAttribute('src');element?.load();capability.dispose();if(deadline.current)clearTimeout(deadline.current);};},[session]);
- useEffect(()=>{const target=wave.current;if(!target||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(entries=>{if(document.visibilityState==='visible'&&entries.some(entry=>entry.isIntersecting)){session.warm();observer.disconnect();}},{threshold:.1});observer.observe(target);return()=>observer.disconnect();},[session]);
+ useEffect(()=>{const target=wave.current;if(!preauthorize||!target||typeof IntersectionObserver==='undefined')return;const observer=new IntersectionObserver(entries=>{if(document.visibilityState==='visible'&&entries.some(entry=>entry.isIntersecting)){session.warm();observer.disconnect();}},{threshold:.1});observer.observe(target);return()=>observer.disconnect();},[preauthorize,session]);
  useEffect(()=>{const hidden=()=>{if(document.hidden)stop();};document.addEventListener('visibilitychange',hidden);return()=>document.removeEventListener('visibilitychange',hidden);},[]);
  useEffect(()=>{if(!playing||matchMedia('(prefers-reduced-motion: reduce)').matches)return;let frame=0;const tick=()=>{update();frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[playing,update]);
  useEffect(()=>{if(audio.current){audio.current.volume=volume;audio.current.muted=muted;}},[volume,muted]);
@@ -100,6 +100,7 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
  useEffect(()=>{if(playbackKey.current===''){const at=Math.max(0,Math.min(duration,initialPosition));positionRef.current=at;setPosition(at);}},[duration,initialPosition]);
  const active=(m:Mode)=>mode===m&&(playing||loading);
  const adminReview=presentation==='admin-review';
+ const warmPlayback=preauthorize?session.warm:undefined;
  return <section className={adminReview?`${styles.player} ${styles.adminReview}`:styles.player} aria-label={adminReview?'Review audio':'Full recording and preview selection'}>
   <div className={styles.heading}>{adminReview?<h2 className={styles.title}>Review audio</h2>:<div><p className={styles.eyebrow}>The Sync Exchange · Listening room</p><h3 className={styles.title}>Your recording</h3></div>}<span className={styles.badge}>Private master</span></div>
   <audio ref={audio} crossOrigin="anonymous" preload="none" aria-label="Private recording playback" onPlaying={()=>{setPlaying(true);setLoading(false);scheduleEnd();}} onPause={()=>{setPlaying(false);if(endTimer.current)clearTimeout(endTimer.current);}} onEnded={()=>{setPlaying(false);update();}} onTimeUpdate={update} onSeeking={()=>{update();scheduleEnd();}} onWaiting={()=>{if(!audio.current?.paused)setLoading(true);}} onCanPlay={()=>setLoading(false)} onError={()=>{stop();setPlaying(false);session.clear();setError('Audio unavailable. Retry playback or use the generated AAC preview when ready.');}}/>
@@ -110,8 +111,8 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
    <div className={styles.recordingPlayhead} style={{left:`${position/duration*100}%`}} aria-hidden="true"/>
   </div>
   <div className={styles.controls}>
-   <button type="button" className={styles.modeButton} disabled={loading&&!active('full')} aria-pressed={active('full')} onPointerEnter={session.warm} onFocus={session.warm} onClick={()=>void play('full')}>{active('full')?<Pause aria-hidden/>:<Play aria-hidden/>}{active('full')?'Pause Full Track':'Play Full Track'}</button>
-   <button type="button" className={styles.modeButton} disabled={loading&&!active('selection')} aria-pressed={active('selection')} onPointerEnter={session.warm} onFocus={session.warm} onClick={()=>void play('selection')}>{active('selection')?<Pause aria-hidden/>:<Play aria-hidden/>}{active('selection')?'Pause Public Preview':'Play Public Preview'}</button>
+   <button type="button" className={styles.modeButton} disabled={loading&&!active('full')} aria-pressed={active('full')} onPointerEnter={warmPlayback} onFocus={warmPlayback} onClick={()=>void play('full')}>{active('full')?<Pause aria-hidden/>:<Play aria-hidden/>}{active('full')?'Pause Full Track':'Play Full Track'}</button>
+   <button type="button" className={styles.modeButton} disabled={loading&&!active('selection')} aria-pressed={active('selection')} onPointerEnter={warmPlayback} onFocus={warmPlayback} onClick={()=>void play('selection')}>{active('selection')?<Pause aria-hidden/>:<Play aria-hidden/>}{active('selection')?'Pause Public Preview':'Play Public Preview'}</button>
    <p className={styles.time}>{stamp(position)} <span>/ {stamp(Math.round(duration))}</span></p>
    <div className={styles.sound}><button type="button" className={styles.mute} aria-label={muted?'Unmute recording':'Mute recording'} onClick={()=>setMuted(!muted)}>{muted?<VolumeX aria-hidden/>:<Volume2 aria-hidden/>}</button><input className={styles.volume} aria-label="Recording volume" type="range" min="0" max="1" step="0.01" value={muted?0:volume} onChange={e=>{setMuted(false);setVolume(Number(e.target.value));}}/></div>
   </div>

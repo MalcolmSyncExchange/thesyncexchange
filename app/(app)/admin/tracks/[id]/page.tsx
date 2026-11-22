@@ -67,6 +67,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
           selection={reviewMedia.selection}
           readOnly
           presentation="admin-review"
+          preauthorize={false}
         />
       ) : (
         <Card>

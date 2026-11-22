@@ -2,7 +2,7 @@
 import {verifyCatalogQueue,verifyDetailReload,verifyTrackQueueOutage,verifyTrackDecision} from '../tests/helpers/catalog-queue-browser.mjs';
 import {startCatalogFixture,anonKey,serviceKey} from '../tests/helpers/catalog-provider-fixture.mjs';
 import {adminTrackMediaFixture,startLocalMediaTls} from '../tests/helpers/admin-track-media-fixture.mjs';
-import {verifyAdminTrackMedia,verifyUnavailableTrackMedia,verifyAdminMediaDenials} from '../tests/helpers/admin-track-media-browser.mjs';
+import {verifyAdminTrackMedia,verifyUnavailableTrackMedia,verifyAdminMediaDenials,verifyReviewSigning,verifyLegacyMasterPlayback,verifyExpiredReviewPlayback} from '../tests/helpers/admin-track-media-browser.mjs';
 import {chromium,firefox,webkit,expect} from '@playwright/test';
 
 import {spawn} from 'node:child_process';
@@ -79,17 +79,26 @@ try{
   });
   const assets=await media.seed(fixture);
   await login(page,'admin@fixture.invalid');await mfa();
+  await check(name+': Admin Track Detail signs on explicit playback only at desktop, tablet and mobile sizes',async()=>{
+   result.reviewSigning=await verifyReviewSigning({page,origin,fixture,assets});
+  });
   await check(name+': Admin Track Detail binds read-only waveform and signed playback to the same master',async()=>{
    const consoleErrors=[];
    const record=message=>{if(message.type()==='error')consoleErrors.push(message.text());};
    page.on('console',record);
    try {
-    await verifyAdminTrackMedia({page,origin,output,name,assets,providerUrl:tls.url});
+    await verifyAdminTrackMedia({page,origin,output,name,assets,providerUrl:tls.url,fixture});
     assert.deepEqual(consoleErrors,[]);
    } finally { page.off('console',record); }
   });
+  await check(name+': expired signed storage access fails safely and explicit playback retry renews it',()=>verifyExpiredReviewPlayback({page,origin,fixture,media,assets}));
   await check(name+': unavailable, retired and mismatched Admin media render safely without a legacy player',()=>verifyUnavailableTrackMedia({page,origin,fixture,media}));
   await check(name+': unsigned, anonymous, non-MFA, non-owner, Buyer and expired-session media access are denied',()=>verifyAdminMediaDenials({page,origin,fixture,assets,providerUrl:tls.url,login}));
+  await check(name+': Artist Studio still authorizes and plays its working master',async()=>{
+   const draft=await media.seed(fixture,{submitted:false});
+   await login(page,'artist@fixture.invalid');await page.waitForURL(/\/artist\//);
+   await verifyLegacyMasterPlayback({page,assets:draft,fixture,open:()=>page.goto(origin+'/artist/uploads?draft='+draft.submission)});
+  });
   await context.close();await browser.close();browser=null;result.browsers.push({name,status:'PASS'});
  }
  assert.ok(result.browsers.some(x=>x.status==='PASS'));assert.deepEqual(result.errors,[]);result.status='PASS';

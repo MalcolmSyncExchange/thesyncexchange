@@ -234,7 +234,8 @@ export async function getAdminTracks() {
       artist_name: track.artist_name,
       genre: track.genre,
       status: track.status,
-      featured: track.featured
+      featured: track.featured,
+      ownershipTotal: null
     }));
   }
 
@@ -242,14 +243,17 @@ export async function getAdminTracks() {
   const supabase = await createPrivilegedSupabaseClient();
 
   const [{ data: tracks }, { data: profiles }] = await Promise.all([
-    supabase.from("tracks").select("id, title, artist_user_id, genre, status, featured").order("created_at", { ascending: false }),
+    supabase.from("tracks").select("id, title, artist_user_id, genre, status, featured, rights_holders(ownership_percent)").order("created_at", { ascending: false }),
     supabase.from("artist_profiles").select("user_id, artist_name")
   ]);
   const artistNameByUserId = new Map((profiles || []).map((row: any) => [row.user_id, row.artist_name]));
 
   return (tracks || []).map((track: any) => ({
     ...track,
-    artist_name: artistNameByUserId.get(track.artist_user_id) || "Artist"
+    artist_name: artistNameByUserId.get(track.artist_user_id) || "Artist",
+    ownershipTotal: Array.isArray(track.rights_holders)
+      ? track.rights_holders.reduce((sum: number, holder: { ownership_percent: number }) => sum + Math.round(Number(holder.ownership_percent) * 100), 0) / 100
+      : null
   }));
 }
 

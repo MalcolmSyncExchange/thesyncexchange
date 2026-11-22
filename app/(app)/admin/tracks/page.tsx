@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { TrackReviewActions } from "@/components/admin/track-review-actions";
+import { CheckedTrackReviewActions } from "@/components/admin/checked-track-review-actions";
 import { Badge } from "@/components/ui/badge";
 import { getAdminTracks } from "@/services/admin/queries";
 
@@ -24,7 +24,7 @@ export default async function AdminTracksPage() {
               <div className="flex items-center gap-3">
                 <Badge variant={track.featured ? "default" : "outline"}>{track.featured ? "Featured" : "Standard"}</Badge>
                 <Badge variant="secondary">{track.status}</Badge>
-                <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} />
+                <CheckedTrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={track.ownershipTotal} />
               </div>
             </div>
           </div>

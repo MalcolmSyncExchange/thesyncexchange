@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {setImmediate as settlePlayback} from 'node:timers/promises';
+import ts from 'typescript';
+import {masterRequest,renderRecordingPlayer,signedMaster} from './helpers/recording-player-harness.mjs';
 import {previewSelection,recordingSelection,selectionFromDrag,matchesSelection,playbackBounds,seekPlayback} from '../lib/media/preview-selection.mjs';
 
 test('long recordings retain exactly thirty seconds with precise worker-compatible boundaries',()=>{
@@ -45,8 +48,6 @@ test('one full waveform and native audio engine preserve security, cancellation 
  assert.equal((ui.match(/<ValidatedWaveform /g)||[]).length,1);assert.equal((ui.match(/<audio /g)||[]).length,1);
  for(const text of ['Play Full Track','Play Public Preview','Listen to Public Preview','Preview region start','Waveform timeline','onKeyDown={timelineKey}','onKeyDown={regionKey}','Recording playback position','onPointerCancel','onLostPointerCapture','setPointerCapture','clearTimeout(endTimer.current)','prefers-reduced-motion','!dirty','onSelectionDirty','onRegionChange'])assert.ok(ui.includes(text),text);
  assert.doesNotMatch(ui,/>Accept Public Preview</);assert.match(ui,/Your selection saves automatically/);
- assert.match(ui,/new IntersectionObserver/);assert.match(ui,/observer.disconnect/);assert.match(ui,/document.visibilityState==='visible'/);
- assert.match(ui,/onPointerEnter=\{session.warm\}/);assert.match(ui,/url=await session.get\(\)/);
  // Signed Storage ranges may use application/octet-stream; CORS media loading
  // avoids opaque-response blocking without sending cross-origin cookies.
  assert.match(ui,/<audio[^>]*crossOrigin="anonymous"/);
@@ -57,6 +58,85 @@ test('one full waveform and native audio engine preserve security, cancellation 
  assert.match(ui,/showPlayhead=\{false\}/);
  assert.doesNotMatch(ui,/decodeAudioData|createObjectURL|Math.random|service_role/);
  const bars=readFileSync(new URL('../components/audio/validated-waveform.tsx',import.meta.url),'utf8');assert.doesNotMatch(bars,/styles.peakCaps|styles.centerline/);assert.match(bars,/useMemo/);
+});
+
+function recordingPlayerAttributes(path){
+ const file=ts.createSourceFile(path,readFileSync(new URL(path,import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ const players=[];
+ function visit(node){
+  if((ts.isJsxOpeningElement(node)||ts.isJsxSelfClosingElement(node))&&ts.isIdentifier(node.tagName)&&node.tagName.text==='RecordingPlayer'){
+   players.push(node.attributes.properties);
+  }
+  ts.forEachChild(node,visit);
+ }
+ visit(file);
+ assert.equal(players.length,1,path);
+ assert.ok(players[0].every(ts.isJsxAttribute),'Playback configuration must be verifiable on the whole JSX element');
+ return players[0];
+}
+
+test('Admin Track Detail opts out while the shared workbench inherits the default',()=>{
+ const detail=recordingPlayerAttributes('../app/(app)/admin/tracks/[id]/page.tsx');
+ const optOut=detail.find(attribute=>attribute.name.getText()==='preauthorize')?.initializer;
+ assert.ok(optOut&&ts.isJsxExpression(optOut)&&optOut.expression?.kind===ts.SyntaxKind.FalseKeyword);
+ const workbench=recordingPlayerAttributes('../components/artist/uploads/upload-workbench.tsx');
+ assert.ok(workbench.every(attribute=>attribute.name.getText()!=='preauthorize'));
+});
+
+const playbackLabels=['Play Full Track','Play Public Preview'];
+
+test('Admin player signs only after explicit playback, including when already visible',async()=>{
+ for(const label of playbackLabels){
+  const player=renderRecordingPlayer({preauthorize:false,readOnly:true,presentation:'admin-review'});
+  try{
+   assert.deepEqual(player.requests,[],'render');
+   player.mount();
+   assert.deepEqual(player.requests,[],'activation before intersection or input');
+   player.intersect(true);
+   assert.deepEqual(player.requests,[],'viewport entry');
+   for(const play of playbackLabels){
+    const button=player.button(play);
+    button.onPointerEnter?.();
+    assert.deepEqual(player.requests,[],play+' hover');
+    button.onFocus?.();
+    assert.deepEqual(player.requests,[],play+' focus');
+   }
+
+   player.button(label).onClick();
+   await settlePlayback();
+   assert.deepEqual(player.requests,[masterRequest],label);
+   assert.equal(player.audio.src,signedMaster);
+   assert.equal(player.audio.paused,false);
+  }finally{
+   player.unmount();
+  }
+ }
+});
+
+test('default player preauthorizes on viewport entry, hover or focus and reuses it on play',async()=>{
+ const intents=[
+  ['viewport entry',player=>player.intersect(true),'Play Full Track'],
+  ...playbackLabels.flatMap(label=>['onPointerEnter','onFocus'].map(event=>[
+   label+' '+event,player=>player.button(label)[event]?.(),label
+  ]))
+ ];
+ for(const [name,interact,label] of intents){
+  const player=renderRecordingPlayer();
+  try{
+   player.mount();
+   player.intersect(false);
+   assert.deepEqual(player.requests,[],'before '+name);
+   interact(player);
+   assert.deepEqual(player.requests,[masterRequest],name);
+
+   player.button(label).onClick();
+   await settlePlayback();
+   assert.deepEqual(player.requests,[masterRequest],name+' followed by playback');
+   assert.equal(player.audio.paused,false);
+  }finally{
+   player.unmount();
+  }
+ }
 });
 
 test('full waveform seeks leave preview mode without changing selection',()=>{

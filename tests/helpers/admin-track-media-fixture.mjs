@@ -7,7 +7,8 @@ import path from 'node:path';
 import { artist, create, ids, metadata, readyPackage, revision } from './music-uploads-fixture.mjs';
 
 const rpcNames = new Set([
-  'media_upload_find', 'media_upload_admin_read', 'media_admin_review_state', 'media_workspace_documents',
+  'media_upload_find', 'media_upload_read', 'media_upload_admin_read', 'media_admin_review_state',
+  'media_workspace_documents', 'media_submission_status',
   'media_master_can_play', 'media_master_playback_authorized', 'media_upload_can_play', 'media_upload_playback_authorized'
 ]);
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -89,24 +90,25 @@ export async function startLocalMediaTls(providerUrl, output) {
 export function adminTrackMediaFixture() {
   const objects = new Map();
   const capabilities = new Map();
-  let changeRead;
+  let changeRead, expiresOnDelivery = false;
 
   return {
-    async seed(fixture) {
+    async seed(fixture, { submitted = true } = {}) {
       const { wav, wavHash, envelope } = sampleMedia();
       return fixture.withDatabase(async db => {
         await db.exec('update submission_media.capabilities set reservations_enabled=true, worker_enabled=true, activation_enabled=true, foundation_reads_enabled=true');
         await db.exec("insert into storage.buckets(id,name,public) values('submission-source','submission-source',false),('submission-derived','submission-derived',false),('submission-artwork','submission-artwork',false) on conflict do nothing");
-        // The shared queue fixture starts pending. Use the normal draft-to-review
-        // transition when adding synthetic media to that track.
-        await db.query("update tracks set status='draft' where id=$1", [ids.draft]);
-        const submission = await create(db, ids.draft);
+        if (submitted) {
+          // The shared queue fixture starts pending. Use the normal draft-to-review transition.
+          await db.query("update tracks set status='draft' where id=$1", [ids.draft]);
+        }
+        const submission = await create(db, submitted ? ids.draft : null);
         const { master } = await readyPackage(db, submission, {
           sourceMedia: { bytes: wav.length, sha256: wavHash },
           waveformMedia: { bytes: envelope.length, sha256: sha256(envelope) }
         });
         await artist(db, 'media_upload_save_metadata', [submission, metadata, await revision(db, submission), randomUUID()]);
-        await artist(db, 'media_upload_submit', [submission, await revision(db, submission), randomUUID()]);
+        if (submitted) await artist(db, 'media_upload_submit', [submission, await revision(db, submission), randomUUID()]);
         const { rows: assets } = await db.query(`select id, kind, bucket, object_path from submission_media.assets
           where id=$1 or (source_asset_id=$1 and kind='waveform')`, [master]);
         const waveform = assets.find(a => a.kind === 'waveform');
@@ -117,6 +119,7 @@ export function adminTrackMediaFixture() {
       });
     },
     simulateAdminRead(change) { changeRead = change; },
+    expireNextOriginal() { expiresOnDelivery = true; },
     async rpc(name, args, db) {
       if (name === 'consume_rate_limit') {
         const result = await db.query('select to_jsonb(r) value from public.consume_rate_limit($1,$2,$3) r',
@@ -125,7 +128,7 @@ export function adminTrackMediaFixture() {
       }
       if (!rpcNames.has(name)) return null;
       const { rows: [definition] } = await db.query("select proargnames from pg_proc where proname=$1 and pronamespace='public'::regnamespace", [name]);
-      const params = definition.proargnames.map(key => args[key] ?? null);
+      const params = (definition.proargnames ?? []).map(key => args[key] ?? null);
       const { rows: [{ value }] } = await db.query(`select public.${name}(${params.map((_, i) => '$' + (i + 1)).join(',')}) value`, params);
       return { value: name === 'media_upload_admin_read' && changeRead ? changeRead(value) : value };
     },
@@ -145,7 +148,8 @@ export function adminTrackMediaFixture() {
           for await (const chunk of req) chunks.push(chunk);
           if (JSON.parse(Buffer.concat(chunks).toString()).expiresIn !== 60) throw Error('Unexpected fixture signing TTL');
           const token = randomUUID();
-          capabilities.set(token, { object, expires: Date.now() + 60_000 });
+          capabilities.set(token, { object, expires: Date.now() + (expiresOnDelivery ? -1 : 60_000) });
+          expiresOnDelivery = false;
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(JSON.stringify({ signedURL: `${pathname.replace('/storage/v1', '')}?token=${token}` }));
         } else {

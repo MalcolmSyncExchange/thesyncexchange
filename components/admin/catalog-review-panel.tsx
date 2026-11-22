@@ -25,10 +25,10 @@ export function CatalogReviewPanel({ context, queue, status, onChange, onRefresh
   return (
     <section aria-label="Catalog Reviews" className="min-w-0 space-y-2.5 sm:space-y-3">
       <ReviewQueuePosition ready={!busy} canCheckRecord={status === "success"} />
-      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card p-2.5 sm:items-center sm:px-3">
-        <label className="grid min-w-0 gap-1 text-sm font-medium sm:flex sm:items-center sm:gap-2">
-          Review status
-          <select className="h-11 min-w-0 rounded-md border border-border bg-background px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10"
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-1.5 sm:px-2.5">
+        <label className="flex min-w-0 flex-[1_1_10rem] items-center gap-2 text-sm font-medium sm:flex-none">
+          <span><span className="sr-only">Review </span>Status</span>
+          <select className="h-11 w-full min-w-0 rounded-md border border-border bg-background px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:w-auto"
             value={filter} onChange={event => onChange({ filter: event.target.value, page: 1 })}>
             <option value="">All statuses</option>
             <option value="not_started">Not started</option>
@@ -37,7 +37,7 @@ export function CatalogReviewPanel({ context, queue, status, onChange, onRefresh
         </label>
         <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-10" disabled={busy} onClick={onRefresh} aria-label={refreshLabel}>
           <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          {status === "loading" || status === "success" ? "Refresh" : refreshLabel}
+          {status === "denied" ? "Check catalog access" : status === "error" ? "Retry" : "Refresh"}
         </Button>
       </div>
 
@@ -53,32 +53,27 @@ export function CatalogReviewPanel({ context, queue, status, onChange, onRefresh
 
       {hasRecords && queue && <ul aria-label="Catalog records" className="divide-y divide-border rounded-lg border border-border bg-card">
         {queue.items.map(record => (
-          <li key={record.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 px-2.5 py-2.5 sm:items-center sm:gap-x-4 sm:px-4">
-            <div className="grid min-w-0 gap-x-4 gap-y-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 md:py-1">
-                <h3 className="min-w-0 font-semibold [overflow-wrap:anywhere]">{record.title}</h3>
-                <CatalogStatusBadge state={record.state} />
-              </div>
-              <div className="min-w-0 text-sm md:py-1">
-                <p className="text-muted-foreground">
-                  {record.visible ? "Published and eligible" : "Unavailable to new buyers"}
-                </p>
-                {record.blockers.length > 0 && <details>
-                  <summary className="min-h-11 cursor-pointer rounded-sm py-3 text-xs font-semibold text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-300 sm:min-h-9 sm:py-2">
-                    {record.blockers.length} publication {record.blockers.length === 1 ? "blocker" : "blockers"}
-                  </summary>
-                  <ul className="list-disc space-y-1 pb-1 pl-5 text-muted-foreground">
-                    {record.blockers.map(blocker => <li key={blocker}>{blockerLabels[blocker] || formatEnumLabel(blocker)}</li>)}
-                  </ul>
-                </details>}
-              </div>
+          <li key={record.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 px-2.5 py-2 sm:gap-x-4 sm:px-4 md:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_auto]">
+            <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 self-center">
+              <h3 className="min-w-0 font-semibold leading-snug [overflow-wrap:anywhere]">{record.title}</h3>
+              {record.state === "published" && !record.visible ? (
+                <Badge variant="outline" className="whitespace-normal border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300">Published · Unavailable to buyers</Badge>
+              ) : <CatalogStatusBadge state={record.state} />}
             </div>
-            <Button asChild size="sm" className="min-h-11 sm:min-h-10" variant={record.state === "submitted" ? "default" : "outline"}>
+            <Button asChild size="sm" className="col-start-2 row-start-1 min-h-11 sm:min-h-10 md:col-start-3" variant={record.state === "submitted" ? "default" : "outline"}>
               <ReviewQueueRecordLink href={catalogReviewHref(record.id, context)} record={record.id} tab="catalog" context={context} aria-label={`Open ${record.state === "submitted" ? "review" : "record"} for ${record.title}`}>
                 {record.state === "submitted" ? "Open review" : "Open record"}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </ReviewQueueRecordLink>
             </Button>
+            {record.blockers.length > 0 && <details className="col-span-full min-w-0 self-center text-sm md:col-span-1 md:col-start-2 md:row-start-1">
+              <summary className="min-h-11 cursor-pointer rounded-sm py-3 text-xs font-semibold text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-300 sm:min-h-9 sm:py-2">
+                {record.blockers.length} publication {record.blockers.length === 1 ? "blocker" : "blockers"}
+              </summary>
+              <ul className="list-disc space-y-1 pb-1 pl-5 text-muted-foreground [overflow-wrap:anywhere]">
+                {record.blockers.map(blocker => <li key={blocker}>{blockerLabels[blocker] || formatEnumLabel(blocker)}</li>)}
+              </ul>
+            </details>}
           </li>
         ))}
       </ul>}

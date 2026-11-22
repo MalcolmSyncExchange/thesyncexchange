@@ -95,6 +95,14 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
   await expect(page.locator('body')).not.toContainText(sensitive);assert.ok(consoleMessages.every(message=>!message.includes(sensitive)));
   response={status:200,body:data};await page.getByRole('button',{name:'Retry catalog request',exact:true}).click();await expect(record).toBeVisible();
   await captureQueue(page,output,name,'catalog-populated');
+  response={status:200,body:{items:[...data.items,{
+   ...data.items[0],id:'77777777-7777-4777-8777-000000000100',title:'Published with a rights blocker',state:'published',
+   blockers:['current_verified_rights_required']
+  }],total:2,page_count:1}};
+  await page.getByRole('button',{name:'Refresh catalog results'}).click();
+  await expect(page.getByText('Published · Unavailable to buyers',{exact:true})).toBeVisible();
+  await expect(page.getByText('Unavailable to new buyers',{exact:true})).toHaveCount(0);
+  response={status:200,body:data};
   assert.ok(requests.length>=8);
   assert.ok(requests.every(r=>r.admin===true&&['submitted','approved'].includes(r.state)&&r.page===1));
   await page.getByLabel('Review status').selectOption('');
@@ -338,7 +346,7 @@ export async function verifyTrackDecision({page,origin,output,name,fixture}) {
  const status=()=>fixture.query('select status from tracks where id=$1',[id]).then(result=>result.rows[0].status);
  const totals=async total=>fixture.withDatabase(async db=>{
   await db.query('delete from rights_holders where track_id=$1',[id]);
-  const shares=total===100?[64.04,0.01,35.95]:total===110?[60,50]:total?[total]:[];
+  const shares=total===100?[64.04,0.01,35.95]:total>100?[60,total-60]:total?[total]:[];
   for(const share of shares){
    await db.query("insert into rights_holders(track_id,name,role_type,ownership_percent,email) values($1,'Fixture rightsholder','owner',$2,$3)",[id,share,`fixture-${share}@fixture.invalid`]);
   }
@@ -347,34 +355,58 @@ export async function verifyTrackDecision({page,origin,output,name,fixture}) {
   for(const total of [0,60,110]){
    await totals(total);
    await page.goto(origin+'/admin/review-queue');
-   await expect(page.getByText(`Declared ownership shown here is ${total}%.`,{exact:false})).toBeVisible();
+   await expect(page.getByText(`Approval blocked · ${total}% ownership declared`,{exact:true})).toBeVisible();
    await expect(page.getByText('Ready for review',{exact:true})).toHaveCount(0);
-   await approve.click();
-   await expect(alert).toContainText('Declared ownership must equal 100%');
+   await expect(approve).toBeDisabled();
+   assert.equal(await approve.evaluate(button=>button.form),null);
+   await expect(page.getByTestId(`reject-track-${id}`)).toBeEnabled();
+   await expect(page.getByRole('button',{name:'Feature',exact:true})).toBeEnabled();
    await expect(page.getByRole('status').filter({hasText:'Track approved.'})).toHaveCount(0);
    assert.equal(await status(),'pending_review');
    if(total===0) await captureQueue(page,output,name,'approval-blocked');
    if(total===60){
     await page.goto(origin+'/admin/tracks');
-    await approve.click();
-    await expect(alert).toContainText('Declared ownership must equal 100%');
+    await expect(approve).toBeDisabled();
+    await expect(page.getByText('Approval blocked · 60% ownership declared',{exact:true})).toBeVisible();
     assert.equal(await status(),'pending_review');
    }
   }
+  for(const total of [99.99,100.01]){
+   await totals(total);
+   await page.goto(origin+'/admin/review-queue');
+   await expect(approve).toBeEnabled();
+  }
   await totals(100);
+  await fixture.query("insert into rights_private.cases(track_id,owner_id,state) select id,artist_user_id,'draft' from tracks where id=$1",[id]);
+  try {
+   await page.goto(origin+'/admin/review-queue');
+   await expect(page.getByText('Approval blocked · Current rights review required',{exact:true})).toBeVisible();
+   await expect(approve).toBeDisabled();
+  } finally {
+   await fixture.query('delete from rights_private.cases where track_id=$1',[id]);
+  }
   await page.setViewportSize({width:390,height:844});
+  fixture.failNextRpc('rights_read','before');
   await page.goto(origin+'/admin/tracks/'+id+'?from=review-queue');
-  await expect(page.getByText('Declared ownership shown here',{exact:false})).toHaveCount(0);
+  await expect(page.getByText('Approval readiness unavailable',{exact:true})).toBeVisible();
+  await expect(approve).toBeDisabled();
+  await page.getByRole('button',{name:'Recheck approval'}).click();
+  await expect(approve).toBeEnabled();
+  await expect(page.getByText(/Approval blocked/)).toHaveCount(0);
+  await expect(page.getByText('Buyer checkout and catalog publication require an eligible license option.',{exact:false})).toBeVisible();
   fixture.failNextTrackDecision('rights');
   await approve.click();
   await expect(alert).toContainText('A current rights review is required');
   await expect(alert.getByRole('link',{name:'Review rights'})).toHaveAttribute('href','/admin/rights?track='+id);
+  await expect(approve).toBeDisabled();
   assert.ok(await alert.evaluate(message=>{
    const bounds=message.getBoundingClientRect();
    return bounds.left>=0&&bounds.right<=window.innerWidth&&message.scrollWidth<=message.clientWidth+1;
   }));
   await page.screenshot({path:`${output}/${name}-approval-rights-390.png`});
   await page.setViewportSize({width:1440,height:1000});
+  await alert.getByRole('button',{name:'Recheck approval'}).click();
+  await expect(approve).toBeEnabled();
 
   fixture.failNextTrackDecision('no-row');
   await approve.click();await expect(alert).toContainText('The track was not updated');
@@ -400,7 +432,7 @@ export async function verifyTrackDecision({page,origin,output,name,fixture}) {
 
   await fixture.query("update tracks set status='pending_review' where id=$1",[id]);
   await page.goto(origin+'/admin/review-queue');
-  await expect(approve).toBeVisible();
+  await expect(approve).toBeEnabled();
   fixture.invalidate(fixture.admin.id);
   await approve.click();
   await expect(alert).toContainText('Check your Admin session and account security');

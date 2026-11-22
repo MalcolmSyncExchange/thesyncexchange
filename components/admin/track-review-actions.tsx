@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useActionState, useContext, useState, type ReactNode } from "react";
+import { createContext, useActionState, useContext, useId, useState, type ReactNode } from "react";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toggleTrackFeaturedAction, updateTrackStatusWithResultAction, type TrackStatusUpdateResult } from "@/services/admin/actions";
 
 type ReviewFeedback = { result: TrackStatusUpdateResult | { status: "unconfirmed" }; approval: boolean };
+export type ApprovalReadiness = { kind: "ready" | "rights" | "unavailable" } | { kind: "ownership"; total: number };
+export type TrackReviewActionProps = {
+  trackId: string;
+  status: string;
+  featured?: boolean;
+  readiness: ApprovalReadiness;
+  className?: string;
+};
 const QueueDecisionNotice = createContext<((message: string) => void) | null>(null);
 
 export function TrackQueueDecisionFeedback({ children }: { children: ReactNode }) {
@@ -44,13 +52,8 @@ function feedbackMessage({ result, approval }: ReviewFeedback) {
   }
 }
 
-export function TrackReviewActions({ trackId, status, featured, ownershipTotal, className }: {
-  trackId: string;
-  status: string;
-  featured?: boolean;
-  ownershipTotal?: number;
-  className?: string;
-}) {
+export function TrackReviewActions({ trackId, status, featured, readiness, className }: TrackReviewActionProps) {
+  const descriptionId = useId();
   const announceDecision = useContext(QueueDecisionNotice);
   const [feedback, submit, pending] = useActionState(async (_: ReviewFeedback | null, formData: FormData) => {
     announceDecision?.("");
@@ -58,26 +61,33 @@ export function TrackReviewActions({ trackId, status, featured, ownershipTotal, 
     if (next.result.status === "ok") announceDecision?.(feedbackMessage(next));
     return next;
   }, null);
-  const ownershipBlocked = ownershipTotal !== undefined && ownershipTotal !== 100;
+  const approvalRejected = feedback?.approval && feedback.result.status === "rejected";
+  const canApprove = readiness.kind === "ready" && !approvalRejected;
+  const readinessText = readiness.kind === "ownership" ? `Approval blocked · ${readiness.total}% ownership declared`
+    : readiness.kind === "rights" ? "Approval blocked · Current rights review required"
+    : readiness.kind === "unavailable" ? "Approval readiness unavailable" : null;
   const rightsHref = "/admin/rights?track=" + encodeURIComponent(trackId);
+  const rightsLink = "rounded-sm underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <div className={cn("min-w-0 space-y-2", className)}>
-      {status === "pending_review" && ownershipBlocked && (
-        <p className="text-sm text-amber-800 dark:text-amber-300">
-          Declared ownership shown here is {ownershipTotal}%. Approval requires 100%.{" "}
-          <Link href={rightsHref} className="underline">Review rights</Link>
-        </p>
+      {status === "pending_review" && readinessText && !approvalRejected && (
+        <div id={descriptionId} className="flex flex-wrap items-baseline gap-x-2 text-sm text-amber-800 dark:text-amber-300">
+          <p role="status">{readinessText}</p>
+          {(readiness.kind === "ownership" || readiness.kind === "rights") && <Link href={rightsHref} className={rightsLink}>Review rights</Link>}
+          {readiness.kind === "unavailable" && <button type="button" className={rightsLink} onClick={() => window.location.reload()}>Recheck approval</button>}
+        </div>
       )}
       <div className="flex flex-wrap gap-2">
         {status === "pending_review" && (
           <>
-            <form action={submit}>
+            {canApprove ? <form action={submit}>
               <input type="hidden" name="trackId" value={trackId} />
               <input type="hidden" name="status" value="approved" />
               <FormSubmitButton size="sm" variant="outline" pendingLabel="Approving…" disabled={pending}
                 data-testid={`approve-track-${trackId}`}>Approve</FormSubmitButton>
-            </form>
+            </form> : <Button type="button" size="sm" variant="outline" disabled aria-describedby={descriptionId}
+              data-testid={`approve-track-${trackId}`}>Approve</Button>}
             <form action={submit}>
               <input type="hidden" name="trackId" value={trackId} />
               <input type="hidden" name="status" value="rejected" />
@@ -89,15 +99,17 @@ export function TrackReviewActions({ trackId, status, featured, ownershipTotal, 
         <form action={toggleTrackFeaturedAction}>
           <input type="hidden" name="trackId" value={trackId} />
           <input type="hidden" name="featured" value={String(!featured)} />
-          <FormSubmitButton size="sm" variant="ghost" pendingLabel="Updating…" disabled={pending}>
+          <FormSubmitButton size="sm" variant="ghost" pendingLabel="Updating…" disabled={pending}
+            title={status === "pending_review" && !featured ? "Buyer placement requires publication and eligibility" : undefined}>
             {featured ? "Unfeature" : "Feature"}
           </FormSubmitButton>
         </form>
       </div>
       {feedback && !pending && !(announceDecision && feedback.result.status === "ok") && (
-        <p role={feedback.result.status === "ok" ? "status" : "alert"} className="break-words text-sm">
+        <p id={approvalRejected ? descriptionId : undefined} role={feedback.result.status === "ok" ? "status" : "alert"} className="break-words text-sm">
           {feedbackMessage(feedback)}
-          {feedback.result.status === "rejected" && <> <Link href={rightsHref} className="underline">Review rights</Link></>}
+          {feedback.result.status === "rejected" && <> <Link href={rightsHref} className={rightsLink}>Review rights</Link></>}
+          {approvalRejected && <> <button type="button" className={rightsLink} onClick={() => window.location.reload()}>Recheck approval</button></>}
         </p>
       )}
     </div>

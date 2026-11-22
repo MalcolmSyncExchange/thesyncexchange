@@ -11,10 +11,10 @@ import type {PreviewSaveStatus} from '@/lib/media/preview-autosave.mjs';
 import styles from './waveform-player.module.css';
 
 type Mode='full'|'selection'|'generated';
-type Props={submission:string;source:ArtistMediaAsset;waveformUrl:string;fallbackEnvelope?:Envelope;selection:{start_ms:number|null;end_ms:number|null};preview?:ArtistMediaAsset;readOnly?:boolean;disabled?:boolean;processingPaused?:boolean;initialStartMs?:number;onSelectionDirty?:(dirty:boolean)=>void;onRegionChange?:(source:string,start:number,end:number)=>void;saveStatus?:PreviewSaveStatus;onRetrySave?:()=>void;initialPosition?:number};
+type Props={submission:string;source:ArtistMediaAsset;waveformUrl:string;fallbackEnvelope?:Envelope;selection:{start_ms:number|null;end_ms:number|null};preview?:ArtistMediaAsset;readOnly?:boolean;disabled?:boolean;processingPaused?:boolean;initialStartMs?:number;onSelectionDirty?:(dirty:boolean)=>void;onRegionChange?:(source:string,start:number,end:number)=>void;saveStatus?:PreviewSaveStatus;onRetrySave?:()=>void;initialPosition?:number;presentation?:'admin-review'};
 const stamp=(seconds:number,precise=false)=>{const n=Number.isFinite(seconds)?Math.max(0,seconds):0;return `${Math.floor(n/60)}:${(precise?(n%60).toFixed(3):String(Math.floor(n%60))).padStart(precise?6:2,'0')}`;};
 
-export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,selection,preview,readOnly=false,disabled=false,processingPaused=false,initialStartMs,onSelectionDirty,onRegionChange,saveStatus,onRetrySave,initialPosition=0}:Props){
+export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,selection,preview,readOnly=false,disabled=false,processingPaused=false,initialStartMs,onSelectionDirty,onRegionChange,saveStatus,onRetrySave,initialPosition=0,presentation}:Props){
  const durationUs=source.duration_us!,duration=durationUs/1e6;
  const [start,setStart]=useState(()=>previewSelection(durationUs,initialStartMs??selection.start_ms??0).startMs);
  const [retainSaved,setRetainSaved]=useState(initialStartMs===undefined);
@@ -99,8 +99,9 @@ export function RecordingPlayer({submission,source,waveformUrl,fallbackEnvelope,
  }
  useEffect(()=>{if(playbackKey.current===''){const at=Math.max(0,Math.min(duration,initialPosition));positionRef.current=at;setPosition(at);}},[duration,initialPosition]);
  const active=(m:Mode)=>mode===m&&(playing||loading);
- return <section className={styles.player} aria-label="Full recording and preview selection">
-  <div className={styles.heading}><div><p className={styles.eyebrow}>The Sync Exchange · Listening room</p><h3 className={styles.title}>Your recording</h3></div><span className={styles.badge}>Private master</span></div>
+ const adminReview=presentation==='admin-review';
+ return <section className={adminReview?`${styles.player} ${styles.adminReview}`:styles.player} aria-label={adminReview?'Review audio':'Full recording and preview selection'}>
+  <div className={styles.heading}>{adminReview?<h2 className={styles.title}>Review audio</h2>:<div><p className={styles.eyebrow}>The Sync Exchange · Listening room</p><h3 className={styles.title}>Your recording</h3></div>}<span className={styles.badge}>Private master</span></div>
   <audio ref={audio} crossOrigin="anonymous" preload="none" aria-label="Private recording playback" onPlaying={()=>{setPlaying(true);setLoading(false);scheduleEnd();}} onPause={()=>{setPlaying(false);if(endTimer.current)clearTimeout(endTimer.current);}} onEnded={()=>{setPlaying(false);update();}} onTimeUpdate={update} onSeeking={()=>{update();scheduleEnd();}} onWaiting={()=>{if(!audio.current?.paused)setLoading(true);}} onCanPlay={()=>setLoading(false)} onError={()=>{stop();setPlaying(false);session.clear();setError('Audio unavailable. Retry playback or use the generated AAC preview when ready.');}}/>
   <div ref={wave} className={styles.recordingTimeline} role="group" aria-label="Waveform timeline" onPointerDown={seekDown} onPointerMove={e=>{if(seekPointer.current===e.pointerId)seekAt(e);}} onPointerUp={seekEnd} onPointerCancel={seekEnd} onLostPointerCapture={()=>{seekPointer.current=null;}}>
    <div className={styles.waveformSeek} role="slider" tabIndex={0} aria-label="Recording playback position" aria-valuemin={0} aria-valuemax={duration} aria-valuenow={position} aria-valuetext={`${stamp(position)} of ${stamp(Math.round(duration))}`} onKeyDown={timelineKey}/>

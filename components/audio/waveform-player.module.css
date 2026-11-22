@@ -104,3 +104,13 @@
    The playhead remains an independent hit target above this layer. */
 .selectionOverlay {pointer-events:auto;touch-action:none;cursor:grab;}
 .selectionOverlay[aria-disabled=true] {cursor:default;}
+
+.adminReview {padding:clamp(12px,2vw,20px);border-radius:12px;box-shadow:none;}
+.adminReview .heading {gap:12px;margin-bottom:0;}
+.adminReview .title {font-size:16px;margin:0;}
+.adminReview .badge {display:inline-block;}
+.adminReview .recordingTimeline {margin:10px 0 8px;}
+.adminReview .wave {height:clamp(92px,12vw,116px);}
+.adminReview .controls {gap:8px;padding-top:8px;}
+.adminReview .status {margin-top:6px;}
+.adminReview .previewFooter {margin-top:2px;}

@@ -16,8 +16,9 @@ test("admin track review detail renders submission verification sections", async
   assert.match(source, /<CardTitle>Rights Holders<\/CardTitle>/);
   assert.match(source, /<CardTitle>License Options<\/CardTitle>/);
   assert.match(source, /Total Ownership/);
-  assert.match(source, /No active license options are configured for buyer checkout\./);
-  assert.match(source, /Rights holder ownership totals/);
+  assert.match(source, /Buyer checkout and catalog publication require an eligible license option\. Track approval has a separate rights check\./);
+  assert.match(source, /<CheckedTrackReviewActions[\s\S]*ownershipTotal=\{totalOwnership\}/);
+  assert.match(source, /presentation="admin-review"/);
 });
 
 test("admin track mapper preserves track-level license option active state", async () => {

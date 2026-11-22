@@ -6,7 +6,7 @@ import { AlertCircle, ArrowRight, FileAudio2, FileText, ShieldCheck } from "luci
 
 import { ReviewQueueRecordLink } from "@/components/admin/review-queue-position";
 import { Button } from "@/components/ui/button";
-import { TrackReviewActions } from "@/components/admin/track-review-actions";
+import { CheckedTrackReviewActions } from "@/components/admin/checked-track-review-actions";
 import { FlagSeverityBadge, TrackStatusBadge, VerificationStatusBadge } from "@/components/shared/state-badges";
 import { Badge } from "@/components/ui/badge";
 import { trackReviewHref, type CatalogQueueContext } from "@/lib/admin/review-queue-navigation";
@@ -87,7 +87,7 @@ export function ReviewQueueCard({
           {track.featured && <Badge variant="outline">Featured</Badge>}
           {hasFlags && track.highest_flag_severity && <FlagSeverityBadge severity={track.highest_flag_severity} />}
         </div>
-        <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={ownershipTotal}
+        <CheckedTrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={ownershipTotal}
           className="w-full space-y-1.5 sm:w-auto [&_button]:min-h-11 sm:[&_button]:min-h-9" />
       </div>
 

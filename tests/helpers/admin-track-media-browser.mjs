@@ -4,7 +4,7 @@ import { expect } from '@playwright/test';
 import { parseWaveform } from '../../lib/media/waveform.mjs';
 
 const image = page => page.getByRole('img', { name: 'Full recording waveform' });
-const controls = page => page.getByRole('region', { name: 'Full recording and preview selection' });
+const controls = page => page.getByRole('region', { name: 'Review audio' });
 const mediaPaths = assets => ({
   original: `/api/media/${assets.submission}/${assets.master}/original`,
   waveform: `/api/media/${assets.submission}/${assets.waveform}`,
@@ -21,6 +21,7 @@ export async function verifyAdminTrackMedia({ page, origin, output, name, assets
   await record.click();
   await expect(page.getByRole('heading', { name: 'Synthetic Track', exact: true })).toBeVisible();
   await expect(controls(page)).toBeVisible();
+  await expect(controls(page).getByRole('heading',{name:'Review audio'})).toBeVisible();
   await expect(page.locator('audio')).toHaveCount(1);
   await expect(image(page)).toBeVisible();
   const waveResponse = await waveform;
@@ -64,6 +65,11 @@ export async function verifyAdminTrackMedia({ page, origin, output, name, assets
   await controls(page).getByRole('button', { name: 'Mute recording' }).click();
   await expect.poll(() => page.locator('audio').evaluate(a => a.muted)).toBe(true);
   await controls(page).getByRole('button', { name: 'Unmute recording' }).click();
+  const preview = controls(page).getByRole('button', { name: 'Play Public Preview' });
+  await preview.click();
+  await expect(controls(page).getByRole('button', { name: 'Pause Public Preview' })).toHaveAttribute('aria-pressed','true');
+  await expect.poll(() => page.locator('audio').evaluate(a => a.paused)).toBe(false);
+  await controls(page).getByRole('button', { name: 'Pause Public Preview' }).click();
   await expect(controls(page).getByRole('alert')).toHaveCount(0);
 
   for (const [width, height] of [[1440, 1000], [820, 1024], [390, 844]]) {
@@ -100,6 +106,7 @@ export async function verifyAdminTrackMedia({ page, origin, output, name, assets
   await page.getByRole('link', { name: 'Inspect media in Media Operations' }).click();
   await expect(page).toHaveURL(`${origin}/admin/media?draft=${assets.submission}`);
   await expect(page.getByRole('region', { name: 'Recording studio' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Full recording and preview selection' })).toBeVisible();
   await expect(image(page)).toBeVisible();
   await page.goBack();
   await expect(image(page)).toBeVisible();

@@ -54,7 +54,7 @@ export async function startCatalogFixture({media}={}){let rights;
    const id=ctx.url.searchParams.get('id')?.slice(3);
    const detail=await execute(ctx,async()=> (await db.query(`
     select t.*, coalesce((select jsonb_agg(r) from rights_holders r where r.track_id=t.id), '[]') rights_holders,
-      '[]'::jsonb track_license_options from tracks t where t.id=$1`,[id])).rows);
+      '[]'::jsonb track_license_options from tracks t where $1::uuid is null or t.id=$1`,[id??null])).rows);
    json(res, String(req.headers.accept||'').includes('object') ? detail[0] ?? null : detail);
    return true;
   },
@@ -66,7 +66,7 @@ export async function startCatalogFixture({media}={}){let rights;
    rights=await approved(db);
   },
   storage: media?.storage,
-  async rpc(name,args,{db}){const allowed=new Set(['catalog_save','catalog_submit','catalog_review','catalog_transition','catalog_reopen','catalog_read','catalog_list','catalog_recover','catalog_history','catalog_search','catalog_available_licenses']);if(!allowed.has(name))return media?.rpc(name,args,db);const definition=(await db.query("select proargnames from pg_proc where proname=$1 and pronamespace='public'::regnamespace",[name])).rows[0];const params=definition.proargnames.map(k=>args[k]??null);return {value:(await db.query('select public.'+name+'('+params.map((_,i)=>'$'+(i+1)).join(',')+') value',params)).rows[0].value};}
+  async rpc(name,args,{db}){const allowed=new Set(['catalog_save','catalog_submit','catalog_review','catalog_transition','catalog_reopen','catalog_read','catalog_list','catalog_recover','catalog_history','catalog_search','catalog_available_licenses','rights_read']);if(!allowed.has(name))return media?.rpc(name,args,db);const definition=(await db.query("select proargnames from pg_proc where proname=$1 and pronamespace='public'::regnamespace",[name])).rows[0];const params=definition.proargnames.map(k=>args[k]??null);return {value:(await db.query('select public.'+name+'('+params.map((_,i)=>'$'+(i+1)).join(',')+') value',params)).rows[0].value};}
  });return {...f,track:ids.live,draftTrack:ids.draft,
   failNextTrackDecision:failure=>{trackDecisionFailure=failure;},
   setTrackQueueFailure:(table,status=503)=>{queueFailure=table?{table,status}:undefined;},

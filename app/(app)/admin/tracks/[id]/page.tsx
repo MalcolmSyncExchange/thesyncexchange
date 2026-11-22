@@ -3,13 +3,13 @@ import { findTrackUpload } from "@/services/media/uploads";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Music4 } from "lucide-react";
+import { ArrowLeft, Music4 } from "lucide-react";
 
 import { ComplianceFlagActions } from "@/components/admin/compliance-flag-actions";
 import { ComplianceFlagForm } from "@/components/admin/compliance-flag-form";
 import { ReviewNoteForm } from "@/components/admin/review-note-form";
 import { FlagSeverityBadge, FlagStatusBadge, TrackStatusBadge } from "@/components/shared/state-badges";
-import { TrackReviewActions } from "@/components/admin/track-review-actions";
+import { CheckedTrackReviewActions } from "@/components/admin/checked-track-review-actions";
 import { RecordingPlayer } from "@/components/audio/recording-player";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,14 +31,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
   const mediaSubmission = reviewMedia.status === "ready" ? reviewMedia.submission : await findTrackUpload(track.id);
   const totalOwnership = track.rights_holders.reduce((sum, holder) => sum + Math.round(Number(holder.ownership_percent || 0) * 100), 0) / 100;
   const hasCompleteOwnership = totalOwnership === 100;
-  const activeLicenseOptions = track.license_options.filter((option) => option.active !== false);
-  const reviewWarnings = [
-    track.rights_holders.length === 0 ? "No rights holders have been added to this submission." : null,
-    track.rights_holders.length > 0 && !hasCompleteOwnership
-      ? `Rights holder ownership totals ${formatOwnershipPercent(totalOwnership)}%. It should equal 100%.`
-      : null,
-    activeLicenseOptions.length === 0 ? "No active license options are configured for buyer checkout." : null
-  ].filter((warning): warning is string => Boolean(warning));
+  const hasActiveLicense = track.license_options.some((option) => option.active !== false);
   const evidenceLink = "inline-flex min-h-11 items-center rounded-sm text-sm text-foreground underline decoration-muted-foreground/60 underline-offset-4 hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9";
 
   return (
@@ -48,14 +41,12 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
           <ArrowLeft className="size-4" aria-hidden="true" />
           {fromReviewQueue ? "Back to Track Submissions" : "Back to Track Management"}
         </Link>
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1">
+          <h1 className="col-span-2 row-start-1 text-xl font-semibold leading-snug tracking-tight [overflow-wrap:anywhere] sm:col-span-1 sm:col-start-2 sm:self-end sm:text-3xl">{track.title}</h1>
           <CoverArtwork coverArtUrl={track.cover_art_url} title={track.title} />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="min-w-0 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{track.title}</h1>
-              <TrackStatusBadge status={track.status} />
-            </div>
+          <div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:self-start">
             <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{track.artist_name} • {track.genre} • {track.subgenre}</p>
+            <TrackStatusBadge status={track.status} />
           </div>
         </div>
         <nav aria-label="Track evidence" className="flex flex-wrap gap-x-4">
@@ -63,20 +54,8 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
           <Link className={evidenceLink} href={fromReviewQueue ? catalogReviewHref(track.id, queueContext, true) : "/admin/catalog?track=" + track.id} aria-label="Catalog review and publication">Catalog review</Link>
           {mediaSubmission && <Link className={evidenceLink} href={"/admin/media?draft=" + mediaSubmission} aria-label="Inspect media in Media Operations">Inspect media</Link>}
         </nav>
-        <div className="flex min-w-0 flex-wrap items-start gap-x-4 gap-y-2">
-          {reviewWarnings.length > 0 && (
-            <ul className="min-w-0 space-y-1 rounded-md border border-destructive/25 bg-destructive/10 px-2.5 py-2 text-sm text-destructive">
-              {reviewWarnings.map((warning) => (
-                <li key={warning} className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                  <span>{warning}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <TrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={totalOwnership}
-            className="space-y-1.5 [&_button]:min-h-11 sm:[&_button]:min-h-9" />
-        </div>
+        <CheckedTrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={totalOwnership}
+          className="space-y-1.5 [&_button]:min-h-11 sm:[&_button]:min-h-9" />
       </header>
 
       {reviewMedia.status === "ready" ? (
@@ -87,6 +66,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
           waveformUrl={reviewMedia.waveformUrl}
           selection={reviewMedia.selection}
           readOnly
+          presentation="admin-review"
         />
       ) : (
         <Card>
@@ -140,7 +120,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
                   variant={hasCompleteOwnership ? "default" : "outline"}
                   className={hasCompleteOwnership ? undefined : "border-destructive/30 text-destructive"}
                 >
-                  {hasCompleteOwnership ? "Balanced" : "Review Required"}
+                  {hasCompleteOwnership ? "Balanced" : "Total differs from 100%"}
                 </Badge>
               </div>
               {track.rights_holders.length ? (
@@ -176,6 +156,9 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
           <Card>
             <CardHeader>
               <CardTitle>License Options</CardTitle>
+              {!hasActiveLicense && <CardDescription>
+                Buyer checkout and catalog publication require an eligible license option. Track approval has a separate rights check.
+              </CardDescription>}
             </CardHeader>
             <CardContent className="space-y-4">
               {track.license_options.length ? (
@@ -198,7 +181,7 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
                 ))
               ) : (
                 <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  No license options were configured for this track.
+                  No active license options are configured for buyers.
                 </div>
               )}
             </CardContent>
@@ -282,9 +265,9 @@ export default async function AdminTrackDetailPage(props: { params: Promise<{ id
 
 function CoverArtwork({ coverArtUrl, title }: { coverArtUrl?: string | null; title: string }) {
   return (
-    <div className="relative aspect-square size-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted sm:size-16 lg:size-20">
+    <div className="relative col-start-1 row-start-2 aspect-square size-10 overflow-hidden rounded-md border border-border bg-muted sm:row-span-2 sm:row-start-1 sm:size-16 lg:size-20">
       {coverArtUrl ? (
-        <Image src={coverArtUrl} alt={`${title} cover artwork`} fill sizes="(min-width: 1024px) 80px, (min-width: 640px) 64px, 56px" className="object-cover" priority />
+        <Image src={coverArtUrl} alt={`${title} cover artwork`} fill sizes="(min-width: 1024px) 80px, (min-width: 640px) 64px, 40px" className="object-cover" priority />
       ) : (
         <div className="flex h-full items-center justify-center">
           <Music4 className="size-6 text-muted-foreground" aria-hidden="true" />

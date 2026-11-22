@@ -2,6 +2,34 @@ import {expect} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
 
+async function verifyAdminHeader(page, origin) {
+ const header=page.locator('header').filter({has:page.getByRole('link',{name:'Account security',exact:true})});
+ const account=header.getByRole('link',{name:'Account security',exact:true});
+ const home=header.getByRole('link',{name:'The Sync Exchange home',exact:true});
+ for(const [width,height] of [[320,844],[390,844],[820,1024],[1024,900],[1440,1000]]){
+  await page.setViewportSize({width,height});
+  await expect(account).toBeVisible();
+  if(width<=820){
+   const logoBox=await home.boundingBox();
+   const accountBox=await account.boundingBox();
+   assert.ok(logoBox&&accountBox&&logoBox.x+logoBox.width<=accountBox.x,
+    `${width}px Admin home and account hit areas overlap`);
+  }
+ }
+ await page.setViewportSize({width:320,height:844});
+ await home.press('Tab');
+ await expect(account).toBeFocused();
+ await account.press('Enter');
+ await expect(page).toHaveURL(origin+'/account/security');
+ await page.goBack();
+ const menu=page.getByRole('button',{name:'Open Admin navigation',exact:true});
+ await menu.press('Space');
+ await expect(page.getByRole('dialog',{name:'Admin navigation'})).toBeVisible();
+ await page.keyboard.press('Escape');
+ await expect(menu).toBeFocused();
+ await page.setViewportSize({width:1440,height:1000});
+}
+
 // Intercept only list reads. Authentication, navigation and later workflows use the local fixture.
 export async function verifyCatalogQueue({page,origin,track,output,name,fixture}) {
  const url=origin+'/admin/review-queue?view=catalog';
@@ -28,6 +56,7 @@ export async function verifyCatalogQueue({page,origin,track,output,name,fixture}
  // Establish that the actual SQL-backed request returns the fixture's submitted record.
  await page.goto(url);
  await expect(page.getByRole('link',{name:'Open review for live',exact:true})).toBeVisible();
+ await verifyAdminHeader(page,origin);
  await page.route('**/api/catalog',handler);
  try {
   await page.reload();

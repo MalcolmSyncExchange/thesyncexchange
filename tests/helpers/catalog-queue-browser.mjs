@@ -419,6 +419,18 @@ export async function verifyTrackDecision({page,origin,output,name,fixture}) {
    await expect(page.getByRole('status').filter({hasText:'Track approved.'})).toHaveCount(0);
    assert.equal(await status(),'pending_review');
    if(total===0){
+    const card=page.locator('article').filter({has:approve});
+    const actionsHeading=page.getByText('Actions',{exact:true});
+    const statusHeading=page.getByText('Status and rights',{exact:true});
+    const openRecord=card.getByRole('link',{name:/Open record for/});
+    const warning=card.getByText('Approval blocked · 0% ownership declared',{exact:true});
+    await expect(actionsHeading).toBeVisible();
+    await expect(statusHeading).toBeVisible();
+    const [recordBounds,actionBounds,openBounds,statusBounds,warningBounds]=await Promise.all(
+     [card,actionsHeading,openRecord,statusHeading,warning].map(locator=>locator.boundingBox()));
+    assert.ok(recordBounds.height>=80&&recordBounds.height<=105,'ordinary desktop Track row height');
+    assert.ok(Math.abs(openBounds.x-actionBounds.x)<=1,'Open Record aligns with Actions');
+    assert.ok(Math.abs(warningBounds.x-statusBounds.x)<=1,'warning aligns with Status and rights');
     await captureQueue(page,output,name,'approval-blocked');
     const rights=page.getByRole('link',{name:'Review rights',exact:true});
     await page.getByRole('link',{name:/Open record for/}).press('Tab');
@@ -513,7 +525,8 @@ export async function verifyTrackDecision({page,origin,output,name,fixture}) {
   await recheck.press('Tab');
   await expect(evidence).toBeFocused();
   assert.ok((await evidence.boundingBox()).y>=(await recheck.boundingBox()).y);
-  await recheck.click();
+  await Promise.all([page.waitForEvent('load'),recheck.click()]);
+  await expect(page.getByRole('button',{name:'Toggle color theme'})).toHaveAttribute('title',/^Switch to (dark|light) mode$/);
   await expect(approve).toBeEnabled();
   await page.getByTestId(`reject-track-${id}`).press('Enter');
   await expect(page.getByRole('status').filter({hasText:'Track rejected.'})).toBeVisible();

@@ -11,7 +11,8 @@ import { CheckedTrackReviewActions } from "@/components/admin/checked-track-revi
 import { FlagSeverityBadge, TrackStatusBadge, VerificationStatusBadge } from "@/components/shared/state-badges";
 import { Badge } from "@/components/ui/badge";
 import { trackReviewHref, type CatalogQueueContext } from "@/lib/admin/review-queue-navigation";
-import { formatDateTime, formatDuration } from "@/lib/utils";
+import { cn, formatDateTime, formatDuration } from "@/lib/utils";
+import queueStyles from "./review-queue-table.module.css";
 import type { AdminFlagSeverity, TrackStatus, VerificationStatus } from "@/types/models";
 
 export interface ReviewQueueTrackCardData {
@@ -61,23 +62,23 @@ export function ReviewQueueCard({
   const recordLabel = `Open record for ${track.title}`;
 
   return (
-    <article className="grid min-w-0 gap-1.5 rounded-lg border border-border bg-card px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 lg:gap-2">
-      <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_fit-content(50%)] sm:items-center sm:gap-x-4">
-        <div className="flex min-w-0 items-start gap-3">
+    <article className={cn(queueStyles.row, "grid min-w-0 gap-1.5 rounded-lg border border-border bg-card px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 lg:gap-2")}>
+      <div className={cn(queueStyles.identityBand, "grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_fit-content(50%)] sm:items-center sm:gap-x-4")}>
+        <div className={cn(queueStyles.record, "flex min-w-0 items-start gap-3")}>
           <Artwork coverArtUrl={track.cover_art_url} title={track.title} />
           <div className="min-w-0">
             <h3 className="font-semibold leading-tight [overflow-wrap:anywhere]">{track.title}</h3>
             <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{track.artist_name}</p>
           </div>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-1.5 sm:justify-end sm:gap-2">
-          <div className="flex min-w-0 flex-wrap gap-1.5">
+        <div className={cn(queueStyles.badgeActions, "flex min-w-0 flex-wrap items-center justify-between gap-1.5 sm:justify-end sm:gap-2")}>
+          <div className={cn(queueStyles.badges, "flex min-w-0 flex-wrap gap-1.5")}>
             <TrackStatusBadge status={track.status} />
             {!compact && <VerificationStatusBadge status={track.verification_status} />}
             {track.featured && <Badge variant="outline">Featured</Badge>}
             {hasFlags && track.highest_flag_severity && <FlagSeverityBadge severity={track.highest_flag_severity} />}
           </div>
-          <Button asChild size="sm" className="ml-auto min-h-11 shrink-0 px-2 sm:min-h-10 sm:px-3">
+          <Button asChild size="sm" className={cn(queueStyles.openRecord, "ml-auto min-h-11 shrink-0 px-2 sm:min-h-10 sm:px-3")}>
             {reviewQueueContext ? (
               <ReviewQueueRecordLink href={detailHref} record={track.id} tab="track" context={reviewQueueContext} aria-label={recordLabel}>
                 Open Record <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -90,7 +91,7 @@ export function ReviewQueueCard({
       </div>
 
       <TrackQueueReviewBand actions={
-        <CheckedTrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={ownershipTotal} layout="queue" />
+        <CheckedTrackReviewActions trackId={track.id} status={track.status} featured={track.featured} ownershipTotal={ownershipTotal} declaredOwnership={ownershipTotal} layout="queue" />
       }>
         <p className="mb-1.5 text-xs text-muted-foreground">Submitted {formatDateTime(track.created_at)}</p>
         <div className="mb-2 flex flex-wrap gap-1.5">

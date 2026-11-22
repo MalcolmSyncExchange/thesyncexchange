@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowRight } from "lucide-react";
 import { RetryTrackSubmissions } from "@/components/admin/retry-track-submissions";
 import { ReviewQueuePosition } from "@/components/admin/review-queue-position";
 import { ReviewQueueCard } from "@/components/admin/review-queue-card";
+import queueStyles from "@/components/admin/review-queue-table.module.css";
 import { AdminCatalogReviewQueue, ReviewQueueNavigation } from "@/components/admin/review-queue-navigation";
 import { TrackQueueDecisionFeedback } from "@/components/admin/track-review-actions";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +74,16 @@ async function TrackSubmissions({ context }: { context: CatalogQueueContext }) {
       </div>
       <TrackQueueDecisionFeedback>
         {tracks.length ? (
-          tracks.map((track) => <ReviewQueueCard key={track.id} track={track} reviewQueueContext={context} />)
+          <div className={queueStyles.queue}>
+            <div className={queueStyles.list}>
+              <div className={queueStyles.columns} aria-hidden="true">
+                <span>Record</span>
+                <span>Status and rights</span>
+                <span>Actions</span>
+              </div>
+              {tracks.map((track) => <ReviewQueueCard key={track.id} track={track} reviewQueueContext={context} />)}
+            </div>
+          </div>
         ) : (
           <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4">
             <p className="font-semibold text-foreground">The submission queue is clear.</p>

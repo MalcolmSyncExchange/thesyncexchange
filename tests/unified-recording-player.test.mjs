@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {setImmediate as settlePlayback} from 'node:timers/promises';
+import ts from 'typescript';
+import {masterRequest,renderRecordingPlayer,signedMaster} from './helpers/recording-player-harness.mjs';
 import {previewSelection,recordingSelection,selectionFromDrag,matchesSelection,playbackBounds,seekPlayback} from '../lib/media/preview-selection.mjs';
 
 test('long recordings retain exactly thirty seconds with precise worker-compatible boundaries',()=>{
@@ -57,31 +60,83 @@ test('one full waveform and native audio engine preserve security, cancellation 
  const bars=readFileSync(new URL('../components/audio/validated-waveform.tsx',import.meta.url),'utf8');assert.doesNotMatch(bars,/styles.peakCaps|styles.centerline/);assert.match(bars,/useMemo/);
 });
 
-test('recording warmup defaults on and gates viewport, pointer and focus triggers',()=>{
- const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
- assert.match(ui,/function RecordingPlayer\(\{[^}]*preauthorize\s*=\s*true/);
- assert.match(ui,/if\(!preauthorize\|\|[^;]+\)return;\s*const observer=new IntersectionObserver/);
- assert.match(ui,/document.visibilityState==='visible'&&entries.some\(entry=>entry.isIntersecting\)\)\{session.warm\(\);observer.disconnect\(\);/);
- assert.match(ui,/const warmPlayback=preauthorize\?session.warm:undefined/);
+function recordingPlayerAttributes(path){
+ const file=ts.createSourceFile(path,readFileSync(new URL(path,import.meta.url),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+ const players=[];
+ function visit(node){
+  if((ts.isJsxOpeningElement(node)||ts.isJsxSelfClosingElement(node))&&ts.isIdentifier(node.tagName)&&node.tagName.text==='RecordingPlayer'){
+   players.push(node.attributes.properties);
+  }
+  ts.forEachChild(node,visit);
+ }
+ visit(file);
+ assert.equal(players.length,1,path);
+ assert.ok(players[0].every(ts.isJsxAttribute),'Playback configuration must be verifiable on the whole JSX element');
+ return players[0];
+}
 
- // Both playback modes must use the guarded handler for hover and focus.
- const buttons=[...ui.matchAll(/<button\b[^\n]*onClick=\{\(\)=>void play\('(full|selection)'\)\}/g)];
- assert.deepEqual(buttons.map(([,mode])=>mode),['full','selection']);
- for(const [button,mode] of buttons){
-  assert.match(button,/onPointerEnter=\{warmPlayback\}/,mode);
-  assert.match(button,/onFocus=\{warmPlayback\}/,mode);
+test('Admin Track Detail opts out while the shared workbench inherits the default',()=>{
+ const detail=recordingPlayerAttributes('../app/(app)/admin/tracks/[id]/page.tsx');
+ const optOut=detail.find(attribute=>attribute.name.getText()==='preauthorize')?.initializer;
+ assert.ok(optOut&&ts.isJsxExpression(optOut)&&optOut.expression?.kind===ts.SyntaxKind.FalseKeyword);
+ const workbench=recordingPlayerAttributes('../components/artist/uploads/upload-workbench.tsx');
+ assert.ok(workbench.every(attribute=>attribute.name.getText()!=='preauthorize'));
+});
+
+const playbackLabels=['Play Full Track','Play Public Preview'];
+
+test('Admin player signs only after explicit playback, including when already visible',async()=>{
+ for(const label of playbackLabels){
+  const player=renderRecordingPlayer({preauthorize:false,readOnly:true,presentation:'admin-review'});
+  try{
+   assert.deepEqual(player.requests,[],'render');
+   player.mount();
+   assert.deepEqual(player.requests,[],'activation before intersection or input');
+   player.intersect(true);
+   assert.deepEqual(player.requests,[],'viewport entry');
+   for(const play of playbackLabels){
+    const button=player.button(play);
+    button.onPointerEnter?.();
+    assert.deepEqual(player.requests,[],play+' hover');
+    button.onFocus?.();
+    assert.deepEqual(player.requests,[],play+' focus');
+   }
+
+   player.button(label).onClick();
+   await settlePlayback();
+   assert.deepEqual(player.requests,[masterRequest],label);
+   assert.equal(player.audio.src,signedMaster);
+   assert.equal(player.audio.paused,false);
+  }finally{
+   player.unmount();
+  }
  }
 });
 
-test('Admin Track Detail opts out of warmup while explicit playback still authorizes',()=>{
- const detail=readFileSync(new URL('../app/(app)/admin/tracks/[id]/page.tsx',import.meta.url),'utf8');
- const workbench=readFileSync(new URL('../components/artist/uploads/upload-workbench.tsx',import.meta.url),'utf8');
- const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
- assert.match(detail,/<RecordingPlayer\b[^>]*\bpreauthorize=\{false\}/);
- assert.match(workbench,/<RecordingPlayer\b/);
- assert.doesNotMatch(workbench,/<RecordingPlayer\b[^\n]*\bpreauthorize=/,
-  'Artist Studio and Admin Media Operations inherit the shared default');
- assert.match(ui,/async function play\([^]*?else\{\s*url=await session.get\(\);/);
+test('default player preauthorizes on viewport entry, hover or focus and reuses it on play',async()=>{
+ const intents=[
+  ['viewport entry',player=>player.intersect(true),'Play Full Track'],
+  ...playbackLabels.flatMap(label=>['onPointerEnter','onFocus'].map(event=>[
+   label+' '+event,player=>player.button(label)[event]?.(),label
+  ]))
+ ];
+ for(const [name,interact,label] of intents){
+  const player=renderRecordingPlayer();
+  try{
+   player.mount();
+   player.intersect(false);
+   assert.deepEqual(player.requests,[],'before '+name);
+   interact(player);
+   assert.deepEqual(player.requests,[masterRequest],name);
+
+   player.button(label).onClick();
+   await settlePlayback();
+   assert.deepEqual(player.requests,[masterRequest],name+' followed by playback');
+   assert.equal(player.audio.paused,false);
+  }finally{
+   player.unmount();
+  }
+ }
 });
 
 test('full waveform seeks leave preview mode without changing selection',()=>{

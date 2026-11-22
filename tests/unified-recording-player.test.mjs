@@ -45,8 +45,6 @@ test('one full waveform and native audio engine preserve security, cancellation 
  assert.equal((ui.match(/<ValidatedWaveform /g)||[]).length,1);assert.equal((ui.match(/<audio /g)||[]).length,1);
  for(const text of ['Play Full Track','Play Public Preview','Listen to Public Preview','Preview region start','Waveform timeline','onKeyDown={timelineKey}','onKeyDown={regionKey}','Recording playback position','onPointerCancel','onLostPointerCapture','setPointerCapture','clearTimeout(endTimer.current)','prefers-reduced-motion','!dirty','onSelectionDirty','onRegionChange'])assert.ok(ui.includes(text),text);
  assert.doesNotMatch(ui,/>Accept Public Preview</);assert.match(ui,/Your selection saves automatically/);
- assert.match(ui,/new IntersectionObserver/);assert.match(ui,/observer.disconnect/);assert.match(ui,/document.visibilityState==='visible'/);
- assert.match(ui,/onPointerEnter=\{session.warm\}/);assert.match(ui,/url=await session.get\(\)/);
  // Signed Storage ranges may use application/octet-stream; CORS media loading
  // avoids opaque-response blocking without sending cross-origin cookies.
  assert.match(ui,/<audio[^>]*crossOrigin="anonymous"/);
@@ -57,6 +55,33 @@ test('one full waveform and native audio engine preserve security, cancellation 
  assert.match(ui,/showPlayhead=\{false\}/);
  assert.doesNotMatch(ui,/decodeAudioData|createObjectURL|Math.random|service_role/);
  const bars=readFileSync(new URL('../components/audio/validated-waveform.tsx',import.meta.url),'utf8');assert.doesNotMatch(bars,/styles.peakCaps|styles.centerline/);assert.match(bars,/useMemo/);
+});
+
+test('recording warmup defaults on and gates viewport, pointer and focus triggers',()=>{
+ const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
+ assert.match(ui,/function RecordingPlayer\(\{[^}]*preauthorize\s*=\s*true/);
+ assert.match(ui,/if\(!preauthorize\|\|[^;]+\)return;\s*const observer=new IntersectionObserver/);
+ assert.match(ui,/document.visibilityState==='visible'&&entries.some\(entry=>entry.isIntersecting\)\)\{session.warm\(\);observer.disconnect\(\);/);
+ assert.match(ui,/const warmPlayback=preauthorize\?session.warm:undefined/);
+
+ // Both playback modes must use the guarded handler for hover and focus.
+ const buttons=[...ui.matchAll(/<button\b[^\n]*onClick=\{\(\)=>void play\('(full|selection)'\)\}/g)];
+ assert.deepEqual(buttons.map(([,mode])=>mode),['full','selection']);
+ for(const [button,mode] of buttons){
+  assert.match(button,/onPointerEnter=\{warmPlayback\}/,mode);
+  assert.match(button,/onFocus=\{warmPlayback\}/,mode);
+ }
+});
+
+test('Admin Track Detail opts out of warmup while explicit playback still authorizes',()=>{
+ const detail=readFileSync(new URL('../app/(app)/admin/tracks/[id]/page.tsx',import.meta.url),'utf8');
+ const workbench=readFileSync(new URL('../components/artist/uploads/upload-workbench.tsx',import.meta.url),'utf8');
+ const ui=readFileSync(new URL('../components/audio/recording-player.tsx',import.meta.url),'utf8');
+ assert.match(detail,/<RecordingPlayer\b[^>]*\bpreauthorize=\{false\}/);
+ assert.match(workbench,/<RecordingPlayer\b/);
+ assert.doesNotMatch(workbench,/<RecordingPlayer\b[^\n]*\bpreauthorize=/,
+  'Artist Studio and Admin Media Operations inherit the shared default');
+ assert.match(ui,/async function play\([^]*?else\{\s*url=await session.get\(\);/);
 });
 
 test('full waveform seeks leave preview mode without changing selection',()=>{

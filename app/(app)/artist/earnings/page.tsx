@@ -1,18 +1,111 @@
-import { getAccountingReport } from "@/services/finance/reports";
-import { getArtistFinancialOverview } from "@/services/finance/artist-overview";
+import Link from "next/link";
+import { ArrowUpRight, Info, Landmark } from "lucide-react";
+
 import { EarningsReport } from "@/components/finance/earnings-report";
 import { SubscriptionStatus } from "@/components/finance/subscription-status";
+import styles from "@/components/finance/artist-finances.module.css";
 import { formatMinor } from "@/lib/finance/accounting.mjs";
+import { getArtistFinancialOverview } from "@/services/finance/artist-overview";
+import { getAccountingReport } from "@/services/finance/reports";
+
 export const dynamic = "force-dynamic";
-export default async function EarningsPage({searchParams}:{searchParams:Promise<{page?:string}>}) {
-  const p=(await searchParams).page, page=p&&/^[1-9][0-9]{0,3}$/.test(p)?Number(p):1;
-  const [report,overview]=await Promise.all([getAccountingReport("artist",page),getArtistFinancialOverview()]);
-  return <div className="space-y-8"><header><p className="text-sm uppercase tracking-widest text-muted-foreground">Artist workspace</p><h1 className="mt-2 text-3xl font-semibold">Financial overview</h1><p className="mt-3 text-muted-foreground">Your recorded licensing earnings, statements and payout history.</p></header>
-    <section aria-label="Recorded earnings across all transactions" className="space-y-4"><h2 className="text-xl font-semibold">Recorded earnings</h2><p className="text-sm text-muted-foreground">TEST accounting across your recorded transactions. Net earned reflects allocations after reversals. Unposted amounts may include pending or failed payments and are not earnings. Currencies remain separate.</p>
-    {overview.state!=="available"?<p role="status">All-transaction totals are unavailable: the account has more than 50 recorded transactions. Review the paginated transaction history below.</p>:overview.totals.length?overview.totals.map(row=><dl key={row.currency} className="grid gap-5 rounded-xl border border-border bg-card p-6 grid-cols-2 lg:grid-cols-4">{[["Net earned",row.earnedMinor],["Unposted allocations (not earned)",row.pendingMinor],["Held / reserved",row.heldMinor],["Refunds and losses",row.lossesMinor],["Recovery required",row.recoveryMinor],["TSE commissions on managed sales",row.commissionMinor],["Actual paid",row.paidMinor],["Available earnings",row.availableMinor]].map(([label,value])=><div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-2 break-words text-xl font-semibold">{formatMinor(value,row.currency)}</dd></div>)}</dl>):<p>No recorded allocations. No currency or balance has been inferred.</p>}
-    <p className="rounded-lg border p-4">Payouts and withdrawals are unavailable. Payout simulations do not represent completed bank payments.</p></section>
-    <SubscriptionStatus/>
-    <section className="space-y-3"><h2 className="text-xl font-semibold">Financial statements</h2><p>Download the current transaction page. Amounts use the original currency’s minor units; the export is TEST accounting evidence.</p><a className="inline-flex min-h-11 items-center rounded-lg border px-4 underline" href={`/api/artist/financial-statement?page=${page}`}>Download statement — page {page}</a></section>
-    <EarningsReport report={report}/>
-  </div>;
+
+const balanceFields = [
+  ["Unposted allocations", "pendingMinor"],
+  ["Held or reserved", "heldMinor"],
+  ["Paid to you", "paidMinor"],
+] as const;
+
+const adjustmentFields = [
+  ["Available earnings", "availableMinor"],
+  ["Refunds and losses", "lossesMinor"],
+  ["Recovery required", "recoveryMinor"],
+  ["Platform fees on managed sales", "commissionMinor"],
+] as const;
+
+function Balance({ amounts }: { amounts: Record<string, string> }) {
+  return (
+    <div className={styles.currencyBalance}>
+      <div className={styles.balanceLead}>
+        <span>Your net earnings</span>
+        <strong className={styles.balanceAmount}>{formatMinor(amounts.earnedMinor, amounts.currency)}</strong>
+      </div>
+      <dl className={styles.balanceMetrics}>
+        {balanceFields.map(([label, field]) => (
+          <div key={field}>
+            <dt>{label}</dt>
+            <dd>{formatMinor(amounts[field], amounts.currency)}</dd>
+          </div>
+        ))}
+      </dl>
+      <details className={styles.balanceDetails}>
+        <summary>See balance breakdown</summary>
+        <dl className={styles.balanceMetrics}>
+          {adjustmentFields.map(([label, field]) => (
+            <div key={field}>
+              <dt>{label}</dt>
+              <dd>{formatMinor(amounts[field], amounts.currency)}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
+    </div>
+  );
+}
+
+export default async function EarningsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+  const { page: requestedPage } = await searchParams;
+  const page = requestedPage && /^[1-9][0-9]{0,3}$/.test(requestedPage) ? Number(requestedPage) : 1;
+  const [report, overview] = await Promise.all([
+    getAccountingReport("artist", page),
+    getArtistFinancialOverview(),
+  ]);
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.pageHeader}>
+        <div>
+          <h1>Finances</h1>
+          <p>Track your licensing earnings and download statements.</p>
+        </div>
+        <Link className={styles.outlineButton} href="/artist/payout-settings">
+          <Landmark aria-hidden="true" /> Payout settings <ArrowUpRight className={styles.actionArrow} aria-hidden="true" />
+        </Link>
+      </header>
+
+      <section className={styles.overview} aria-labelledby="recorded-earnings">
+        <div className={styles.overviewHeading}>
+          <h2 id="recorded-earnings">Recorded earnings</h2>
+          <span className={styles.testLabel}>Test accounting</span>
+        </div>
+        {overview.state === "limited" ? (
+          <div className={styles.noBalance}>
+            <strong>All-transaction totals unavailable</strong>
+            <p>Review individual amounts in Activity. This account has more than 50 recorded transactions.</p>
+          </div>
+        ) : overview.totals.length ? (
+          overview.totals.map(amounts => <Balance key={amounts.currency} amounts={amounts} />)
+        ) : (
+          <div className={styles.noBalance}>
+            <strong>No recorded earnings</strong>
+            <p>Your share of licensing transactions will appear here when accounting records are available.</p>
+          </div>
+        )}
+        {overview.state === "available" && overview.totals.length > 0 && (
+          <p className={styles.balanceNote}>
+            Net earnings reflect posted allocations after reversals. Unposted allocations may include pending or failed payments. Each currency is shown separately.
+          </p>
+        )}
+      </section>
+
+      <aside className={styles.payoutNotice} aria-label="Payout availability">
+        <Info aria-hidden="true" />
+        <p><strong>Payouts and withdrawals are unavailable.</strong> Test activity does not move money to your bank.</p>
+      </aside>
+
+      <EarningsReport report={report} />
+
+      <SubscriptionStatus />
+    </div>
+  );
 }
